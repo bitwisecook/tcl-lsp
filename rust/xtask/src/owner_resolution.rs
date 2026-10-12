@@ -35,6 +35,21 @@ const MAKEFILE_PATH: &str = "Makefile";
 const XTASK_MAIN_PATH: &str = "rust/xtask/src/main.rs";
 const START_MARKER: &str = "<!-- owner-resolution-manifest -->";
 const END_MARKER: &str = "<!-- end-owner-resolution-manifest -->";
+const INTERNAL_START: &str = "<!-- owner-resolution-internal-manifest -->";
+const INTERNAL_END: &str = "<!-- end-owner-resolution-internal-manifest -->";
+
+#[derive(Debug, PartialEq, Eq)]
+struct InternalOwnerRow {
+    surface: String,
+    source: String,
+    crate_name: String,
+    module: String,
+    entry: String,
+    consumer_source: String,
+    consumer_module: String,
+    consumer_entry: String,
+    receiver: String,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct OwnerRow {
@@ -282,6 +297,7 @@ fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &s
             }
         }
     }
+    problems.extend(validate_internal_manifest(root, contract));
     problems
 }
 
@@ -1593,6 +1609,407 @@ fn parse_manifest(markdown: &str) -> Result<Vec<OwnerRow>, String> {
     Ok(rows)
 }
 
+fn parse_internal_manifest(markdown: &str) -> Result<Vec<InternalOwnerRow>, String> {
+    let Some((_, tail)) = markdown.split_once(INTERNAL_START) else {
+        return if markdown.contains(INTERNAL_END) {
+            Err(format!("missing `{INTERNAL_START}`"))
+        } else {
+            Ok(Vec::new())
+        };
+    };
+    if markdown.matches(INTERNAL_START).count() != 1 || markdown.matches(INTERNAL_END).count() != 1
+    {
+        return Err("internal owner manifest requires one matched marker pair".to_owned());
+    }
+    let (body, _) = tail
+        .split_once(INTERNAL_END)
+        .ok_or_else(|| format!("missing `{INTERNAL_END}`"))?;
+    let mut rows = Vec::new();
+    for line in body.lines() {
+        let cells = split_row(line);
+        if cells.is_empty() || cells[0] == "Surface" || cells.iter().all(|cell| *cell == "---") {
+            continue;
+        }
+        if cells.len() != 10 || cells[0].is_empty() || cells[5] != "crate" {
+            return Err(format!(
+                "internal owner row requires ten columns and explicit supported scope `crate`: `{line}`"
+            ));
+        }
+        rows.push(InternalOwnerRow {
+            surface: cells[0].to_owned(),
+            source: single_code_token(cells[1])?,
+            crate_name: single_code_token(cells[2])?,
+            module: single_code_token(cells[3])?,
+            entry: single_code_token(cells[4])?,
+            consumer_source: single_code_token(cells[6])?,
+            consumer_module: single_code_token(cells[7])?,
+            consumer_entry: single_code_token(cells[8])?,
+            receiver: single_code_token(cells[9])?,
+        });
+    }
+    if rows.is_empty() {
+        return Err("internal owner manifest has no rows".to_owned());
+    }
+    Ok(rows)
+}
+
+fn single_code_token(cell: &str) -> Result<String, String> {
+    match code_tokens(cell).as_slice() {
+        [value] => Ok(value.clone()),
+        _ => Err(format!(
+            "internal owner cell requires one backticked value: `{cell}`"
+        )),
+    }
+}
+
+struct InternalModule {
+    crate_root: std::path::PathBuf,
+    crate_name: String,
+    file: syn::File,
+}
+
+fn read_internal_module(root: &Path, source: &str, module: &str) -> Result<InternalModule, String> {
+    let module_name = module
+        .strip_prefix("crate::")
+        .filter(|name| syn::parse_str::<syn::Ident>(name).is_ok())
+        .ok_or_else(|| format!("unsupported internal module route `{module}`"))?;
+    let path = Path::new(source);
+    let crate_root = path
+        .parent()
+        .filter(|parent| parent.file_name().is_some_and(|name| name == "src"))
+        .and_then(Path::parent)
+        .ok_or_else(|| format!("internal source is not a direct crate file module: `{source}`"))?;
+    if path != crate_root.join("src").join(format!("{module_name}.rs")) {
+        return Err(format!(
+            "internal source `{source}` does not implement `{module}`"
+        ));
+    }
+    let load = |path: &Path| -> Result<String, String> {
+        std::fs::read_to_string(root.join(path))
+            .map_err(|error| format!("{}: {error}", path.display()))
+    };
+    let manifest = load(&crate_root.join("Cargo.toml"))?;
+    let crate_name = manifest
+        .split_once("[package]")
+        .and_then(|(_, package)| package.split('[').next())
+        .and_then(|package| {
+            package.lines().find_map(|line| {
+                let (key, value) = line.split_once('=')?;
+                (key.trim() == "name")
+                    .then(|| value.trim().strip_prefix('"')?.strip_suffix('"'))
+                    .flatten()
+            })
+        })
+        .ok_or_else(|| format!("missing literal Cargo package name for `{source}`"))?;
+    let lib = syn::parse_file(&load(&crate_root.join("src/lib.rs"))?)
+        .map_err(|error| format!("internal crate module route: {error}"))?;
+    if !file_attrs_preserve_routes(&lib.attrs) {
+        return Err("conditional or unsupported crate-root attributes".to_owned());
+    }
+    let mut routes = lib.items.iter().filter_map(|item| match item {
+        syn::Item::Mod(item) if item.ident == module_name => Some(item),
+        _ => None,
+    });
+    let route = routes
+        .next()
+        .filter(|item| item.content.is_none() && route_attrs_are_plain(&item.attrs));
+    if route.is_none() || routes.next().is_some() {
+        return Err(format!(
+            "`{module}` requires one unconditional direct lib.rs file-module route"
+        ));
+    }
+    let file = syn::parse_file(&load(path)?).map_err(|error| format!("{source}: {error}"))?;
+    Ok(InternalModule {
+        crate_root: crate_root.to_owned(),
+        crate_name: crate_name.to_owned(),
+        file,
+    })
+}
+
+fn validate_internal_manifest(root: &Path, markdown: &str) -> Vec<String> {
+    let rows = match parse_internal_manifest(markdown) {
+        Ok(rows) => rows,
+        Err(problem) => return vec![problem],
+    };
+    rows.iter()
+        .filter_map(|row| {
+            let checked = (|| {
+                let owner = read_internal_module(root, &row.source, &row.module)?;
+                let consumer =
+                    read_internal_module(root, &row.consumer_source, &row.consumer_module)?;
+                if !internal_entry_is_accessible(row, &owner, &consumer) {
+                    return Err(
+                        "crate/type/method scope or typed receiver route does not resolve"
+                            .to_owned(),
+                    );
+                }
+                Ok(())
+            })();
+            checked
+                .err()
+                .map(|problem| format!("internal owner `{}`: {problem}", row.surface))
+        })
+        .collect()
+}
+
+fn crate_accessible(visibility: &syn::Visibility) -> bool {
+    exported(visibility)
+        || matches!(visibility, syn::Visibility::Restricted(scope)
+            if scope.path.is_ident("crate") || scope.path.is_ident("super"))
+}
+
+fn passive_file_meta(meta: &syn::Meta) -> bool {
+    ["doc", "allow", "warn", "deny", "forbid", "expect"]
+        .iter()
+        .any(|name| meta.path().is_ident(name))
+}
+
+fn file_attrs_preserve_routes(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().all(|attr| {
+        if passive_file_meta(&attr.meta) {
+            return true;
+        }
+        let syn::Meta::List(list) = &attr.meta else {
+            return false;
+        };
+        if !list.path.is_ident("cfg_attr") {
+            return false;
+        }
+        let Ok(arguments) = list.parse_args_with(
+            syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+        ) else {
+            return false;
+        };
+        arguments.len() >= 2 && arguments.iter().skip(1).all(passive_file_meta)
+    })
+}
+
+fn route_attrs_are_plain(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().all(|attr| attr.path().is_ident("doc"))
+}
+
+// Derives add implementations without replacing the declared type.
+fn type_attrs_are_plain(attrs: &[syn::Attribute]) -> bool {
+    attrs
+        .iter()
+        .all(|attr| attr.path().is_ident("doc") || attr.path().is_ident("derive"))
+}
+
+fn direct_method<'a>(file: &'a syn::File, entry: &str) -> Option<&'a syn::ImplItemFn> {
+    let (owner, name) = entry.split_once("::")?;
+    let mut methods = file.items.iter().filter_map(|item| match item {
+        syn::Item::Impl(item) if item.trait_.is_none()
+            && matches!(item.self_ty.as_ref(), syn::Type::Path(path) if path.path.is_ident(owner)) => Some(item),
+        _ => None,
+    }).flat_map(|implementation| {
+        implementation.items.iter().filter_map(move |item| match item {
+            syn::ImplItem::Fn(method) if method.sig.ident == name => Some((implementation, method)),
+            _ => None,
+        })
+    });
+    let (implementation, method) = methods.next()?;
+    (methods.next().is_none()
+        && route_attrs_are_plain(&implementation.attrs)
+        && route_attrs_are_plain(&method.attrs)
+        && implementation.generics.params.is_empty()
+        && method.sig.generics.params.is_empty()
+        && method
+            .sig
+            .receiver()
+            .is_some_and(|receiver| route_attrs_are_plain(&receiver.attrs)))
+    .then_some(method)
+}
+
+fn direct_type_visibility<'a>(file: &'a syn::File, ident: &str) -> Option<&'a syn::Visibility> {
+    if file
+        .items
+        .iter()
+        .any(|item| matches!(item, syn::Item::Type(item) if item.ident == ident))
+    {
+        return None;
+    }
+    let mut types = file.items.iter().filter_map(|item| match item {
+        syn::Item::Struct(item) if item.ident == ident => {
+            Some((&item.vis, &item.attrs, &item.generics))
+        }
+        syn::Item::Enum(item) if item.ident == ident => {
+            Some((&item.vis, &item.attrs, &item.generics))
+        }
+        _ => None,
+    });
+    let (visibility, attrs, generics) = types.next()?;
+    (types.next().is_none() && type_attrs_are_plain(attrs) && generics.params.is_empty())
+        .then_some(visibility)
+}
+
+fn internal_entry_is_accessible(
+    row: &InternalOwnerRow,
+    owner: &InternalModule,
+    consumer: &InternalModule,
+) -> bool {
+    if !file_attrs_preserve_routes(&owner.file.attrs)
+        || !file_attrs_preserve_routes(&consumer.file.attrs)
+        || owner.crate_root != consumer.crate_root
+        || owner.crate_name != row.crate_name
+        || consumer.crate_name != row.crate_name
+    {
+        return false;
+    }
+    let Some((owner_type, member)) = row.entry.split_once("::") else {
+        return false;
+    };
+    let Some(visibility) = direct_type_visibility(&owner.file, owner_type) else {
+        return false;
+    };
+    let Some((consumer_type, _)) = row.consumer_entry.split_once("::") else {
+        return false;
+    };
+    if direct_type_visibility(&consumer.file, consumer_type).is_none() {
+        return false;
+    }
+    let Some(method) = direct_method(&owner.file, &row.entry) else {
+        return false;
+    };
+    let Some(getter) = direct_method(&consumer.file, &row.receiver) else {
+        return false;
+    };
+    let Some(caller) = direct_method(&consumer.file, &row.consumer_entry) else {
+        return false;
+    };
+    if !crate_accessible(visibility)
+        || !crate_accessible(&method.vis)
+        || row.receiver.split_once("::").map(|(name, _)| name)
+            != row.consumer_entry.split_once("::").map(|(name, _)| name)
+        || getter.sig.inputs.len() != 1
+        || method.sig.inputs.len() != 1
+    {
+        return false;
+    }
+    receiver_returns_owner(getter, &consumer.file, &row.module, owner_type)
+        && caller.block.stmts.iter().any(|statement| {
+            let syn::Stmt::Local(local) = statement else {
+                return false;
+            };
+            if !route_attrs_are_plain(&local.attrs) {
+                return false;
+            }
+            let Some(init) = &local.init else {
+                return false;
+            };
+            let syn::Expr::MethodCall(call) = init.expr.as_ref() else {
+                return false;
+            };
+            let syn::Expr::MethodCall(receiver) = call.receiver.as_ref() else {
+                return false;
+            };
+            call.method == member
+                && call.args.is_empty()
+                && receiver.method == getter.sig.ident
+                && receiver.args.is_empty()
+                && route_attrs_are_plain(&call.attrs)
+                && route_attrs_are_plain(&receiver.attrs)
+                && matches!(receiver.receiver.as_ref(), syn::Expr::Path(path)
+                    if path.path.is_ident("self") && route_attrs_are_plain(&path.attrs))
+        })
+}
+
+fn receiver_returns_owner(
+    getter: &syn::ImplItemFn,
+    consumer: &syn::File,
+    module: &str,
+    owner: &str,
+) -> bool {
+    let syn::ReturnType::Type(_, result) = &getter.sig.output else {
+        return false;
+    };
+    let syn::Type::Path(result) = result.as_ref() else {
+        return false;
+    };
+    if result.qself.is_some() || result.path.segments.len() != 3 {
+        return false;
+    }
+    let mut segments = result.path.segments.iter();
+    if segments.next().is_none_or(|part| part.ident != "std")
+        || segments.next().is_none_or(|part| part.ident != "cell")
+    {
+        return false;
+    }
+    let Some(wrapper) = segments.next().filter(|part| part.ident == "Ref") else {
+        return false;
+    };
+    let syn::PathArguments::AngleBracketed(arguments) = &wrapper.arguments else {
+        return false;
+    };
+    let mut arguments = arguments.args.iter();
+    let Some(syn::GenericArgument::Lifetime(_)) = arguments.next() else {
+        return false;
+    };
+    let Some(syn::GenericArgument::Type(syn::Type::Path(target))) = arguments.next() else {
+        return false;
+    };
+    if arguments.next().is_some() {
+        return false;
+    }
+    if target.qself.is_some() || !target.path.is_ident(owner) {
+        return false;
+    }
+    let Some(module) = module.strip_prefix("crate::") else {
+        return false;
+    };
+    let declarations = consumer.items.iter().any(|item| match item {
+        syn::Item::Struct(item) => item.ident == owner,
+        syn::Item::Enum(item) => item.ident == owner,
+        syn::Item::Type(item) => item.ident == owner,
+        _ => false,
+    });
+    let mut import_count = 0;
+    let mut resolved = false;
+    for item in &consumer.items {
+        if let syn::Item::Use(item) = item {
+            let Some(count) = import_binding_count(&item.tree, owner) else {
+                return false;
+            };
+            if count > 0 && !route_attrs_are_plain(&item.attrs) {
+                return false;
+            }
+            import_count += count;
+            resolved |= direct_import(&item.tree, &["crate", module, owner]);
+        }
+        if matches!(item, syn::Item::Mod(item) if item.ident == "std")
+            || matches!(item, syn::Item::Use(item) if use_declares(&item.tree, "std"))
+            || matches!(item, syn::Item::ExternCrate(item) if item.rename.as_ref().is_some_and(|(_, name)| name == "std"))
+        {
+            return false;
+        }
+    }
+    !declarations && resolved && import_count == 1
+}
+
+fn import_binding_count(tree: &syn::UseTree, ident: &str) -> Option<usize> {
+    match tree {
+        syn::UseTree::Path(path) => import_binding_count(&path.tree, ident),
+        syn::UseTree::Name(name) => Some(usize::from(name.ident == ident)),
+        syn::UseTree::Rename(name) => Some(usize::from(name.rename == ident)),
+        syn::UseTree::Group(group) => group.items.iter().try_fold(0, |count, item| {
+            Some(count + import_binding_count(item, ident)?)
+        }),
+        syn::UseTree::Glob(_) => None,
+    }
+}
+
+fn direct_import(tree: &syn::UseTree, route: &[&str]) -> bool {
+    match (tree, route) {
+        (syn::UseTree::Path(path), [head, tail @ ..]) if path.ident == *head => {
+            direct_import(&path.tree, tail)
+        }
+        (syn::UseTree::Name(name), [ident]) => name.ident == *ident,
+        (syn::UseTree::Group(group), _) => {
+            group.items.iter().any(|item| direct_import(item, route))
+        }
+        _ => false,
+    }
+}
+
 fn split_row(line: &str) -> Vec<&str> {
     let trimmed = line.trim();
     if !trimmed.starts_with('|') || !trimmed.ends_with('|') {
@@ -1898,6 +2315,191 @@ mod tests {
                 axis: "invariant".to_owned(),
                 drift_gate: Some("xtask-example".to_owned()),
             }]
+        );
+    }
+
+    fn internal_manifest_row(scope: &str) -> String {
+        format!(
+            "{INTERNAL_START}\n| entry | `rust/sample/src/storage.rs` | `sample` | `crate::storage` | `Ledger::revision` | {scope} | `rust/sample/src/reader.rs` | `crate::reader` | `Reader::synchronise` | `Reader::ledger` |\n{INTERNAL_END}"
+        )
+    }
+
+    fn internal_fixture() -> (InternalOwnerRow, InternalModule, InternalModule) {
+        let row = parse_internal_manifest(&internal_manifest_row("crate"))
+            .expect("explicit crate row")
+            .remove(0);
+        let module = |source: &str| InternalModule {
+            crate_root: "rust/sample".into(),
+            crate_name: "sample".to_owned(),
+            file: syn::parse_file(source).expect("fixture Rust"),
+        };
+        let owner = module(
+            "pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+        );
+        let consumer = module(
+            "use crate::storage::Ledger;
+             struct Reader;
+             impl Reader {
+                 fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() }
+                 fn synchronise(&self) { let revision = self.ledger().revision(); }
+             }",
+        );
+        (row, owner, consumer)
+    }
+
+    #[test]
+    fn internal_owner_scopes_are_explicit_and_public_defaults_stay_strict() {
+        let (row, owner, consumer) = internal_fixture();
+        assert!(internal_entry_is_accessible(&row, &owner, &consumer));
+        assert!(!file_declares(&owner.file, &row.entry));
+        for scope in ["", "public", "private", "module", "unknown"] {
+            assert!(parse_internal_manifest(&internal_manifest_row(scope)).is_err());
+        }
+        assert!(parse_internal_manifest(INTERNAL_START).is_err());
+        assert!(parse_internal_manifest(INTERNAL_END).is_err());
+        assert!(parse_internal_manifest(&format!("{INTERNAL_START}\n{INTERNAL_END}")).is_err());
+    }
+
+    #[test]
+    fn internal_owner_rejects_foreign_crates_and_private_sibling_methods() {
+        let (row, mut owner, mut consumer) = internal_fixture();
+        consumer.crate_root = "rust/foreign".into();
+        assert!(!internal_entry_is_accessible(&row, &owner, &consumer));
+        consumer.crate_root = owner.crate_root.clone();
+        consumer.crate_name = "foreign".to_owned();
+        assert!(!internal_entry_is_accessible(&row, &owner, &consumer));
+        consumer.crate_name.clone_from(&owner.crate_name);
+        owner.file = syn::parse_file(
+            "pub struct Ledger; impl Ledger { fn revision(&self) -> Option<u64> { None } }",
+        )
+        .unwrap();
+        assert!(!internal_entry_is_accessible(&row, &owner, &consumer));
+        owner.file = syn::parse_file(
+            "struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+        )
+        .unwrap();
+        assert!(!internal_entry_is_accessible(&row, &owner, &consumer));
+    }
+
+    #[test]
+    fn internal_owner_requires_the_declared_typed_receiver_and_import_route() {
+        let (mut row, owner, mut consumer) = internal_fixture();
+        row.module = "crate::other".to_owned();
+        assert!(!internal_entry_is_accessible(&row, &owner, &consumer));
+        row.module = "crate::storage".to_owned();
+        for source in [
+            "use crate::storage::Other as Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; use crate::other::Other as Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Other> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> Alias<Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = other.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { /* self.ledger().revision() */ let revision = 0; } }",
+        ] {
+            consumer.file = syn::parse_file(source).expect("fixture Rust");
+            assert!(
+                !internal_entry_is_accessible(&row, &owner, &consumer),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn internal_owner_rejects_conditionally_available_route_parts() {
+        let (row, mut owner, mut consumer) = internal_fixture();
+        for source in [
+            "#![cfg(test)] pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "#![cfg_attr(test, cfg(test))] pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "#[cfg(test)] pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; #[cfg(test)] impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; impl Ledger { #[cfg(test)] pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "#[cfg_attr(test, cfg(test))] pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; #[cfg_attr(test, cfg(test))] impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; impl Ledger { #[cfg_attr(test, cfg(test))] pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "#[rewrite_route] pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; #[rewrite_route] impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }",
+            "pub struct Ledger; impl Ledger { #[rewrite_route] pub(crate) fn revision(&self) -> Option<u64> { None } }",
+        ] {
+            owner.file = syn::parse_file(source).expect("fixed owner fixture");
+            assert!(
+                !internal_entry_is_accessible(&row, &owner, &consumer),
+                "{source}"
+            );
+        }
+        owner.file = syn::parse_file("pub struct Ledger; impl Ledger { pub(crate) fn revision(&self) -> Option<u64> { None } }").unwrap();
+        for source in [
+            "#![cfg(test)] use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "#![cfg_attr(test, cfg(test))] use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "#[cfg(test)] use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; #[cfg(test)] struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; #[cfg(test)] impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { #[cfg(test)] fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } #[cfg(test)] fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { #[cfg(test)] let revision = self.ledger().revision(); } }",
+            "#[cfg_attr(test, cfg(test))] use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; #[cfg_attr(test, cfg(test))] struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; #[cfg_attr(test, cfg(test))] impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { #[cfg_attr(test, cfg(test))] fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } #[cfg_attr(test, cfg(test))] fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { #[cfg_attr(test, cfg(test))] let revision = self.ledger().revision(); } }",
+            "#[rewrite_route] use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; #[rewrite_route] struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; #[rewrite_route] impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { #[rewrite_route] fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } #[rewrite_route] fn synchronise(&self) { let revision = self.ledger().revision(); } }",
+            "use crate::storage::Ledger; struct Reader; impl Reader { fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } fn synchronise(&self) { #[rewrite_route] let revision = self.ledger().revision(); } }",
+        ] {
+            consumer.file = syn::parse_file(source).expect("fixed consumer fixture");
+            assert!(
+                !internal_entry_is_accessible(&row, &owner, &consumer),
+                "{source}"
+            );
+        }
+        owner.file = syn::parse_file("#[doc = \"owner\"] #[derive(Debug)] pub struct Ledger; #[doc = \"members\"] impl Ledger { #[doc = \"revision\"] pub(crate) fn revision(&self) -> Option<u64> { None } }").unwrap();
+        consumer.file = syn::parse_file("#[doc = \"import\"] use crate::storage::Ledger; #[derive(Debug)] struct Reader; #[doc = \"reader\"] impl Reader { #[doc = \"getter\"] fn ledger(&self) -> std::cell::Ref<'_, Ledger> { todo!() } #[doc = \"caller\"] fn synchronise(&self) { let revision = self.ledger().revision(); } }").unwrap();
+        assert!(internal_entry_is_accessible(&row, &owner, &consumer));
+    }
+
+    #[test]
+    fn internal_owner_file_attributes_preserve_only_declarations() {
+        for source in [
+            "#![cfg(test)]",
+            "#![cfg_attr(test, cfg(test))]",
+            "#![cfg_attr(test, rewrite_route)]",
+            "#![cfg_attr(test, allow(dead_code), cfg(test))]",
+        ] {
+            let file = syn::parse_file(source).expect("fixed file attributes");
+            assert!(!file_attrs_preserve_routes(&file.attrs), "{source}");
+        }
+        let file = syn::parse_file(
+            "#![doc = \"crate\"] #![deny(unused)] #![cfg_attr(target_arch = \"wasm32\", allow(dead_code, unused_imports))]",
+        ).unwrap();
+        assert!(file_attrs_preserve_routes(&file.attrs));
+    }
+
+    #[test]
+    fn internal_owner_current_namespace_revision_route_resolves() {
+        let root = crate::util::repo_root();
+        let contract = read(&root, CONTRACT_PATH).expect("owner contract");
+        assert!(
+            parse_internal_manifest(&contract)
+                .unwrap()
+                .iter()
+                .any(|row| {
+                    row.source == "runtime/rust/src/namespace.rs"
+                        && row.entry == "Namespaces::guard_lookup_environment_revision"
+                })
+        );
+        assert!(validate_internal_manifest(&root, &contract).is_empty());
+        assert!(
+            read_internal_module(&root, "runtime/rust/src/namespace.rs", "crate::other").is_err()
+        );
+        assert!(
+            read_internal_module(
+                &root,
+                "runtime/rust/src/interp/stock_ensembles.rs",
+                "crate::interp"
+            )
+            .is_err()
         );
     }
 
