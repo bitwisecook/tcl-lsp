@@ -3404,7 +3404,10 @@ mod original_logical_declaration_receipt_tests {
         assert!(binding.original_logical_declaration_call_targets(&tokens, &input, registry).is_some());
         for axis in [0, 1] {
             let mut config = input.lexer_config();
-            if axis == 0 { config.skip_leading_bom = !config.skip_leading_bom; }
+            if axis == 0 { config.leading_bom = match config.leading_bom {
+                    tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                    tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+                }; }
             else { config.strict_quoting = !config.strict_quoting; }
             let changed = ResolvedAnalysisInput::new(
                 input.analyser_profile(), input.unit_profile(), input.context_registry(), config,

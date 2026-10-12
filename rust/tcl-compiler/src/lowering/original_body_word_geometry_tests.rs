@@ -474,7 +474,7 @@ fn original_derived_body_geometry_refuses_changed_parent_vector_span_and_input()
     let mut changed_text = parent.clone();
     changed_text.argv_texts[2].push('!');
     let mut changed_word = parent.clone();
-    let WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[2] else {
+    let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_word.word_exprs[2] else {
         panic!("original whole body word")
     };
     text.push('!');

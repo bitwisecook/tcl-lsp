@@ -667,7 +667,7 @@ mod tests {
         config: tcl_lexer::LexerConfig,
     ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
-            body_entry: super::SourceBodyEntryPurpose::Selected,
+            body_entry: crate::command_binding::SourceBodyEntryPurpose::Selected,
             source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             compilation: NativeCompilationContext {

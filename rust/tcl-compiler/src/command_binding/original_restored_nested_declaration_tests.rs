@@ -157,7 +157,10 @@ fn original_restored_nested_declaration_requires_retained_inventory_input_config
             0 => changed_owner.lexer_config = None,
             1 => {
                 let mut config = input.lexer_config();
-                config.skip_leading_bom = !config.skip_leading_bom;
+                config.leading_bom = match config.leading_bom {
+                    tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
+                    tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
+                };
                 changed_owner.lexer_config = Some(config);
             }
             2 => {
