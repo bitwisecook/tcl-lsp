@@ -925,35 +925,18 @@ fn parse_variable_reference(spelling: &str) -> Option<VariableReference<'_>> {
     })
 }
 
-/// Collapse `::` runs and strip a global qualifier so equal Tcl names
-/// compare equal: `::llength` and `llength` are the same global command.
-/// Borrowed when the spelling is already canonical, which is the common
-/// case on the analysis hot path.
+/// Written-name keys for the explicit authored world-ledger model.
+/// Native lookup and selected descriptor labels retain their separate owners.
 fn normalise_name(name: &str) -> Cow<'_, str> {
     if !name.contains(':') {
         return Cow::Borrowed(name);
     }
-    let mut out = String::with_capacity(name.len());
-    let mut colons = 0_usize;
-    for ch in name.chars() {
-        if ch == ':' {
-            colons += 1;
-            continue;
-        }
-        if colons >= 2 {
-            if !out.is_empty() {
-                out.push_str("::");
-            }
-        } else if colons == 1 {
-            out.push(':');
-        }
-        colons = 0;
-        out.push(ch);
-    }
-    if colons == 1 {
-        out.push(':');
-    }
-    Cow::Owned(out)
+    let rooted = tcl_syntax::naming::canonical_written_command(name);
+    Cow::Owned(
+        tcl_syntax::naming::unroot_rooted_key(&rooted)
+            .unwrap_or(&rooted)
+            .to_owned(),
+    )
 }
 
 /// Whether an interpreter-path operand can denote the interpreter this
@@ -1150,6 +1133,82 @@ pub fn analyse_dispatch_stability(
     function: &ExecutableFunction,
     entry: DispatchEntryAssumption,
 ) -> DispatchProofAnalysis {
+    analyse_dispatch_stability_using(function, entry, &|_, facts| {
+        Some(normalise_name(&facts.canonical_command).into_owned())
+    })
+}
+
+/// Original source consumer of the same authored contents fixpoint. A Native
+/// entry or authored simulation cannot borrow a pristine spelling inventory.
+/// Even a selected Native trace-absence receipt would not cover the remaining
+/// command/namespace/policy domains tracked here.
+pub(crate) fn analyse_original_dispatch_stability(
+    function: &ExecutableFunction,
+    entry: DispatchEntryAssumption,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> DispatchProofAnalysis {
+    analyse_dispatch_stability_using(function, entry, &|invoke, facts| {
+        original_ledger_subject(invoke, facts, registry, metadata)
+    })
+}
+
+/// The authentic original call slot supplies this ledger key; a selected
+/// descriptor label is checked as data and cannot recreate that slot.
+fn original_ledger_subject(
+    invoke: &crate::executable_ir::GenericInvoke,
+    facts: &tcl_registry::InvocationFacts,
+    registry: &tcl_registry::CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<String> {
+    let metadata = metadata.filter(|metadata| metadata.matches_registry(registry))?;
+    let binding = invoke.source_binding.as_ref()?;
+    let (_, mut tokens) = binding.original_recorded_command()?;
+    if tokens.words() != invoke.original_words {
+        return None;
+    }
+    tokens.source_binding = Some(binding.clone());
+    let purpose = binding.original_invocation_source_purpose(&tokens, metadata, registry)?;
+    if !matches!(
+        purpose,
+        crate::command_binding::OriginalInvocationSourcePurpose::Logical
+            | crate::command_binding::OriginalInvocationSourcePurpose::Standalone
+    ) {
+        return None;
+    }
+    let selected = crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+        registry,
+        Some(metadata),
+        &tokens,
+    )?;
+    if &selected.facts != facts {
+        return None;
+    }
+    let reference = binding.evaluated_command_reference()?;
+    let crate::command_binding::SourceCommandReferenceBinding::Direct {
+        kind: crate::command_binding::BindingKind::Builtin,
+        identity,
+    } = reference.binding()
+    else {
+        return None;
+    };
+    let slot = reference.slot()?;
+    if slot != identity.origin
+        || !reference.matches_original_invocation_site(binding.invocation_site()?)
+    {
+        return None;
+    }
+    tcl_syntax::naming::unroot_rooted_key(slot).map(str::to_owned)
+}
+
+fn analyse_dispatch_stability_using(
+    function: &ExecutableFunction,
+    entry: DispatchEntryAssumption,
+    subject: &dyn Fn(
+        &crate::executable_ir::GenericInvoke,
+        &tcl_registry::InvocationFacts,
+    ) -> Option<String>,
+) -> DispatchProofAnalysis {
     let block_count = function.blocks.len();
     if block_count == 0 {
         return DispatchProofAnalysis::default();
@@ -1221,7 +1280,7 @@ pub fn analyse_dispatch_stability(
         else {
             continue;
         };
-        capture_block_sites(function, block, &state, &mut analysis);
+        capture_block_sites(function, block, &state, &mut analysis, subject);
     }
     analysis
 }
@@ -1381,6 +1440,10 @@ fn capture_block_sites(
     block: usize,
     entry: &Arc<WorldContents>,
     analysis: &mut DispatchProofAnalysis,
+    subject: &dyn Fn(
+        &crate::executable_ir::GenericInvoke,
+        &tcl_registry::InvocationFacts,
+    ) -> Option<String>,
 ) {
     let block_id = u32::try_from(block).unwrap_or(u32::MAX);
     let mut state = Arc::clone(entry);
@@ -1398,10 +1461,12 @@ fn capture_block_sites(
                 .map_or(invoke.original_words.as_slice(), |words| {
                     words.words.as_slice()
                 });
-            let proof = capture_site_proof(&state, resolved, words);
-            analysis
-                .sites
-                .insert((block_id, u32::try_from(index).unwrap_or(u32::MAX)), proof);
+            if let Some(subject) = subject(invoke, resolved) {
+                let proof = capture_site_proof(&state, &subject, words);
+                analysis
+                    .sites
+                    .insert((block_id, u32::try_from(index).unwrap_or(u32::MAX)), proof);
+            }
         }
         let site = TrackVersion::Site {
             block: block_id,
@@ -1413,10 +1478,9 @@ fn capture_block_sites(
 
 fn capture_site_proof(
     state: &WorldContents,
-    resolved: &tcl_registry::InvocationFacts,
+    subject: &str,
     words: &[WordExpr],
 ) -> SiteDispatchProof {
-    let subject = normalise_name(&resolved.canonical_command);
     let mut covers = DispatchDependencies::NONE;
     for domain in [
         DispatchDependencyDomain::CommandBinding,
@@ -1426,7 +1490,7 @@ fn capture_site_proof(
         DispatchDependencyDomain::ObjectDispatch,
         DispatchDependencyDomain::UnknownHandling,
     ] {
-        if domain_stable_for_subject(state, domain, &subject) {
+        if domain_stable_for_subject(state, domain, subject) {
             covers = covers.union(DispatchDependencies::one(domain));
         }
     }
@@ -2928,5 +2992,277 @@ mod tests {
             .push(("element".into(), Some("a($key)".into())));
         assert!(state.variable_access_may_observe("$element"));
         assert!(!state.variable_name_may_observe("a(other)"));
+    }
+}
+
+#[cfg(test)]
+mod original_ledger_tests {
+    use super::*;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    fn logical_unit(source: &str, registry: &tcl_registry::CommandRegistry) -> CompilationUnit {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = std::sync::Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            context,
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        )
+    }
+
+    fn last_invoke(unit: &CompilationUnit) -> &crate::executable_ir::GenericInvoke {
+        unit.top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .unwrap()
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::Invoke(invoke) => Some(invoke),
+                _ => None,
+            })
+            .last()
+            .unwrap()
+    }
+
+    #[test]
+    fn original_ledger_subject_uses_actual_direct_slot_and_complete_source_vector() {
+        // naming.compiler.original-dispatch-ledger-subjects
+        // docs/design/analysis/name-resolution-proofs/compiler-original-dispatch-ledger-subjects.md
+        // Actual Logical source point; no Native pristine-world inference.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let unit = logical_unit("::llength {A B}", &registry);
+        let invoke = last_invoke(&unit);
+        let InvocationResolution::Resolved(facts) = &invoke.resolution else {
+            panic!("selected original builtin");
+        };
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context(&registry)
+            .unwrap();
+        assert_eq!(
+            original_ledger_subject(invoke, facts, &registry, Some(metadata)),
+            Some("llength".to_owned())
+        );
+        assert!(original_ledger_subject(invoke, facts, &registry, None).is_none());
+        let mut changed = invoke.clone();
+        changed.original_words.pop();
+        assert!(original_ledger_subject(&changed, facts, &registry, Some(metadata)).is_none());
+        let mut missing = invoke.clone();
+        missing.source_binding = None;
+        assert!(original_ledger_subject(&missing, facts, &registry, Some(metadata)).is_none());
+        let mut changed_facts = facts.clone();
+        changed_facts.canonical_command = "::llength".to_owned();
+        assert!(
+            original_ledger_subject(invoke, &changed_facts, &registry, Some(metadata)).is_none()
+        );
+        let mut foreign = registry.clone();
+        foreign.insert(tcl_registry::CommandSpec {
+            name: "llength",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(original_ledger_subject(invoke, facts, &foreign, Some(metadata)).is_none());
+    }
+
+    #[test]
+    fn original_alias_and_moved_slots_cannot_borrow_descriptor_pristine_subjects() {
+        // naming.compiler.original-dispatch-ledger-subjects
+        // docs/design/analysis/name-resolution-proofs/compiler-original-dispatch-ledger-subjects.md
+        // Genuine authored source transitions, not edited binding rows.
+        let registry = tcl_registry::CommandRegistry::build_default();
+        for source in [
+            "interp alias {} selectedAlias {} llength; selectedAlias {A B}",
+            "rename llength selectedMove; selectedMove {A B}",
+        ] {
+            let unit = logical_unit(source, &registry);
+            let invoke = last_invoke(&unit);
+            let binding = invoke.source_binding.as_ref().unwrap();
+            let reference = binding.evaluated_command_reference().unwrap();
+            let direct_unmoved_builtin = matches!(reference.binding(),
+                crate::command_binding::SourceCommandReferenceBinding::Direct {
+                    kind: crate::command_binding::BindingKind::Builtin, identity,
+                } if reference.slot() == Some(identity.origin.as_str()));
+            assert!(!direct_unmoved_builtin, "{source}");
+            let InvocationResolution::Resolved(facts) = &invoke.resolution else {
+                panic!("selected original alias or moved builtin");
+            };
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context(&registry)
+                .unwrap();
+            assert!(
+                original_ledger_subject(invoke, facts, &registry, Some(metadata)).is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn held_jim_entry_receives_no_authored_pristine_dispatch_proof() {
+        // naming.compiler.original-dispatch-ledger-subjects
+        // docs/design/analysis/name-resolution-proofs/compiler-original-dispatch-ledger-subjects.md
+        // Genuine software VM entry; no external Jim execution or trace result.
+        let profile = tcl_dialect::DialectProfile::find("jimtcl").unwrap();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("jimtcl").default_context_registry();
+        let registry = context.commands();
+        let (_owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(captured.command_name_policy().is_none());
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "llength {A B}",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &unit.ir_module,
+        )
+        .unwrap();
+        assert!(metadata.permits_logical_source_names());
+        assert_eq!(
+            unit.ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+        );
+        let executable = unit
+            .top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .unwrap();
+        let proofs = analyse_original_dispatch_stability(
+            executable,
+            DispatchEntryAssumption::PristineRegistryWorld,
+            registry,
+            Some(metadata),
+        );
+        assert!(proofs.sites.is_empty());
+    }
+
+    #[test]
+    fn shared_written_ledger_geometry_preserves_trailing_separator_and_literal_colons() {
+        // naming.compiler.original-dispatch-ledger-subjects
+        // docs/design/analysis/name-resolution-proofs/compiler-original-dispatch-ledger-subjects.md
+        // Authored written geometry only; selected descriptor bytes stay data.
+        for (written, key) in [
+            ("::N::::p", "N::p"),
+            ("::N::", "N::"),
+            ("::N:::p", "N::p"),
+            (":::", ""),
+            ("N:p", "N:p"),
+        ] {
+            assert_eq!(normalise_name(written), key);
+        }
+        assert_eq!(normalise_name("名字::p"), "名字::p");
+        let descriptor = tcl_registry::CommandRegistry::build_default()
+            .resolve_invocation("llength", &["A B"], None)
+            .unwrap()
+            .facts();
+        assert_eq!(descriptor.descriptor_key().label(), "llength");
+    }
+
+    #[test]
+    fn authored_simulation_entry_has_layout_purpose_without_pristine_dispatch_coverage() {
+        // naming.compiler.original-dispatch-ledger-subjects
+        // docs/design/analysis/name-resolution-proofs/compiler-original-dispatch-ledger-subjects.md
+        // Real authored entry policy; no Native interpreter or invocation grant.
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            execution_name_policy: Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+                tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0),
+            )),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "llength {A B}",
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &unit.ir_module,
+        )
+        .unwrap();
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert_eq!(
+            unit.ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
+        );
+        let executable = unit
+            .top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .unwrap();
+        assert!(
+            analyse_original_dispatch_stability(
+                executable,
+                DispatchEntryAssumption::PristineRegistryWorld,
+                registry,
+                Some(metadata)
+            )
+            .sites
+            .is_empty()
+        );
     }
 }

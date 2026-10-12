@@ -62,7 +62,7 @@ use super::{
 use crate::codegen::structured::command_text;
 use crate::command_binding::ModuleCommandMutations;
 use crate::dispatch_proof::{
-    DispatchEntryAssumption, DispatchProofAnalysis, analyse_dispatch_stability,
+    DispatchEntryAssumption, DispatchProofAnalysis, analyse_original_dispatch_stability,
 };
 use crate::executable_ir::{
     ExecutableArgvId, ExecutableBlock, ExecutableExpr, ExecutableFunction, ExecutableInstruction,
@@ -315,7 +315,15 @@ impl<'a> Lowerer<'a> {
             ledger,
             demotion,
             mutations,
-            proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
+            proofs: analyse_original_dispatch_stability(
+                input.function,
+                input.entry_assumption,
+                input.registry,
+                crate::registry_invocation::InvocationMetadataContext::for_module(
+                    input.registry,
+                    module,
+                ),
+            ),
             numbers: Numbers::Target(module.number_syntax()),
             dialect: profile,
             boolean_dialect: native_boolean_dialect(input),

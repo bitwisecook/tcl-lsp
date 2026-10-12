@@ -694,7 +694,11 @@ pub(crate) fn is_pure_tokens_with_metadata_context(
     let facts = &invocation.facts;
     if has_dynamic_trace
         || crate::registry_invocation::original_invocation_has_execution_trace(
-            registry, metadata, tokens, facts.descriptor_key(), traced_commands,
+            registry,
+            metadata,
+            tokens,
+            facts.descriptor_key(),
+            traced_commands,
         )
         || !facts.traits.contains(Traits::PURE)
         || !facts.effects.accesses().is_empty()
@@ -836,16 +840,21 @@ impl GvnSemanticFacts {
     /// Production callers must treat that as unavailable proof, never as
     /// permission to invoke the legacy command-string classifier.
     #[must_use]
-    fn from_function(function: &crate::compilation_unit::FunctionUnit) -> Option<Self> {
+    fn from_function(
+        function: &crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
         let availability = function.semantic_facts.executable();
         let executable = availability.function()?;
         // The dispatch-stability contents analysis is meaningful only when
         // the world-state graph itself was buildable; a world-state decline
         // fails every site closed exactly as before.
         let proofs = availability.world_state_ssa().is_some().then(|| {
-            crate::dispatch_proof::analyse_dispatch_stability(
+            crate::dispatch_proof::analyse_original_dispatch_stability(
                 executable,
                 function.semantic_facts.dispatch_entry_assumption(),
+                registry,
+                function.invocation_metadata_context(registry),
             )
         });
         let mut facts = Self {
@@ -1504,7 +1513,7 @@ pub fn find_redundancies_for_function(
     function: &crate::compilation_unit::FunctionUnit,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
-    let semantic = GvnSemanticFacts::from_function(function);
+    let semantic = GvnSemanticFacts::from_function(function, registry);
     find_redundancies_with_semantic_facts(
         registry,
         &function.cfg,
@@ -1648,7 +1657,7 @@ pub fn find_loop_invariants_for_function(
     function: &crate::compilation_unit::FunctionUnit,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
-    let semantic = GvnSemanticFacts::from_function(function);
+    let semantic = GvnSemanticFacts::from_function(function, registry);
     find_loop_invariants_with_legality(
         registry,
         &function.cfg,
@@ -2024,7 +2033,7 @@ pub fn find_partial_redundancies_for_function(
     function: &crate::compilation_unit::FunctionUnit,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<RedundantComputation> {
-    let semantic = GvnSemanticFacts::from_function(function);
+    let semantic = GvnSemanticFacts::from_function(function, registry);
     find_partial_redundancies_with_legality(
         registry,
         &function.cfg,
