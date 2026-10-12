@@ -52729,7 +52729,7 @@
           "id": "receiver-selected-source598-92b30b6155dd3d48",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/implementation.rs",
-          "sha256": "3cd445f538f26544985fe18fc392391c98f23049033490529ce4bcfd2b6cd4e4",
+          "sha256": "d9ff90fd0d8b4190fa045711830c23ac46366d3a3e840104a0505c15d81394c5",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -52750,7 +52750,7 @@
           "id": "receiver-selected-source598-7ffd1b770d34ce06",
           "role": "implementation",
           "path": "rust/tcl-registry/src/model/assembly.rs",
-          "sha256": "971bdb2ac63b464c43d84541efafd3349b74b763f8e44891bcdfd3ed0383e8fc",
+          "sha256": "855f2a24b560edeab5bfb303805a357824293c8f9928edde45f699ebbf6485f8",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -53090,7 +53090,7 @@
           "id": "procedure-candidate-source-0",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
         },
         {
@@ -54025,7 +54025,7 @@
           "id": "selected-scope-alias-role-metadata-source-25",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
         }
       ],
@@ -757296,7 +757296,7 @@
           "id": "original-dispatch-ledger-source-14",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome."
         },
         {
@@ -776040,7 +776040,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/implementation.rs",
-          "sha256": "3cd445f538f26544985fe18fc392391c98f23049033490529ce4bcfd2b6cd4e4",
+          "sha256": "d9ff90fd0d8b4190fa045711830c23ac46366d3a3e840104a0505c15d81394c5",
           "description": "Current Rust source and fixed assertion bindings; no execution receipt."
         },
         {
@@ -781997,7 +781997,7 @@
           "id": "receiver-selected-source598-1d049f3fab4cedc7",
           "role": "implementation",
           "path": "rust/tcl-registry/src/model/assembly.rs",
-          "sha256": "971bdb2ac63b464c43d84541efafd3349b74b763f8e44891bcdfd3ed0383e8fc",
+          "sha256": "855f2a24b560edeab5bfb303805a357824293c8f9928edde45f699ebbf6485f8",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -1070563,7 +1070563,7 @@
           "id": "original-source-purpose-source-25",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current selected Registry/original source owner, producer/consumer interface or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
         }
       ],
@@ -1111466,7 +1111466,7 @@
           "id": "registry-declaration-source-1",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
         },
         {
