@@ -1,0 +1,74 @@
+Read-only Syntax follow-up: additional formatter delta and SourceTopology scope
+
+Boundary
+No manifest/page/source/Git mutations; no Cargo/native/software execution.
+The audit contains 13 implementation joins across 11 records and five owners.
+Its two clarification entries are checked.rs/parser.rs joins in selected-reference-root.
+The second intended record is naming.grammar.checked-expression-substitution-context.
+
+Recovered audit-current snapshots from Git objects; working files equal HEAD:
+naming.rs: db4ed3cb835da210975e5f374a397ab7530e2420 -> HEAD
+  audit 66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d
+  HEAD 4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4
+  Additional diff only formats key_suffixes assertions and closing whitespace.
+expr/checked.rs: cebd088f36b1eccb267f002ccd9a54759a4e3f6f -> HEAD
+  audit 6b0f2286824bb173fad1634c62c6ae3d1e35e2a17007edbe294060c407ed0528
+  HEAD c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7
+  Additional diff only formats tokenise arguments and Parsed node.map_text.
+naming/native.rs: audit/HEAD bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8
+expr/parser.rs: audit/HEAD 236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40
+value.rs: audit/HEAD 7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e
+All seven audited linked-control bodies remain byte-identical across this delta.
+
+Proposed selected-reference-root scope (replace inaccurate five-control/all-ingress wording):
+Six linked source definitions cover shared naming roots, three named permissive
+Pratt APIs, checked byte-source parsing under selected NativeSyntax contexts,
+Jim analytical term roots and Raw read enumeration. The permissive control calls
+parse_expr_for_profile, parse_expr_with_grammar and parse_expr_with_syntax_context.
+It does not call the SourceTopology ingress. The checked-byte control calls
+parse_expr_bytes_checked_with_context under C/Jim contexts and selected brace styles.
+SourceTopology uses the same Pratt variable worker, but this record attaches no
+positive scalar/array/brace-root control for that ingress. SourceTopology admission
+and its refusal controls belong to naming.grammar.checked-expression-substitution-context.
+All definitions remain linked/unexecuted; provider/captured outcomes are unchanged.
+
+Proposed selected-reference-root test assertion refinements:
+expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules:
+Three named permissive APIs preserve complete scalar tails, closed array roots,
+literal dollars, Unicode and selected FirstClose/Tcl9Nesting admission. This control
+does not exercise parse_source_expression_checked or prove every ingress.
+expr::parser::checked::native_byte_tests::checked_reference_roots_keep_selected_grammar_and_opaque_source:
+Checked byte-source NativeSyntax parsing retains scalar/array roots, opaque/counting
+units and selected brace rules under C/Jim contexts; SourceTopology is not invoked.
+
+Proposed checked-expression-substitution-context conclusion/scope addition:
+Native checked_expression_substitutions requires its separate NativeSyntax parse;
+NativeExprSyntax::Unknown remains Unsupported(UnknownNativeSyntax). The source-only
+checked_source_expression_substitutions uses the shared checked lexer/Pratt worker
+with SourceTopology purpose and returns Option topology without Native syntax
+certification, preparation actions, diagnostics, result representation or entry.
+Complete lexing, selected operators, depth limits and whole-token consumption remain
+required. Lazy branches are inventoried; command bodies retain independent ownership.
+The two linked original_source_topology_tests cover complete BOM/Unicode bracket
+spans and both lazy branches under Unknown, malformed lexical/index delimiters,
+trailing/unconsumed syntax, selected operator availability and selected comment grammar.
+They directly assert unchanged Native Unknown refusal. They contain no positive
+scalar/array/brace-root matrix or SourceTopology depth-limit assertion.
+
+Exact existing SourceTopology selectors:
+expr::substitution::original_source_topology_tests::original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax
+expr::substitution::original_source_topology_tests::original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix
+Existing Native-axis controls inspected (not proposed as new linked results):
+expr::parser::checked::tests::unsupported_function_grammar_and_depth_do_not_prove_native_rejection
+expr::parser::checked::tests::checked_context_retains_independent_numeral_and_operator_axes
+
+Renewal proposal, only after scope acceptance and source recheck:
+The exact 13 (record_id,evidence_id,path) triples in syntax.json form the allowlist.
+Its 11 non-SourceTopology joins retain the prior scoped invariant classification.
+Its two selected-reference checked/parser joins receive the explicit limited coverage above.
+For checked-substitution-context, the already-linked checked.rs evidence separately
+needs its reviewed formatting hash; parser.rs is already current. No automatic
+renewal of other joins/records, provider evidence, captured inputs or execution fields.
+No new test is necessary for this limited claim: the distinct Native/SourceTopology
+authority boundary already has positive/refusal controls. A future all-ingress/root
+coverage claim would require a meaningful direct SourceTopology root matrix.

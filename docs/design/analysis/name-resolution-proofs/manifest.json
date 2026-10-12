@@ -52680,7 +52680,7 @@
           "id": "metadata-projection-source-5",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
         },
         {
@@ -53377,7 +53377,7 @@
           "id": "reporting-source-0",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "5cc00556c75720e196c08d2309339ee0a8615832f9fe08c146b5be7a2db5ea9c",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect."
         },
         {
@@ -87526,7 +87526,7 @@
           "id": "naming-compiler-logical-upvar-target-element-geometry-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -149733,7 +149733,7 @@
           "id": "naming-diagnostics-original-resolved-variable-name-advice-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -149901,7 +149901,7 @@
           "id": "naming-diagnostics-original-variable-name-anchor-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -158959,7 +158959,7 @@
         {
           "id": "written-geometry-3",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "role": "implementation",
           "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
         },
@@ -223523,8 +223523,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/expression-selected-reference-root.md",
       "problem_statement": "Expression analytical read enumeration must preserve whole scalar names, selected brace-close grammar and genuine array roots. Text stripping can truncate unmatched parentheses or literal dollar bytes and cannot retain opaque/counting source units.",
       "question": "How does a whole original expression variable reference select its analytical root under actual lexer grammar across permissive/checked Pratt, Jim term trees and Raw read enumeration without donating Native name/read authority?",
-      "conclusion": "Syntax naming::variable_reference_root_bytes consumes exact source bytes plus actual LexerConfig and delegates whole_var_ref. Separate index syntax retains the lexical name; a braced combined name uses split_element_ref_bytes only with a final closing parenthesis, so an unmatched parenthesis or scalar tail remains part of the exact scalar name. Compound text returns None and malformed syntax returns the retained scanner error. Permissive and checked Pratt ingress, Jim term trees and Raw analytical read enumeration share this root selection and preserve their actual grammar. Raw collection calls the selected scan_var_ref at the original lexical token offset and requires its complete source_span to equal that token span before borrowing the whole original substitution; stripped token presentation cannot supply this purpose. UTF-8, opaque bytes, counted NUL and literal dollar source units remain source roots; they grant no native input extent, physical cell/read, current storage, cache/header identity, entered frame, compiler/SSA contents or execution admission. Independent native expression public values remain a separate question. The authored source normalise_var_name_for_style delegates to the same selected braced-name/closed-element partition. Unmatched opens and scalar tail text keep their whole root, while a complete closed element supplies its array root; this sigil-aware authored-source purpose must not replace a literal resolved-name owner.",
-      "scope": "Five marked fixed Syntax/source controls cover complete scalar and closed-combined roots, selected C8/Jim first-close versus C9 nested-close grammar, malformed/compound refusal, checked opaque bytes, Jim UTF-8/opaque term roots and Raw reads. All seven provider observations are not tested for this source/API contract; the actual public binary-format expression originals do not prove analytical AST/private object behaviour.",
+      "conclusion": "Syntax naming::variable_reference_root_bytes consumes exact source bytes plus actual LexerConfig and delegates whole_var_ref. Separate index syntax retains the lexical name; a braced combined name uses split_element_ref_bytes only with a final closing parenthesis, so an unmatched parenthesis or scalar tail remains part of the exact scalar name. Compound text returns None and malformed syntax returns the retained scanner error. The three linked permissive Pratt APIs, checked NativeSyntax byte-source parsing, Jim term trees and Raw analytical read enumeration share this root selection and preserve their actual grammar. Raw collection calls the selected scan_var_ref at the original lexical token offset and requires its complete source_span to equal that token span before borrowing the whole original substitution; stripped token presentation cannot supply this purpose. UTF-8, opaque bytes, counted NUL and literal dollar source units remain source roots; they grant no native input extent, physical cell/read, current storage, cache/header identity, entered frame, compiler/SSA contents or execution admission. Independent native expression public values remain a separate question. The authored source normalise_var_name_for_style delegates to the same selected braced-name/closed-element partition. Unmatched opens and scalar tail text keep their whole root, while a complete closed element supplies its array root; this sigil-aware authored-source purpose must not replace a literal resolved-name owner. The SourceTopology ingress reuses the shared Pratt variable worker with a separate source-only admission purpose; its existence does not extend these root-control definitions to every ingress or certify Native syntax. Its admission boundary and topology controls are described by naming.grammar.checked-expression-substitution-context.",
+      "scope": "Six linked source definitions cover shared naming roots, three named permissive Pratt APIs, checked byte-source parsing under selected NativeSyntax contexts, Jim analytical term roots and Raw read enumeration. The permissive control calls parse_expr_for_profile, parse_expr_with_grammar and parse_expr_with_syntax_context; it does not call the SourceTopology ingress. The checked-byte control calls parse_expr_bytes_checked_with_context under C/Jim contexts and selected brace styles. SourceTopology uses the same Pratt variable worker, but this record attaches no positive scalar/array/brace-root control for that ingress. Its separate admission/refusal controls belong to naming.grammar.checked-expression-substitution-context. These linked definitions carry no attached current executed assertion result. All seven provider observations remain not tested for this source/API contract; public binary-format expression originals do not prove analytical AST/private object behaviour.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -223609,7 +223609,7 @@
           "id": "naming-expression-selected-reference-root-checked.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/checked.rs",
-          "sha256": "4a5b64ae4d0d306812314ac3bad4090cbb82d4adde0f599fdb23741a2dbc93c7",
+          "sha256": "c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -223623,14 +223623,14 @@
           "id": "naming-expression-selected-reference-root-parser.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/parser.rs",
-          "sha256": "e3701bd18f865e2afd331a1478e6d39c5a4f9dc0679c56464da5e7a3369f6655",
+          "sha256": "236c0d96091ecf8b6b1b935730befff90cd69774d933eb68c7101c3660788b40",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
           "id": "naming-expression-selected-reference-root-naming.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -223657,13 +223657,13 @@
         {
           "path": "rust/tcl-syntax/src/expr/parser.rs",
           "selector": "expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules",
-          "assertion": "All permissive expression ingress uses actual selected brace-close grammar and shared analytical root selection; whole scalar tails and array roots remain distinct.",
+          "assertion": "The three named permissive APIs parse_expr_for_profile, parse_expr_with_grammar and parse_expr_with_syntax_context preserve complete scalar tails, closed array roots, literal dollars, Unicode and selected FirstClose/Tcl9Nesting admission. This control does not invoke parse_source_expression_checked or prove every ingress. Source definition only; no current executed assertion or provider outcome is attached.",
           "status": "linked"
         },
         {
           "path": "rust/tcl-syntax/src/expr/checked.rs",
           "selector": "expr::parser::checked::native_byte_tests::checked_reference_roots_keep_selected_grammar_and_opaque_source",
-          "assertion": "Checked original byte-source expression references retain actual grammar, opaque/counting units and exact source roots without physical Native read/header proof.",
+          "assertion": "Checked byte-source NativeSyntax parsing through parse_expr_bytes_checked_with_context retains scalar/array roots, opaque/counting units and selected brace rules under C/Jim contexts. SourceTopology is not invoked, and physical Native read/header authority is not supplied. Source definition only; no current executed assertion or provider outcome is attached.",
           "status": "linked"
         },
         {
@@ -226423,8 +226423,8 @@
       "document": "docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md",
       "problem_statement": "A retained expression may use Jim variable-name grammar or Tcl 9 comments while its native expression operator syntax comes from another selected context. Reconstructing the lexer from a baseline profile shortens Unicode roots or treats inert comment brackets as commands. Array indices also need the original scanner boundaries, including empty indices; an equal foreign byte buffer supplies no original geometry.",
       "question": "Does the checked expression substitution bridge retain the complete supplied grammar and original lexical boundaries without claiming lazy-branch execution or reads inside a command script?",
-      "conclusion": "The bridge parses under ExprParseContext, retains its full lexer grammar, and uses scan_var_ref for index boundaries. Rejected syntax returns None. It inventories both lazy branches and stops at each command-script boundary; the caller must separately prove reads, conversions, handler selection and completion.",
-      "scope": "Rust implementation contract under the explicit contexts used by the linked tests. This record makes no C Tcl, Jim or BIG-IP observation claim, no Native entry claim and no successful evaluation claim.",
+      "conclusion": "Both substitution bridges retain the complete ExprParseContext lexer grammar and use scan_var_ref for original index boundaries. Native checked_expression_substitutions requires its separate NativeSyntax parse; NativeExprSyntax::Unknown remains Unsupported(UnknownNativeSyntax). The source-only checked_source_expression_substitutions uses the shared checked lexer/Pratt worker with SourceTopology purpose and returns Option topology without Native syntax certification, preparation actions, diagnostics, result representation or entry authority. Complete lexing, selected operators, depth limits and whole-token consumption remain required; rejected or unsupported source topology returns None. Both lazy branches are inventoried and command-script boundaries retain independent ownership. The caller must separately prove reads, conversions, handler selection and completion.",
+      "scope": "Rust implementation contract under the explicit contexts used by the linked tests. The two linked original_source_topology_tests cover complete BOM/Unicode bracket spans and both lazy branches under Unknown Native syntax, malformed lexical/index delimiters, trailing/unconsumed syntax, selected operator availability and selected comment grammar. They directly assert unchanged Native Unknown refusal. They contain no positive scalar/array/brace-root matrix or SourceTopology depth-limit assertion. The source-only Option topology supplies no preparation, Native object identity, result representation or entry authority. All linked definitions remain source coverage obligations without a current executed assertion result here. This record makes no C Tcl, Jim or BIG-IP observation claim and no successful evaluation claim.",
       "providers": [
         {
           "id": "tcl8.4",
@@ -226502,7 +226502,7 @@
           "id": "current-original-source-purpose-c44258ad16e1b6be",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/checked.rs",
-          "sha256": "6b0f2286824bb173fad1634c62c6ae3d1e35e2a17007edbe294060c407ed0528",
+          "sha256": "c15fc517688dbabac8152db03191ab52131736a6ebfcc6fb72a8c16a621a7be7",
           "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         },
         {
@@ -226557,13 +226557,13 @@
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
           "selector": "expr::substitution::original_source_topology_tests::original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax",
           "status": "linked",
-          "assertion": "Unknown Native remains refused while source-only complete BOM/Unicode bracket spans are retained, including both lazy branches. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+          "assertion": "Under an actual Unknown Native syntax context, the source-only bridge retains complete original BOM/Unicode bracket spans in both lazy branches with no variable reads in this fixture. The Native bridge declines and the checked Native parser explicitly remains Unsupported(UnknownNativeSyntax); the context stays Unknown. This control supplies no positive scalar/array/brace-root matrix, preparation or Native object/entry authority. Source definition only; no current executed assertion or provider outcome is attached."
         },
         {
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
           "selector": "expr::substitution::original_source_topology_tests::original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix",
           "status": "linked",
-          "assertion": "Incomplete lexical delimiters, unsupported/unconsumed suffix, unavailable selected operator and original comment grammar remain conservative refusal; Native helper unchanged. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred."
+          "assertion": "The source-only bridge declines incomplete expression, bracket, quote and array-index syntax, unsupported or unconsumed suffixes, and a selected unavailable operator. Selected Tcl 8/Tcl 9 comment grammar independently refuses or inventories the complete outer command span. The final known Native context keeps unavailable-operator refusal in both bridges. This control does not assert a SourceTopology depth limit or Native execution. Source definition only; no current executed assertion or provider outcome is attached."
         }
       ],
       "owners": [
@@ -226812,7 +226812,7 @@
           "id": "shared-name-boundary-source-0",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa",
+          "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
@@ -354559,7 +354559,7 @@
           "id": "naming-list-original-value-append-storage-currency-value.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/value.rs",
-          "sha256": "d412e3a6736721b78a27c805245568689617faf248811acf8a046c6e556ed037",
+          "sha256": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         }
       ],
@@ -368125,7 +368125,7 @@
           "id": "naming-namespace-command-teardown-frontier-native.rs",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/native.rs",
-          "sha256": "454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61",
+          "sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
           "description": "Current selected source/API owner; no executed assertion or native provider observation."
         },
         {
@@ -539309,7 +539309,7 @@
           "id": "option-purpose",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/native.rs",
-          "sha256": "454c5ce1d26aab463294b56a0c455b852c85c54a1711a87ed9be0d26ec2b5c61",
+          "sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
           "description": "Selected option-format purpose and regression assertions; no native execution outcome is attached."
         },
         {
