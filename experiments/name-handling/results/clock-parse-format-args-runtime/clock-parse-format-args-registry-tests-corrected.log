@@ -1,0 +1,29 @@
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+error[E0053]: method `compare_string` has an incompatible type for trait
+    --> rust/tcl-registry/tests/differential_fold.rs:2951:62
+     |
+2951 |     fn compare_string(&mut self, left: &i64, right: &i64) -> std::cmp::Ordering {
+     |                                                              ^^^^^^^^^^^^^^^^^^ expected `Result<Ordering, Stop>`, found `std::cmp::Ordering`
+     |
+     = note: expected signature `fn(&mut OrderedProbe<'_>, &_, &_) -> std::result::Result<Ordering, Stop>`
+                found signature `fn(&mut OrderedProbe<'_>, &_, &_) -> Ordering`
+help: change the output type to match the trait
+     |
+2951 -     fn compare_string(&mut self, left: &i64, right: &i64) -> std::cmp::Ordering {
+2951 +     fn compare_string(&mut self, left: &i64, right: &i64) -> std::result::Result<std::cmp::Ordering, Stop> {
+     |
+
+For more information about this error, try `rustc --explain E0053`.
+error: could not compile `tcl-registry` (test "differential_fold") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

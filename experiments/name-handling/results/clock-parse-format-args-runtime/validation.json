@@ -1,0 +1,116 @@
+{
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+    "toolchain_env": "source /tmp/name-env.sh"
+  },
+  "checks": [
+    {
+      "name": "runtime-bootstrap",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "cmd_clock::bootstrap_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "focused_passed": 3,
+      "log": "clock-parse-format-args-runtime-tests.log",
+      "log_sha256": "b3bef2220fdbb4801d5a4b32b564f74d97f39b1eda8c6fb21cea2c3a497a51e1",
+      "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "binary_sha256": "ed5f29ac2ff232f50fbf3a987a62290b64f65e9999d52d038ee5ce4160e011bb"
+    },
+    {
+      "name": "registry-package-wrong-manifest",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "-p",
+        "tcl-registry",
+        "private_format_worker_has_only_the_measured_c86_surface_and_null_hook",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "focused_passed": 0,
+      "log": "clock-parse-format-args-registry-tests.log",
+      "log_sha256": "2c01aea4b651fefab44497ce2115468554a792fc7401d7894200c3d0e0b284b1"
+    },
+    {
+      "name": "registry-package",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-registry",
+        "private_format_worker_has_only_the_measured_c86_surface_and_null_hook",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "focused_passed": 0,
+      "log": "clock-parse-format-args-registry-tests-corrected.log",
+      "log_sha256": "5dec0884446a466f4e8e7c238c172e7c041f6fe90821ca83b6180bace45ce32a"
+    },
+    {
+      "name": "registry-unit",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "private_format_worker_has_only_the_measured_c86_surface_and_null_hook",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "focused_passed": 1,
+      "log": "clock-parse-format-args-registry-unit.log",
+      "log_sha256": "625523120b26a964dc429c2a34f456ccf99cfe7daca9a39a6eff71b358f0083f",
+      "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_registry-30152f1b62ed4924",
+      "binary_sha256": "aed90a18d3cd68bd90ce33233c757a3a5a4f97ac279c827a63758170c3ac01c5"
+    }
+  ],
+  "runner_build": {
+    "argv": [
+      "cargo",
+      "build",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script"
+    ],
+    "exit_code": 0,
+    "log": "clock-parse-format-args-runtime-runner-build.log",
+    "log_sha256": "f51f7545403ea8afbb6a1067de7e214ff7d96c2787993e6c3d1bac3b41eb0a60"
+  },
+  "observations": {
+    "eleven_byte_equal": true,
+    "eleven_matches_prior_original": true,
+    "eleven_rows": 11,
+    "success_cases": 4,
+    "caught_worker_errors": 7,
+    "c_all_summary": [
+      110,
+      90,
+      20,
+      0
+    ],
+    "runtime_all_suite_started": false,
+    "runtime_all_error": "error: invalid command name \"getenv\"\n",
+    "source_currency_unchanged": true,
+    "F5": "unmeasured"
+  },
+  "broader_package_blocker": "differential_fold::OrderedProbe::compare_string signature mismatch E0053; no fixes in this bounded worker",
+  "bounds": "Five owned Rust files only. No full rust-check/prep-pr/xtask pass claimed. No other clock worker or map-order implementation. Shared C seven-worker pool retirement differs from sole implemented runtime worker."
+}

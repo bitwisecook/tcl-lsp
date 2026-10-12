@@ -192,6 +192,12 @@ paths are distinct concepts. Preserve their registry/context rules. Appliance
 `tclsh`, TMM iRules, tmsh CLI scripts and iApps are separate oracle contexts.
 See [namespace-model.md](namespace-model.md).
 
+The C8.6 private `tcl::clock::ParseFormatArgs` worker has release-selected
+registry admission and a shared original-object parser in `tcl-cmd-core::clock`.
+Its runtime adapter owns retained literals and the object-command destructor.
+The other six C clock workers and their shared literal-pool lifetime remain
+unsupported; see the [exact controls and limits](../../../experiments/name-handling/results/clock-parse-format-args-runtime/README.md).
+
 ## Evidence and enforcement
 
 Shared command, variable and namespace-operation vectors live in

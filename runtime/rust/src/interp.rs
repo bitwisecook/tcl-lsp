@@ -3037,6 +3037,22 @@ impl Interp {
             .map_or(0, |publication| publication.generation)
     }
 
+    /// Publish a stock object handler with its actual client-data deletion owner.
+    pub(crate) fn register_stock_obj_command(
+        &mut self,
+        name: &[u8],
+        command: ObjCommand,
+    ) -> Option<u64> {
+        let generation = self.create_obj_command(name, command)?;
+        self.check_entered_native_operation().ok()?;
+        let (fqn, _) = self.raw_command_location_by_generation(generation)?;
+        self.registry_builtin_names
+            .borrow_mut()
+            .insert(generation, fqn.clone());
+        self.record_scripted_helper_registration(&fqn, generation);
+        Some(generation)
+    }
+
     fn register_stock_builtin_publication(
         &mut self,
         name: &[u8],
@@ -3269,6 +3285,17 @@ impl Interp {
                             } else {
                                 RegisteredBacking::Builtin
                             }
+                        }
+                        Some(Command::ObjCmd(_))
+                            if namespaces.command_generation(ns, name).is_some_and(
+                                |generation| {
+                                    self.registry_builtin_names
+                                        .borrow()
+                                        .contains_key(&generation)
+                                },
+                            ) =>
+                        {
+                            RegisteredBacking::Builtin
                         }
                         Some(Command::Ensemble(_))
                             if namespaces.command_generation(ns, name).is_some_and(
@@ -11489,6 +11516,12 @@ impl Interp {
     /// and exception-state ABI without losing a structured error code.
     pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
         self.report_cmd_error_using(error, None)
+    }
+
+    /// An owned object-command shim states its shared error through the C ABI.
+    pub(crate) fn report_obj_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        self.c_api_errors.set(self.c_api_errors.get() + 1);
+        self.report_cmd_error(error)
     }
 
     pub(crate) fn report_cmd_error_using(

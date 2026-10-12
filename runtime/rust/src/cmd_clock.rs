@@ -27,8 +27,95 @@ use tcl_cmd_core::clock as core_clock;
 use crate::interp::{Code, Interp};
 use crate::obj::TclObj;
 
+struct FormatArgumentPool {
+    format: crate::obj::Owned,
+    locale: crate::obj::Owned,
+    timezone: crate::obj::Owned,
+    gmt: crate::obj::Owned,
+    conflict: crate::obj::Owned,
+}
+
+impl FormatArgumentPool {
+    fn new() -> Self {
+        Self {
+            format: crate::obj::Owned::fresh(crate::obj::new_string_bytes(
+                b"%a %b %d %H:%M:%S %Z %Y",
+            )),
+            locale: crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"C")),
+            timezone: crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"")),
+            gmt: crate::obj::Owned::fresh(crate::obj::new_string_bytes(b":GMT")),
+            conflict: crate::obj::Owned::fresh(crate::obj::new_string_bytes(
+                b"cannot use -gmt and -timezone in same call",
+            )),
+        }
+    }
+
+    fn originals(&self) -> core_clock::FormatArgumentLiterals<*mut TclObj> {
+        core_clock::FormatArgumentLiterals {
+            format: self.format.as_ptr(),
+            locale: self.locale.as_ptr(),
+            timezone: self.timezone.as_ptr(),
+            gmt: self.gmt.as_ptr(),
+        }
+    }
+}
+
+unsafe extern "C" fn delete_format_argument_pool(data: *mut std::ffi::c_void) {
+    // SAFETY: registration transfers this Box to its once-only delete callback.
+    unsafe { drop(Box::from_raw(data.cast::<FormatArgumentPool>())) };
+}
+
+unsafe extern "C" fn parse_format_arguments(
+    data: *mut std::ffi::c_void,
+    interp: *mut Interp,
+    count: std::ffi::c_int,
+    words: *const *mut TclObj,
+) -> std::ffi::c_int {
+    // SAFETY: the object-command owner supplies live client data and argv.
+    let originals = unsafe { &*data.cast::<FormatArgumentPool>() }.originals();
+    let interp = unsafe { &mut *interp };
+    let Ok(count) = usize::try_from(count) else {
+        interp.report_obj_cmd_error(tcl_cmd_core::CmdError::new("invalid argument count"));
+        return 1;
+    };
+    let words = unsafe { std::slice::from_raw_parts(words, count) };
+    match core_clock::parse_format_args(interp, &words[1..], &originals) {
+        Ok(result) => {
+            interp.set_result(result);
+            0
+        }
+        Err(core_clock::FormatArgumentError::Command(error)) => {
+            interp.report_obj_cmd_error(error);
+            1
+        }
+        Err(core_clock::FormatArgumentError::GmtWithTimezone) => {
+            // SAFETY: no callback has retired client data during successful conversions.
+            let conflict = unsafe { &*data.cast::<FormatArgumentPool>() }
+                .conflict
+                .as_ptr();
+            interp.set_result(conflict);
+            interp.set_c_error_code(b"CLOCK gmtWithTimezone");
+            1
+        }
+    }
+}
+
 /// Register `clock`.
 pub fn install(interp: &mut Interp) {
+    if let Some(name) = interp
+        .native_invocation_dialect()
+        .clock_parse_format_args_registration()
+    {
+        let pool = Box::into_raw(Box::new(FormatArgumentPool::new()));
+        interp.register_stock_obj_command(
+            name.as_bytes(),
+            crate::interp::ObjCommand::new_owned_runtime_shim(
+                parse_format_arguments,
+                pool.cast(),
+                Some(delete_format_argument_pool),
+            ),
+        );
+    }
     if interp
         .native_invocation_dialect()
         .clock_bootstrap_ensemble()
@@ -120,6 +207,78 @@ fn clock_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 mod bootstrap_tests {
     use crate::interp::{Code, Interp};
     use crate::namespace::{NativeCompilerRecipe, GLOBAL};
+
+    fn c86() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn parse_format_args_matches_the_eleven_original_c86_cases() {
+        let mut interp = c86();
+        let input = include_str!(
+            "../../../experiments/name-handling/results/clock-parse-format-args/input.tcl"
+        );
+        let input = format!(
+            "set rows {{}}\n{}\njoin $rows \\n",
+            input.replace("puts [list", "lappend rows [list")
+        );
+        assert_eq!(
+            interp.eval_str(input.as_bytes()),
+            Code::Ok,
+            "{:?}",
+            interp.result_bytes()
+        );
+        assert_eq!(
+            interp.result_bytes(),
+            include_bytes!("../../../experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt").strip_suffix(b"\n").unwrap(),
+        );
+    }
+
+    #[test]
+    fn parse_format_args_retains_supplied_objects_and_pool_members_after_retirement() {
+        use tcl_syntax::value::ValueOps;
+        let mut interp = c86();
+        let name = b"::tcl::clock::ParseFormatArgs";
+        let token = interp.resolve_cmd_token(name).unwrap();
+        assert!(matches!(
+            interp.namespaces().native_compiler_recipe(token),
+            Some(NativeCompilerRecipe::Absent)
+        ));
+        let before = interp.native_compiler_cache_epochs(GLOBAL).unwrap();
+        assert_eq!(
+            interp.eval_str(b"::tcl::clock::ParseFormatArgs 0"),
+            Code::Ok
+        );
+        let first = crate::obj::Owned::retain(interp.get_obj_result());
+        let members = interp.list_elements(&first.as_ptr()).unwrap();
+        assert_eq!(unsafe { (*members[0]).ref_count }, 2);
+        assert_eq!(
+            interp.eval_str(b"::tcl::clock::ParseFormatArgs 0"),
+            Code::Ok
+        );
+        let second = crate::obj::Owned::retain(interp.get_obj_result());
+        assert_eq!(interp.list_elements(&second.as_ptr()).unwrap(), members);
+        assert_eq!(unsafe { (*members[0]).ref_count }, 3);
+        assert_eq!(interp.eval_str(b"set fmt supplied; set loc custom; set tz :UTC; ::tcl::clock::ParseFormatArgs 0 -format $fmt -locale $loc -timezone $tz"), Code::Ok);
+        let supplied = crate::obj::Owned::retain(interp.get_obj_result());
+        let originals = interp.list_elements(&supplied.as_ptr()).unwrap();
+        for (index, variable) in [b"fmt".as_slice(), b"loc", b"tz"].into_iter().enumerate() {
+            assert_eq!(originals[index], interp.var_get(variable).unwrap());
+        }
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::ParseFormatArgs {}"),
+            Code::Ok
+        );
+        assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
+        assert_eq!(unsafe { (*members[0]).ref_count }, 2);
+        assert_eq!(crate::obj::bytes_of(members[0]), b"%a %b %d %H:%M:%S %Z %Y");
+        assert_eq!(crate::obj::bytes_of(originals[0]), b"supplied");
+    }
 
     #[test]
     fn c86_clock_scalar_births_preserve_epochs_and_reading_replacement_advances_them() {

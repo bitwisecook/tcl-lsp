@@ -43,6 +43,96 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// Retained private ClockClientData objects supplied by the runtime adapter.
+pub struct FormatArgumentLiterals<V> {
+    pub format: V,
+    pub locale: V,
+    pub timezone: V,
+    pub gmt: V,
+}
+
+/// The conflict result uses the worker's retained original literal.
+pub enum FormatArgumentError {
+    Command(CmdError),
+    GmtWithTimezone,
+}
+
+impl From<CmdError> for FormatArgumentError {
+    fn from(error: CmdError) -> Self {
+        Self::Command(error)
+    }
+}
+
+impl From<tcl_syntax::value::ValueError> for FormatArgumentError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        Self::Command(error.into())
+    }
+}
+
+/// C8.6's private argument worker; supplied option values remain original objects.
+///
+/// # Errors
+/// Arity, option, boolean and wide-integer conversions, then GMT/timezone conflict.
+pub fn parse_format_args<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    literals: &FormatArgumentLiterals<O::Value>,
+) -> Result<O::Value, FormatArgumentError> {
+    if args.is_empty() || args.len().is_multiple_of(2) {
+        return Err(CmdError::with_error_code(
+            "wrong # args: should be \"clock format clockval ?-format string? ?-gmt boolean? ?-locale LOCALE? ?-timezone ZONE?\"",
+            "CLOCK wrongNumArgs",
+        ).into());
+    }
+    let mut format = literals.format.clone();
+    let mut locale = literals.locale.clone();
+    let mut timezone = literals.timezone.clone();
+    let mut gmt = false;
+    let mut saw_gmt = false;
+    let mut saw_timezone = false;
+    let table = crate::prefix::OptionTable::abbreviating(
+        "option",
+        &["-format", "-gmt", "-locale", "-timezone"],
+    );
+    for pair in args[1..].chunks_exact(2) {
+        let index = match table.index_of_original(ops, &pair[0]) {
+            Ok(index) => index,
+            Err(error) => {
+                if error.native_execution_refusal().is_some() {
+                    return Err(error.into());
+                }
+                let option = ops.native_string_bytes(&pair[0])?;
+                let option = option.split(|byte| *byte == 0).next().unwrap_or_default();
+                let mut code = b"CLOCK badOption ".to_vec();
+                tcl_syntax::list::append_list_element(&mut code, option, false);
+                let mut details = error.into_byte_details();
+                details.error_code = crate::error::CmdErrorCodeUpdate::Set(code);
+                return Err(CmdError::from_byte_details(details).into());
+            }
+        };
+        match index {
+            0 => format = pair[1].clone(),
+            1 => {
+                gmt = ops.as_bool(&pair[1])?;
+                saw_gmt = true;
+            }
+            2 => locale = pair[1].clone(),
+            _ => {
+                timezone = pair[1].clone();
+                saw_timezone = true;
+            }
+        }
+    }
+    ops.as_int(&args[0])?;
+    if saw_gmt && saw_timezone {
+        return Err(FormatArgumentError::GmtWithTimezone);
+    }
+    if gmt {
+        timezone = literals.gmt.clone();
+    }
+    Ok(ops.new_list(vec![format, locale, timezone]))
+}
+
 /// The clean integer-overflow error tclsh raises when a `clock` computation
 /// leaves the wide range (e.g. `clock add 0 9223372036854775807 weeks`). Every
 /// timestamp here is user-controlled, so the arithmetic below funnels through

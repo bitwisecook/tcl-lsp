@@ -1,0 +1,10 @@
+{
+  "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c",
+  "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+  "lines": [
+    5997,
+    6013
+  ],
+  "excerpt_sha256": "65b1938d936c10544566d0c23f47f2eaaead9f932dd28dc11fb4528b096ed137",
+  "observation": "Tcl_Eval calls Tcl_EvalEx then Tcl_GetStringResult for the legacy string result bridge; the first control exercised that bridge."
+}

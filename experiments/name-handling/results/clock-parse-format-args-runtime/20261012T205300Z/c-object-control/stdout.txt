@@ -1,0 +1,6 @@
+worker-present 1 null-hook 1
+first-length 3 literal-refcount 1
+same-literals 0 literal-refcount 1
+same-supplied 1
+after-worker-delete literal-refcount 1 value %a %b %d %H:%M:%S %Z %Y supplied supplied
+after-pool-retirement literal-refcount 1 value %a %b %d %H:%M:%S %Z %Y supplied supplied

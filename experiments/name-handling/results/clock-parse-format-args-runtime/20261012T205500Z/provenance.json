@@ -1,0 +1,135 @@
+{
+  "source_and_binary_before": {
+    "/workspace/tcl-lsp/runtime/rust/src/cmd_clock.rs": "5239abc2b8cdee7b8d9a4c6045cfa6c00e103ee3d25f0c55abbe55a838861753",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/src/clock.rs": "2c7bdda92709814555611c2698ecdede9cfb05a45aba6776ef091c2939f3c859",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/clock_.rs": "75c55054751ff2f435ea762ccb947985b2ad5a75b3f12bb43ac287534d2e56b1",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/mod.rs": "7e43dff603b0855595f3b26bfaf75f39e27e92639be4f6f90d37b1587b0f039e",
+    "/workspace/tcl-lsp/runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+    "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/object-control.c": "a28e9694c88cc2c6e813bede1e426cd1e64d57a79f739c6e81d6b2818cafb217",
+    "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/capture.py": "cbed48f848e72e9b8b7fd3dad39bcd34057f35c3ca597897cae4c514d6c68809",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "928e6665fa50783987ec539fbc99e6070e7f32f5a41e6e1f453000a6404068e6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/object-control": "cc93a272d5b79c948cd9ef3b94be263a2862ff519e021d278a67c956be1d0145"
+  },
+  "source_and_binary_after": {
+    "/workspace/tcl-lsp/runtime/rust/src/cmd_clock.rs": "5239abc2b8cdee7b8d9a4c6045cfa6c00e103ee3d25f0c55abbe55a838861753",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/src/clock.rs": "2c7bdda92709814555611c2698ecdede9cfb05a45aba6776ef091c2939f3c859",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/clock_.rs": "75c55054751ff2f435ea762ccb947985b2ad5a75b3f12bb43ac287534d2e56b1",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/mod.rs": "7e43dff603b0855595f3b26bfaf75f39e27e92639be4f6f90d37b1587b0f039e",
+    "/workspace/tcl-lsp/runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+    "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/object-control.c": "a28e9694c88cc2c6e813bede1e426cd1e64d57a79f739c6e81d6b2818cafb217",
+    "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/capture.py": "cbed48f848e72e9b8b7fd3dad39bcd34057f35c3ca597897cae4c514d6c68809",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/clock.tcl": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "928e6665fa50783987ec539fbc99e6070e7f32f5a41e6e1f453000a6404068e6",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+  },
+  "inputs": {
+    "eleven.tcl": "ed6c3aafb11c64da72d90acd1afc60604914308e8b52abe2d5881e461e90bd1c",
+    "all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9"
+  },
+  "overlay": false,
+  "bootstrap": "matching real Tcl_Init for C; Native selected C86 --init",
+  "scope": "Private C86 worker only; F5 unmeasured; original all.tcl selects var.test",
+  "timeout_seconds": 60,
+  "address_space_limit_bytes": 1073741824,
+  "records": [
+    {
+      "name": "compile-object-control",
+      "argv": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/object-control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/object-control"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.27,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c-object-control",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/object-control"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.008,
+      "stdout_sha256": "70b562bc69d65f0c820f22300204d0c54a625d94596a3c3b49a3c83f54f6d02d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c/eleven",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/eleven.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.008,
+      "stdout_sha256": "85b0a0bacc856d8ebaca03681560fa384ef2ca6065f5d029ab4498c9518b3545",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "c/all-tcl-var",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/all-tcl-var.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.143,
+      "stdout_sha256": "6746719e6693d41f6f1ec75936ef8779b7189c6401a537212b3e8bacd443380a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "runtime/eleven",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/eleven.tcl"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.507,
+      "stdout_sha256": "85b0a0bacc856d8ebaca03681560fa384ef2ca6065f5d029ab4498c9518b3545",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "runtime/all-tcl-var",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/clock-parse-format-args-runtime/20261012T205500Z/all-tcl-var.tcl"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 4.262,
+      "stdout_sha256": "2feb22902474da232112d4ab32b585de2fa69c3b322fc48496d44c3936a464c8",
+      "stderr_sha256": "7c29dd5c2a57da51d232331274cda46a8c7d98b5bd90f77ac00a387af55c6a2a"
+    }
+  ]
+}
