@@ -283,26 +283,26 @@ impl Interp {
     pub(crate) fn original_jim_parent_alias_prefix(
         &mut self,
         arguments: &[*mut TclObj],
-    ) -> Result<std::rc::Rc<obj::Owned>, tcl_syntax::value::ValueError> {
+    ) -> Result<std::rc::Rc<super::NativeAliasHeader>, tcl_syntax::value::ValueError> {
         self.associate_native_jim_arguments(arguments)?;
         let context = self.native_jim_object_context()?;
         let original = obj::Owned::fresh(self.new_list_object(arguments));
         crate::native_source::bind_context(original.as_ptr(), &context)?;
-        Ok(std::rc::Rc::new(original))
+        Ok(std::rc::Rc::new(super::NativeAliasHeader::new(original)))
     }
 
     pub(super) fn dispatch_original_jim_parent_alias(
         &mut self,
         parent: &mut Interp,
-        original_prefix: &obj::Owned,
+        original_prefix: &super::NativeAliasHeader,
         argv: &[*mut TclObj],
     ) -> Code {
         // JimInterpAliasProc duplicates the original parent-owned List;
         // every appended child argument crosses as a fresh counted String.
         let prepared = (|| {
             let context = parent.native_jim_object_context()?;
-            crate::native_source::bind_context(original_prefix.as_ptr(), &context)?;
-            let target_script = obj::Owned::fresh(obj::duplicate(original_prefix.as_ptr()));
+            crate::native_source::bind_context(original_prefix.checked_ptr()?, &context)?;
+            let target_script = obj::Owned::fresh(obj::duplicate(original_prefix.checked_ptr()?));
             let copies = argv[1..]
                 .iter()
                 .map(|&word| self.copy_original_jim_object_to(parent, word))

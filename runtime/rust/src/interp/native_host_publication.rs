@@ -133,7 +133,7 @@ impl PublicationService {
                     ));
                 }
                 Some(Command::ObjCmd(command))
-                    if command.delete_proc.is_some()
+                    if command.delete_proc.get().is_some()
                         && !self.hosts.borrow().contains_key(&token) =>
                 {
                     return Err(refusal(

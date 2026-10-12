@@ -181,12 +181,13 @@ impl Interp {
         else {
             return Ok(None);
         };
-        let original = NativeObjectLifetime::retain(original_prefix.as_ptr());
+        let original_header = std::rc::Rc::clone(original_prefix);
+        let original = NativeObjectLifetime::retain(original_header.checked_ptr()?);
         drop(command);
         let check = |interpreter: &mut Interp| -> Result<(), CmdError> {
             scope.currency().ensure_current_or_refuse()?;
-            obj::check_native_liveness(original.as_ptr())?;
-            let same = interpreter.raw_command_by_generation(generation).is_some_and(|command| matches!(command, Command::Alias { original_prefix, .. } if original_prefix.as_ptr() == original.as_ptr()));
+            original_header.checked_ptr()?;
+            let same = interpreter.raw_command_by_generation(generation).is_some_and(|command| matches!(command, Command::Alias { original_prefix, .. } if std::rc::Rc::ptr_eq(&original_prefix, &original_header) && original_prefix.checked_ptr().is_ok()));
             if !same
                 || namespace.lifecycle() != lifecycle
                 || !interpreter

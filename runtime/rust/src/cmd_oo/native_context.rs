@@ -92,11 +92,18 @@ impl OriginalOoNextContext {
         let arguments = OriginalArguments::enter(interpreter, &[])?;
         let (activation, frame_birth) = {
             let frames = interpreter.frames.borrow();
-            (frames.current_activation(), frames.current_activation_owner())
+            (
+                frames.current_activation(),
+                frames.current_activation_owner(),
+            )
         };
         let selected = {
             let state = interpreter.oo.borrow();
-            state.call_stack.iter().enumerate().rev()
+            state
+                .call_stack
+                .iter()
+                .enumerate()
+                .rev()
                 .find(|(_, frame)| frame.activation == Some(activation))
                 .map(|(position, frame)| Self {
                     arguments,
@@ -108,7 +115,9 @@ impl OriginalOoNextContext {
                     steps: frame.chain.observed_steps(),
                 })
         };
-        if let Some(owner) = &selected { owner.check(interpreter)?; }
+        if let Some(owner) = &selected {
+            owner.check(interpreter)?;
+        }
         Ok(selected)
     }
     pub(super) fn check(&self, actual: &Interp) -> Result<(), tcl_cmd_core::CmdError> {
@@ -121,21 +130,31 @@ impl OriginalOoNextContext {
         };
         let selected_current = {
             let state = actual.oo.borrow();
-            state.call_stack.iter().enumerate().rev()
+            state
+                .call_stack
+                .iter()
+                .enumerate()
+                .rev()
                 .find(|(_, frame)| frame.activation == Some(self.activation))
-                .is_some_and(|(position, frame)| position == self.position
-                    && frame.object == self.object
-                    && self.name_owner.strong_count() != 0
-                    && std::rc::Weak::ptr_eq(&Rc::downgrade(&frame.name_owner), &self.name_owner)
-                    && self.steps.strong_count() != 0
-                    && std::rc::Weak::ptr_eq(&frame.chain.observed_steps(), &self.steps)
-                    && frame.chain.get(frame.index).is_some())
+                .is_some_and(|(position, frame)| {
+                    position == self.position
+                        && frame.object == self.object
+                        && self.name_owner.strong_count() != 0
+                        && std::rc::Weak::ptr_eq(
+                            &Rc::downgrade(&frame.name_owner),
+                            &self.name_owner,
+                        )
+                        && self.steps.strong_count() != 0
+                        && std::rc::Weak::ptr_eq(&frame.chain.observed_steps(), &self.steps)
+                        && frame.chain.get(frame.index).is_some()
+                })
         };
         if !frame_current || !selected_current {
             return Err(self.arguments.retain_refusal(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original selected Next context or chain",
-                ).into(),
+                )
+                .into(),
             ));
         }
         Ok(())
@@ -148,15 +167,17 @@ pub(super) fn next_original_bytes_using(
     index: usize,
     extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
 ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
-    let Some(extra) = extra else { return originals.bytes(index); };
+    let Some(extra) = extra else {
+        return originals.bytes(index);
+    };
     let original = originals.original(index)?;
     let current = || {
         originals.check_original_for(interpreter, index, original)?;
         extra(interpreter)
     };
-    let reached = interpreter.native_object_string_bytes_using(
-        original, &current, &|error| originals.retain_refusal(error.into()),
-    );
+    let reached = interpreter.native_object_string_bytes_using(original, &current, &|error| {
+        originals.retain_refusal(error.into())
+    });
     current()?;
     reached
 }
@@ -606,7 +627,9 @@ impl Interp {
         check: &dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>,
         read_head: &dyn Fn(&Interp, *mut TclObj) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Code {
-        if let Err(first) = check(self) { return self.report_cmd_error(first); }
+        if let Err(first) = check(self) {
+            return self.report_cmd_error(first);
+        }
         let head = if version == tcl_dialect::TclVersion::V9_1 {
             let Some(&original) = words.first() else {
                 return self.set_error(b"missing native helper head");
@@ -617,7 +640,9 @@ impl Interp {
                     self.refuse_native_execution(first.clone());
                 }
             }
-            if let Err(first) = check(self) { return self.report_cmd_error(first); }
+            if let Err(first) = check(self) {
+                return self.report_cmd_error(first);
+            }
             let bytes = match reached {
                 Ok(bytes) => bytes,
                 Err(error) => return self.report_cmd_error(error),
@@ -639,7 +664,9 @@ impl Interp {
             check(actual)?;
             selected.check(actual)
         };
-        if let Err(first) = current(self) { return self.report_cmd_error(first); }
+        if let Err(first) = current(self) {
+            return self.report_cmd_error(first);
+        }
         if class {
             nextto_cmd_using(self, words, Some(&current))
         } else {
@@ -892,7 +919,9 @@ mod original_forward_prefix_tests {
         let mut interpreter =
             OWNER.with(|owner| owner.borrow().as_ref().unwrap().upgrade().unwrap());
         match MODE.with(Cell::get) {
-            1 => { interpreter.refuse_host_command("first original forward member updater"); }
+            1 => {
+                interpreter.refuse_host_command("first original forward member updater");
+            }
             2 => {
                 let original = interpreter.runtime_context();
                 let mut changed = original.clone();
@@ -1773,27 +1802,37 @@ impl Interp {
         extra: Option<&dyn Fn(&Interp) -> Result<(), tcl_cmd_core::CmdError>>,
     ) -> Result<OoId, tcl_cmd_core::CmdError> {
         let originals = OriginalArguments::enter(self, &[original])?;
-        if let Some(check) = extra { check(self)?; }
+        if let Some(check) = extra {
+            check(self)?;
+        }
         let lookup = self.oo_outer_namespace();
         let source_names = self.dialect_profile().namespace_import_binding()
             == Some(tcl_dialect::NamespaceImportBinding::SourceName);
-        let mut prefix_owners = Vec::new();
+        let mut prefix_owners: Vec<Rc<crate::interp::NativeAliasHeader>> = Vec::new();
         let mut visited = std::collections::BTreeSet::new();
         let mut operand = original;
         let mut namespace = lookup;
         let result: Result<OoId, tcl_cmd_core::CmdError> = (|| loop {
             let stage = |actual: &Interp| {
-                originals.check_for(actual).and_then(|()| {
-                    extra.map_or(Ok(()), |check| check(actual))
-                }).map_err(|error| {
-                    originals.retain_refusal(error);
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "original selected OO lookup stage",
-                    )
-                })
+                for owner in &prefix_owners {
+                    owner.checked_ptr()?;
+                }
+                originals
+                    .check_for(actual)
+                    .and_then(|()| extra.map_or(Ok(()), |check| check(actual)))
+                    .map_err(|error| {
+                        originals.retain_refusal(error);
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original selected OO lookup stage",
+                        )
+                    })
             };
             let reached = self.resolve_original_command_at_using(
-                namespace, operand, extra.map(|_| &stage as &dyn Fn(&Interp) -> Result<(), tcl_syntax::value::ValueError>),
+                namespace,
+                operand,
+                extra.map(|_| {
+                    &stage as &dyn Fn(&Interp) -> Result<(), tcl_syntax::value::ValueError>
+                }),
             );
             if extra.is_some() {
                 if let Err(error) = &reached {
@@ -1801,7 +1840,9 @@ impl Interp {
                 }
             }
             originals.check()?;
-            if let Some(check) = extra { check(self)?; }
+            if let Some(check) = extra {
+                check(self)?;
+            }
             let Some((command, generation)) = reached? else {
                 return Ok(OoId(0));
             };
@@ -1818,8 +1859,7 @@ impl Interp {
                     if !visited.insert(generation) {
                         return Ok(OoId(0));
                     }
-                    obj::check_native_liveness(original_prefix.as_ptr())?;
-                    operand = original_prefix.as_ptr();
+                    operand = original_prefix.checked_ptr()?;
                     prefix_owners.push(original_prefix);
                     namespace = GLOBAL;
                 }
@@ -1831,7 +1871,9 @@ impl Interp {
                     )?;
                     let origin = self.original_import_origin_command(generation);
                     originals.check()?;
-                    if let Some(check) = extra { check(self)?; }
+                    if let Some(check) = extra {
+                        check(self)?;
+                    }
                     return Ok(match origin {
                         Some(Command::OoObject(object)) => object,
                         _ => OoId(0),
@@ -1848,7 +1890,9 @@ impl Interp {
         // Any final stored-prefix retirement is outside namespace/OO borrows.
         drop(prefix_owners);
         originals.check()?;
-        if let Some(check) = extra { check(self)?; }
+        if let Some(check) = extra {
+            check(self)?;
+        }
         result
     }
 
@@ -1878,7 +1922,8 @@ impl Interp {
     /// A failed lookup remains an assertion failure, never a production miss.
     pub(super) fn oo_resolve_object(&self, name: &[u8]) -> OoId {
         let mut original = self.clone();
-        original.oo_resolve_object_bytes(name)
+        original
+            .oo_resolve_object_bytes(name)
             .expect("supported original OO fixture lookup")
     }
 }

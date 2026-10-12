@@ -10,7 +10,8 @@ use tcl_registry::native_command_creation::{
 
 /// This weak observation neither extends an active command's lifetime nor
 /// guesses ownership from a reference count. A completed original retirement
-/// and an empty exact slot before it identify the delete-procedure stage.
+/// and actual withdrawal of its exact old slot identify the delete stage.
+/// A callback-created different generation has its independent disposal purpose.
 pub(super) struct OriginalIdleObjectRetirement {
     original: Weak<ObjCommand>,
     had_delete_procedure: bool,
@@ -28,12 +29,12 @@ impl OriginalIdleObjectRetirement {
         }
         Some(Self {
             original: Rc::downgrade(command),
-            had_delete_procedure: command.delete_proc.is_some(),
+            had_delete_procedure: command.delete_proc.get().is_some(),
         })
     }
 
-    pub(super) fn completed_delete(&self, slot_was_empty: bool) -> bool {
-        slot_was_empty && self.had_delete_procedure && self.original.upgrade().is_none()
+    pub(super) fn completed_delete(&self, original_slot_withdrawn: bool) -> bool {
+        original_slot_withdrawn && self.had_delete_procedure && self.original.upgrade().is_none()
     }
 }
 
@@ -55,12 +56,12 @@ pub(super) fn discard_idle_recreated_object(
         return Err(Command::ObjCmd(command));
     }
     match Rc::try_unwrap(command) {
-        Ok(mut command) => {
+        Ok(command) => {
             // Original TclCreateObjCommandInNs discards cmdPtr without another
             // deleteProc. Original non-local Jim_ReplaceHashEntry overwrites
             // the callback-set value without a second valDestructor call.
             // Only this uniquely owned intermediate record uses that purpose.
-            command.delete_proc = None;
+            command.delete_proc.set(None);
             drop(command);
             Ok(())
         }

@@ -41,6 +41,11 @@ impl OriginalArgumentFrame {
         arguments: &OriginalArguments,
     ) -> Result<(), CmdError> {
         arguments.check_for(actual)?;
+        self.check_frame(actual)
+            .map_err(|error| arguments.retain_refusal(error.into()))
+    }
+    /// Observe the same captured frame inside another already entered owner.
+    pub(crate) fn check_frame(&self, actual: &Interp) -> Result<(), ValueError> {
         let same = {
             let frames = actual.frames.borrow();
             self.birth.strong_count() != 0
@@ -48,9 +53,8 @@ impl OriginalArgumentFrame {
                 && std::rc::Weak::ptr_eq(&frames.current_activation_owner(), &self.birth)
         };
         if !same {
-            return Err(arguments.retain_refusal(
-                ValueError::CommandProtocolUnavailable("original compiled List frame or temporary")
-                    .into(),
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original compiled List frame or temporary",
             ));
         }
         Ok(())

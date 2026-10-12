@@ -65,7 +65,9 @@ fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let original_prefix = std::rc::Rc::new(obj::Owned::fresh(interp.new_list_object(&argv[2..])));
+    let original_prefix = std::rc::Rc::new(crate::interp::NativeAliasHeader::new(
+        obj::Owned::fresh(interp.new_list_object(&argv[2..])),
+    ));
     let Some(recipe) = interp
         .name_policy_protocol()
         .map(|protocol| protocol.recipe())
@@ -87,7 +89,9 @@ fn jim_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // Jim_RegisterCommand's temporary begins after the original-name result
     // publication and remains live through the hash lookup/keyDup operation.
-    let registration_name = std::rc::Rc::new(obj::Owned::retain(argv[1]));
+    let registration_name = std::rc::Rc::new(crate::interp::NativeAliasHeader::new(
+        obj::Owned::retain(argv[1]),
+    ));
     let code = match arguments.bytes(1) {
         Ok(name) => match interp.install_alias_objects(&name, registration_name, original_prefix) {
             Ok(None) => Code::Ok,
@@ -1321,8 +1325,12 @@ fn interp_alias_original(
     // their bytes, before the C name getter; no prefix getter occurs here.
     let captured = if argv.len() >= 6 && !delete {
         Some((
-            std::rc::Rc::new(obj::Owned::retain(argv[3])),
-            std::rc::Rc::new(obj::Owned::fresh(interp.new_list_object(&argv[5..]))),
+            std::rc::Rc::new(crate::interp::NativeAliasHeader::new(obj::Owned::retain(
+                argv[3],
+            ))),
+            std::rc::Rc::new(crate::interp::NativeAliasHeader::new(obj::Owned::fresh(
+                interp.new_list_object(&argv[5..]),
+            ))),
         ))
     } else {
         None
@@ -1456,13 +1464,14 @@ fn interp_alias_original(
             Some(registration_name),
             std::rc::Rc::clone(&original_prefix),
         );
+        let generation = owner.original_parent_alias_generation(&name, &original_prefix);
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             owner.refuse_native_execution(first);
-            owner.retire_original_parent_alias(&name, &original_prefix);
+            owner.retire_original_parent_alias(&name, &original_prefix, generation);
             return interp.transport_host_refusal_from(&owner);
         }
         if let Err(error) = arguments.check() {
-            owner.retire_original_parent_alias(&name, &original_prefix);
+            owner.retire_original_parent_alias(&name, &original_prefix, generation);
             return interp.report_cmd_error(error);
         }
         match installed {
@@ -1475,13 +1484,13 @@ fn interp_alias_original(
             // the original target under that parent's genuine operation;
             // never resolve an equal spelling in the child's namespace.
             if let Err(error) = arguments.bytes(5) {
-                owner.retire_original_parent_alias(&name, &original_prefix);
+                owner.retire_original_parent_alias(&name, &original_prefix, generation);
                 return interp.report_cmd_error(error);
             }
         }
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             owner.refuse_native_execution(first);
-            owner.retire_original_parent_alias(&name, &original_prefix);
+            owner.retire_original_parent_alias(&name, &original_prefix, generation);
             return interp.transport_host_refusal_from(&owner);
         }
     } else {
@@ -1542,7 +1551,9 @@ pub(crate) fn child_alias_handle_original(
     };
     let captured = if argv.len() >= 4 && !delete {
         let prefix = if recipe.child_alias_target_string_precedes_capture() {
-            Rc::new(obj::Owned::fresh(interp.new_list_object(&argv[3..])))
+            Rc::new(crate::interp::NativeAliasHeader::new(obj::Owned::fresh(
+                interp.new_list_object(&argv[3..]),
+            )))
         } else {
             match interp.original_jim_parent_alias_prefix(&argv[3..]) {
                 Ok(prefix) => prefix,
@@ -1551,7 +1562,11 @@ pub(crate) fn child_alias_handle_original(
         };
         let registration_name = recipe
             .alias_record_retains_original_registration_name()
-            .then(|| Rc::new(obj::Owned::retain(argv[2])));
+            .then(|| {
+                Rc::new(crate::interp::NativeAliasHeader::new(obj::Owned::retain(
+                    argv[2],
+                )))
+            });
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);
         }
@@ -1618,15 +1633,16 @@ pub(crate) fn child_alias_handle_original(
     let (registration_name, prefix) = captured.expect("actual child alias capture");
     let installed =
         interp.install_parent_alias_objects(child, &name, registration_name, Rc::clone(&prefix));
+    let generation = owner.original_parent_alias_generation(&name, &prefix);
     if let Err(first) = scope.currency().ensure_current_or_refuse() {
         owner.refuse_native_execution(first);
     }
     if let Err(error) = arguments.check() {
-        owner.retire_original_parent_alias(&name, &prefix);
+        owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.report_cmd_error(error);
     }
     if owner.host_refusal_pending() {
-        owner.retire_original_parent_alias(&name, &prefix);
+        owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.transport_host_refusal_from(&owner);
     }
     match installed {
@@ -1636,17 +1652,17 @@ pub(crate) fn child_alias_handle_original(
     }
     if recipe.alias_publication_checks_original_target() {
         if let Err(error) = arguments.bytes(3) {
-            owner.retire_original_parent_alias(&name, &prefix);
+            owner.retire_original_parent_alias(&name, &prefix, generation);
             return interp.report_cmd_error(error);
         }
     }
     if let Err(first) = scope.currency().ensure_current_or_refuse() {
         owner.refuse_native_execution(first);
-        owner.retire_original_parent_alias(&name, &prefix);
+        owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.transport_host_refusal_from(&owner);
     }
     if let Err(error) = arguments.check() {
-        owner.retire_original_parent_alias(&name, &prefix);
+        owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.report_cmd_error(error);
     }
     if recipe.child_alias_returns_original_registration_name() {

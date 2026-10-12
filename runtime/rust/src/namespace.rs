@@ -432,6 +432,8 @@ struct NativeCommandNode {
     compiler_recipe: NativeCompilerRecipe,
     compiler_handler: Option<BuiltinFn>,
     placement: Option<(NsId, Vec<u8>)>,
+    namespace: NsId,
+    deletion_started: bool,
 }
 
 /// The original creation entry, retained across re-entrant delete callbacks.
@@ -944,6 +946,66 @@ impl Namespaces {
         }
     }
 
+    pub(crate) fn original_command_deletion_started(&self, generation: u64) -> bool {
+        self.native_command_nodes
+            .get(&generation)
+            .is_some_and(|node| node.deletion_started)
+    }
+    pub(crate) fn begin_original_command_deletion(&mut self, generation: u64) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.deletion_started = true;
+        }
+    }
+
+    /// Selected deletion's command epoch is independent of compiler mutation.
+    pub(crate) fn advance_original_deletion_epoch(&mut self, generation: u64) {
+        if let Some(node) = self.native_command_nodes.get_mut(&generation) {
+            node.epoch = node
+                .epoch
+                .checked_add(1)
+                .expect("native command epoch exhausted");
+        }
+    }
+
+    /// The original post-trace compiler and namespace stages. No reported name
+    /// is resolved, and the ordinary rename/hide workers retain their own effects.
+    pub(crate) fn original_deletion_after_trace(
+        &mut self,
+        generation: u64,
+        invalidate_namespace: bool,
+    ) {
+        if invalidate_namespace {
+            if let Some(namespace) = self
+                .native_command_nodes
+                .get(&generation)
+                .map(|node| node.namespace)
+            {
+                self.invalidate_native_command_lookup(namespace);
+            }
+        }
+        if let Some(hook) = self.native_compiler_hook(generation) {
+            self.note_native_compiler_mutation(
+                None,
+                tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
+            );
+        }
+    }
+
+    /// Raw unlink for this one already captured deletion. Implementation roles
+    /// are retired by the outside-borrow owner; no generic epoch is replayed.
+    pub(crate) fn unlink_original_command_generation(
+        &mut self,
+        generation: u64,
+    ) -> Option<CommandBinding> {
+        let (namespace, simple) = self.native_command_slot_at_node(generation)?;
+        let binding = self.arena[namespace].commands.remove_binding(&simple)?;
+        if matches!(&binding.command, Command::Imported { .. }) {
+            self.note_guard_lookup_environment_mutation();
+        }
+        self.native_command_nodes.get_mut(&generation)?.placement = None;
+        Some(binding)
+    }
+
     fn unlink_native_binding(&mut self, ns: NsId, simple: &[u8]) -> Option<CommandBinding> {
         let binding = self.arena[ns].commands.remove_binding(simple)?;
         self.increment_native_command_epoch(binding.generation);
@@ -1358,6 +1420,8 @@ impl Namespaces {
                 compiler_recipe,
                 compiler_handler,
                 placement: Some((ns, simple.clone())),
+                namespace: ns,
+                deletion_started: false,
             },
         );
         let jim_table_key = entry.jim_table_key.clone();
@@ -1400,10 +1464,12 @@ impl Namespaces {
         if let Command::Ensemble(token) = &binding.command {
             token.rename(self.command_fqn(ns, &simple));
         }
-        self.native_command_nodes
+        let node = self
+            .native_command_nodes
             .get_mut(&binding.generation)
-            .expect("moved binding retains its native command node")
-            .placement = Some((ns, simple.clone()));
+            .expect("moved binding retains its native command node");
+        node.namespace = ns;
+        node.placement = Some((ns, simple.clone()));
         self.arena[ns].commands.insert(
             simple,
             binding.command,

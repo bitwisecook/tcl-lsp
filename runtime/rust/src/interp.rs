@@ -53,11 +53,14 @@ mod container_access_tests;
 mod container_removal_tests;
 mod jim_local;
 mod jim_teardown;
+mod native_alias_roles;
 mod native_append;
 pub(crate) mod native_body_artifact;
 mod native_children;
 mod native_command_names;
 mod native_command_recreation;
+mod native_command_retirement;
+pub use native_alias_roles::NativeAliasHeader;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_coroutine_names;
 #[cfg(test)]
@@ -136,7 +139,6 @@ use std::rc::{Rc, Weak};
 
 use native_error_headers::{NativeErrorStack, NativeReturnOptions};
 use tcl_core_types::{OoId, RecursionLimit};
-use tcl_runtime_api::RegisteredBacking;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::validate_error_stack;
 use tcl_runtime_api::guard::{
@@ -144,14 +146,15 @@ use tcl_runtime_api::guard::{
     OwnedGuardManager,
 };
 use tcl_runtime_api::jim_error_stack::{
-    JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation, NativeErrorStackProtocol,
-    capture_jim_error_frames,
+    capture_jim_error_frames, JimErrorStack, JimErrorTrace, JimEvaluationFrame, JimScriptLocation,
+    NativeErrorStackProtocol,
 };
+use tcl_runtime_api::RegisteredBacking;
 use tcl_syntax::value::ValueError;
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{CommandBinding, GLOBAL, Namespaces, NsId, RenameOutcome};
+use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -774,31 +777,26 @@ pub type TclObjCmdProc =
 /// `Tcl_CmdDeleteProc`: run with the `clientData` when the command is deleted.
 pub type TclCmdDeleteProc = unsafe extern "C" fn(*mut c_void);
 
-/// An extension's command: the procedure, its `clientData` and its delete
-/// procedure, registered through `Tcl_CreateObjCommand`.
-///
-/// The delete procedure runs when the last handle to the command goes: at the
-/// deletion, a replacement or a `rename` to the empty name when the command is
-/// idle, and once the call that is running it returns when it is not — which
-/// keeps the `clientData` live for as long as the command's own procedure
-/// executes, where C Tcl runs the procedure at the deletion itself. The table,
-/// a displaced binding and an interpreter's teardown are all just drops of the
-/// handle. The selected original idle creation purpose separately discards a
-/// uniquely owned callback-recreated object record without a second delete
-/// procedure, matching the original public overwrite operation. This exception
-/// grants no active-command, procedure or native generation equivalence.
+/// An extension's actual command procedure, client data and delete procedure.
+/// Selected C true deletion withdraws the once-only callback while an active
+/// dispatch keeps only the command allocation. Neutral and Jim record lifetime
+/// still call an unconsumed delete procedure when its final handle drops.
+/// Selected idle creation discard retains its independent producer contract.
 pub struct ObjCommand {
     proc_: TclObjCmdProc,
     client_data: *mut c_void,
-    delete_proc: Option<TclCmdDeleteProc>,
+    delete_proc: Cell<Option<TclCmdDeleteProc>>,
+    original_deleted: Cell<bool>,
+    host_backing_retired: Cell<bool>,
     creation_purpose:
         Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose>,
 }
 
 impl ObjCommand {
-    /// A command over `proc_`; ordinary retirement calls `delete_proc` with
-    /// `client_data` once when the last handle drops. The selected idle creation
-    /// overwrite purpose may discard an intermediate record without calling it.
+    /// A command over `proc_`. Selected C deletion withdraws `delete_proc`
+    /// once independently of the dispatch allocation; neutral and Jim record
+    /// retirement calls an unconsumed callback when the last handle drops.
+    /// Selected idle creation discard has its own no-callback purpose.
     #[must_use]
     pub fn new(
         proc_: TclObjCmdProc,
@@ -808,9 +806,37 @@ impl ObjCommand {
         Self {
             proc_,
             client_data,
-            delete_proc,
+            delete_proc: Cell::new(delete_proc),
+            original_deleted: Cell::new(false),
+            host_backing_retired: Cell::new(false),
             creation_purpose: None,
         }
+    }
+
+    /// Observe the actual once-only callback withdrawal in a genuine Host bridge.
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_delete_role_is_withdrawn(&self) -> bool {
+        self.delete_proc.get().is_none() && self.original_deleted.get()
+    }
+
+    /// Withdraw before invoking, so recursive deletion cannot replay this role.
+    pub(super) fn retire_original_delete_procedure(&self) {
+        if let Some(delete_proc) = self.delete_proc.take() {
+            if self.creation_purpose == Some(
+                tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+            ) {
+                // Withdraw this actual private backing role before its Drop
+                // can reenter. The C token's final objProc-null stage is separate.
+                self.host_backing_retired.set(true);
+            }
+            // SAFETY: the actual command supplied this callback and client data.
+            unsafe { delete_proc(self.client_data) };
+        }
+    }
+
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_host_backing_is_retired(&self) -> bool {
+        self.host_backing_retired.get() && self.delete_proc.get().is_none()
     }
 
     /// Retain the actual producer's record purpose independently of dispatch,
@@ -838,7 +864,7 @@ impl ObjCommand {
 
 impl Drop for ObjCommand {
     fn drop(&mut self) {
-        if let Some(delete_proc) = self.delete_proc {
+        if let Some(delete_proc) = self.delete_proc.take() {
             // SAFETY: the extension registered this procedure for this client
             // data; the handle is dropped once, so it is called once.
             unsafe { delete_proc(self.client_data) };
@@ -851,9 +877,9 @@ pub enum Command {
     /// A native Rust handler.
     Builtin(BuiltinFn),
     /// An extension's command, registered through `Tcl_CreateObjCommand`: a
-    /// C procedure called with the call's words as `objv`. Behind an `Rc` so
-    /// the dispatch-time clone is a count, and so the delete procedure runs
-    /// exactly once however the binding goes (see [`ObjCommand`]).
+    /// C procedure called with the call's words as `objv`. Its dispatch `Rc`
+    /// remains independent of the selected C once-only delete callback. Jim
+    /// and neutral deletion retain their final-record callback schedule.
     ObjCmd(Rc<ObjCommand>),
     /// An `interp alias`: dispatch re-resolves `target` **by name, anchored at
     /// the global namespace, on every call** (so it lazily observes the target's
@@ -863,9 +889,9 @@ pub enum Command {
     Alias {
         /// Original member ownership; command-token clones do not duplicate
         /// the native List or its member references.
-        original_prefix: Rc<obj::Owned>,
+        original_prefix: Rc<NativeAliasHeader>,
         /// C retains the original registration name independently of its slot.
-        registration_name: Option<Rc<obj::Owned>>,
+        registration_name: Option<Rc<NativeAliasHeader>>,
         /// Registration report retained independently from the lookup slot.
         publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
@@ -911,9 +937,9 @@ pub enum Command {
     ParentAlias {
         /// Original member ownership; command-token clones do not duplicate
         /// the native List or its member references.
-        original_prefix: Rc<obj::Owned>,
+        original_prefix: Rc<NativeAliasHeader>,
         /// Only C retains the original registration name in the alias record.
-        registration_name: Option<Rc<obj::Owned>>,
+        registration_name: Option<Rc<NativeAliasHeader>>,
         /// Selected child registration spelling, independent of command lookup.
         publication_name: Vec<u8>,
         /// Per-instance identity — see [`Command::is_same_binding`].
@@ -1608,6 +1634,8 @@ pub struct InterpState {
     /// being retired. Delete traces are re-entrant, so the stable owner guards
     /// the one retirement transaction instead of any mutable spelling.
     retiring_oo_commands: RefCell<std::collections::HashSet<OoId>>,
+    original_command_retirement_recipes:
+        RefCell<Vec<native_command_retirement::OriginalCommandDeletionRecipe>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -2027,6 +2055,7 @@ impl Interp {
             pin: RefCell::new(tcl_registry::model::PinnedContext::for_profile(profile)),
             registry_object_roots: RefCell::new(std::collections::HashMap::new()),
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
+            original_command_retirement_recipes: RefCell::new(Vec::new()),
         }));
         interp.frames.borrow_mut().variable_container_model =
             profile.variable_container_model().unwrap_or_default();
@@ -3718,6 +3747,16 @@ impl Interp {
     /// `Tcl_DeleteCommandFromToken`, whose `delete` traces fire while the
     /// command is still bound under its name.
     fn delete_bound_command(&mut self, old: &[u8]) -> RenameOutcome {
+        if self.uses_original_c_command_retirement() {
+            let Some(generation) = self.resolve_cmd_token(old) else {
+                return RenameOutcome::NoSuchCommand;
+            };
+            if let Err(error) = self.retire_original_command_generation(generation, true) {
+                self.report_cmd_error(error);
+            }
+            return RenameOutcome::Deleted;
+        }
+
         let (ensemble_token, import_token) =
             match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
                 Some(Command::Ensemble(token)) => (Some(token), None),
@@ -3860,8 +3899,13 @@ impl Interp {
     ) -> Result<(), Vec<u8>> {
         let original_prefix =
             original.unwrap_or_else(|| self.generated_alias_prefix(&target, &prefix));
-        let registration_name = Rc::new(obj::Owned::fresh(new_string(name)));
-        match self.install_alias_objects(name, registration_name, Rc::new(original_prefix)) {
+        let registration_name =
+            Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(name))));
+        match self.install_alias_objects(
+            name,
+            registration_name,
+            Rc::new(NativeAliasHeader::new(original_prefix)),
+        ) {
             Ok(None) => Ok(()),
             Ok(Some(simple)) => Err(simple),
             Err(error) => {
@@ -3886,8 +3930,8 @@ impl Interp {
     pub(crate) fn install_alias_objects(
         &mut self,
         name: &[u8],
-        registration_name: Rc<obj::Owned>,
-        original_prefix: Rc<obj::Owned>,
+        registration_name: Rc<NativeAliasHeader>,
+        original_prefix: Rc<NativeAliasHeader>,
     ) -> Result<Option<Vec<u8>>, tcl_cmd_core::CmdError> {
         let _scope = native_operation_currency::NativeOperationScope::enter(self)
             .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
@@ -3918,7 +3962,13 @@ impl Interp {
             name,
             tcl_syntax::naming::NativeNamePurpose::AliasPublication,
         );
-        let original_key = recipe.is_jim084().then(|| Rc::clone(&registration_name));
+        let original_key = if recipe.is_jim084() {
+            Some(Rc::new(registration_name.take_role().ok_or(
+                ValueError::CommandProtocolUnavailable("original Jim alias registration role"),
+            )?))
+        } else {
+            None
+        };
         let registration_name = recipe
             .alias_record_retains_original_registration_name()
             .then_some(registration_name);
@@ -3938,22 +3988,42 @@ impl Interp {
         if !recipe.alias_publication_checks_original_target() {
             return Ok(None);
         }
+        let generation = {
+            let namespaces = self.namespaces.borrow();
+            match namespaces.command_in(ns, &simple) {
+                Some(Command::Alias {
+                    identity: current, ..
+                }) if Rc::ptr_eq(&identity, &current) => namespaces.command_generation(ns, &simple),
+                _ => None,
+            }
+        };
         let loops = self.alias_chain_loops_original(ns, &simple);
         if loops.as_ref().is_ok_and(|loops| !loops) {
             return Ok(None);
         }
         // Reentrant getters may replace the slot. Retire only this actual
         // capture, and drop its object owners after the table borrow ends.
-        let retired = {
-            let mut namespaces = self.namespaces.borrow_mut();
-            match namespaces.command_in(ns, &simple) {
-                Some(Command::Alias {
-                    identity: current, ..
-                }) if Rc::ptr_eq(&identity, &current) => namespaces.unbind_in(ns, &simple),
-                _ => None,
+        if let Err(error) = &loops {
+            if error.native_access_refusal().is_some() {
+                self.refuse_completion_value_access(error.clone());
             }
-        };
-        drop(retired);
+        }
+        if self.uses_original_c_command_retirement() {
+            if let Some(generation) = generation {
+                self.finish_original_command_deletion(generation, true);
+            }
+        } else {
+            let retired = {
+                let mut namespaces = self.namespaces.borrow_mut();
+                match namespaces.command_in(ns, &simple) {
+                    Some(Command::Alias {
+                        identity: current, ..
+                    }) if Rc::ptr_eq(&identity, &current) => namespaces.unbind_in(ns, &simple),
+                    _ => None,
+                }
+            };
+            drop(retired);
+        }
         self.retire_pending_native_ensemble_roles()
             .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;
         loops?;
@@ -3974,7 +4044,8 @@ impl Interp {
                 return Ok(None);
             };
             let members =
-                tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.as_ptr())?;
+                tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.checked_ptr()?)?;
+            original_prefix.checked_ptr()?;
             let original = *members.first().ok_or(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original alias target member",
@@ -3982,6 +4053,7 @@ impl Interp {
             )?;
             let arguments = native_arguments::OriginalArguments::enter(self, &[original])?;
             let bytes = arguments.bytes(0)?;
+            original_prefix.checked_ptr()?;
             let target = self.namespaces.borrow().home_of(GLOBAL, &bytes);
             arguments.check()?;
             Ok(target)
@@ -3998,8 +4070,11 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> bool {
-        let original_prefix = Rc::new(self.generated_alias_prefix(&target, &prefix));
-        let registration_name = Rc::new(obj::Owned::fresh(new_string(name)));
+        let original_prefix = Rc::new(NativeAliasHeader::new(
+            self.generated_alias_prefix(&target, &prefix),
+        ));
+        let registration_name =
+            Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(name))));
         match self.install_parent_alias_objects(
             child,
             name,
@@ -4018,8 +4093,8 @@ impl Interp {
         &mut self,
         child: &[u8],
         name: &[u8],
-        registration_name: Option<Rc<obj::Owned>>,
-        original_prefix: Rc<obj::Owned>,
+        registration_name: Option<Rc<NativeAliasHeader>>,
+        original_prefix: Rc<NativeAliasHeader>,
     ) -> Result<bool, tcl_syntax::value::ValueError> {
         use tcl_syntax::value::ValueError;
         let producer =
@@ -4099,9 +4174,38 @@ impl Interp {
         .unwrap_or(Ok(false))
     }
 
+    /// Observe the actual just-published child alias before its target getter.
+    pub(crate) fn original_parent_alias_generation(
+        &self,
+        name: &[u8],
+        original: &Rc<NativeAliasHeader>,
+    ) -> Option<u64> {
+        let namespaces = self.namespaces.borrow();
+        let (namespace, simple) = namespaces.home_of(self.current_ns.get(), name)?;
+        match namespaces.command_in(namespace, &simple) {
+            Some(Command::ParentAlias {
+                original_prefix, ..
+            }) if Rc::ptr_eq(&original_prefix, original) => {
+                namespaces.command_generation(namespace, &simple)
+            }
+            _ => None,
+        }
+    }
+
     /// Roll back only the actual child capture after a refused target getter.
-    /// Same-spelling replacements retain their independent original owner.
-    pub(crate) fn retire_original_parent_alias(&mut self, name: &[u8], original: &Rc<obj::Owned>) {
+    /// The C generation was captured before that getter, independent of spelling.
+    pub(crate) fn retire_original_parent_alias(
+        &mut self,
+        name: &[u8],
+        original: &Rc<NativeAliasHeader>,
+        generation: Option<u64>,
+    ) {
+        if self.uses_original_c_command_retirement() {
+            if let Some(generation) = generation {
+                self.finish_original_command_deletion(generation, true);
+            }
+            return;
+        }
         let retired = {
             let mut namespaces = self.namespaces.borrow_mut();
             let Some((namespace, simple)) = namespaces.home_of(self.current_ns.get(), name) else {
@@ -4165,12 +4269,9 @@ impl Interp {
             Command::Alias {
                 original_prefix: original,
                 ..
-            } => {
-                obj::check_native_liveness(original.as_ptr())?;
-                Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(
-                    original.as_ptr(),
-                ))
-            }
+            } => Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(
+                original.checked_ptr()?,
+            )),
             _ => Ok(tcl_runtime_api::AliasPrefixLookup::NotAlias),
         }
     }
@@ -4193,7 +4294,7 @@ impl Interp {
                 ..
             }) => {
                 if let Some(registration_name) = registration_name {
-                    obj::check_native_liveness(registration_name.as_ptr())?;
+                    registration_name.checked_ptr()?;
                 }
                 original_prefix
             }
@@ -4203,7 +4304,7 @@ impl Interp {
                 ..
             }) => {
                 if let Some(registration_name) = registration_name {
-                    obj::check_native_liveness(registration_name.as_ptr())?;
+                    registration_name.checked_ptr()?;
                 }
                 original_prefix
             }
@@ -4215,11 +4316,13 @@ impl Interp {
                 "alias query issuer",
             ))?
             .recipe();
-        obj::check_native_liveness(original_prefix.as_ptr())?;
+        original_prefix.checked_ptr()?;
         if recipe.alias_query_returns_original_list() {
-            return Ok(Some(obj::Owned::retain(original_prefix.as_ptr())));
+            return Ok(Some(obj::Owned::retain(original_prefix.checked_ptr()?)));
         }
-        let members = tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.as_ptr())?;
+        let members =
+            tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.checked_ptr()?)?;
+        original_prefix.checked_ptr()?;
         Ok(Some(obj::Owned::fresh(self.new_list_object(&members))))
     }
 
@@ -4255,6 +4358,13 @@ impl Interp {
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
+        if self.uses_original_c_command_retirement() {
+            let Some(generation) = self.resolve_cmd_token(name) else {
+                return false;
+            };
+            return self.finish_original_command_deletion(generation, true);
+        }
+
         let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4295,6 +4405,10 @@ impl Interp {
 
     /// Remove one command generation without recovering an address from its report.
     pub(crate) fn delete_command_generation(&mut self, generation: u64) -> bool {
+        if self.uses_original_c_command_retirement() {
+            return self.finish_original_command_deletion(generation, true);
+        }
+
         let _scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => {
@@ -4463,7 +4577,7 @@ impl Interp {
         // unknown callback observes UNKNOWN_DELETED), while imports of the
         // occupied source binding are explicitly reattached to the new token.
         if let Some(old_token) = old_token.as_ref() {
-            self.retire_ensemble_identity(old_token);
+            self.retire_ensemble_replacement_identity(old_token);
         }
         if scope.currency().ensure_current_or_refuse().is_err()
             || !self.original_publication_namespace_is_current(ns, &holder, holder_lifecycle)
@@ -5122,17 +5236,63 @@ impl Interp {
         let original_object_retirement =
             native_command_recreation::OriginalIdleObjectRetirement::capture(displaced.as_ref());
         let had_displaced = displaced.is_some();
-        self.on_bound_command_replaced(ns, tail);
-        if scope.currency().ensure_current_or_refuse().is_err()
-            || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
-        {
-            return OriginalCommandPublication::Refused;
-        }
-        if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
-            // The old object command's delete trace has run while the token was
-            // still visible. Unlink that exact binding before TclOO teardown so
-            // identity-based cleanup cannot remove the replacement installed
-            // below, then run the displaced owner's destructor and cascades.
+        let slot_was_empty = if self.uses_original_c_command_retirement() {
+            // C creation calls the same actual token deletion even while the
+            // old command has a live invocation. The creation entry and its
+            // callback-recreated disposal remain independent producer purposes.
+            let original_generation = self.namespaces.borrow().command_generation(ns, tail);
+            if let Some(original_generation) = original_generation {
+                if let Err(error) = self.retire_original_command_for_creation(original_generation) {
+                    self.report_cmd_error(error);
+                    return OriginalCommandPublication::Refused;
+                }
+                if scope.currency().ensure_current_or_refuse().is_err()
+                    || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+                {
+                    return OriginalCommandPublication::Refused;
+                }
+                // The original exact slot is withdrawn. A different generation
+                // left by its delete callback has its separate disposal receipt.
+                self.namespaces.borrow().command_generation(ns, tail) != Some(original_generation)
+            } else {
+                true
+            }
+        } else {
+            self.on_bound_command_replaced(ns, tail);
+            if scope.currency().ensure_current_or_refuse().is_err()
+                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+            {
+                return OriginalCommandPublication::Refused;
+            }
+            if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
+                // The old object command's delete trace has run while the token was
+                // still visible. Unlink that exact binding before TclOO teardown so
+                // identity-based cleanup cannot remove the replacement installed
+                // below, then run the displaced owner's destructor and cascades.
+                let still_displaced =
+                    self.namespaces
+                        .borrow()
+                        .command_in(ns, tail)
+                        .is_some_and(|current| {
+                            displaced
+                                .as_ref()
+                                .is_some_and(|old| old.is_same_binding(&current))
+                        });
+                if still_displaced {
+                    self.namespaces
+                        .borrow_mut()
+                        .remove_in_for_replacement(ns, tail);
+                }
+                self.oo_command_renamed(owner, None);
+                if scope.currency().ensure_current_or_refuse().is_err()
+                    || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
+                {
+                    return OriginalCommandPublication::Refused;
+                }
+            }
+            // Keep the actual old handle while unlinking its exact slot. Releasing
+            // it outside the table borrow runs an idle extension's deleteProc before
+            // publication; a running call's independent Rc still defers retirement.
             let still_displaced =
                 self.namespaces
                     .borrow()
@@ -5147,31 +5307,8 @@ impl Interp {
                     .borrow_mut()
                     .remove_in_for_replacement(ns, tail);
             }
-            self.oo_command_renamed(owner, None);
-            if scope.currency().ensure_current_or_refuse().is_err()
-                || !self.original_publication_namespace_is_current(ns, &namespace, lifecycle)
-            {
-                return OriginalCommandPublication::Refused;
-            }
-        }
-        // Keep the actual old handle while unlinking its exact slot. Releasing
-        // it outside the table borrow runs an idle extension's deleteProc before
-        // publication; a running call's independent Rc still defers retirement.
-        let still_displaced =
-            self.namespaces
-                .borrow()
-                .command_in(ns, tail)
-                .is_some_and(|current| {
-                    displaced
-                        .as_ref()
-                        .is_some_and(|old| old.is_same_binding(&current))
-                });
-        if still_displaced {
-            self.namespaces
-                .borrow_mut()
-                .remove_in_for_replacement(ns, tail);
-        }
-        let slot_was_empty = self.namespaces.borrow().command_in(ns, tail).is_none();
+            self.namespaces.borrow().command_in(ns, tail).is_none()
+        };
         drop(displaced);
         if self.retire_pending_native_ensemble_roles().is_err() {
             return OriginalCommandPublication::Refused;
@@ -5542,6 +5679,23 @@ impl Interp {
     }
 
     fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
+        if self.uses_original_c_command_retirement() {
+            let generations = self
+                .oo_command_locations(owner, None)
+                .into_iter()
+                .filter_map(|(_, generation)| {
+                    self.raw_command_by_generation(generation)
+                        .and_then(|command| command.oo_binding())
+                        .filter(|(_, role)| roles.contains(role))
+                        .map(|_| generation)
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            for generation in generations {
+                self.finish_original_command_deletion(generation, false);
+            }
+            return;
+        }
+
         let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
             .borrow_mut()
@@ -9872,6 +10026,19 @@ impl Interp {
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
     /// when the object is destroyed.
     pub(crate) fn delete_namespace_by_id(&mut self, ns: NsId) {
+        let recipe = self.original_command_deletion_recipe();
+        if let Some(recipe) = recipe {
+            self.original_command_retirement_recipes
+                .borrow_mut()
+                .push(recipe);
+        }
+        self.delete_namespace_by_id_using(ns);
+        if recipe.is_some() {
+            let _ = self.original_command_retirement_recipes.borrow_mut().pop();
+        }
+    }
+
+    fn delete_namespace_by_id_using(&mut self, ns: NsId) {
         // The reached namespace cleanup keeps its original receipt through
         // every extracted table/key release, including a refused entry.
         let saved = native_operation_currency::SavedNativeOperationCurrency::capture(self);
@@ -10041,6 +10208,11 @@ impl Interp {
     /// `CMD_DYING` early return then leaves the replacement to the next
     /// snapshot.
     fn tear_down_command_table(&mut self, ns: NsId) {
+        if self.uses_original_c_command_retirement() {
+            self.retire_original_namespace_command_table(ns);
+            return;
+        }
+
         // Native proof: naming.namespace.original-command-holder-routing
         // docs/design/analysis/name-resolution-proofs/namespace-original-command-holder-routing.md
         // The public callback rows and pinned C teardown traversal stay separate.
@@ -10108,6 +10280,11 @@ impl Interp {
     /// delete callbacks ran. The detached namespace remains command-addressable
     /// during this sweep, but never reappears in the visible namespace tree.
     fn sweep_dying_namespace(&mut self, root: NsId, retained_ids: &[NsId]) {
+        if self.uses_original_c_command_retirement() {
+            self.sweep_original_dying_namespace(root, retained_ids);
+            return;
+        }
+
         // A child whose own frame was still running deferred its teardown; it
         // and its subtree keep every binding they had until that frame pops.
         let mut ids: Vec<NsId> = {
@@ -14075,7 +14252,7 @@ impl Interp {
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
     fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
-        use crate::cmd_trace::{StepActive, ops};
+        use crate::cmd_trace::{ops, StepActive};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
@@ -14270,7 +14447,7 @@ impl Interp {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Result<Box<PreparedMissingCommand>, Code> {
         use tcl_registry::command_lookup::{
-            UnknownHandlerNamespace, native_lookup_fallback_policy,
+            native_lookup_fallback_policy, UnknownHandlerNamespace,
         };
         use tcl_syntax::value::ValueOps;
         let Some(policy) = native_lookup_fallback_policy(self.native_invocation_dialect(), origin)
@@ -14550,6 +14727,23 @@ impl Interp {
     /// procedure left in the interpreter through `Tcl_SetObjResult`, which
     /// dispatch emptied before the call.
     fn invoke_obj_cmd(&mut self, command: &ObjCommand, argv: &[*mut TclObj]) -> Code {
+        if command.host_backing_retired.get() {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original Runtime host backing retired",
+                ),
+            );
+            return Code::Error;
+        }
+        if command.original_deleted.get() {
+            self.refuse_completion_value_access(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original C object command retired",
+                ),
+            );
+            return Code::Error;
+        }
+
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return Code::Error;
         };
@@ -15790,6 +15984,25 @@ impl Interp {
         &mut self,
         identity: &Rc<crate::ensemble::EnsembleToken>,
     ) -> Option<(Vec<u8>, u64)> {
+        self.retire_ensemble_identity_using(identity, true)
+    }
+    fn retire_ensemble_replacement_identity(
+        &mut self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        self.retire_ensemble_identity_using(identity, false)
+    }
+    fn retire_ensemble_identity_using(
+        &mut self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+        true_deletion: bool,
+    ) -> Option<(Vec<u8>, u64)> {
+        if true_deletion && self.uses_original_c_command_retirement() {
+            let original = self.ensemble_identity_location(identity)?;
+            self.finish_original_command_deletion(original.1, true);
+            return Some(original);
+        }
+
         if let Some((trace_fqn, generation)) = self.ensemble_identity_location(identity) {
             self.fire_delete_traces_of_token(&trace_fqn, Some(generation));
         }
@@ -15835,6 +16048,11 @@ impl Interp {
         origins: impl IntoIterator<Item = u64>,
         tokens: &[Rc<crate::ensemble::EnsembleToken>],
     ) {
+        if self.uses_original_c_command_retirement() {
+            self.retire_original_import_origins(origins, tokens);
+            return;
+        }
+
         let mut origins: std::collections::HashSet<u64> = origins.into_iter().collect();
         loop {
             let visible = self
@@ -15935,8 +16153,12 @@ impl Interp {
         self.ns_register(
             b"clock",
             Command::ParentAlias {
-                original_prefix: Rc::new(self.generated_alias_prefix(b"clock", &[])),
-                registration_name: Some(Rc::new(obj::Owned::fresh(new_string(b"clock")))),
+                original_prefix: Rc::new(NativeAliasHeader::new(
+                    self.generated_alias_prefix(b"clock", &[]),
+                )),
+                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(
+                    new_string(b"clock"),
+                )))),
                 publication_name: b"clock".to_vec(),
                 identity: Rc::new(()),
             },
@@ -16264,9 +16486,13 @@ impl Interp {
         if let Some(full_name) = placed {
             self.delete_bound_command(&full_name);
         } else if let Some(generation) = generation {
-            self.hidden
-                .borrow_mut()
-                .retain(|_, binding| binding.generation != generation);
+            if self.uses_original_c_command_retirement() {
+                self.finish_original_command_deletion(generation, true);
+            } else {
+                self.hidden
+                    .borrow_mut()
+                    .retain(|_, binding| binding.generation != generation);
+            }
         }
         child.pending_delete.set(true);
         child.invalidate_interpreter_policy();
@@ -16284,7 +16510,7 @@ impl Interp {
     /// `MAX_CROSS_INTERP_DEPTH` to cap native-stack growth.
     fn dispatch_parent_alias(
         &mut self,
-        original_prefix: &obj::Owned,
+        original_prefix: &NativeAliasHeader,
         argv: &[*mut TclObj],
     ) -> Code {
         let policy = tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED;
@@ -16310,18 +16536,27 @@ impl Interp {
                 return self.transport_host_refusal_from(&parent);
             }
         };
-        let members = match tcl_syntax::value::ValueOps::list_elements(
-            &mut parent,
-            &original_prefix.as_ptr(),
-        ) {
-            Ok(members) => members,
+        let original_prefix_ptr = match original_prefix.checked_ptr() {
+            Ok(pointer) => pointer,
             Err(error) => {
-                // This is the captured Native List, not a guest list parse.
-                // A failed original-member projection retains a typed cause.
-                parent.refuse_completion_value_access(error);
-                return self.transport_host_refusal_from(&parent);
+                self.refuse_completion_value_access(error);
+                return Code::Error;
             }
         };
+        let members =
+            match tcl_syntax::value::ValueOps::list_elements(&mut parent, &original_prefix_ptr) {
+                Ok(members) => members,
+                Err(error) => {
+                    // This is the captured Native List, not a guest list parse.
+                    // A failed original-member projection retains a typed cause.
+                    parent.refuse_completion_value_access(error);
+                    return self.transport_host_refusal_from(&parent);
+                }
+            };
+        if let Err(error) = original_prefix.checked_ptr() {
+            self.refuse_completion_value_access(error);
+            return Code::Error;
+        }
         let mut new_argv = Vec::with_capacity(members.len() + argv.len());
         for original in members.into_iter().chain(argv.iter().skip(1).copied()) {
             unsafe { obj::incr_ref_count(original) };
@@ -17782,7 +18017,11 @@ impl Interp {
     /// definition-time gate errors instead of exhausting the native stack. The
     /// wrapper begins a fresh completion-option scope before invoking its
     /// target, including across an interpreter boundary.
-    fn dispatch_alias(&mut self, original_prefix: &obj::Owned, argv: &[*mut TclObj]) -> Code {
+    fn dispatch_alias(
+        &mut self,
+        original_prefix: &NativeAliasHeader,
+        argv: &[*mut TclObj],
+    ) -> Code {
         if let Err(first) = self.begin_control_options_checked(
             tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
         ) {
@@ -17798,16 +18037,26 @@ impl Interp {
             unsafe { obj::incr_ref_count(o) };
             v.push(o);
         };
-        let words =
-            match tcl_syntax::value::ValueOps::list_elements(self, &original_prefix.as_ptr()) {
-                Ok(words) => words,
-                Err(error) => {
-                    // The captured Native List is retained state, not a guest
-                    // list parse. Keep its first operational refusal typed.
-                    self.refuse_completion_value_access(error);
-                    return Code::Error;
-                }
-            };
+        let original_prefix_ptr = match original_prefix.checked_ptr() {
+            Ok(pointer) => pointer,
+            Err(error) => {
+                self.refuse_completion_value_access(error);
+                return Code::Error;
+            }
+        };
+        let words = match tcl_syntax::value::ValueOps::list_elements(self, &original_prefix_ptr) {
+            Ok(words) => words,
+            Err(error) => {
+                // The captured Native List is retained state, not a guest
+                // list parse. Keep its first operational refusal typed.
+                self.refuse_completion_value_access(error);
+                return Code::Error;
+            }
+        };
+        if let Err(error) = original_prefix.checked_ptr() {
+            self.refuse_completion_value_access(error);
+            return Code::Error;
+        }
         if words.is_empty() {
             self.refuse_completion_value_access(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -18827,12 +19076,10 @@ mod tests {
         state.calls.set(state.calls.get() + 1);
         let currency =
             native_operation_currency::NativeOperationCurrency::issue(&interpreter).unwrap();
-        assert!(
-            interpreter
-                .namespaces()
-                .command_in(state.namespace, b"retiring")
-                .is_none()
-        );
+        assert!(interpreter
+            .namespaces()
+            .command_in(state.namespace, b"retiring")
+            .is_none());
         interpreter.delete_namespace_by_id(state.namespace);
         state
             .recreated
@@ -21661,8 +21908,8 @@ mod tests {
     fn a_planted_alias_cycle_errors_instead_of_exhausting_the_stack() {
         leak_free(|i| {
             let alias = |target: &[u8]| Command::Alias {
-                original_prefix: Rc::new(i.generated_alias_prefix(target, &[])),
-                registration_name: Some(Rc::new(obj::Owned::fresh(new_string(target)))),
+                original_prefix: Rc::new(NativeAliasHeader::new(i.generated_alias_prefix(target, &[]))),
+                registration_name: Some(Rc::new(NativeAliasHeader::new(obj::Owned::fresh(new_string(target))))),
                 publication_name: target.to_vec(),
                 identity: Rc::new(()),
             };

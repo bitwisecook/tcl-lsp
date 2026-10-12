@@ -3966,3 +3966,51 @@ Authenticated Logical immediate-body advice uses this source purpose only after
 checking the original input, configured word/image/extent and selected Expr
 role. Native advice retains the independently selected Native syntax gate;
 unknown Native policy remains unavailable rather than borrowing a C profile.
+
+Runtime original C command deletion uses the shared Core release-selected
+Implementation/Imports coordinator. C84/85 withdraw the actual implementation
+before depth-first imported commands; C86/90/91 retire imports first. Both
+mandatory stages complete after a retained first refusal. The Runtime captures
+its existing saved cleanup currency, caller frame birth and caller namespace
+incarnation before traces, and keeps the original exact command generation
+through recursive unlink, rename, hide and namespace/OO automatic cleanup.
+Command epochs follow the selected entry/unlink predicates; namespace lookup
+and compiler mutation occur after traces. The pure order and namespace frontier
+are retained through mandatory nested cleanup and supply no getter or token
+ownership authority.
+
+The actual C ObjCommand delete callback is a once-only role separate from its
+Rust dispatch allocation. It runs during true deletion even while that command
+is executing. Alias registration and prefix Native roles are also separately
+withdrawn; retained Rust alias views observe their allocation and terminally
+refuse a retired stored role. Genuine forwarded argv references retain their
+existing independent schedule. HostEntry captures the existing Rust command,
+registrar table and panic-slot roles under a short read before argument getters,
+then releases its raw registration-box borrow before any host callback. No
+additional Tcl reference protects the registration box or an alias prefix.
+
+Selected C creation consumes this same original-generation deletion kernel
+while preserving its actual old import roster: C84 creation detaches that roster
+before Delete, and C85+ uses the redefinition purpose. Its original creation
+entry, missing-source import reattachment and idle callback-recreated record
+disposal retain their distinct producer contracts. Ensemble replacement keeps
+its existing retargeting purpose. Jim and authored neutral record retirement
+use their independent final-record callback schedule; the C eager callback
+contract is not applied to Jim.
+
+Nine Runtime controls and two actual Engine HostEntry controls inspect active
+self-deletion/recreation, imports, alias stored/forwarded roles, first refusal,
+recursive and moved generations, namespace/hidden/OO cleanup and the selected
+creation handoff. They are software controls with genuine registration/storage
+setup. Source joins and the independently owned active-ObjCommand observer do
+not establish client-data backing-free equivalence, procedure/import parity,
+Native reference-count outcomes or aggregate interpreter teardown coverage.
+
+The genuine OwnedRuntimeShim implementation callback also withdraws its private
+HostEntry backing availability before later C84/85 import traces. A subsequent
+lookup of the still-visible original token cannot freshly read that retired
+Rust Box. This private backing guard is independent of the opaque ObjCommand
+final objProc-null timing; it acquires no Native role and makes no Native
+client-data backing-free equivalence claim. Its additional software control
+reaches actual imported-command traces after private backing retirement and
+retains that first typed refusal through mandatory original-token cleanup.

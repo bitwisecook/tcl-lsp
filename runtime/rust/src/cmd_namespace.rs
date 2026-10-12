@@ -1182,7 +1182,14 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
             .map(|(simple, _)| simple)
             .collect();
         for simple in victims {
-            interp.namespaces_mut().remove_in(dest, &simple);
+            if interp.uses_original_c_command_retirement() {
+                let generation = interp.namespaces().command_generation(dest, &simple);
+                if let Some(generation) = generation {
+                    interp.finish_original_command_deletion(generation, true);
+                }
+            } else {
+                interp.namespaces_mut().remove_in(dest, &simple);
+            }
             if let Err(error) = arguments.check() {
                 return interp.report_cmd_error(error);
             }
