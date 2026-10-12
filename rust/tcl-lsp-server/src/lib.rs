@@ -17130,11 +17130,10 @@ impl Backend {
         }
         // Only the final segment moves, so the new namespace is the old one
         // with its tail replaced.
-        let trimmed = cell.trim_end_matches(':');
-        let new_cell = match trimmed.rfind("::") {
-            Some(at) => format!("{}::{new_name}", &trimmed[..at]),
-            None => format!("::{new_name}"),
-        };
+        // Lexical constructed metadata does not reconstruct a Native path.
+        // Preserve its analytical holder, including literal colon segments.
+        let (holder, _) = tcl_syntax::naming::key_holder_and_tail(&cell);
+        let new_cell = tcl_syntax::naming::qualify(holder, new_name);
         let candidates: Vec<String> = {
             let _rehoming_guard = self.rehomed_index_guard().await;
             let index = self.workspace_index.read().await;
@@ -59401,4 +59400,41 @@ proc p {} {
         assert!(!Backend::is_bigip_dialect("f5-irules"));
         assert!(!Backend::is_bigip_dialect("not-a-real-dialect"));
     }
+
+    #[tokio::test]
+    async fn logical_namespace_rename_collision_uses_constructed_colon_holder() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Genuine current Logical documents; reporting keys grant no Native path.
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///logical-colon-namespace.tcl").unwrap();
+        let collision = Uri::from_str("file:///logical-colon-namespace-collision.tcl").unwrap();
+        let source = "namespace eval 茶 {namespace eval : {}}";
+        register_logical_hierarchy(&backend, &uri, source).await;
+        register_logical_hierarchy(
+            &backend,
+            &collision,
+            "namespace eval 茶 {namespace eval box {}}",
+        )
+        .await;
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let at = source.find("eval :").unwrap() + "eval ".len();
+        let point =
+            tcl_lexer::LineIndex::new(source).position_at_utf16(u32::try_from(at).unwrap(), source);
+        let position = Position::new(point.line, point.character.get());
+        assert!(Backend::original_namespace_symbol(source, &analysis, position).is_none());
+        assert_eq!(
+            Backend::namespace_cell(source, &analysis, position).as_deref(),
+            Some("::茶:::")
+        );
+        let document = backend.read_document(&uri).await.unwrap();
+        let refusal = backend
+            .cross_document_namespace_rename(&uri, &document, &analysis, position, "box")
+            .await
+            .unwrap_err();
+        assert!(refusal.reason.contains("::茶::box"));
+        assert!(refusal.reason.contains("already exists"));
+    }
+
 }

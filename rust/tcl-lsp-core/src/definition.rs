@@ -2733,9 +2733,10 @@ pub(crate) fn itcl_class_proc_at<'a>(
     dialect: &'static tcl_dialect::DialectProfile,
     qname: &str,
 ) -> Option<(&'a String, String)> {
-    let separator = qname.rfind("::")?;
-    let (parent, tail) = qname.split_at(separator);
-    let member = tail.trim_start_matches(':');
+    // This is a constructed class/member key. Its reporting projection does
+    // not establish a native class; the actual definer/member guards below do
+    // their existing lexical selection independently.
+    let (parent, member) = tcl_syntax::naming::key_holder_and_tail(qname);
     if member.is_empty() {
         return None;
     }
@@ -8116,6 +8117,67 @@ c\uD800";
             .insert("receiver".to_owned());
         assert!(logical_receiver_candidate_at(&analysis, "receiver", false, 0).is_none());
     }
+
+    #[test]
+    fn constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Explicit descriptive rows; no native class or reached dispatch issuer.
+        use tcl_compiler::analyser::types::{ClassDef, MethodDef};
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        let member = |name: &str| MethodDef {
+            name: name.to_owned(),
+            params: Vec::new(),
+            formal_count: tcl_compiler::signature_scan::formal_count::SourceFormalCount::Unknown,
+            params_computed: true,
+            name_span: tcl_lexer::Span::new(0, 0),
+            body_span: tcl_lexer::Span::new(0, 0),
+            kind: "classmethod".to_owned(),
+            is_self_method: false,
+            visibility: "public".to_owned(),
+            doc: String::new(),
+            forward_target: None,
+        };
+        let mut class = ClassDef {
+            qualified_name: "::茶".to_owned(),
+            metaclass: "itcl::class".to_owned(),
+            ..ClassDef::default()
+        };
+        class.class_methods.insert(":".to_owned(), member(":"));
+        class
+            .class_methods
+            .insert("méthode".to_owned(), member("méthode"));
+        class
+            .methods
+            .insert("instance".to_owned(), member("instance"));
+        analysis
+            .all_classes
+            .insert(class.qualified_name.clone(), class);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert_eq!(
+            itcl_class_proc_at(&analysis, profile, "::茶:::"),
+            Some((&"::茶".to_owned(), ":".to_owned()))
+        );
+        assert_eq!(
+            itcl_class_proc_at(&analysis, profile, "::茶::méthode"),
+            Some((&"::茶".to_owned(), "méthode".to_owned()))
+        );
+        for key in [
+            "méthode",
+            "::茶::",
+            "::茶::missing",
+            "::茶::instance",
+            "::other::méthode",
+        ] {
+            assert!(
+                itcl_class_proc_at(&analysis, profile, key).is_none(),
+                "{key}"
+            );
+        }
+        analysis.all_classes.get_mut("::茶").unwrap().metaclass = "oo::class".to_owned();
+        assert!(itcl_class_proc_at(&analysis, profile, "::茶:::").is_none());
+    }
+
 }
 
 #[cfg(test)]

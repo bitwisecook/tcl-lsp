@@ -319,11 +319,12 @@ fn parents_of(cd: &ClassDef) -> impl Iterator<Item = &str> {
 }
 
 fn qname_eq(a: &str, b: &str) -> bool {
-    strip_colons(a) == strip_colons(b)
+    unrooted_metadata_key(a) == unrooted_metadata_key(b)
 }
 
-fn strip_colons(name: &str) -> &str {
-    name.trim_start_matches(':')
+fn unrooted_metadata_key(name: &str) -> &str {
+    // Exactly one root marker in constructed metadata, retaining literal colons.
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 /// The method `name_span` for `word` on `cd`, checking instance then
@@ -342,7 +343,7 @@ fn is_descendant_of(analysis: &AnalysisResult, candidate: &str, ancestor: &str) 
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut work: Vec<&str> = vec![candidate];
     while let Some(cur) = work.pop() {
-        let key = strip_colons(cur).to_owned();
+        let key = unrooted_metadata_key(cur).to_owned();
         if !seen.insert(key) {
             continue;
         }
@@ -529,6 +530,41 @@ mod tests {
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 2, "{locs:?}");
     }
+
+    #[test]
+    fn constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Explicit metadata graph only, under the existing lexical caller gate.
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        for (key, parents) in [
+            ("::茶", vec![]),
+            (":::茶", vec![]),
+            ("::leaf", vec![":::茶"]),
+        ] {
+            analysis.all_classes.insert(
+                key.to_owned(),
+                ClassDef {
+                    qualified_name: key.to_owned(),
+                    superclasses: parents.into_iter().map(str::to_owned).collect(),
+                    ..ClassDef::default()
+                },
+            );
+        }
+        assert!(qname_eq("::茶", "茶"));
+        assert!(!qname_eq(":::茶", "::茶"));
+        assert!(is_descendant_of(&analysis, "::leaf", ":::茶"));
+        assert!(!is_descendant_of(&analysis, "::leaf", "::茶"));
+        analysis
+            .all_classes
+            .get_mut(":::茶")
+            .unwrap()
+            .superclasses
+            .push("::leaf".to_owned());
+        assert!(!is_descendant_of(&analysis, "::leaf", "::missing"));
+    }
+
 }
 
 #[cfg(test)]

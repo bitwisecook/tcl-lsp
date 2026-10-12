@@ -267,7 +267,9 @@ fn lexical_namespace_rename_edits(
         }
         // The recorded span covers the whole pattern word (`::old::p`), and
         // the pattern's own namespace is what names the renamed one.
-        let resolved = format!("{}::{}", source_ns.trim_end_matches("::"), forget.pattern);
+        // The source namespace is constructed metadata; retain literal colon
+        // segments while the shared owner qualifies the written pattern tail.
+        let resolved = tcl_syntax::naming::qualify(source_ns, &forget.pattern);
         record(
             forget.range,
             &resolved,
@@ -1461,4 +1463,50 @@ mod tests {
             assert!(!native.allows_lexical_declaration_advice(), "{dialect}");
         }
     }
+
+    #[test]
+    fn logical_namespace_forget_rename_retains_complete_source_and_hazard_guards() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        let source = "namespace eval 茶 {}\nnamespace forget ::茶::*\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert!(analysis.allows_lexical_declaration_advice());
+        assert_eq!(analysis.namespace_forgets.len(), 1);
+        let edits = namespace_rename_edits(source, profile, &analysis, "::茶", "box").unwrap();
+        assert_eq!(edits.len(), 2);
+        let index = LineIndex::new(source);
+        for edit in edits {
+            let start = crate::definition::byte_offset_at(
+                &index,
+                source,
+                edit.range.start_line,
+                edit.range.start_character,
+            );
+            let end = crate::definition::byte_offset_at(
+                &index,
+                source,
+                edit.range.end_line,
+                edit.range.end_character,
+            );
+            assert_eq!(&source[start as usize..end as usize], "茶");
+            assert_eq!(edit.new_text, "box");
+        }
+        assert!(
+            namespace_rename_edits(
+                "namespace eval 茶 {}\nnamespace forget ::茶::other\n",
+                profile,
+                &analysis,
+                "::茶",
+                "box"
+            )
+            .is_err()
+        );
+        let hazardous = "namespace eval 茶 {}\nafter 0 {::茶::callback}";
+        let unknown = Analyser::new().analyse(hazardous, "tcl");
+        assert!(namespace_rename_edits(hazardous, profile, &unknown, "::茶", "box").is_err());
+        assert_eq!(tcl_syntax::naming::qualify("::茶:::", "*"), "::茶:::::*");
+        assert_eq!(tcl_syntax::naming::qualify("::", "*"), "::*");
+    }
+
 }

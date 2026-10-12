@@ -1599,10 +1599,7 @@ fn rename_var(
     // Dropping the suffix here produced `set data 1` and turned every `$arr(0)`
     // ref into `$data(0)`, so the script then errored "variable isn't array".
     let (def_name_part, def_suffix) = split_array_suffix(def_text);
-    let def_ns_prefix = match def_name_part.rfind("::") {
-        Some(idx) => &def_name_part[..idx + 2],
-        None => "",
-    };
+    let def_ns_prefix = source_name_qualifier(def_name_part);
     let def_new_text = format!("{def_ns_prefix}{new_name}{def_suffix}");
     edits.push(TextEdit {
         range: span_to_range(source, line_index, var_def.definition_span),
@@ -2000,10 +1997,7 @@ fn invocation_replacement(
     // Preserve the call's *as-written* qualifier: a qualified call replaces
     // only its final `::`-segment (`utils::helper` → `utils::assist`,
     // `::myns::greet` → `::myns::hello`); a short call becomes the short name.
-    match inv_name.rfind("::") {
-        Some(idx) => format!("{}::{new_name}", &inv_name[..idx]),
-        None => new_name.to_owned(),
-    }
+    format!("{}{new_name}", source_name_qualifier(inv_name))
 }
 
 /// A rename edit targeting a specific document, expressed as a
@@ -2383,7 +2377,10 @@ fn build_var_replacement_in_analysis(
 }
 
 fn source_name_qualifier(name: &str) -> &str {
-    name.rfind("::").map_or("", |end| &name[..end + 2])
+    // Original written bytes, not a constructed holder or native identity.
+    // The shared tail consumes every colon in its final separator run.
+    let tail = tcl_syntax::naming::written_command_tail(name.as_bytes());
+    &name[..name.len() - tail.len()]
 }
 
 /// Closed literal element partition shared with variable naming. An unmatched
@@ -2399,7 +2396,7 @@ fn split_array_suffix(name: &str) -> (&str, &str) {
 /// namespace).  `"greet"` → `""` likewise.
 fn namespace_prefix_of(qualified: &str) -> &str {
     // `qualified` is a constructed key: its holder comes from the
-    // construction-inverse split — a repeated-strip + `rfind` would
+    // analytical holder projection — a repeated-strip + `rfind` would
     // misread a lone-colon segment.  The root holder maps to `""` (a global
     // proc has no enclosing-namespace prefix).
     let (holder, _tail) = tcl_syntax::naming::key_holder_and_tail(qualified);
@@ -5692,4 +5689,54 @@ mod tests {
             "outside any class body there is no member to resolve"
         );
     }
+
+    #[test]
+    fn logical_rename_preserves_original_separator_runs_unicode_and_array_extent() {
+        // naming.editor.logical-written-component-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md
+        // Exact source geometry only; edit permission stays with the caller.
+        let config =
+            tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        for (written, expected) in [
+            ("${::::茶:::箱(槽)}", "${::::茶:::total(槽)}"),
+            ("$::::茶:::箱(槽)", "$::::茶:::total(槽)"),
+            ("${茶:箱}", "${total}"),
+        ] {
+            let span = tcl_lexer::Span::new(0, u32::try_from(written.len()).unwrap());
+            assert_eq!(
+                build_var_ref_replacement(written, span, "total", config).as_deref(),
+                Some(expected)
+            );
+            assert!(
+                build_var_ref_replacement(written, tcl_lexer::Span::new(0, 1), "total", config)
+                    .is_none()
+            );
+        }
+        for (written, expected) in [
+            ("::::茶:::méthode", "::::茶:::changed"),
+            ("茶::::", "茶::::changed"),
+            ("茶:méthode", "changed"),
+        ] {
+            assert_eq!(
+                invocation_replacement("unused", "unused", "changed", written),
+                expected
+            );
+        }
+        let source = "set 茶:::箱(槽) VALUE";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let start = source.find("茶").unwrap();
+        let end = source.find(" VALUE").unwrap();
+        let span = tcl_lexer::Span::new(u32::try_from(start).unwrap(), u32::try_from(end).unwrap());
+        assert_eq!(
+            build_var_replacement_in_analysis(source, &analysis, span, "total")
+                .unwrap()
+                .1,
+            "茶:::total(槽)"
+        );
+        assert!(
+            build_var_replacement_in_analysis("set 茶:::箱(槽) OTHER", &analysis, span, "total")
+                .is_none()
+        );
+    }
+
 }

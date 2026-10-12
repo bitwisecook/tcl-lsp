@@ -48,6 +48,26 @@ and the MCP tool surface without three copies of the behaviour.
    signature help stay precedence-consistent and code actions rank the same
    way the server command does.
 
+### Written qualifiers and constructed metadata
+
+Rename preserves the original written qualifier using the shared
+`written_command_tail` owner. Every colon in a separator run and each original
+Unicode byte stays in the source prefix; array-element suffixes keep their
+selected whole-reference geometry. Complete source/configuration correspondence,
+actual reference selection and edit/hazard guards remain independent.
+
+Constructed Itcl class/member labels use `key_holder_and_tail` before the existing
+Itcl grammar and class-member checks. Lexical namespace rename preserves that
+constructed holder for workspace collision queries, and forget patterns qualify
+their recorded constructed source namespace through the shared owner.
+Implementation metadata equality removes exactly one root marker, retaining
+literal colon segments in ancestry and cycle observations. These projections do
+not recover Native namespace paths or supply command/class identity.
+
+The original Native namespace and command routes precede lexical assistance.
+Completion's partial-word predicates do not supply namespace lookup or edit
+permission; its retained declaration/candidate selection remains independent.
+
 ### Runtime feature toggles
 
 Every feature handler is registered unconditionally and checks its enable
