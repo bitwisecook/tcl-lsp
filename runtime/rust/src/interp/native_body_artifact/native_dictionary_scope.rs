@@ -293,10 +293,16 @@ impl Interp {
                 .receiver
                 .store(value.as_ptr())
                 .map_err(|error| crate::builtins::var_error(self, &captured.root, error))?;
+            // Capture the original frame cause before the working value's
+            // mandatory release can reach another callback.
+            let published = original
+                .check(self)
+                .map_err(|error| self.report_cmd_error(error));
             drop(value);
             original
                 .check(self)
                 .map_err(|error| self.report_cmd_error(error))?;
+            published?;
             captured
                 .receiver
                 .check_current()
@@ -345,6 +351,25 @@ impl Interp {
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
         reached
+    }
+
+    fn publish_compiled_dictionary_result(
+        &mut self,
+        original: &Rc<BodyObjectOperation>,
+        result: obj::Owned,
+    ) -> Result<Code, Code> {
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        self.set_result(result.as_ptr());
+        let published = original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error));
+        drop(result);
+        original
+            .check(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        published.map(|()| Code::Ok)
     }
 
     fn compiled_dictionary_update_start(
@@ -892,6 +917,9 @@ impl Interp {
                         .original(operation.empty.expect("dictionary empty body result"))
                         .expect("dictionary empty result PUSH"),
                 );
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
                 return Ok(Code::Ok);
             }
             let with_temporaries = matches!(operation.recipe.kind, Kind::With { .. });
@@ -973,8 +1001,10 @@ impl Interp {
             if let Some(completion) = completion {
                 self.reapply_body_completion(original, &completion)
             } else {
-                self.set_result(result.expect("normal body result").as_ptr());
-                Ok(Code::Ok)
+                self.publish_compiled_dictionary_result(
+                    original,
+                    result.expect("normal body result"),
+                )
             }
         })();
         original
@@ -1075,3 +1105,7 @@ mod original_boundary_tests {
 #[cfg(test)]
 #[path = "native_dictionary_scope/original_read_boundary_tests.rs"]
 mod original_read_boundary_tests;
+
+#[cfg(test)]
+#[path = "native_dictionary_scope/original_publication_boundary_tests.rs"]
+mod original_publication_boundary_tests;
