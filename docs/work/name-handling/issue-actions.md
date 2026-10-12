@@ -15,7 +15,7 @@ program still reports0versus2 at C8.4, so #2286 remains open.
 retain final9, graph20 at17pass/3fail, two loop failures reproduced with exact
 before-source under the same dependency snapshot, and an unclassified procedure
 lookup refusal. Source advice grants no Native entry, completed store, Normal
-execution or edit permission. Published issue receipt awaits this checkpoint.
+execution or edit permission. [Published receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132969379) identifies `5e6be644b`; GitHub readback confirms OPEN.
 
 ## #2287 — verified and closed
 
