@@ -1,6 +1,6 @@
-# Original procedure completion source context
+# naming.interprocedural.original-procedure-completion-source-context
 
-Proof ID: `naming.interprocedural.original-procedure-completion-source-context`. Kind: `implementation-contract`.
+Kind: `implementation-contract`
 
 ## Problem statement
 
@@ -64,12 +64,12 @@ No external provider execution answers this original Logical procedure-completio
 
 ## Exact evidence
 
-- `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). SHA-256 `732155a21ad495e484443e034241b2ffad01c6016a6760303b5ff5b6be649533`. Current Root-ACKed396/397 conditional source walk and ten marked completion definitions; no executed assertion or provider result.
-- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). SHA-256 `bb50fb19ef6a215cd9e062e08cffdcdbcaa16e42490e847ebdf5d63c0caf0494`. Typed original declaration/effective argv/selected formal ownership query; no Native frame, argument values or completion admission.
+- `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). SHA-256 `5506988874b676378a195e548f896927ff872eefc1e170cb3007dfb655189c29`. Complete original Module/source-entry purpose owns the Logical completion walk; held Native Jim remains distinct even when the raw input qualifies for Logical naming.
+- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). SHA-256 `21a304963f1ee3c4d46a673ccd61c2c435c5af00dd83e66c9e38d8486c7b5175`. Original Module/procedure/header/body correspondence and current invocation metadata precede genuine Logical procedure-call/parameter source models; labels and raw input flags grant no allocation or execution.
 
 ## Source inspection
 
-The current Rust source defines the shared original declaration/effective argv/formal join and the conditional completion/no-error consumers. No upstream Tcl source excerpt or external provider experiment establishes this Logical source model. The [inlining source context](inlining-original-frame-source-context.md) and [actual analysis metadata](original-analysis-metadata-context.md) questions retain their independent source geometry, availability and missing-owner boundaries.
+No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,7 +93,7 @@ The current Rust source defines the shared original declaration/effective argv/f
 - [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs), `interprocedural::completion::tests::original_completion_retains_selected_jim_formal_binding_strategy` (linked): An explicitly Logical Jim source model retains selected defaults, rest-position/named-rest count strategy and intersection of direct scalar bindings. Caller-link and array destinations cannot borrow those local scalar obligations; no Jim activation is observed.
 - [rust/tcl-compiler/src/optimiser/elimination.rs](../../../../rust/tcl-compiler/src/optimiser/elimination.rs), `optimiser::elimination::tests::original_completion_deletion_consumer_uses_same_module_and_header` (linked): The elimination call no-error query joins its summary to the same actual Module, original header and Registry. Missing Module, foreign registry or changed formals withdraw it; SCCP presence, observers, purity and edit permission remain independently required.
 
-A coverage binding records a defined assertion, not an executed result.
+A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
