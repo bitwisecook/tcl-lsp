@@ -32,6 +32,9 @@ pub(crate) fn original_execution_trace_keys(
     subject: &TransitionSubject,
 ) -> Option<Vec<String>> {
     let purpose = original_trace_source_purpose(registry, metadata, tokens)?;
+    if purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation {
+        return None;
+    }
     let selected =
         resolved_handler_invocation_with_metadata_context(registry, Some(metadata), tokens)?;
     let joined = selected.facts.state_transitions.declared()?.facts().iter().any(|fact| {
@@ -79,6 +82,7 @@ pub(crate) fn original_execution_trace_keys(
 /// Implicit operations have no actual invocation receiver. Native spelling
 /// inventories, including an empty inventory, cannot supply token trace absence.
 /// Explicit Logical/standalone advice retains its authored spelling model.
+/// Authored simulation source advice cannot establish token trace absence.
 pub(crate) fn trace_set_requires_original_owner(
     registry: &CommandRegistry,
     module: &crate::ir::Module,
@@ -91,7 +95,11 @@ pub(crate) fn trace_set_requires_original_owner(
             crate::command_binding::OriginalInvocationSourcePurpose::Logical
             | crate::command_binding::OriginalInvocationSourcePurpose::Standalone,
         ) => false,
-        Some(crate::command_binding::OriginalInvocationSourcePurpose::Execution) | None => true,
+        Some(
+            crate::command_binding::OriginalInvocationSourcePurpose::Execution
+            | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation,
+        )
+        | None => true,
     }
 }
 
@@ -109,6 +117,9 @@ pub(crate) fn original_invocation_has_execution_trace(
     let Some(purpose) = original_trace_source_purpose(registry, metadata, tokens) else {
         return true;
     };
+    if purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation {
+        return true;
+    }
     let Some(selected) =
         resolved_handler_invocation_with_metadata_context(registry, Some(metadata), tokens)
     else {
@@ -178,6 +189,9 @@ pub(crate) fn original_procedure_has_execution_trace(
     let Some(purpose) = original_trace_source_purpose(registry, metadata, tokens) else {
         return true;
     };
+    if purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation {
+        return true;
+    }
     if matches!(
         purpose,
         crate::command_binding::OriginalInvocationSourcePurpose::Logical
@@ -841,6 +855,109 @@ mod tests {
         assert_eq!(
             original_trace_source_purpose(registry, logical_metadata, tokens),
             Some(OriginalInvocationSourcePurpose::Execution)
+        );
+    }
+
+    #[test]
+    fn authored_simulation_source_advice_keeps_trace_absence_unavailable() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        use crate::command_binding::OriginalInvocationSourcePurpose;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let policy = tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        );
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            execution_name_policy: Some(policy),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_context_registry(
+            "llength {a b}",
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            std::sync::Arc::clone(&context),
+        );
+        let metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+        assert_eq!(
+            unit.ir_module.source_entry.execution_name_policy,
+            Some(policy)
+        );
+        assert!(unit.ir_module.source_entry.native_entry.is_none());
+        assert!(unit.ir_module.source_entry.logical_source_input.is_none());
+        assert_eq!(
+            unit.ir_module
+                .original_invocation_source_purpose(registry, metadata),
+            Some(OriginalInvocationSourcePurpose::AuthoredSimulation),
+        );
+        let tokens = tokens_at(&unit, 0);
+        let selected =
+            resolved_handler_invocation_with_metadata_context(registry, Some(metadata), tokens)
+                .expect("actual selected software-model command facts");
+        let empty = std::collections::BTreeSet::new();
+        assert!(trace_set_requires_original_owner(
+            registry,
+            &unit.ir_module,
+            Some(metadata)
+        ));
+        assert!(original_invocation_has_execution_trace(
+            registry,
+            metadata,
+            tokens,
+            selected.facts.descriptor_key(),
+            &empty,
+        ));
+        assert!(original_procedure_has_execution_trace(
+            registry,
+            Some(metadata),
+            Some(tokens),
+            "::p",
+            &empty,
+        ));
+        let subject = TransitionSubject::LocatedLiteral {
+            value: "llength".to_owned(),
+            argument_index: 0,
+        };
+        assert!(original_execution_trace_keys(registry, metadata, tokens, &subject).is_none());
+        let mut missing = unit.ir_module.clone();
+        missing.source_entry.execution_name_policy = None;
+        assert_eq!(
+            missing.original_invocation_source_purpose(registry, metadata),
+            None
+        );
+        missing.source_entry.unknown_entry = true;
+        missing.source_entry.execution_name_policy = Some(policy);
+        assert_eq!(
+            missing.original_invocation_source_purpose(registry, metadata),
+            None
+        );
+        missing.source_entry.unknown_entry = false;
+        missing.source_entry.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(None);
+        assert_eq!(
+            missing.original_invocation_source_purpose(registry, metadata),
+            None
         );
     }
 

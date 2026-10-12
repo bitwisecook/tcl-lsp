@@ -27,11 +27,27 @@ use super::{
 /// means a supplied Native entry owns the request, including unsupported naming
 /// purposes; it grants no dispatch, handler entry, compilation or trace absence.
 /// Logical and Standalone retain their own explicitly selected source models.
+/// AuthoredSimulation retains a selected software naming policy for model source
+/// advice only; it supplies no Native entry, dispatch or trace-absence owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OriginalInvocationSourcePurpose {
     Execution,
     Logical,
     Standalone,
+    AuthoredSimulation,
+}
+
+impl OriginalInvocationSourcePurpose {
+    // The complete input/registry/source geometry is checked by the actual
+    // state or module owner before this pure authority projection. A dialect,
+    // raw source flag or absent Native entry cannot select this policy.
+    fn from_authored_simulation_policy(
+        policy: Option<tcl_syntax::naming::ExecutionNamePolicy>,
+    ) -> Option<Self> {
+        (policy?.native_recipe()?.authority()
+            == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation)
+            .then_some(Self::AuthoredSimulation)
+    }
 }
 
 /// Source selection and entered activation are separate obligations. Deferred
@@ -1483,6 +1499,83 @@ mod original_math_body_purpose_tests {
             }
         }
     }
+    #[test]
+    fn retained_authored_simulation_requires_its_actual_policy_and_supplied_input() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.4");
+        let input =
+            crate::analyser::ResolvedAnalysisInput::new(profile, profile, Arc::clone(&context), config);
+        let policy = tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        );
+        let entry = super::super::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            execution_name_policy: Some(policy),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let source = "llength {a b}";
+        let bindings =
+            SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
+        assert!(
+            bindings.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config,)
+        );
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        )
+        .unwrap();
+        let state = bindings.final_state.as_ref();
+        assert!(state.baseline.native_entry.is_none());
+        assert!(state.baseline.logical_source_input.is_none());
+        assert_eq!(state.baseline.execution_name_policy, Some(policy));
+        assert_eq!(
+            state.retained_original_source_purpose(metadata, registry),
+            Some(OriginalInvocationSourcePurpose::AuthoredSimulation),
+        );
+        // Withdrawing the actual selected policy cannot recover it from the
+        // unchanged profile, dialect, source input or registry availability.
+        let mut missing_policy = state.clone();
+        Arc::make_mut(&mut missing_policy.baseline).execution_name_policy = None;
+        assert_eq!(
+            missing_policy.retained_original_source_purpose(metadata, registry),
+            None,
+        );
+        let foreign_context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let foreign_profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let foreign_input = crate::analyser::ResolvedAnalysisInput::new(
+            foreign_profile,
+            foreign_profile,
+            Arc::clone(&foreign_context),
+            tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+        );
+        let foreign = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            foreign_context.commands(),
+            &foreign_input,
+        )
+        .unwrap();
+        assert_eq!(
+            state.retained_original_source_purpose(foreign, registry),
+            None
+        );
+        let standalone = tcl_registry::model::semantic::SemanticContext::for_profile(profile);
+        assert_eq!(
+            state.retained_original_source_purpose(standalone.into(), registry),
+            None
+        );
+    }
+
 }
 
 impl super::ModuleCommandBindings {
@@ -1516,9 +1609,14 @@ impl super::ModuleCommandBindings {
             return None;
         }
         if let Some(input) = metadata.source_analysis_input() {
-            let logical = self.logical_source_name_advice_input()?;
-            return (logical == input || logical == &input.for_nested_source())
-                .then_some(OriginalInvocationSourcePurpose::Logical);
+            if self.baseline.logical_source_input.is_some() {
+                let logical = self.logical_source_name_advice_input()?;
+                return (logical == input || logical == &input.for_nested_source())
+                    .then_some(OriginalInvocationSourcePurpose::Logical);
+            }
+            return OriginalInvocationSourcePurpose::from_authored_simulation_policy(
+                self.baseline.execution_name_policy,
+            );
         }
         original
             .is_standalone()
@@ -1552,10 +1650,19 @@ impl crate::ir::Module {
         }
         let options = self.source_entry.options();
         if let Some(input) = metadata.source_analysis_input() {
-            let logical =
-                options.retained_logical_source_input(registry, Some(self.lexer_config))?;
-            return (logical == *input || logical.for_nested_source() == *input)
-                .then_some(OriginalInvocationSourcePurpose::Logical);
+            if self.source_entry.logical_source_input.is_some() {
+                let logical =
+                    options.retained_logical_source_input(registry, Some(self.lexer_config))?;
+                return (logical == *input || logical.for_nested_source() == *input)
+                    .then_some(OriginalInvocationSourcePurpose::Logical);
+            }
+            let retained_input = self.source_entry.metadata_context.source_analysis_input()?;
+            if retained_input != input && retained_input != &input.for_nested_source() {
+                return None;
+            }
+            return OriginalInvocationSourcePurpose::from_authored_simulation_policy(
+                self.source_entry.execution_name_policy,
+            );
         }
         (metadata.is_standalone() && options.retained_metadata_context().is_standalone())
             .then_some(OriginalInvocationSourcePurpose::Standalone)
