@@ -248,7 +248,16 @@ impl Interp {
             let value = if failed {
                 None
             } else {
-                captured.receiver.read_initial().ok().flatten()
+                // Classify only the read reached after a successful observer.
+                // Guest-failed observers retain the existing missing path.
+                match captured.receiver.read_initial() {
+                    Err(crate::frame::VarError::NameProtocolUnavailable) => {
+                        return Err(self.report_cmd_error(original.refuse(unavailable(
+                            "original compiled Dictionary scope scalar role",
+                        ))));
+                    }
+                    selected_read => selected_read.ok().flatten(),
+                }
             };
             if let Some(value) = value {
                 Ok(Some((captured, value)))
@@ -1062,3 +1071,7 @@ mod original_boundary_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "native_dictionary_scope/original_read_boundary_tests.rs"]
+mod original_read_boundary_tests;
