@@ -206,6 +206,10 @@ report the precise unanswered questions instead of inventing F5 behaviour.
 Update durable contracts as implementation changes. Then scrub the entire
 codebase's documentation and comments so they describe only current semantics,
 ownership, public preconditions, actual limitations and necessary how/why.
+This is a repository-wide cleanup, including pre-existing material unrelated to
+#2286 or name handling. Do not restrict it to files changed by this work. Remove
+or correct obsolete claims and guidance, abandoned plans, completed TODOs and
+development chaff wherever found, verifying accuracy against current code.
 Comments must be minimal; make the code itself clear and self describing.
 Apply this cleanup to API doc comments and implementation, test and script
 comments too, including templates and generated sources. Repair generator

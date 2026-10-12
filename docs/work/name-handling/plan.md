@@ -226,6 +226,11 @@ or switching the entire source to Logical compatibility.
 
 ## Documentation/comment cleanup checklist
 
+- Audit the entire repository, including pre-existing material unrelated to
+  #2286 or name handling. Do not limit cleanup to changed files or this issue's
+  documents. Identify obsolete API/architecture claims, unsupported guidance,
+  abandoned plans, completed TODOs and other development chaff; remove or correct
+  them against current code. Keep live limitations and useful current guidance.
 - Apply the whole cleanup to documentation and code comments, including API
   doc comments, implementation/test/script comments, templates and generated
   sources. Fix generator owners and regenerate rather than editing outputs only.
@@ -242,7 +247,7 @@ or switching the entire source to Logical compatibility.
   clear names, types and small functions to prose paraphrasing the code.
   Do not delete legal headers, oracle provenance, required machine-readable
   markers, or a justified live limitation merely because they contain dates.
-- Search the entire tracked tree again, including touched tests and generated
+- Search the entire tracked tree again, including unchanged tests and generated
   sources; inspect hits rather than erasing issue numbers mechanically.
 - Remove `docs/work/name-handling/` and temporary index links from the final
   diff; durable experiments/answers stay under `experiments/name-handling/`.

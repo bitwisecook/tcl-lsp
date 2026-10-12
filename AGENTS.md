@@ -233,6 +233,9 @@ Before merge, remove temporary implementation ledgers, continuation prompts,
 state documents and development-process narratives, including their links and
 generated copies. This cleanup applies to documentation and all code comments,
 including API doc comments, tests, scripts, templates and generated sources.
+The audit is repository-wide, including pre-existing material outside the issue
+or changed-file set. Remove or correct stale claims, obsolete guidance, abandoned
+plans, completed TODOs and development chaff against the current implementation.
 Audit process references to phases, lanes and steps in context;
 retain terminology that actually describes current runtime/compiler semantics or
 user procedures. Shipped documentation describes the current code and its

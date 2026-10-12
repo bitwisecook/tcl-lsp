@@ -54,6 +54,11 @@ when its separate preconditions hold.
 
 ## Documentation and comment completion
 
+The scope is the whole repository, including pre-existing material unrelated to
+this issue and files unchanged by name-handling work. Remove or correct stale
+claims, obsolete guidance, abandoned plans and development chaff against current
+code; account for this broad audit before marking documentation complete.
+
 Audit durable contracts, KCS pages, glossary, user docs, generators, prompts and
 comments against current code. Remove obsolete migration narration, phase/ledger
 references and completed TODOs. Keep minimal how/why explanations, legal headers,
