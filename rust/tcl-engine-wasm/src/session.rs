@@ -29,7 +29,8 @@
 
 use std::any::Any;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
+use tcl_engine_api::engine_interpreter_identity::EngineInterpreterIdentity;
 
 use crate::command_receipts::{self, CommandReceipt};
 use tcl_engine_api::{BudgetKind, EngineError, HostCommand, Value};
@@ -64,6 +65,16 @@ pub(crate) struct HostState {
     pub(crate) defined: Vec<crate::host_call::Defined>,
     pub(crate) host_receipts: Vec<CommandReceipt>,
     unit_receipts: BTreeMap<u32, CommandReceipt>,
+    /// Host-origin typed causes for the same actual runtime interpreter.
+    pub(crate) execution_causes: BTreeMap<EngineInterpreterIdentity, TypedExecutionCause>,
+    /// The same real public begin episode, never an entered-operation issuer.
+    pub(crate) entry_episode: Option<Rc<()>>,
+}
+
+
+pub(crate) struct TypedExecutionCause {
+    pub(crate) episode: Weak<()>,
+    pub(crate) cause: tcl_engine_api::NativeExecutionError,
 }
 
 impl SharedMemory for HostState {
@@ -142,6 +153,8 @@ pub(crate) struct Exports {
     pub(crate) fail: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) complete: TypedFunc<(i32, i32, i32, i32), i32>,
     pub(crate) host_refusal_pending: TypedFunc<i32, i32>,
+    pub(crate) interpreter_identity: TypedFunc<(i32, i32), i32>,
+    destroy_interpreter: TypedFunc<i32, ()>,
     pub(crate) host_refusal_text: TypedFunc<i32, i32>,
     pub(crate) refuse_host: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) string_snapshot: TypedFunc<(i32, i32), i32>,
@@ -193,6 +206,8 @@ impl Exports {
             error_code: instance.get_typed_func(&mut *store, "tcl_engine_error_code")?,
             fail: instance.get_typed_func(&mut *store, "tcl_engine_fail")?,
             complete: instance.get_typed_func(&mut *store, "tcl_engine_complete_original")?,
+            interpreter_identity: instance.get_typed_func(&mut *store, EngineInterpreterIdentity::EXPORT)?,
+            destroy_interpreter: instance.get_typed_func(&mut *store, "tcl_runtime_delete_interp")?,
             host_refusal_pending: instance
                 .get_typed_func(&mut *store, "tcl_engine_host_refusal_pending")?,
             host_refusal_text: instance
@@ -291,12 +306,9 @@ impl Session {
         let interp = create.call(&mut store, ())?;
         current.call(&mut store, interp)?;
         let scratch = exports.alloc.call(&mut store, (16, 8))?;
-        Ok(Self {
-            store,
-            exports,
-            interp,
-            scratch,
-        })
+        let mut session = Self { store, exports, interp, scratch };
+        session.begin_entry().map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+        Ok(session)
     }
 
     /// Link `extension` into the instance and run its entry point.
@@ -480,7 +492,10 @@ impl Session {
 
     /// Admit a new independent public engine operation, never a nested callback.
     pub(crate) fn begin_entry(&mut self) -> Result<(), Failure> {
-        call(&mut self.store, &self.exports.begin, self.interp)
+        call(&mut self.store, &self.exports.begin, self.interp)?;
+        self.store.data_mut().execution_causes.clear();
+        self.store.data_mut().entry_episode = Some(Rc::new(()));
+        Ok(())
     }
 
     /// Arm the limits of one evaluation.
@@ -505,7 +520,7 @@ impl Session {
             &self.exports.set_limits,
             (self.interp, commands, value_bytes),
         )?;
-        call(&mut self.store, &self.exports.begin, self.interp)
+        self.begin_entry()
     }
 
     /// The limit the interpreter says the evaluation outran.
@@ -765,6 +780,16 @@ fn in_c_api(name: &str) -> bool {
     name.starts_with("Tcl_") || name.starts_with("TclHost_") || name == "TclFreeObj"
 }
 
+impl Drop for Session {
+    fn drop(&mut self) {
+        // Complete the already-reached actual interpreter destruction before
+        // retiring diagnostic records. Store destruction retires a trapped instance.
+        let _ = self.exports.destroy_interpreter.call(&mut self.store, self.interp);
+        self.store.data_mut().execution_causes.clear();
+        self.store.data_mut().entry_episode = None;
+    }
+}
+
 /// Why a session call did not answer.
 #[derive(Debug)]
 pub(crate) enum Failure {
@@ -780,6 +805,7 @@ pub(crate) enum Failure {
         options: Option<Vec<u8>>,
     },
     ExecutionRefusal(String),
+    ExecutionFailure(tcl_engine_api::NativeExecutionError),
 }
 
 impl Failure {
@@ -798,6 +824,7 @@ impl Failure {
                 options,
             },
             Self::ExecutionRefusal(reason) => EngineError::ExecutionRefusal(reason),
+            Self::ExecutionFailure(cause) => EngineError::execution_failure(cause),
         }
     }
 }
@@ -837,4 +864,84 @@ pub(crate) fn read_string(
     let mut bytes = vec![0; length];
     memory.read(&store, address(chars), &mut bytes)?;
     Ok(bytes)
+}
+
+
+#[cfg(test)]
+#[path = "../../tcl-compiler/tests/common/wasm_link.rs"]
+mod typed_transport_wasm_link;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_engine_api::HostOutcome;
+
+    #[test]
+    fn original_typed_wasm_host_failure_preserves_prior_runtime_pending_cause() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Linked Rust/WASM software control: invoke the genuine published host
+        // procedure after the real Runtime pending owner is reached. No new
+        // registrar evaluation capability or physical CTcl chronology is claimed.
+        struct Refusing;
+        impl HostCommand for Refusing {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                Err(EngineError::ExecutionRefusal("actual host contract refusal".into()))
+            }
+        }
+        struct Later {
+            cause: tcl_engine_api::NativeExecutionError,
+            reached: Rc<Cell<usize>>,
+        }
+        impl HostCommand for Later {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                self.reached.set(self.reached.get() + 1);
+                Err(EngineError::execution_failure(self.cause.clone()))
+            }
+        }
+        let runtime = typed_transport_wasm_link::real_link_runtime()
+            .expect("earlier-pending transport requires the actual linked WASM runtime");
+        let bytes = std::fs::read(runtime).expect("read the actual linked runtime");
+        let runtime = WasmRuntime::new(&bytes).expect("compile the actual linked runtime");
+        let mut session = Session::new(&runtime).expect("an actual runtime instance");
+        session.define_command(b"refuse", Rc::new(Refusing)).unwrap();
+        let reached = Rc::new(Cell::new(0));
+        let cause = tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "later typed cause",
+            ),
+        );
+        session.define_command(b"laterTyped", Rc::new(Later {
+            cause, reached: Rc::clone(&reached),
+        })).unwrap();
+        // Capture the actual registered Func and prepare its ordinary caller
+        // argv before reaching either callback. This fixture never deletes or
+        // rebinds that command. Each actual argv object is held exactly once.
+        let slot = session.store.data().host_procedure.expect("published host procedure");
+        let Some(Ref::Func(Some(function))) = session.exports.table.get(&mut session.store, slot as u64) else {
+            panic!("the actual published host procedure is unavailable");
+        };
+        let callback = function.typed::<(i32, i32, i32, i32), i32>(&session.store).unwrap();
+        let word = session.object(b"laterTyped").unwrap();
+        let argv = session.exports.alloc.call(&mut session.store, (4, 4)).unwrap();
+        session.exports.memory.write(&mut session.store, address(argv), &word.to_le_bytes()).unwrap();
+        let prior = session.evaluate(&[b"refuse"])
+            .map_err(Failure::into_engine_error).unwrap_err();
+        assert_eq!(prior, EngineError::ExecutionRefusal("actual host contract refusal".into()));
+        assert_eq!(reached.get(), 0);
+        assert_eq!(session.exports.host_refusal_pending.call(&mut session.store, session.interp).unwrap(), 1);
+        assert_eq!(callback.call(&mut session.store, (1, session.interp, 1, argv)).unwrap(), 1);
+        assert_eq!(reached.get(), 1);
+        assert!(session.store.data().execution_causes.is_empty());
+        // Complete the genuine caller-owned argv cleanup before settlement.
+        session.release(&[word]).unwrap();
+        session.exports.free.call(&mut session.store, argv).unwrap();
+        let settled = command_receipts::settle(&mut session.store, &session.exports, session.interp)
+            .map_err(Failure::into_engine_error).unwrap_err();
+        assert_eq!(settled, prior);
+        session.begin_entry().unwrap();
+        assert_eq!(session.exports.host_refusal_pending.call(&mut session.store, session.interp).unwrap(), 0);
+        assert_eq!(session.evaluate(&[b"set", b"::next", b"NEXT"]).unwrap().result, b"NEXT");
+    }
 }

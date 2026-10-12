@@ -4359,6 +4359,7 @@ name = "tcl-engine-api"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
+ "tcl-runtime-api",
 ]
 
 [[package]]

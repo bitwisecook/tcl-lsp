@@ -301,7 +301,7 @@ impl InterpState {
 
     /// Retain an unavailable native operation outside the guest completion channel.
     pub fn refuse_host(&self, error: EngineError) {
-        *self.host_refusal.borrow_mut() = Some(error);
+        self.host_refusal.borrow_mut().get_or_insert(error);
     }
 
     /// Consume the host failure at the native invocation boundary.

@@ -88,6 +88,10 @@ fn call(
             );
         }
     }
+    let identity = command_receipts::interpreter_identity(caller, &exports, interp)
+        .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+    let episode = caller.data().entry_episode.clone()
+        .ok_or_else(|| wasmtime::Error::msg("actual Engine entry episode unavailable"))?;
     let count = usize::try_from(count)?;
     let length = count
         .checked_mul(4)
@@ -112,7 +116,16 @@ fn call(
     }));
     match outcome {
         Ok(Ok(outcome)) => answer(caller, &exports, interp, &outcome),
-        Ok(Err(error)) => fail(caller, &exports, interp, error),
+        Ok(Err(error)) => {
+            if let EngineError::ExecutionFailure(cause) = &error
+                && exports.host_refusal_pending.call(&mut *caller, interp)? == 0
+            {
+                caller.data_mut().execution_causes.entry(identity).or_insert_with(|| crate::session::TypedExecutionCause {
+                    episode: Rc::downgrade(&episode), cause: (**cause).clone(),
+                });
+            }
+            fail(caller, &exports, interp, error)
+        },
         Err(payload) => {
             caller.data_mut().panic = Some(payload);
             refuse(caller, &exports, interp, "a host command panicked")
@@ -206,6 +219,11 @@ fn fail(
             options,
         } => (message, code, options),
         EngineError::ExecutionRefusal(reason) => return refuse(caller, exports, interp, &reason),
+        EngineError::ExecutionFailure(cause) => {
+            // Actual callback path already retained this cause against its
+            // original diagnostic identity and same real begin episode.
+            return refuse(caller, exports, interp, &cause.to_string());
+        }
         EngineError::Compile(reason) | EngineError::Crashed(reason) => {
             return refuse(caller, exports, interp, &reason);
         }

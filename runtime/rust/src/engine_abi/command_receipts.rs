@@ -10,6 +10,25 @@ use crate::namespace::RenameOutcome;
 use crate::obj::{incr_ref_count, TclObj};
 use core::ffi::{c_int, c_void};
 
+/// Project the existing identity of an already-live interpreter. This quiet
+/// diagnostic door performs no lookup, entry, getter or Native acquisition.
+/// It remains available while reporting an already-pending Host failure.
+///
+/// # Safety
+/// `interp` is null or live; `out` is null or writable for exactly 16 bytes.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_engine_interpreter_identity(interp: *const Interp, out: *mut u8) -> c_int {
+    if interp.is_null() || out.is_null() {
+        return TCL_ERROR;
+    }
+    // SAFETY: caller guarantees live interpreter and counted output storage.
+    let identity = unsafe { &*interp }.native_callable_interpreter();
+    let bytes = tcl_runtime_api::engine_interpreter_identity::EngineInterpreterIdentity(identity).bytes();
+    // SAFETY: output is writable for the canonical exact byte count.
+    unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len()); }
+    TCL_OK
+}
+
 /// The original producer's interpreter and still-installed command generation.
 /// The qualified address owns one object reference. The caller releases it.
 /// Its bytes are a replay address, not permission to restore a retired generation.
@@ -729,4 +748,32 @@ mod tests {
         );
         assert_eq!(Some(failure), interp.native_execution_refusal());
     }
+
+    #[test]
+    fn original_interpreter_diagnostic_uses_live_birth_without_result_or_cause_getters() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        use tcl_runtime_api::engine_interpreter_identity::EngineInterpreterIdentity;
+        let mut original = core("tcl8.6");
+        original.set_result_bytes(b"original result");
+        let result = original.result_obj();
+        original.refuse_host_command("original prior Host");
+        let first = original.native_execution_refusal();
+        let mut bytes = [0x5a; EngineInterpreterIdentity::BYTE_LENGTH];
+        // SAFETY: actual original interpreter and exact output storage are live.
+        assert_eq!(unsafe { tcl_engine_interpreter_identity(&original, bytes.as_mut_ptr()) }, 0);
+        let identity = EngineInterpreterIdentity::from_bytes(bytes);
+        assert_eq!(identity.0, original.native_callable_interpreter());
+        assert_eq!(original.result_obj(), result);
+        assert_eq!(original.native_execution_refusal(), first);
+        let mut untouched = [0x3c; EngineInterpreterIdentity::BYTE_LENGTH];
+        // SAFETY: null is explicitly refused and output remains live.
+        assert_eq!(unsafe { tcl_engine_interpreter_identity(core::ptr::null(), untouched.as_mut_ptr()) }, 1);
+        assert_eq!(untouched, [0x3c; EngineInterpreterIdentity::BYTE_LENGTH]);
+        drop(original);
+        let replacement = core("tcl8.6");
+        assert_eq!(unsafe { tcl_engine_interpreter_identity(&replacement, bytes.as_mut_ptr()) }, 0);
+        assert_ne!(EngineInterpreterIdentity::from_bytes(bytes), identity);
+    }
+
 }

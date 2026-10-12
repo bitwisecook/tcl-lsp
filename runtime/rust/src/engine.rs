@@ -232,7 +232,7 @@ impl Engine for RuntimeEngine {
         kept.extend(self.unit_commands.iter().copied());
         self.interp
             .restrict_to_tokens(allowed, &kept)
-            .map_err(|cause| EngineError::ExecutionRefusal(cause.to_string()))
+            .map_err(EngineError::execution_failure)
     }
 
     /// Define the unit as a procedure, `::spectcl::unit::N`. The runtime parses
@@ -356,7 +356,7 @@ impl Engine for RuntimeEngine {
 fn host_error(interp: &Interp) -> Option<EngineError> {
     interp
         .native_execution_refusal()
-        .map(|error| EngineError::ExecutionRefusal(error.to_string()))
+        .map(EngineError::execution_failure)
 }
 
 /// Project the same original completion used by the Family-B embedding boundary.
@@ -376,7 +376,7 @@ fn capture_answer(interp: &mut Interp, code: Code) -> Result<HostOutcome, Engine
             code: Some(
                 interp
                     .error_code_bytes_checked()
-                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?,
+                    .map_err(EngineError::execution_failure)?,
             ),
             options: Some(options.to_vec()),
         });
@@ -400,14 +400,14 @@ fn evaluate(
         crate::interp::native_operation_currency::NativeOperationScope::enter_engine_evaluation(
             interp,
         )
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     interp.begin_evaluation();
     let entered = interp.codegen_activation_enter();
     let code = if entered { body(interp) } else { Code::Error };
     let answer = scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)
+        .map_err(EngineError::execution_failure)
         .and_then(|()| capture_answer(interp, code));
     if entered {
         interp.codegen_activation_leave(code);
@@ -416,7 +416,7 @@ fn evaluate(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     if let Some(error) = host_error(interp) {
         return Err(error);
     }
@@ -437,7 +437,7 @@ fn scalar_access_error(
     }
     match error {
         crate::capi::NativeScalarObjectAccessError::Execution(error) => {
-            EngineError::ExecutionRefusal(error.to_string())
+            EngineError::execution_failure(error)
         }
         crate::capi::NativeScalarObjectAccessError::Value(error) => value_error(error),
     }
@@ -477,7 +477,7 @@ fn define_host_command(
     command: Rc<dyn HostCommand>,
 ) -> Result<(), EngineError> {
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     if interp
         .name_policy_protocol()
         .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
@@ -501,13 +501,13 @@ fn define_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     retirement?;
     let installed = install_host(interp, hosts, panic, namespace, &simple, command);
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     installed
 }
 
@@ -519,7 +519,7 @@ fn define_prepared_host_command(
     command: Rc<dyn HostCommand>,
 ) -> Result<(), EngineError> {
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     let selected = native_host_publication::consume(
         interp,
         Rc::clone(hosts),
@@ -532,7 +532,7 @@ fn define_prepared_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     retirement?;
     if !interp.namespaces().namespace_is_live(namespace) {
         return Err(EngineError::ExecutionRefusal(
@@ -543,7 +543,7 @@ fn define_prepared_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     installed
 }
 
@@ -632,7 +632,7 @@ fn remove_host_command(
     name: &[u8],
 ) -> Result<bool, EngineError> {
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     if interp
         .name_policy_protocol()
         .is_some_and(|policy| policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native)
@@ -647,7 +647,7 @@ fn remove_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     retirement?;
     let removed = generation.is_some_and(|generation| {
         hosts.borrow_mut().remove(&generation);
@@ -656,7 +656,7 @@ fn remove_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     Ok(removed)
 }
 
@@ -667,7 +667,7 @@ fn remove_prepared_host_command(
     publication: &PreparedCommandPublication,
 ) -> Result<bool, EngineError> {
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     let selected = native_host_publication::consume(
         interp,
         Rc::clone(hosts),
@@ -681,7 +681,7 @@ fn remove_prepared_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     retirement?;
     // A callback-created replacement has another generation and survives.
     if interp.namespaces().command_generation(namespace, &simple) != generation {
@@ -694,23 +694,23 @@ fn remove_prepared_host_command(
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     Ok(removed)
 }
 
 fn provide_package(interp: &mut Interp, name: &str, version: &str) -> Result<(), EngineError> {
     let scope = crate::interp::native_operation_currency::NativeOperationScope::enter(interp)
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     let code = crate::cmd_package::provide_package(interp, name.as_bytes(), version.as_bytes());
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     let answer = capture_answer(interp, code).map(|_| ());
     scope
         .currency()
         .ensure_current_or_refuse()
-        .map_err(value_error)?;
+        .map_err(EngineError::execution_failure)?;
     answer
 }
 
@@ -852,6 +852,7 @@ fn fail(interp: &mut Interp, error: EngineError) -> Code {
         }
         EngineError::BudgetExceeded(kind) => interp.exceed_limit(limit_kind(kind)),
         EngineError::ExecutionRefusal(reason) => interp.refuse_host_command(reason),
+        EngineError::ExecutionFailure(cause) => interp.refuse_native_execution(*cause),
         other => interp.refuse_host_command(other.to_string()),
     }
 }
@@ -1146,7 +1147,7 @@ mod tests {
         .err()
         .expect("first actual scalar import refusal");
         assert!(
-            matches!(error, EngineError::ExecutionRefusal(reason) if reason == first.to_string())
+            matches!(error, EngineError::ExecutionFailure(cause) if *cause == first)
         );
         assert_eq!(engine.interp.native_execution_refusal(), Some(first));
         assert_eq!(engine.interp.result_bytes(), b"SEEDED RESULT");
@@ -1159,7 +1160,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let mut engine = engine("tcl9.0");
         let error = engine.eval_in_invocation("set ::prior BEFORE; catch {return -level 0 -code error -errorcode [lseq 100000001] BODY} captured options; set ::after YES").unwrap_err();
-        assert!(matches!(error, EngineError::ExecutionRefusal(_)));
+        assert!(matches!(error, EngineError::ExecutionFailure(_)));
         assert_eq!(
             engine.interp.native_execution_refusal(),
             Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
@@ -1460,7 +1461,7 @@ mod tests {
         engine.define_command("refuse", Rc::new(Refuse)).unwrap();
         assert!(matches!(
             engine.eval_in_invocation("set before 1; catch {refuse}; set after 1"),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert!(crate::test_storage::global_scalar(&engine.interp, b"before").is_some());
         assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
@@ -1659,15 +1660,15 @@ mod tests {
         let first = engine.interp.native_execution_refusal();
         assert!(matches!(
             engine.provide_package("blocked", "1.0"),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert!(matches!(
             engine.define_command("untouched::command", Rc::new(Constant)),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert!(matches!(
             engine.remove_command("kept"),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert_eq!(engine.interp.resolve_cmd_token(b"kept"), original);
         assert!(engine
@@ -1756,7 +1757,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             engine.eval_in_invocation("catch {original anything}; set after 1"),
-            Err(EngineError::ExecutionRefusal(_))
+            Err(EngineError::ExecutionFailure(_))
         ));
         assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
     }
@@ -1782,7 +1783,7 @@ mod tests {
         })
         .unwrap_err();
         assert!(
-            matches!(error, EngineError::ExecutionRefusal(reason) if reason == first.to_string())
+            matches!(error, EngineError::ExecutionFailure(cause) if *cause == first)
         );
         assert_eq!(calls.get(), 0);
         assert_eq!(engine.interp.result_obj(), prior);
@@ -2024,4 +2025,32 @@ mod original_active_host_deletion_tests {
             drop(trace);
         }
     }
+
+    #[test]
+    fn original_typed_host_failure_crosses_the_actual_runtime_engine_boundary() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        struct Typed(tcl_runtime_api::NativeExecutionError);
+        impl HostCommand for Typed {
+            fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+                Err(EngineError::execution_failure(self.0.clone()))
+            }
+        }
+        let mut engine = engine("tcl8.6");
+        let cause = tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "actual Runtime Engine typed callback cause",
+            ),
+        );
+        engine.define_command("originalTypedFailure", Rc::new(Typed(cause.clone()))).unwrap();
+        let error = engine.eval_in_invocation(
+            "set ::prior BEFORE; catch {originalTypedFailure}; set ::after LATER",
+        ).unwrap_err();
+        assert_eq!(error, EngineError::execution_failure(cause.clone()));
+        assert_eq!(engine.interp.native_execution_refusal(), Some(cause));
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"prior").is_some());
+        assert!(crate::test_storage::global_scalar(&engine.interp, b"after").is_none());
+        assert_eq!(engine.eval_in_invocation("return NEXT").unwrap().value.as_str(), Some("NEXT"));
+    }
+
 }

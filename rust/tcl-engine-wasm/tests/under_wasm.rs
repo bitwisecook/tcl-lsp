@@ -1233,3 +1233,57 @@ fn completion_metadata_getter_failure_preserves_host_channel_and_prior_guest_eff
         Ok("BEFORE 0 0 0".to_owned())
     );
 }
+
+
+#[test]
+fn original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    struct Refusing(tcl_engine_api::NativeExecutionError);
+    impl HostCommand for Refusing {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::execution_failure(self.0.clone()))
+        }
+    }
+    let built = built().expect("typed host transport requires the actual linked WASM runtime");
+    let mut engine = WasmEngine::new(&built.runtime).expect("an actual runtime instance");
+    let cause = tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+            "original WASM host cause",
+        ),
+    );
+    engine.define_command("originalTypedFailure", Rc::new(Refusing(cause.clone()))).unwrap();
+    let failed = engine.compile(unit(&[], "catch {originalTypedFailure}; return LATER")).unwrap();
+    let first = engine.invoke(&failed, &[]).unwrap_err();
+    assert_eq!(first, EngineError::execution_failure(cause));
+    let next = engine.compile(unit(&[], "return NEXT")).unwrap();
+    assert_eq!(engine.invoke(&next, &[]).unwrap().as_str(), Some("NEXT"));
+}
+
+
+#[test]
+fn original_typed_wasm_host_failure_isolated_across_instances_and_real_destruction() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    struct Typed(tcl_engine_api::NativeExecutionError);
+    impl HostCommand for Typed {
+        fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::execution_failure(self.0.clone()))
+        }
+    }
+    let built = built().expect("lifetime transport requires the actual linked WASM runtime");
+    let cause = tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+        tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("first instance Host"),
+    );
+    let mut first = WasmEngine::new(&built.runtime).unwrap();
+    first.define_command("typed", Rc::new(Typed(cause.clone()))).unwrap();
+    assert_eq!(run(&mut first, "catch {typed}; return AFTER").unwrap_err(), EngineError::execution_failure(cause));
+    let mut independent = WasmEngine::new(&built.runtime).unwrap();
+    assert_eq!(run(&mut independent, "return INDEPENDENT").unwrap(), "INDEPENDENT");
+    drop(first);
+    let mut replacement = WasmEngine::new(&built.runtime).unwrap();
+    assert_eq!(run(&mut replacement, "return REPLACEMENT").unwrap(), "REPLACEMENT");
+    replacement.define_command("refuse", Rc::new(RefusingHost)).unwrap();
+    assert_eq!(run(&mut replacement, "catch {refuse}; return AFTER").unwrap_err(), EngineError::ExecutionRefusal("actual host contract refusal".into()));
+    assert_eq!(run(&mut independent, "return STILL_INDEPENDENT").unwrap(), "STILL_INDEPENDENT");
+}

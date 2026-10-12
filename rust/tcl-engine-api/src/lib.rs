@@ -36,8 +36,8 @@
 //! 1. **Common to the backends, not to every backend.** `tcl-vm` and the
 //!    Tcl->WASM codegen runtime implement it; the BPF backend explicitly does
 //!    not, because hosted extensions make no sense there. Selecting one engine
-//!    must not require another to be present, which is why this crate has no
-//!    dependencies at all and each engine implementation is its own crate.
+//!    must not require another to be present. This interface depends on shared
+//!    semantic vocabulary; each engine implementation remains its own crate.
 //! 2. **Two consumers, one shape.** The hook host is written on the compile,
 //!    invoke and host-command surface; what only the C-Tcl shim needs — the
 //!    completion code a host command answers ([`HostOutcome`]), and the door a
@@ -64,6 +64,9 @@
 pub mod value;
 
 pub use tcl_core_types::{NativeIndexCache, ResidentStringMutation};
+
+/// Full operational failure shared by the engines, outside guest completion.
+pub use tcl_runtime_api::{NativeExecutionError, engine_interpreter_identity};
 
 use std::rc::Rc;
 use std::time::Duration;
@@ -1027,6 +1030,9 @@ pub enum EngineError {
     /// The engine or a host command refused an execution capability. This is
     /// outside the guest Tcl completion channel, even when reached after effects.
     ExecutionRefusal(String),
+    /// The original typed operational failure, including its reached context.
+    /// Text-only backends continue to use `ExecutionRefusal`.
+    ExecutionFailure(Box<NativeExecutionError>),
     /// The body outran its budget.
     BudgetExceeded(BudgetKind),
     /// The body panicked, or the engine did on its behalf. The payload is
@@ -1056,6 +1062,7 @@ impl std::fmt::Display for EngineError {
                 Ok(())
             }
             Self::ExecutionRefusal(reason) => write!(f, "execution refused: {reason}"),
+            Self::ExecutionFailure(cause) => write!(f, "execution refused: {cause}"),
             Self::BudgetExceeded(BudgetKind::Commands) => write!(f, "command budget exceeded"),
             Self::BudgetExceeded(BudgetKind::WallClock) => write!(f, "wall-clock budget exceeded"),
             Self::BudgetExceeded(BudgetKind::ValueSize) => write!(f, "value-size budget exceeded"),
@@ -1065,9 +1072,31 @@ impl std::fmt::Display for EngineError {
     }
 }
 
-impl std::error::Error for EngineError {}
+impl std::error::Error for EngineError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ExecutionFailure(cause) => Some(cause.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 impl EngineError {
+    /// Carry an actual operational failure without reconstructing it from text.
+    #[must_use]
+    pub fn execution_failure(cause: NativeExecutionError) -> Self {
+        Self::ExecutionFailure(Box::new(cause))
+    }
+
+    /// Inspect the original typed cause when the backend supplies one.
+    #[must_use]
+    pub fn native_execution_failure(&self) -> Option<&NativeExecutionError> {
+        match self {
+            Self::ExecutionFailure(cause) => Some(cause),
+            _ => None,
+        }
+    }
+
     /// Retain exact guest failure bytes. Unicode-compatible payloads use the
     /// existing text carrier without changing their spelling.
     #[must_use]

@@ -192,7 +192,7 @@ fn engine_failure(state: &InterpState, error: EngineError) -> TclError {
             getter: None,
             host: None,
         },
-        EngineError::ExecutionRefusal(_) => TclError::host(error),
+        EngineError::ExecutionRefusal(_) | EngineError::ExecutionFailure(_) => TclError::host(error),
         EngineError::Compile(message) => failure(message),
         EngineError::Unsupported(_) => failure(error.to_string()),
         EngineError::BudgetExceeded(_) | EngineError::Crashed(_) => {
@@ -1134,4 +1134,33 @@ mod tests {
             "and it is open again after"
         );
     }
+
+    #[test]
+    fn original_typed_engine_failure_survives_the_actual_c_door() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let first = EngineError::execution_failure(
+            tcl_engine_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C door typed cause",
+                ),
+            ),
+        );
+        let state = InterpState::new();
+        let mut fake = Fake::new();
+        fake.eval = Err(first.clone());
+        {
+            let mut door = DoorRef::new(&mut fake);
+            let _open = state.open_door(&mut door);
+            let script = Obj::from_text("originalTypedFailure");
+            assert_eq!(evaluate(&state, &script, 0), TCL_ERROR);
+            state.refuse_host(EngineError::ExecutionRefusal("later C door refusal".into()));
+            assert_eq!(state.take_host_refusal(), Some(first.clone()));
+            assert_eq!(state.fatal(), None);
+            assert_eq!(state.take_return_options(), None);
+        }
+        assert_eq!(fake.log, ["eval originalTypedFailure"]);
+        assert!(first.native_execution_failure().is_some());
+    }
+
 }
