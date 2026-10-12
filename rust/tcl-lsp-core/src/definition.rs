@@ -1419,6 +1419,15 @@ pub(crate) fn instance_method_at_cursor(
         return None;
     }
 
+    // A complete variable at this line's head already has canonical geometry.
+    // FirstClose names may contain a literal `{`; it is not an enclosing script.
+    let line_prefix: String = chars[..wstart].iter().collect();
+    let line_head = line_prefix.trim();
+    let sole_line_head = tcl_lexer::word_parts::whole_var_ref(line_head.as_bytes(), config)
+        .ok()
+        .flatten()
+        .map(|_| line_head);
+
     // Command-segment start: nearest *unmatched* `;` / `[` / `{` to the
     // left, else the line start. Depth-tracked — a `]`/`}`
     // seen first means the following `[`/`{` closes a balanced
@@ -1450,23 +1459,25 @@ pub(crate) fn instance_method_at_cursor(
     // `split_whitespace`, which would otherwise split it in two.
     let prefix: String = chars[seg_start..wstart].iter().collect();
     let trimmed = prefix.trim();
-    let head =
-        if tcl_compiler::value_shapes::parse_command_substitution_with_config(trimmed, config)
-            .is_some()
-        {
-            trimmed
-        } else {
-            let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
-            if head_tokens.len() != 1 {
-                return None;
-            }
-            head_tokens[0]
-        };
+    let head = if let Some(head) = sole_line_head {
+        head
+    } else if tcl_compiler::value_shapes::parse_command_substitution_with_config(trimmed, config)
+        .is_some()
+    {
+        trimmed
+    } else {
+        let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
+        if head_tokens.len() != 1 {
+            return None;
+        }
+        head_tokens[0]
+    };
     if head.starts_with('$') {
-        // `$var` / `${var}` receiver — a variable holding an object.
-        // `var_reference` deliberately leaves an unclosed `${x` decorated,
-        // so malformed input cannot resolve as the real variable `x`.
-        let inst = tcl_syntax::naming::var_reference(head);
+        // A complete sole substitution is source geometry, not receiver identity.
+        // Its configured closer must consume the whole head before a reporting
+        // name can reach the independent method/source owner below.
+        tcl_lexer::word_parts::whole_var_ref(head.as_bytes(), config).ok()??;
+        let inst = tcl_syntax::naming::var_reference_for_style(head, config.braced_var);
         if inst.is_empty() {
             return None;
         }
@@ -8348,5 +8359,93 @@ mod original_next_source_context_tests {
         let unknown = source.replace("source_next_named Base", "source_next_named $unknown");
         assert!(target(&unknown, &analyse(&unknown, "tcl9.0"), "jump").is_none());
         assert!(target(&source.replace("Base", "Else"), &current, "jump").is_none());
+    }
+}
+
+#[cfg(test)]
+mod configured_receiver_head_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn configured_method_heads_require_the_whole_variable_operand() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        let method = |head: &str, config| {
+            let source = format!("{head} longMethod\n");
+            let character = u32::try_from(
+                source[..source.find("longMethod").unwrap()]
+                    .encode_utf16()
+                    .count(),
+            )
+            .unwrap();
+            instance_method_at_cursor(&source, 0, character, config)
+        };
+        let mut first = tcl_lexer::LexerConfig::default();
+        first.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let mut nested = first;
+        nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        for config in [first, nested] {
+            assert_eq!(
+                method("${箱}", config),
+                Some(("箱".to_owned(), "longMethod".to_owned(), true))
+            );
+            assert_eq!(
+                method("$arr(k)", config),
+                Some(("arr(k)".to_owned(), "longMethod".to_owned(), true))
+            );
+            for head in ["${x}suffix", "$x-suffix", "${x}[suffix]", "${x", "$箱"] {
+                assert!(method(head, config).is_none(), "{head}");
+            }
+        }
+        assert_eq!(
+            method("${a{b}c}", nested),
+            Some(("a{b}c".to_owned(), "longMethod".to_owned(), true))
+        );
+        assert!(method("${a{b}c}", first).is_none());
+        assert_eq!(
+            method("${a{b}", first),
+            Some(("a{b".to_owned(), "longMethod".to_owned(), true))
+        );
+        assert!(method("${a{b}", nested).is_none());
+        assert_eq!(
+            method(r"${a\}b}", nested),
+            Some((r"a\}b".to_owned(), "longMethod".to_owned(), true)),
+        );
+        assert!(method(r"${a\}b}", first).is_none());
+    }
+
+    #[test]
+    fn actual_method_navigation_does_not_promote_compound_variable_syntax() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            for (head, present) in [
+                ("${箱}", true),
+                ("${箱}suffix", false),
+                ("${箱}[list suffix]", false),
+            ] {
+                let source = format!(
+                    "oo::class create C {{method longMethod {{}} {{}}}}\nset {{箱}} [C new]\n{head} longMethod\n"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let line = source.lines().nth(2).unwrap();
+                let character = u32::try_from(
+                    line[..line.find("longMethod").unwrap()]
+                        .encode_utf16()
+                        .count(),
+                )
+                .unwrap();
+                let locations = definition(&source, 2, character, &analysis);
+                assert_eq!(
+                    !locations.is_empty(),
+                    present,
+                    "{dialect}: {head}: {locations:?}"
+                );
+                if present {
+                    assert!(locations.iter().all(|location| location.start_line == 0));
+                }
+            }
+        }
     }
 }

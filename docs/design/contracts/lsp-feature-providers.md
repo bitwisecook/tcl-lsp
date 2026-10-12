@@ -180,3 +180,13 @@ Lexical type hints compare already constructed FunctionUnit and analyser scope
 labels through the shared one-root projection. Literal colon components and
 Unicode labels remain intact. Hint emission retains the original complete source,
 configuration, analysis-owned Registry and independent declaration/SSA domain.
+
+
+Method receiver projections require the shared whole-variable word under the
+actual retained lexer configuration. Text after a braced closer, additional
+substitutions and malformed names cannot borrow the variable's class candidates.
+Scalar completion handles exclude independently scanned or combined array
+indexes and preserve complete braced Unicode names. Partial editor variable
+triggers retain their own completion purpose. Source syntax alone supplies no
+receiver identity, method navigation, Native dispatch or rewrite permission;
+original method and current source/context owners remain independent.

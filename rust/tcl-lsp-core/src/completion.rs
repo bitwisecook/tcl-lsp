@@ -292,8 +292,8 @@ fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
 /// method-completion gate: a `$var` instance variable, or a plain bareword
 /// instance-command name (a Tk widget path, or `CLASS create NAME`).
 /// Substituted / decorated heads are neither.
-fn dispatch_receiver_of(cmd: &str) -> Option<(String, bool)> {
-    strip_instance_var(cmd)
+fn dispatch_receiver_of(cmd: &str, config: tcl_lexer::LexerConfig) -> Option<(String, bool)> {
+    strip_instance_var(cmd, config)
         .map(|v| (v, true))
         .or_else(|| (!cmd.is_empty() && !cmd.contains(['$', '['])).then(|| (cmd.to_owned(), false)))
 }
@@ -356,7 +356,7 @@ fn context_aware_completions(
     // variable of the same name happens to hold an object elsewhere.
     let line_index = tcl_lexer::LineIndex::new(source);
     if word_idx == 1
-        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd, analysis.body_lexer_config?)
         && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
             analysis,
             &recv,
@@ -1115,18 +1115,17 @@ fn command_context_on_line(source: &str, line: u32, character: u32) -> Option<(S
 
 /// The instance-variable name in a `$obj` / `${obj}` command head, or
 /// `None` when the head is not a single bare variable reference.
-fn strip_instance_var(cmd: &str) -> Option<String> {
-    if !cmd.starts_with('$') {
+fn strip_instance_var(cmd: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(cmd.as_bytes(), config).ok()??;
+    // Completion candidates use scalar handles. A closed combined element name
+    // and an independently scanned index keep their separate array purpose.
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
         return None;
     }
-    // An unclosed `${x` is not the same spelling as `$x`; keep its braces so
-    // completion cannot dispatch through a real instance named `x`.
-    let inner = tcl_syntax::naming::var_reference(cmd);
-    (!inner.is_empty()
-        && inner
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':'))
-    .then(|| inner.to_string())
+    let name = std::str::from_utf8(reference.name).ok()?;
+    (!name.is_empty()).then(|| name.to_owned())
 }
 
 /// Complete the methods/subcommands callable on a receiver whose class
@@ -2681,7 +2680,8 @@ fn fuzzy_command_fallback(
     if analysis.allows_lexical_declaration_advice()
         && let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
         && word_idx == 1
-        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)
+        && let Some(config) = analysis.body_lexer_config
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd, config)
         && let Some((class_q, bucket)) = crate::definition::logical_receiver_candidate_at(
             analysis,
             &recv,
@@ -2850,15 +2850,15 @@ mod tests {
             !items.iter().any(|item| item.label == "bark"),
             "malformed `${{x` must not dispatch through real `x`: {items:?}"
         );
-        assert_eq!(strip_instance_var("${x}"), Some("x".to_owned()));
-        assert_eq!(strip_instance_var("$x"), Some("x".to_owned()));
+        assert_eq!(strip_instance_var("${x}", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
+        assert_eq!(strip_instance_var("$x", tcl_lexer::LexerConfig::default()), Some("x".to_owned()));
         // Completion intentionally only dispatches simple scalar handles;
         // the shared codec still parses the array decoration, but this
         // feature's documented name validation rejects it.
-        assert_eq!(strip_instance_var("$arr(idx)"), None);
-        assert_eq!(strip_instance_var("$::a:::b"), Some("::a:::b".to_owned()));
-        assert_eq!(strip_instance_var("$foo:::").as_deref(), Some("foo:::"));
-        assert_eq!(strip_instance_var("${x").as_deref(), None);
+        assert_eq!(strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()), None);
+        assert_eq!(strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()), Some("::a:::b".to_owned()));
+        assert_eq!(strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(), Some("foo:::"));
+        assert_eq!(strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(), None);
     }
 
     #[test]
@@ -6408,5 +6408,120 @@ mod original_source_instance_completion_tests {
             analysis.resolved_profile().unwrap(),
         );
         assert!(items.iter().all(|item| item.label != "longMethod"));
+    }
+}
+
+#[cfg(test)]
+mod configured_receiver_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn logical_method_completion_keeps_whole_scalar_heads_and_current_source() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        let source_for = |head: &str, selector: &str| {
+            format!(
+                "oo::class create C {{method longMethod {{}} {{}}}}\nset {{箱}} [C new]\n{head} {selector}"
+            )
+        };
+        for selector in ["longMet", "longMethd"] {
+            let source = source_for("${箱}", selector);
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let character =
+                u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+            let items = completions(
+                &source,
+                2,
+                character,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            assert!(
+                items.iter().any(|item| item.label == "longMethod"),
+                "{items:?}"
+            );
+            let changed = format!("# changed\n{source}");
+            assert!(
+                completions(
+                    &changed,
+                    3,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+            for head in [
+                "${箱}suffix",
+                "${箱}[list suffix]",
+                "$箱",
+                "\\${箱}",
+                "${箱(k)}",
+                "$arr(k)",
+            ] {
+                let source = source_for(head, selector);
+                let analysis = Analyser::new().analyse(&source, "tcl");
+                let character =
+                    u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+                let items = completions(
+                    &source,
+                    2,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                assert!(
+                    items.iter().all(|item| item.label != "longMethod"),
+                    "{head}: {items:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_scalar_completion_projection_keeps_array_and_brace_boundaries() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        let mut first = tcl_lexer::LexerConfig::default();
+        first.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let mut nested = first;
+        nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(strip_instance_var("${箱}", first), Some("箱".to_owned()));
+        assert_eq!(
+            strip_instance_var("${a{b}c}", nested),
+            Some("a{b}c".to_owned())
+        );
+        assert!(strip_instance_var("${a{b}c}", first).is_none());
+        assert_eq!(strip_instance_var("${a{b}", first), Some("a{b".to_owned()));
+        assert!(strip_instance_var("${a{b}", nested).is_none());
+        for config in [first, nested] {
+            for head in [
+                "${x}suffix",
+                "$x-suffix",
+                "${x}[list suffix]",
+                "${x",
+                "$arr(k)",
+                "${arr(k)}",
+                "$arr($k)",
+                "$arr([list k])",
+                "\\${x}",
+                "$箱",
+            ] {
+                assert!(strip_instance_var(head, config).is_none(), "{head}");
+            }
+            assert_eq!(
+                dispatch_receiver_of("${箱}", config),
+                Some(("箱".to_owned(), true))
+            );
+            assert!(dispatch_receiver_of("${箱}suffix", config).is_none());
+        }
     }
 }
