@@ -47,27 +47,19 @@ is insufficient.
 
 | Question | Owner | Required distinction |
 | --- | --- | --- |
-| Written environment name or editor language ID | `model::ingress::resolve_environment`; strict validation via `resolve_known_environment` | A lenient default is not proof that an unknown name is valid |
-| Document analysis environment | `DocumentEnvironment`, `ResolvedContext`, actual profile and registry inputs | Authoring surface, lexer grammar, native runtime and embedding policy remain separate axes |
+| Written environment name or editor language ID | `model::ingress::resolve_environment`; strict validation via `resolve_known_environment` | Canonical names, aliases and editor identities share one ingress; a lenient default is not proof that an unknown name is valid |
+| Document analysis environment | `DocumentEnvironment`, `ResolvedContext`, detection facts, overlays, targets, actual profile and registry inputs | Retain environment generation, overlay and target axes; authoring surface, lexer grammar, native runtime and embedding policy remain separate |
 | Written command lookup order | `tcl_syntax::naming::command_resolution_candidates` | Actual namespace/path and slot existence; candidates alone prove no binding |
-| Positioned command identity | `SourceCommandBindings::invocation_at_source`, `CommandBindingRealm` | Called slot, terminal implementation, pre-argv compiler selection and post-argv handler differ |
-| Package version acceptance | Axis-typed `VersionSet` algebra and the selected package policy | Tcl release and package version axes cannot be interchanged |
+| Positioned command identity | `SourceCommandBindings::invocation_at_source`, `CommandBindingRealm`, `Analyser::command_existence_oracle`, realm `knowledge_at` | `Absent`, `Must`, `May` and `Unknown` are positioned verdicts; called slot, terminal implementation, pre-argv compiler selection and post-argv handler differ |
+| Package version acceptance | Axis-typed `VersionSet` algebra, floor engine and selected package policy | Tcl release and package version axes cannot be interchanged; assistance candidates do not establish installed packages |
 | Package index or autoload metadata | `PackageResolver` | An advertisement does not establish that a loader executed or provided the package |
 | Runtime package state | `PackageStateMap` and package transitions | Available, advertised, required and provided states differ |
-| Registry semantic hook | Selected declaration plus purpose-specific retained binding adapter | Catalogue presence supplies assistance; execution and edits require additional proof |
+| Registry semantic hook | `ResolvedContext::resolve_spec`, selected declaration and purpose-specific retained binding adapter | Catalogue presence supplies assistance; availability alone does not prove command binding or trust, and execution and edits require additional proof |
 
 Assistance queries can enumerate possible declarations under the authoring
 context and floors. A diagnostic that asserts identity, an executable rewrite,
 or code generation requires the corresponding positioned semantic receipt.
 `Absent`, `May` and `Unknown` cannot be treated as a unique live implementation.
-
-| Query | Owner | Required distinction |
-| --- | --- | --- |
-| Written environment name | `model::ingress::resolve_environment` | Canonical names, aliases and editor identities share one ingress. |
-| Document context | Detection facts, overlays and targets | Retain environment generation, overlay and target axes. |
-| Call-site binding | `Analyser::command_existence_oracle`, realm `knowledge_at` | `Absent`, `Must`, `May` and `Unknown` remain positioned verdicts. |
-| Package requirements | `VersionSet`, floor engine and `PackageResolver` | Assistance candidates do not establish installed packages. |
-| Semantic hook | `ResolvedContext::resolve_spec` and retained invocation owner | Availability alone does not prove command binding or trust. |
 
 ## 2. Consumer purposes
 

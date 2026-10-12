@@ -5,8 +5,7 @@
 >
 > Companions:
 > [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
-> (the registration/resolution contract, the retirement ledger's open rows,
-> and the `tcl spec upgrade` specification),
+> (the registration/resolution contract and the `tcl spec upgrade` specification),
 > [spec-packs.md](spec-packs.md) (the SpecTcl format),
 > [dialect-profile-model.md](dialect-profile-model.md) (the interned
 > catalogue the lexer is still keyed on),
@@ -419,8 +418,9 @@ default, 0.84 `--minimal`):
 `f5_core_expr_grammar()` maps every `F5Tcl`-cored profile to the model
 `ExprGrammar`; the expr lexer reads that table and W003 keys on the family
 grammar, so tmsh and iApp documents accept the operators they measurably
-accept. `RuntimeExprSurface::for_tcl_version` survives for the plain-Tcl
-ladder (§11 D9's neighbour, the centralisation ledger's C12).
+accept. `RuntimeExprSurface::for_tcl_version` supplies the plain-Tcl ladder;
+consumer authority is described in the
+[compiler and analyser contract](dialect-and-package-registry-centralisation.md#22-compiler-and-analyser).
 
 Where a family's data lives: the shipped cores are native Rust; a pack may
 declare a further family with a `dialect` block (§6.2), setting values for
@@ -658,8 +658,9 @@ measured non-equivalent at nine points (`c7_hint_walk_counterexamples`).
   environment; and must/may-active in this realm. Security and
   compilation queries use realm bindings only; completion may opt into
   the broader tiers with annotations. W002's candidate source is still a
-  hardcoded pack list (`all_dialect_command_names`, the centralisation
-  ledger's C10).
+  hardcoded pack list (`all_dialect_command_names`); see the
+  [tooling assistance contract](dialect-and-package-registry-centralisation.md#24-tooling-and-generated-views)
+  for the distinction between declaration views and execution authority.
 
 ## 5. Resolution: from bytes to environment, targets, and realms
 
@@ -876,7 +877,7 @@ loader speaks (2.1 is newest); the spelling tables are
   Rust, and a conversion still needs SpecTcl vocabulary for the
   widget-class and option-database shapes, the Tk co-provide model, and
   the parity harness.
-- **Open**: registry generations (§11 D10), a shared `InvocationSpec`
+- **Open**: dynamic loader allocation reclamation (§11 D10), a shared `InvocationSpec`
   (D11), and a loader-direction round-trip gate that would make a
   documented-but-unread word fail CI (§11.4 E3).
 
@@ -935,7 +936,7 @@ These hold across the tree:
 | I4 | No taint/effect/lowering/codegen hook is selected before binding proof | the three selection primitives require the environment binding proof |
 | I5 | Ambiguity widens effects or abstains; it never picks by catalogue order | load/import/rename permutation tests |
 | I6 | Untrusted data cannot weaken trusted security facts | `security_floor`; `i6_security_floor.rs` |
-| I7 | Dropped registry generations release dynamic specs | **not held** — §11 D10 |
+| I7 | Dropped registry generations release dynamic loader allocations | **not held** — §11 D10; Arc-owned ContextRegistry generations do not establish loader-allocation reclamation |
 | I8 | Every advertised editor identity is actually contributed by that editor package | the fixed contributed editor language identities |
 | I9 | Unknown semantic vocabulary fails closed | `VocabularyClass`; downgrade fixtures |
 | I10 | Pack migration preserves user-observable behaviour, not only serialised bytes | golden-snapshot gate plus behavioural parity per conversion |
@@ -946,11 +947,9 @@ These hold across the tree:
 *what it is*, *what it blocks*, and *what would resolve it*. Where any
 other document says "still open", it points here.
 
-Deliberately **not** in this ledger: items the owner ruled out (a
-per-major `tcl` family split; `tcl8`/`tcl9` named-range sugar; contraction
-of a programmed pack back into a program; an ahead-of-time `.tclspec` →
-`.rs` backend — the shipped cores stay native Rust), and the six
-*deliberate* F5 divergences the conformance corpus records.
+The single Tcl family and range algebra remain the contracts in §§2 and 4.1.
+The six deliberate F5 divergences retain their conformance-corpus provenance;
+their unresolved runtime evidence is recorded separately in §11.3 V7.
 
 ### 11.1 Owner decisions pending
 
@@ -971,11 +970,11 @@ of a programmed pack back into a program; an ahead-of-time `.tclspec` →
 | D7 | **A byte-counting character model.** A non-utf8 Jim build counts bytes, a third rule `StringCharacterModel`'s two Tcl models cannot express; `character_model` answers `None` (every consumer abstains) and the measured fact travels on `CapabilitySet::utf8_character_model` | `string length` folding under `--minimal` jim | A `StringCharacterModel::Bytes` variant and its `count_for` agreement rule, which changes constant folding for **every** dialect and needs the differential gate |
 | D8 | **The multi-realm `AnalysisWorld`.** Child interpreters, safe interpreters and `hide`/`expose` widen everything they touch to `Unknown` rather than being modelled | Precision only: an `interp create` widens more than it must | Build the realm map on `BindingKnowledge` and the transition vocabulary, with the parent/child/safe/ordering e2e suite invariant I3 names |
 | D9 | **The analyser's binding tables are indexes, not typed transitions.** `command_aliases` / `renamed_commands` / `deleted_commands` and the offset maps are populated from `CommandBindingTransition` facts but are `AnalysisResult`-shaped values, and `indirection.rs` walks them in that form | D8 wants one vocabulary; the "no parallel binding tables" half of the one-oracle rule is gated rather than structural | Re-typing the tables reaches ~30 files across `tcl-lsp-core`'s navigation providers — a change of its own |
-| D10 | **Registry generations** (invariant I7). The loader leaks per load (`Box::leak` in `tcl-spectcl/src/loader.rs`); no `RegistryGeneration` type exists | A Spec Studio session editing a large surface leaks ~3.1 MB per generation of ~2,400 specs; a prerequisite for any mass conversion | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by a 1,000-reload allocator test |
+| D10 | **Dynamic loader allocation reclamation** (invariant I7). `ContextRegistry` generations are Arc-owned, identity-keyed and overlay-cache-bounded (`tcl-registry/src/model/assembly.rs`); loader availability-window slices still use `Box::leak` (`tcl-spectcl/src/loader/available.rs::leak_windows`). ContextRegistry handle reclamation does not prove that dynamic loader allocations are released | A Spec Studio session editing a large surface leaks ~3.1 MB per generation of ~2,400 specs; a prerequisite for any mass conversion | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by a 1,000-reload allocator test |
 | D11 | **Shared `InvocationSpec`.** Taint sinks, forms, deprecation replacements and effects are copied field by field into `SubCommand` instead of living in one invocation capability model | Honest specs for method-level sinks (ticklecharts' file write, SpiceGenTcl's `runAndRead`) | The refactor, behind the four-surface parity rule |
 | D16 | **The per-distinct-profile reference evaluator** (§5.4). The two shipped detectors are token-local (lifecycle windows, numerals) | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, numerals *inside* compound `expr` bodies, differential constant folding at the endpoints, `package require` satisfiability per target, per-folder `tclLsp.targets`, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector after the differential gate proves it equivalent |
 | D17-P | **A package version window in `available` is parsed, reported, and dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load. `SurfaceQuery::packages` carries each package's floor and `SpecSurface::package_in`'s windows are answered against it, so the data model can hold the window; the loader does not yet build the row, and `declarations_for_spec` lowers a package row to the package's whole axis | Per-package version gating from a pack | The loader projects the range onto `SpecSurface::package_in`, and the lowering intersects it with the package axis |
-| D18 | **Gap rulings that did not land as code** (the centralisation companion's §4). **R2** — special variables are `special_vars.rs`'s compiled table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home. **R3** — `FILE_SCOPED_ENVS` is a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` matches `"surface" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability. **R5** — the hook `ctx` dict carries only a `dialect` key; no `environment` key. **R6** — the `tclpkg.tcl` manifest's `tcl` constraint has no multi-clause range grammar, and the three version comparators (`tcl_dialect`, `tcl_registry::version`, `tcl_pkg::version`) have not collapsed. **R7** — `spectcl_check` is MCP-only; there is no `tcl spec check` verb. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated | Each blocks a different small thing | Each is independently landable |
+| D18 | **Declaration and tooling limitations** (see the current [registration inputs](dialect-and-package-registry-centralisation.md#11-registration-inputs) and [tooling contract](dialect-and-package-registry-centralisation.md#24-tooling-and-generated-views)). **R2** — special variables are `special_vars.rs`'s compiled table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home. **R3** — `FILE_SCOPED_ENVS` is a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` matches `"surface" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability. **R5** — the hook `ctx` dict carries only a `dialect` key; no `environment` key. **R6** — the `tclpkg.tcl` manifest's `tcl` constraint has no multi-clause range grammar, and the three version comparators (`tcl_dialect`, `tcl_registry::version`, `tcl_pkg::version`) have not collapsed. **R7** — `spectcl_check` is MCP-only; there is no `tcl spec check` verb. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated | Each blocks a different small thing | Each is independently landable |
 
 ### 11.3 Evidence gaps
 
@@ -995,7 +994,7 @@ answer without them it abstains explicitly.
 | V9 | **Corpus-*generated* F5 rows, the transcript-schema validator, and the prose/rows/tests drift gate.** The 205 vectors *assert* the hand-authored F5 catalogue rows; they do not produce them | A measurement and a registry row can still be edited apart — the corpus catches it at test time rather than making it unrepresentable | The generator, the schema validator (which must never run in CI), and the drift gate |
 | V10 | **The tmsh role overlay and the `tcl_platform` CMP-effect overlay.** Both are recorded as evidence and neither is wired as an overlay | The role overlay is additionally blocked by V3. The CMP overlay has its input — TMM's seven fabricated keys are pinned against `special_vars.rs` | Wire the effect refinement; for the role overlay, V3 first |
 | V11 | **Single-binary probes on the five-version matrix.** `find_tclsh`'s first-hit callers were not upgraded when the five interpreters started building | Release-differentiating behaviours probed by a single binary answer for whichever tclsh is first on `PATH` | Thread `TCL_LSP_TCLSH{84,85,86,90,91}` through those call sites |
-| V12 | **The oracle programme's vector domains** (companion §7.2–§7.5). The reference interpreters, the path fixes, the Tk trees and the command/variable/namespace-op vector files exist; the binding vectors, the package/autoload vectors, the real-corpus index parity and the consumer conformance lattice do not | The lattice is the "every consumer leverages this properly" checklist, and it is not yet a set of passing gates | Land the vector files per §7.2's format and wire the five consumers |
+| V12 | **The oracle programme's vector domains** (see [shared vector files](dialect-and-package-registry-centralisation.md#72-vector-files-and-expectation-columns) and [evidence scope](dialect-and-package-registry-centralisation.md#74-evidence-scope)). The reference interpreters, the path fixes, the Tk trees and the command/variable/namespace-op vector files exist; the binding vectors, the package/autoload vectors, the real-corpus index parity and the consumer conformance lattice do not | The lattice is the "every consumer leverages this properly" checklist, and it is not yet a set of passing gates | Land the vector files per the companion's [vector format](dialect-and-package-registry-centralisation.md#72-vector-files-and-expectation-columns) and wire the five consumers |
 
 ### 11.4 Doc-and-code divergences
 
