@@ -582,6 +582,7 @@ fn dispatch_hazard(
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
+    let (config, _) = crate::references::dispatch_source_context(source, analysis)?;
     let hierarchy = analysis.class_hierarchy();
     let family: FxHashSet<&str> = target.family.iter().map(String::as_str).collect();
     let in_family = |class: &str| -> bool {
@@ -599,23 +600,34 @@ fn dispatch_hazard(
         let (Some(head), Some(member)) = (cmd.argv.first(), cmd.argv.get(1)) else {
             return;
         };
-        let Some(head_text) = slice(source, head.span) else {
+        if slice(source, head.span).is_none() {
             return;
-        };
+        }
         let computed_member = matches!(member.kind, TokenType::Var | TokenType::Cmd);
         if head.kind == TokenType::Var {
-            let Some(receiver) = strip_var_decoration(head_text) else {
-                return;
-            };
+            let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(source),
+                config,
+                cmd,
+            );
+            let receiver = original_words
+                .word_exprs
+                .first()
+                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+                .and_then(|(spelling, _)| strip_var_decoration(spelling, Some(config)));
+            // Compound variable heads remain untracked hazards; a variable
+            // prefix cannot narrow them with its own source class metadata.
             // Only a positioned current receiver can narrow a Native hazard.
             // Source constructor candidates never establish rename identity.
             let bound_class = if analysis.allows_lexical_declaration_advice() {
-                analysis.instance_classes.get(receiver).or_else(|| {
-                    crate::definition::lattice_singleton_class(
-                        analysis,
-                        receiver,
-                        head.span.start(),
-                    )
+                receiver.and_then(|receiver| {
+                    analysis.instance_classes.get(receiver).or_else(|| {
+                        crate::definition::lattice_singleton_class(
+                            analysis,
+                            receiver,
+                            head.span.start(),
+                        )
+                    })
                 })
             } else {
                 crate::receiver_identity::class_at_command_head(analysis, source, cmd)
@@ -2174,5 +2186,107 @@ mod original_hazard_context_tests {
             );
             assert!(old_spans.is_empty(), "{source}");
         }
+    }
+}
+
+#[cfg(test)]
+mod configured_dispatch_receiver_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(source: &str, config: tcl_lexer::LexerConfig) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::new(context),
+                config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn hazard(source: &str, analysis: &AnalysisResult) -> Option<RenameRefusal> {
+        let family = ["::C".to_owned()];
+        method_rename_hazard(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            analysis,
+            MethodRenameTarget {
+                family: &family,
+                method: "m",
+                is_classmethod: false,
+                new_name: "changed",
+            },
+            &LineIndex::new(source),
+        )
+    }
+
+    const CLASSES: &str =
+        "oo::class create C {method m {} {}}\noo::class create Other {method m {} {}}\n";
+
+    #[test]
+    fn actual_rename_hazard_keeps_a_compound_variable_receiver_untracked() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        for head in ["$v", "${v}", "\"${v}\""] {
+            let source = format!("{CLASSES}set v [Other new]\n{head} m\n");
+            let current = analyse(&source, tcl_lexer::LexerConfig::default());
+            assert_eq!(
+                current.instance_classes.get("v").map(String::as_str),
+                Some("::Other")
+            );
+            assert!(hazard(&source, &current).is_none(), "{head}");
+        }
+        for head in ["${v}suffix", "${v}[list suffix]", "$arr(k)", "${missing}"] {
+            let source = format!("{CLASSES}set v [Other new]\n{head} m\n");
+            let current = analyse(&source, tcl_lexer::LexerConfig::default());
+            assert!(
+                hazard(&source, &current)
+                    .unwrap()
+                    .reason
+                    .contains("not tracked"),
+                "{head}"
+            );
+        }
+    }
+
+    #[test]
+    fn actual_rename_receiver_names_keep_first_close_and_nested_source_currency() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        let source = format!("{CLASSES}set {{a{{b}}c}} [Other new]\n${{a{{b}}c}} m\n");
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let nested = analyse(&source, config);
+        assert!(hazard(&source, &nested).is_none());
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let first = analyse(&source, config);
+        assert!(
+            hazard(&source, &first)
+                .unwrap()
+                .reason
+                .contains("not tracked")
+        );
+        let valid_first_close = format!("{CLASSES}set \"a{{b\" [Other new]\n${{a{{b}} m\n");
+        let first = analyse(&valid_first_close, config);
+        assert!(hazard(&valid_first_close, &first).is_none());
+        let foreign = source.clone() + "puts foreign\n";
+        assert!(
+            hazard(&foreign, &nested)
+                .unwrap()
+                .reason
+                .contains("original source")
+        );
+        let mut missing = nested;
+        missing.resolved_input = None;
+        assert!(
+            hazard(&source, &missing)
+                .unwrap()
+                .reason
+                .contains("original source")
+        );
     }
 }

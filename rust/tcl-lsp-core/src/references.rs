@@ -2643,7 +2643,16 @@ fn callback_targets_from_command(
             continue;
         }
         if body_tok.kind == TokenType::Var && cmd.single_token_word.get(*written) == Some(&true) {
-            let Some(variable) = strip_var_decoration(source_span_text(ctx.source, body_tok.span))
+            let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(ctx.source),
+                ctx.config,
+                cmd,
+            );
+            let Some(variable) = original_words
+                .word_exprs
+                .get(*written)
+                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+                .and_then(|(spelling, _)| strip_var_decoration(spelling, Some(ctx.config)))
             else {
                 continue;
             };
@@ -3868,16 +3877,23 @@ pub(crate) fn member_reference_spans(
     member_metadata::spans(source, analysis, dialect, class_def, method)
 }
 
-/// Strip a `$name` / `${name}` decoration to the bare variable
-/// name.  Returns `None` when the text isn't a `$`-prefixed
-/// reference.
-pub(crate) fn strip_var_decoration(raw: &str) -> Option<&str> {
+/// Project a whole configured source reference to its metadata name.
+/// The caller separately selects a sole variable word. An absent configuration
+/// is the explicit standalone decoration convention, without source admission.
+pub(crate) fn strip_var_decoration(
+    raw: &str,
+    config: Option<tcl_lexer::LexerConfig>,
+) -> Option<&str> {
     if !raw.starts_with('$') {
         return None;
     }
-    // Keep an unclosed `${x` decorated; only a complete `${x}` is a
-    // reference to the real variable `x`.
-    let inner = tcl_syntax::naming::var_reference(raw);
+    let inner = if let Some(config) = config {
+        tcl_lexer::word_parts::whole_var_ref(raw.as_bytes(), config).ok()??;
+        tcl_syntax::naming::var_reference_for_style(raw, config.braced_var)
+    } else {
+        // Explicit standalone decoration metadata has no source admission.
+        tcl_syntax::naming::var_reference(raw)
+    };
     if inner.is_empty() { None } else { Some(inner) }
 }
 
@@ -6134,13 +6150,13 @@ mod tests {
             "only the declaration may resolve; malformed `${{x` is not `x`: {refs:?}"
         );
         assert_eq!(refs[0].start_line, 1);
-        assert_eq!(strip_var_decoration("${x}"), Some("x"));
-        assert_eq!(strip_var_decoration("$x"), Some("x"));
-        assert_eq!(strip_var_decoration("$arr(idx)"), Some("arr(idx)"));
-        assert_eq!(strip_var_decoration("$::a:::b"), Some("::a:::b"));
-        assert_eq!(strip_var_decoration("$foo:::"), Some("foo:::"));
-        assert_eq!(strip_var_decoration("${x"), Some("{x"));
-        assert_eq!(strip_var_decoration("x"), None);
+        assert_eq!(strip_var_decoration("${x}", None), Some("x"));
+        assert_eq!(strip_var_decoration("$x", None), Some("x"));
+        assert_eq!(strip_var_decoration("$arr(idx)", None), Some("arr(idx)"));
+        assert_eq!(strip_var_decoration("$::a:::b", None), Some("::a:::b"));
+        assert_eq!(strip_var_decoration("$foo:::", None), Some("foo:::"));
+        assert_eq!(strip_var_decoration("${x", None), Some("{x"));
+        assert_eq!(strip_var_decoration("x", None), None);
     }
 
     #[test]
@@ -8378,5 +8394,97 @@ mod constructed_compatibility_tests {
         assert!(!invocation_references_named(
             &analysis, actual, ":::茶", ":茶", ":::茶", source
         ));
+    }
+}
+
+#[cfg(test)]
+mod configured_callback_variable_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(source: &str, config: tcl_lexer::LexerConfig) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1");
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::new(context),
+                config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn source(name: &str, operand: &str) -> String {
+        format!(
+            "oo::class create C {{\n    method tick {{}} {{}}\n    method setup {{}} {{\n        set {{{name}}} [namespace code [list my tick]]\n        after 0 {operand}\n    }}\n}}\n"
+        )
+    }
+
+    fn has_stored_target(source: &str, analysis: &AnalysisResult) -> bool {
+        references(
+            source,
+            tcl_dialect::DialectProfile::plain_tcl(),
+            1,
+            11,
+            analysis,
+            true,
+        )
+        .iter()
+        .any(|range| range.start_line == 3)
+    }
+
+    #[test]
+    fn actual_stored_callback_reference_uses_its_retained_brace_configuration() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        let source = source("a{b}c", "${a{b}c}");
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let nested = analyse(&source, config);
+        assert!(has_stored_target(&source, &nested));
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let first = analyse(&source, config);
+        assert!(!has_stored_target(&source, &first));
+        assert!(!has_stored_target(
+            &(source.clone() + "puts foreign\n"),
+            &nested
+        ));
+        let mut changed = analyse(&source, nested.body_lexer_config.unwrap());
+        let config = changed.body_lexer_config.as_mut().unwrap();
+        config.strict_quoting = !config.strict_quoting;
+        assert!(!has_stored_target(&source, &changed));
+    }
+
+    #[test]
+    fn actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name() {
+        // naming.core.original-dispatch-region-context
+        // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
+        for operand in ["${cbé}", "\"${cbé}\""] {
+            let source = source("cbé", operand);
+            assert!(
+                has_stored_target(
+                    &source,
+                    &analyse(&source, tcl_lexer::LexerConfig::default())
+                ),
+                "{operand}"
+            );
+        }
+        for operand in [
+            "${cbé}suffix",
+            "${cbé}[list suffix]",
+            r"\$cbé",
+            "${cbé(extra)}",
+        ] {
+            let source = source("cbé", operand);
+            assert!(
+                !has_stored_target(
+                    &source,
+                    &analyse(&source, tcl_lexer::LexerConfig::default())
+                ),
+                "{operand}"
+            );
+        }
     }
 }

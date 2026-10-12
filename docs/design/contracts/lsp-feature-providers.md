@@ -220,3 +220,13 @@ variable's method or implicit-self metadata. Loop collection operands use the
 same word/configuration owner at their original written argument. Standalone
 decoration formatting remains separate; source syntax supplies no native
 receiver, current method-table, callable or edit capability.
+
+
+Stored callback-variable projections and method-rename hazard narrowing use a
+sole variable substitution from the original whole word, under its retained
+source configuration. Compound heads retain their untracked-receiver hazard;
+a variable prefix cannot lend its class metadata to the complete command.
+Native hazards still require the existing post-argument receiver identity,
+and callback projections keep their original source roles, unique assignment,
+argument origins and prefix checks. Decoration-only metadata is separate from
+source admission and supplies no callback execution or rewrite permission.
