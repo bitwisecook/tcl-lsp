@@ -101,94 +101,145 @@ impl Interp {
         coroutine: &CoroutineOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
+        let original = super::native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         let mut stack = Vec::<obj::Owned>::new();
-        for step in &coroutine.steps {
-            match step {
-                CoroutineStep::Operand(operand) => {
-                    stack.push(self.body_namespace_operand(artifact, command, operand, execution)?);
-                    if execution.done {
-                        return Ok(Code::Ok);
+        let reached = (|| {
+            for step in &coroutine.steps {
+                original
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
+                match step {
+                    CoroutineStep::Operand(operand) => {
+                        stack.push(
+                            self.body_namespace_operand(artifact, command, operand, execution)?,
+                        );
+                        original
+                            .check(self)
+                            .map_err(|first| self.report_cmd_error(first))?;
+                        if execution.done {
+                            return Ok(Code::Ok);
+                        }
                     }
-                }
-                CoroutineStep::CurrentNamespace => {
-                    stack.push(obj::Owned::fresh(
-                        tcl_cmd_core::namespace::current_original(self)
-                            .map_err(|error| self.report_cmd_error(error))?,
-                    ));
-                }
-                CoroutineStep::List(count) => {
-                    let values = stack.split_off(
-                        stack
-                            .len()
-                            .checked_sub(*count)
-                            .expect("native coroutine List stack"),
-                    );
-                    let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                    stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
-                        &pointers,
-                        artifact.stamp.source_protocol,
-                    )));
-                }
-                CoroutineStep::Concat => {
-                    let source = stack.pop().expect("native coroutine List source");
-                    let target = stack.pop().expect("native coroutine List target");
-                    stack.push(
-                        crate::list::concatenate_native_lists(
+                    CoroutineStep::CurrentNamespace => {
+                        stack.push(obj::Owned::fresh(
+                            tcl_cmd_core::namespace::current_original(self)
+                                .map_err(|error| self.report_cmd_error(error))?,
+                        ));
+                    }
+                    CoroutineStep::List(count) => {
+                        let values = stack.split_off(
+                            stack
+                                .len()
+                                .checked_sub(*count)
+                                .expect("native coroutine List stack"),
+                        );
+                        let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                        stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
+                            &pointers,
+                            artifact.stamp.source_protocol,
+                        )));
+                    }
+                    CoroutineStep::Concat => {
+                        let source = stack.pop().expect("native coroutine List source");
+                        let target = stack.pop().expect("native coroutine List target");
+                        let headers = crate::interp::native_arguments::OriginalArguments::enter(
+                            self,
+                            &[target.as_ptr(), source.as_ptr()],
+                        )
+                        .map_err(|first| self.report_cmd_error(first))?;
+                        let actual = self.clone();
+                        let concatenated = crate::list::concatenate_native_lists_using(
                             target.as_ptr(),
                             source.as_ptr(),
                             artifact.stamp.source_protocol,
-                        )
-                        .map_err(|error| self.report_cmd_error(error.into()))?,
-                    );
-                }
-                CoroutineStep::Tailcall { count, legacy } => {
-                    if !self.in_proc() {
-                        return Ok(self
-                            .error(b"tailcall can only be called from a proc, lambda or method"));
-                    }
-                    let mut values = stack.split_off(
-                        stack
-                            .len()
-                            .checked_sub(*count)
-                            .expect("native tailcall stack"),
-                    );
-                    if *legacy {
-                        values[0] = obj::Owned::fresh(
-                            tcl_cmd_core::namespace::current_original(self)
-                                .map_err(|error| self.report_cmd_error(error))?,
+                            &|| {
+                                original.check(&actual)?;
+                                headers.check_for(&actual)
+                            },
+                            &|error| original.refuse(error),
                         );
+                        let concatenated =
+                            concatenated.map_err(|first| self.report_cmd_error(first));
+                        drop(headers);
+                        drop(source);
+                        drop(target);
+                        original
+                            .check(self)
+                            .map_err(|first| self.report_cmd_error(first))?;
+                        stack.push(concatenated?);
                     }
-                    let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-                    let original = obj::Owned::fresh(crate::list::new_list_obj_native(
-                        &pointers,
-                        artifact.stamp.source_protocol,
-                    ));
-                    return Ok(self.schedule_original_tailcall_list(original));
-                }
-                CoroutineStep::TailcallList => {
-                    return Ok(self.schedule_original_tailcall_list(
-                        stack.pop().expect("native tailcall List"),
-                    ));
-                }
-                CoroutineStep::Yield => {
-                    return Ok(crate::cmd_coro::yield_original(
-                        self,
-                        stack.pop().expect("native yielded value"),
-                    ));
-                }
-                CoroutineStep::Name => {
-                    self.set_result_bytes(&crate::cmd_coro::current_coroutine());
-                    return Ok(Code::Ok);
-                }
-                CoroutineStep::YieldTo => {
-                    return Ok(crate::cmd_coro::yieldto_original(
-                        self,
-                        stack.pop().expect("native yielded invocation List"),
-                    ));
+                    CoroutineStep::Tailcall { count, legacy } => {
+                        if !self.in_proc() {
+                            return Ok(self.error(
+                                b"tailcall can only be called from a proc, lambda or method",
+                            ));
+                        }
+                        let mut values = stack.split_off(
+                            stack
+                                .len()
+                                .checked_sub(*count)
+                                .expect("native tailcall stack"),
+                        );
+                        if *legacy {
+                            let namespace = obj::Owned::fresh(
+                                tcl_cmd_core::namespace::current_original(self)
+                                    .map_err(|error| self.report_cmd_error(error))?,
+                            );
+                            original
+                                .check(self)
+                                .map_err(|first| self.report_cmd_error(first))?;
+                            // Assignment retires the old operand before publishing
+                            // its incoming namespace. Preserve that real order.
+                            let displaced = values.remove(0);
+                            drop(displaced);
+                            original
+                                .check(self)
+                                .map_err(|first| self.report_cmd_error(first))?;
+                            values.insert(0, namespace);
+                        }
+                        let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                        let original = obj::Owned::fresh(crate::list::new_list_obj_native(
+                            &pointers,
+                            artifact.stamp.source_protocol,
+                        ));
+                        return Ok(self.schedule_original_tailcall_list(original));
+                    }
+                    CoroutineStep::TailcallList => {
+                        return Ok(self.schedule_original_tailcall_list(
+                            stack.pop().expect("native tailcall List"),
+                        ));
+                    }
+                    CoroutineStep::Yield => {
+                        return Ok(crate::cmd_coro::yield_original(
+                            self,
+                            stack.pop().expect("native yielded value"),
+                        ));
+                    }
+                    CoroutineStep::Name => {
+                        self.set_result_bytes(&crate::cmd_coro::current_coroutine());
+                        original
+                            .check(self)
+                            .map_err(|first| self.report_cmd_error(first))?;
+                        return Ok(Code::Ok);
+                    }
+                    CoroutineStep::YieldTo => {
+                        return Ok(crate::cmd_coro::yieldto_original(
+                            self,
+                            stack.pop().expect("native yielded invocation List"),
+                        ));
+                    }
                 }
             }
-        }
-        unreachable!("native coroutine recipe has a terminal instruction")
+            unreachable!("native coroutine recipe has a terminal instruction")
+        })();
+        // The actual stack roles retire under their original entered frame.
+        // Reached Guest/Host failures remain retained before this cleanup.
+        drop(stack);
+        original
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
+        reached
     }
 }
 
@@ -368,3 +419,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "native_coroutine/original_concat_boundary_tests.rs"]
+mod original_concat_boundary_tests;
