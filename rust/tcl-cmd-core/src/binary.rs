@@ -741,6 +741,10 @@ fn alloc_field(n: usize, fill: u8) -> Result<Vec<u8>, CmdError> {
 /// Runtime value coercions used by the shared binary field grammar.
 /// Numeric reads must retain numeric representations instead of formatting them.
 pub trait FormatValueOps {
+    /// Optional original format/header stage; neutral adapters do no work.
+    fn binary_format_current(&mut self) -> Result<(), CmdError> {
+        Ok(())
+    }
     /// One runtime-owned value.
     type Value;
     /// Convert a byte/string field through the native byte encoding policy.
@@ -762,6 +766,12 @@ pub fn integer_value<O: tcl_syntax::value::ValueOps>(
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<i64, CmdError> {
     crate::format::fixed_integer_value(ops, value, syntax)
+}
+
+/// Same fixed-width projection after the caller's checked magnitude getter.
+#[must_use]
+pub fn integer_from_magnitude(magnitude: tcl_syntax::value::IntegerMagnitude) -> i64 {
+    crate::format::fixed_integer_magnitude(magnitude)
 }
 
 struct ByteFormatOps;
@@ -809,11 +819,24 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
 /// its byte representation) per the format string, returning the packed bytes.
 /// The cursor model (`@`/`x`/`X`) and every type code are handled here; the
 /// runtime adapter only converts its argument values to/from bytes.
-#[allow(clippy::too_many_lines)] // one match arm per Tcl field type — a flat dispatch reads best
 pub fn format_values<O: FormatValueOps>(
     ops: &mut O,
     fmt: &[u8],
     args: &[O::Value],
+) -> Result<Vec<u8>, CmdError> {
+    format_values_using(ops, fmt, args, &mut |field| {
+        CmdError::new(format!("bad field specifier \"{}\"", field[0] as char))
+    })
+}
+
+/// Pack through the same field worker with a selected diagnostic projection.
+/// The original format extent and object conversions belong to the caller.
+#[allow(clippy::too_many_lines)] // one match arm per Tcl field type — a flat dispatch reads best
+pub fn format_values_using<O: FormatValueOps>(
+    ops: &mut O,
+    fmt: &[u8],
+    args: &[O::Value],
+    bad_field: &mut dyn FnMut(&[u8]) -> CmdError,
 ) -> Result<Vec<u8>, CmdError> {
     let mut ai = 0usize;
     let mut out: Vec<u8> = Vec::new();
@@ -821,6 +844,8 @@ pub fn format_values<O: FormatValueOps>(
     let mut i = 0usize;
 
     while i < fmt.len() {
+        ops.binary_format_current()?;
+        let field_start = i;
         let ty = fmt[i];
         if ty.is_ascii_whitespace() {
             i += 1;
@@ -919,13 +944,11 @@ pub fn format_values<O: FormatValueOps>(
                 cur = n;
             }
             _ => {
-                return Err(CmdError::new(format!(
-                    "bad field specifier \"{}\"",
-                    ty as char
-                )));
+                return Err(bad_field(&fmt[field_start..]));
             }
         }
     }
+    ops.binary_format_current()?;
     Ok(out)
 }
 
@@ -1121,13 +1144,35 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
 /// `varName`s, in order. Scanning stops when `data` is exhausted; the caller
 /// assigns the values (erroring if it runs out of variables) and returns the
 /// conversion count.
+pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> {
+    let mut out = Vec::new();
+    scan_values_using(
+        data,
+        fmt,
+        &mut |value| {
+            out.push(value);
+            Ok(())
+        },
+        &mut |field| CmdError::new(format!("bad field specifier \"{}\"", field[0] as char)),
+    )?;
+    Ok(out)
+}
+
+/// Emit each reached field before the next format item through the same
+/// scanner. The caller owns assignment, continuation and diagnostic purposes.
 #[allow(clippy::cast_sign_loss)] // the unsigned-mask path reinterprets the value's bits
 #[allow(clippy::too_many_lines)] // one match arm per Tcl field type — a flat dispatch reads best
-pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> {
-    let mut out: Vec<ScanValue> = Vec::new();
+pub fn scan_values_using<E>(
+    data: &[u8],
+    fmt: &[u8],
+    emit: &mut dyn FnMut(ScanValue) -> Result<(), E>,
+    bad_field: &mut dyn FnMut(&[u8]) -> E,
+) -> Result<usize, E> {
+    let mut emitted = 0;
     let mut cur = 0usize;
     let mut i = 0usize;
     while i < fmt.len() {
+        let field_start = i;
         let ty = fmt[i];
         if ty.is_ascii_whitespace() {
             i += 1;
@@ -1165,7 +1210,8 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                     }
                 }
                 cur = end;
-                out.push(ScanValue::Bytes(s));
+                emit(ScanValue::Bytes(s))?;
+                emitted += 1;
             }
             b'b' | b'B' => {
                 let n = match count {
@@ -1176,7 +1222,8 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                 if cur + n.div_ceil(8) > data.len() {
                     break;
                 }
-                out.push(ScanValue::Bytes(unpack_bits(&data[cur..], n, ty == b'B')));
+                emit(ScanValue::Bytes(unpack_bits(&data[cur..], n, ty == b'B')))?;
+                emitted += 1;
                 cur += n.div_ceil(8);
             }
             b'h' | b'H' => {
@@ -1188,7 +1235,8 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                 if cur + n.div_ceil(2) > data.len() {
                     break;
                 }
-                out.push(ScanValue::Bytes(unpack_hex(&data[cur..], n, ty == b'H')));
+                emit(ScanValue::Bytes(unpack_hex(&data[cur..], n, ty == b'H')))?;
+                emitted += 1;
                 cur += n.div_ceil(2);
             }
             b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
@@ -1228,7 +1276,8 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                     }
                 }
                 cur += n * size;
-                out.push(ScanValue::Bytes(scan_field_result(&count, vals)));
+                emit(ScanValue::Bytes(scan_field_result(&count, vals)))?;
+                emitted += 1;
             }
             b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {
                 let (size, end) = float_kind(ty);
@@ -1254,11 +1303,12 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                     })
                     .collect();
                 cur += n * size;
-                out.push(if matches!(count, Count::None) {
+                emit(if matches!(count, Count::None) {
                     ScanValue::Double(vals[0])
                 } else {
                     ScanValue::Doubles(vals)
-                });
+                })?;
+                emitted += 1;
             }
             b'x' => {
                 let n = match count {
@@ -1284,14 +1334,11 @@ pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> 
                 cur = n.min(data.len());
             }
             _ => {
-                return Err(CmdError::new(format!(
-                    "bad field specifier \"{}\"",
-                    ty as char
-                )));
+                return Err(bad_field(&fmt[field_start..]));
             }
         }
     }
-    Ok(out)
+    Ok(emitted)
 }
 
 /// A scanned numeric field's stored value: the bare value for a countless field,
@@ -1622,5 +1669,56 @@ mod tests {
         );
         // A field that *does* fit still scans (regression guard).
         assert_eq!(scan(&[0x01, 0x02], b"s1").unwrap(), vec![b"513".to_vec()]);
+    }
+}
+
+#[cfg(test)]
+mod original_field_emission_tests {
+    use super::*;
+    #[test]
+    fn original_scan_field_is_emitted_before_later_grammar_error() {
+        // naming.binary.original-object-format-grammar-extent
+        // docs/design/analysis/name-resolution-proofs/binary-original-object-format-grammar-extent.md
+        let mut assigned = Vec::new();
+        let result = scan_values_using(
+            b"AB",
+            b"a1?",
+            &mut |value| {
+                assigned.push(value);
+                Ok(())
+            },
+            &mut |_| CmdError::new("bad field specifier \"?\""),
+        );
+        assert_eq!(assigned, [ScanValue::Bytes(b"A".to_vec())]);
+        assert_eq!(
+            result.unwrap_err().message_bytes(),
+            b"bad field specifier \"?\""
+        );
+        assert_eq!(
+            scan_values(b"AB", b"a1?").unwrap_err().message_bytes(),
+            b"bad field specifier \"?\""
+        );
+    }
+    #[test]
+    fn original_scan_refused_emission_stops_before_next_field() {
+        // naming.binary.original-object-format-grammar-extent
+        // docs/design/analysis/name-resolution-proofs/binary-original-object-format-grammar-extent.md
+        let mut emissions = 0;
+        let mut bad_fields = 0;
+        let result = scan_values_using(
+            b"AB",
+            b"a1?",
+            &mut |_| {
+                emissions += 1;
+                Err("original assignment refusal")
+            },
+            &mut |_| {
+                bad_fields += 1;
+                "later grammar refusal"
+            },
+        );
+        assert_eq!(result, Err("original assignment refusal"));
+        assert_eq!(emissions, 1);
+        assert_eq!(bad_fields, 0);
     }
 }

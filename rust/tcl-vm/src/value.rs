@@ -1903,10 +1903,22 @@ impl Value {
         current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
         original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
     ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.as_native_byte_array_checked_result(conversion, protocol, current, original_string)?
+            .map_err(Into::into)
+    }
+
+    /// Preserve the selected proper-byte refusal for the format worker's
+    /// existing copy-narrowing fallback, independently of checked stage errors.
+    pub(crate) fn as_native_byte_array_checked_result(
+        &self,
+        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        protocol: NativeStringProtocol,
+        current: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
+        original_string: &mut dyn FnMut() -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+    ) -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, tcl_cmd_core::CmdError> {
         self.as_native_byte_array_using(conversion, protocol, &mut Some(current), &mut || {
             original_string().map(Ok)
-        })?
-        .map_err(Into::into)
+        })
     }
 
     fn as_native_byte_array_using<E: From<ValueError>>(

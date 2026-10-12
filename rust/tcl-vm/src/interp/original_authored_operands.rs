@@ -148,6 +148,101 @@ impl OriginalAuthoredOperandScope {
             &|error| self.retain(&mut vm.borrow_mut(), &error.clone().into()),
         )
     }
+    /// The already captured object purpose supplies binary String conversion;
+    /// authored and standalone purposes retain their independent NULL formatter.
+    pub(crate) fn binary_string(&self, vm: &mut Vm, value: &Value) -> Result<Rc<[u8]>, CmdError> {
+        let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(
+            "original binary object materialization",
+        ))?;
+        self.string_with_recipe(
+            vm,
+            value,
+            purpose.protocol(),
+            !matches!(purpose, ObjectMaterialization::Native(_)),
+        )
+    }
+    pub(crate) fn binary_grammar(
+        &self,
+    ) -> Result<tcl_registry::native_binary_value::NativeBinaryFormatGrammar, CmdError> {
+        let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(
+            "original binary format grammar",
+        ))?;
+        Ok(
+            tcl_registry::native_binary_value::NativeBinaryFormatGrammar::from_string_protocol(
+                purpose.protocol(),
+            ),
+        )
+    }
+    pub(crate) fn binary_bytes(
+        &self,
+        vm: &mut Vm,
+        value: &Value,
+        conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+        format_narrowing: Option<tcl_registry::native_binary_value::NativeBinaryByteConversion>,
+    ) -> Result<Rc<[u8]>, CmdError> {
+        self.current_for_value(vm, value)?;
+        let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(
+            "original binary byte materialization",
+        ))?;
+        let protocol = purpose.protocol();
+        let vm = RefCell::new(vm);
+        let reached = value.as_native_byte_array_checked_result(
+            conversion,
+            protocol,
+            &mut || self.current_for_value(&mut vm.borrow_mut(), value),
+            &mut || self.binary_string(&mut vm.borrow_mut(), value),
+        );
+        if let Err(error) = &reached {
+            self.retain(&mut vm.borrow_mut(), error);
+        }
+        self.current_for_value(&mut vm.borrow_mut(), value)?;
+        let reached = match reached? {
+            Ok(bytes) => Ok(bytes),
+            Err(crate::value::ByteArrayAccessError::Conversion(error)) => {
+                if let Some(narrowing) = format_narrowing {
+                    let bytes = self.binary_string(&mut vm.borrow_mut(), value)?;
+                    let version =
+                        protocol
+                            .tcl_version()
+                            .ok_or(ValueError::CommandProtocolUnavailable(
+                                "original binary narrowing units",
+                            ))?;
+                    narrowing
+                        .convert_native(
+                            &bytes,
+                            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version),
+                        )
+                        .map(Rc::from)
+                        .map_err(|error| CmdError::new(error.message()))
+                } else {
+                    Err(crate::value::ByteArrayAccessError::Conversion(error).into())
+                }
+            }
+            Err(error) => Err(error.into()),
+        };
+        if let Err(error) = &reached {
+            self.retain(&mut vm.borrow_mut(), error);
+        }
+        self.current_for_value(&mut vm.borrow_mut(), value)?;
+        reached
+    }
+    pub(crate) fn binary_result(&self, vm: &mut Vm, bytes: Vec<u8>) -> Result<Value, CmdError> {
+        self.check(vm)?;
+        let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(
+            "original binary result materialization",
+        ))?;
+        let value = if purpose.protocol().is_jim084() {
+            Value::from_string_bytes(bytes)
+        } else {
+            let recipe = purpose.byte_array_string_recipe().ok_or(
+                ValueError::CommandProtocolUnavailable("original binary result recipe"),
+            )?;
+            Value::from_byte_array_recipe(Rc::from(bytes), recipe)
+        };
+        self.check(vm)?;
+        Ok(value)
+    }
+
     pub(crate) fn list(&self, vm: &mut Vm, value: &Value) -> Result<Vec<Value>, CmdError> {
         self.current_for_value(vm, value)?;
         let purpose = self.objects.ok_or(ValueError::CommandProtocolUnavailable(

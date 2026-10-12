@@ -299,7 +299,19 @@ pub(crate) fn fixed_integer_value<O: ValueOps>(
     ) {
         return Ok(ops.as_int(value)?);
     }
-    let IntegerMagnitude { negative, digits } = ops.integer_magnitude(value, Radix::Dec, syntax)?;
+    Ok(fixed_integer_magnitude(ops.integer_magnitude(
+        value,
+        Radix::Dec,
+        syntax,
+    )?))
+}
+
+/// Reduce an already obtained magnitude through the same fixed-width owner.
+/// Checked adapters supply their original getter; this pure projection adds no
+/// parsing, caching or object access.
+#[must_use]
+pub(crate) fn fixed_integer_magnitude(magnitude: IntegerMagnitude) -> i64 {
+    let IntegerMagnitude { negative, digits } = magnitude;
     let magnitude = digits.bytes().fold(0_u64, |bits, digit| {
         debug_assert!(digit.is_ascii_digit());
         bits.wrapping_mul(10).wrapping_add(u64::from(digit - b'0'))
@@ -309,7 +321,7 @@ pub(crate) fn fixed_integer_value<O: ValueOps>(
     } else {
         magnitude
     };
-    Ok(i64::from_ne_bytes(bits.to_ne_bytes()))
+    i64::from_ne_bytes(bits.to_ne_bytes())
 }
 
 /// Render one conversion against `arg`.

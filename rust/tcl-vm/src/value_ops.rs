@@ -189,6 +189,14 @@ fn integer_magnitude_using(
     original: Option<&crate::interp::native_numeric_ops::OriginalNumericOps<'_>>,
 ) -> Result<IntegerMagnitude, ValueError> {
     let parsed = integer_number(context, value, syntax, false, original)?;
+    integer_magnitude_from_number_using(parsed, radix, &mut || Ok(value.string_bytes()))
+}
+
+fn integer_magnitude_from_number_using<E: From<ValueError>>(
+    parsed: Number,
+    radix: Radix,
+    bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+) -> Result<IntegerMagnitude, E> {
     let value = match parsed {
         Number::Int(value) => num_bigint::BigInt::from(value),
         Number::Big {
@@ -196,12 +204,14 @@ fn integer_magnitude_using(
             radix,
             digits,
         } => {
-            let value = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)
-                .ok_or_else(|| ValueError::NotIntegerBytes(value.string_bytes().to_vec()))?;
+            let Some(value) = num_bigint::BigInt::parse_bytes(digits.as_bytes(), radix as u32)
+            else {
+                return Err(ValueError::NotIntegerBytes(bytes()?.to_vec()).into());
+            };
             if negative { -value } else { value }
         }
         Number::Double(_) | Number::Nan { .. } => {
-            return Err(ValueError::NotIntegerBytes(value.string_bytes().to_vec()));
+            return Err(ValueError::NotIntegerBytes(bytes()?.to_vec()).into());
         }
     };
     Ok(IntegerMagnitude {
@@ -346,12 +356,20 @@ fn logical_integer_number(
     simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
     value: &Value,
 ) -> Result<Number, ValueError> {
-    simulation
-        .parse_number(
-            &value.string_bytes(),
-            tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Integer,
-        )
-        .map_err(|_| ValueError::NotIntegerBytes(value.string_bytes().to_vec()))
+    logical_integer_number_using(simulation, &mut || Ok(value.string_bytes()))
+}
+
+fn logical_integer_number_using<E: From<ValueError>>(
+    simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
+    bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+) -> Result<Number, E> {
+    match simulation.parse_number(
+        &bytes()?,
+        tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Integer,
+    ) {
+        Ok(number) => Ok(number),
+        Err(_) => Err(ValueError::NotIntegerBytes(bytes()?.to_vec()).into()),
+    }
 }
 
 fn logical_integer(
@@ -359,12 +377,65 @@ fn logical_integer(
     simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
     value: &Value,
 ) -> Result<i64, ValueError> {
-    let parsed = logical_integer_number(simulation, value)?;
+    logical_integer_using(context, simulation, &mut || Ok(value.string_bytes()))
+}
+
+/// Same authored scalar worker with the caller's original raw String getter.
+pub(crate) fn logical_integer_using<E: From<ValueError>>(
+    context: crate::expr::NumericContext<'_>,
+    simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
+    bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+) -> Result<i64, E> {
+    let parsed = logical_integer_number_using(simulation, bytes)?;
     let arithmetic = context
         .arithmetic()
         .ok_or(ValueError::ScalarNumericInputUnavailable)?;
     tcl_syntax::expr::wide::parsed_literal(arithmetic, &parsed)
-        .map_err(|_| ValueError::IntegerOverflow)
+        .map_err(|_| ValueError::IntegerOverflow.into())
+}
+
+/// Same magnitude conversion after the same authored integer parser.
+pub(crate) fn logical_integer_magnitude_using<E: From<ValueError>>(
+    simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
+    radix: Radix,
+    bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+) -> Result<IntegerMagnitude, E> {
+    let parsed = logical_integer_number_using(simulation, bytes)?;
+    integer_magnitude_from_number_using(parsed, radix, bytes)
+}
+
+/// Same authored Double worker; neutral and checked String stages share all
+/// parser/arithmetic/error branches and the original failure-only second read.
+pub(crate) fn logical_double_using<E: From<ValueError>>(
+    context: crate::expr::NumericContext<'_>,
+    simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
+    bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+) -> Result<f64, E> {
+    let number = match simulation.parse_number(
+        &bytes()?,
+        tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Number,
+    ) {
+        Ok(number) => number,
+        Err(_) => return Err(ValueError::NotDoubleBytes(bytes()?.to_vec()).into()),
+    };
+    match number {
+        Number::Int(value) => {
+            Ok(num_traits::ToPrimitive::to_f64(&value).expect("wide integer fits double exponent"))
+        }
+        Number::Double(value) => Ok(value),
+        Number::Nan { .. } => Ok(f64::NAN),
+        integer @ Number::Big { .. } => {
+            let policy = context
+                .arithmetic()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            tcl_syntax::expr::wide::parsed_literal(policy, &integer)
+                .map(|value| {
+                    num_traits::ToPrimitive::to_f64(&value)
+                        .expect("wide integer fits double exponent")
+                })
+                .map_err(|_| ValueError::IntegerOverflow.into())
+        }
+    }
 }
 
 impl Vm {
@@ -869,30 +940,9 @@ impl ValueOps for Vm {
             let simulation = context
                 .simulation
                 .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-            let number = simulation
-                .parse_number(
-                    &v.string_bytes(),
-                    tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Number,
-                )
-                .map_err(|_| ValueError::NotDoubleBytes(v.string_bytes().to_vec()))?;
-            return match number {
-                Number::Int(value) => Ok(num_traits::ToPrimitive::to_f64(&value)
-                    .expect("wide integer fits double exponent")),
-                Number::Double(value) => Ok(value),
-                Number::Nan { .. } => Ok(f64::NAN),
-                integer @ Number::Big { .. } => {
-                    let policy = context
-                        .arithmetic()
-                        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-                    tcl_syntax::expr::wide::parsed_literal(policy, &integer)
-                        .map(|value| {
-                            num_traits::ToPrimitive::to_f64(&value)
-                                .expect("wide integer fits double exponent")
-                        })
-                        .map_err(|_| ValueError::IntegerOverflow)
-                }
-            };
+            return logical_double_using(context, simulation, &mut || Ok(v.string_bytes()));
         }
+
         let selected = self.native_invocation_dialect();
         let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered_value(self)?;
         if selected.native_scalar_getter_protocol() != ops.dialect().native_scalar_getter_protocol()

@@ -749,19 +749,155 @@ fn binary_format_with_invocation(
     rest: &[Value],
     invocation: BinaryInvocation,
 ) -> Completion<Value> {
-    let Some((fmt, args)) = rest.split_first() else {
-        return binary_wrong_args(
-            vm,
-            invocation,
-            "format",
-            None,
-            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Format,
-        );
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, _numeric| {
+        Ok(
+            crate::interp::original_authored_operands::with_original_authored_operands(
+                vm,
+                |vm, original| {
+                    let Some((fmt, args)) = rest.split_first() else {
+                        return Ok(binary_wrong_args(
+                            vm,
+                            invocation,
+                            "format",
+                            None,
+                            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Format,
+                        ));
+                    };
+                    let grammar = original.binary_grammar()?;
+                    let conversion = vm
+                        .native_invocation_dialect()
+                        .binary_data_conversion()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original binary format bytes",
+                        ))?;
+                    let narrowing = vm
+                        .native_invocation_dialect()
+                        .binary_format_conversion()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original binary format narrowing",
+                        ))?;
+                    let syntax = vm.native_invocation_dialect().numbers;
+                    let numeric = vm.authored_numeric_context();
+                    let fmt_bytes = original.binary_string(vm, fmt)?;
+                    let mut ops = OriginalBinaryFormat {
+                        format: Some(fmt),
+                        vm,
+                        original,
+                        conversion,
+                        narrowing,
+                        syntax,
+                        numeric,
+                    };
+                    let reached = tcl_cmd_core::binary::format_values_using(
+                        &mut ops,
+                        grammar.extent(&fmt_bytes),
+                        args,
+                        &mut |field| binary_bad_field(grammar, field),
+                    );
+                    if let Err(error) = &reached {
+                        original.retain(ops.vm, error);
+                    }
+                    original.check(ops.vm)?;
+                    Ok(ok(original.binary_result(ops.vm, reached?)?))
+                },
+            ),
+        )
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    }
+}
+
+fn binary_bad_field(
+    grammar: tcl_registry::native_binary_value::NativeBinaryFormatGrammar,
+    field: &[u8],
+) -> tcl_cmd_core::CmdError {
+    let (message, store_none) = grammar.bad_field(field);
+    let mut details = tcl_cmd_core::CmdError::new_bytes(message).into_byte_details();
+    details.error_code = if store_none {
+        tcl_cmd_core::CmdErrorCodeUpdate::Default
+    } else {
+        tcl_cmd_core::CmdErrorCodeUpdate::Unchanged
     };
-    let fmt_bytes = fmt.to_str();
-    match tcl_cmd_core::binary::format_values(vm, fmt_bytes.as_bytes(), args) {
-        Ok(out) => ok(bytes_to_value(vm, &out)),
-        Err(e) => crate::command::completion_from_cmd_error(vm, e),
+    tcl_cmd_core::CmdError::from_byte_details(details)
+}
+
+struct OriginalBinaryFormat<'a> {
+    format: Option<&'a Value>,
+    vm: &'a mut Vm,
+    original: &'a crate::interp::original_authored_operands::OriginalAuthoredOperandScope,
+    conversion: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    narrowing: tcl_registry::native_binary_value::NativeBinaryByteConversion,
+    syntax: tcl_dialect::NumberSyntax,
+    numeric: Option<crate::expr::NumericContext<'a>>,
+}
+impl tcl_cmd_core::binary::FormatValueOps for OriginalBinaryFormat<'_> {
+    type Value = Value;
+    fn binary_format_current(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.original.check(self.vm)?;
+        if let Some(format) = self.format {
+            self.original.current_for_value(self.vm, format)?;
+        }
+        Ok(())
+    }
+
+    fn binary_format_bytes(&mut self, value: &Value) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        self.original
+            .binary_bytes(self.vm, value, self.conversion, Some(self.narrowing))
+            .map(|bytes| bytes.to_vec())
+    }
+    fn binary_format_integer(&mut self, value: &Value) -> Result<i64, tcl_cmd_core::CmdError> {
+        self.original.current_for_value(self.vm, value)?;
+        let reached = if let Some(context) = self.numeric {
+            let simulation = context
+                .simulation
+                .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+            let mut bytes = || self.original.raw_bytes(self.vm, value);
+            if matches!(
+                self.syntax,
+                tcl_dialect::NumberSyntax::Tcl85 | tcl_dialect::NumberSyntax::Tcl90
+            ) {
+                crate::value_ops::logical_integer_magnitude_using(
+                    simulation,
+                    tcl_syntax::number::Radix::Dec,
+                    &mut bytes,
+                )
+                .map(tcl_cmd_core::binary::integer_from_magnitude)
+            } else {
+                crate::value_ops::logical_integer_using(context, simulation, &mut bytes)
+            }
+        } else {
+            tcl_cmd_core::binary::integer_value(self.vm, value, self.syntax)
+        };
+        if let Err(error) = &reached {
+            self.original.retain(self.vm, error);
+        }
+        self.original.current_for_value(self.vm, value)?;
+        reached
+    }
+    fn binary_format_double(&mut self, value: &Value) -> Result<f64, tcl_cmd_core::CmdError> {
+        self.original.current_for_value(self.vm, value)?;
+        let reached = if let Some(context) = self.numeric {
+            let simulation = context
+                .simulation
+                .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+            crate::value_ops::logical_double_using(context, simulation, &mut || {
+                self.original.raw_bytes(self.vm, value)
+            })
+        } else {
+            tcl_syntax::value::ValueOps::as_double(self.vm, value).map_err(Into::into)
+        };
+        if let Err(error) = &reached {
+            self.original.retain(self.vm, error);
+        }
+        self.original.current_for_value(self.vm, value)?;
+        reached
+    }
+    fn binary_format_elements(
+        &mut self,
+        value: &Value,
+    ) -> Result<Vec<Value>, tcl_cmd_core::CmdError> {
+        self.original.list(self.vm, value)
     }
 }
 
@@ -852,47 +988,104 @@ fn binary_scan_with_invocation(
     rest: &[Value],
     invocation: BinaryInvocation,
 ) -> Completion<Value> {
-    let [data_v, fmt_v, vars @ ..] = rest else {
-        return binary_wrong_args(
-            vm,
-            invocation,
-            "scan",
-            None,
-            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Scan,
-        );
-    };
-    let data = match value_to_bytes(vm, data_v) {
-        Ok(bytes) => bytes,
-        Err(error) => return error,
-    };
-    let fmt = fmt_v.to_str();
-    // The unpack grammar is shared; the variable assignment stays here.
-    let values = match tcl_cmd_core::binary::scan_values(&data, fmt.as_bytes()) {
-        Ok(v) => v,
-        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
-    };
-    for (k, val) in values.iter().enumerate() {
-        let Some(var) = vars.get(k) else {
-            return err("not enough arguments for all format specifiers");
-        };
-        let name = var.to_str();
-        let value = match val {
-            tcl_cmd_core::binary::ScanValue::Bytes(bytes) => bytes_to_value(vm, bytes),
-            tcl_cmd_core::binary::ScanValue::Double(value) => {
-                Value::native_double(*value, vm.native_invocation_dialect())
-            }
-            tcl_cmd_core::binary::ScanValue::Doubles(values) => Value::list(
-                values
-                    .iter()
-                    .map(|value| Value::native_double(*value, vm.native_invocation_dialect()))
-                    .collect(),
+    match with_original_numeric_command(vm, TclError::from_execution_failure, |vm, _numeric| {
+        Ok(
+            crate::interp::original_authored_operands::with_original_authored_operands(
+                vm,
+                |vm, original| {
+                    let [data_v, fmt_v, vars @ ..] = rest else {
+                        return Ok(binary_wrong_args(
+                            vm,
+                            invocation,
+                            "scan",
+                            None,
+                            tcl_registry::native_binary_usage::NativeBinaryArgumentUsage::Scan,
+                        ));
+                    };
+                    let grammar = original.binary_grammar()?;
+                    let conversion = vm
+                        .native_invocation_dialect()
+                        .binary_data_conversion()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original binary scan bytes",
+                        ))?;
+                    let dialect = vm.native_invocation_dialect();
+                    // Preserve the actual data getter before the format String getter.
+                    let data = original.binary_bytes(vm, data_v, conversion, None)?;
+                    let fmt = original.binary_string(vm, fmt_v)?;
+                    let vm = std::cell::RefCell::new(vm);
+                    let mut assigned = 0;
+                    let reached = tcl_cmd_core::binary::scan_values_using(
+                        &data,
+                        grammar.extent(&fmt),
+                        &mut |field| {
+                            let vm = &mut *vm.borrow_mut();
+                            original
+                                .current_for_value(vm, data_v)
+                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .map_err(|error| {
+                                    crate::command::completion_from_cmd_error(vm, error)
+                                })?;
+                            let Some(var) = vars.get(assigned) else {
+                                return Err(err("not enough arguments for all format specifiers"));
+                            };
+                            let name = original.binary_string(vm, var).map_err(|error| {
+                                crate::command::completion_from_cmd_error(vm, error)
+                            })?;
+                            let value = match field {
+                                tcl_cmd_core::binary::ScanValue::Bytes(bytes) => {
+                                    original.binary_result(vm, bytes).map_err(|error| {
+                                        crate::command::completion_from_cmd_error(vm, error)
+                                    })?
+                                }
+                                tcl_cmd_core::binary::ScanValue::Double(value) => {
+                                    Value::native_double(value, dialect)
+                                }
+                                tcl_cmd_core::binary::ScanValue::Doubles(values) => Value::list(
+                                    values
+                                        .into_iter()
+                                        .map(|value| Value::native_double(value, dialect))
+                                        .collect(),
+                                ),
+                            };
+                            original
+                                .current_for_value(vm, data_v)
+                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .map_err(|error| {
+                                    crate::command::completion_from_cmd_error(vm, error)
+                                })?;
+                            let reached = vm.set_var_bytes(&name, value);
+                            // The actual variable owner retains operational errors;
+                            // its full completion remains intact for Guest propagation.
+                            original
+                                .current_for_value(vm, data_v)
+                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .map_err(|error| {
+                                    crate::command::completion_from_cmd_error(vm, error)
+                                })?;
+                            reached?;
+                            assigned += 1;
+                            Ok(())
+                        },
+                        &mut |field| {
+                            crate::command::completion_from_cmd_error(
+                                &mut vm.borrow_mut(),
+                                binary_bad_field(grammar, field),
+                            )
+                        },
+                    );
+                    original.check(&mut vm.borrow_mut())?;
+                    Ok(match reached {
+                        Ok(count) => ok(Value::int(i64::try_from(count).unwrap_or(i64::MAX))),
+                        Err(completion) => completion,
+                    })
+                },
             ),
-        };
-        if let Err(c) = vm.var_set(&name, value) {
-            return c;
-        }
+        )
+    }) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
     }
-    ok(Value::int(i64::try_from(values.len()).unwrap_or(i64::MAX)))
 }
 
 #[cfg(test)]
@@ -1050,5 +1243,288 @@ mod original_decode_owner_tests {
         assert_eq!(vm.execution_refusal.as_ref(), Some(&first));
         assert_eq!(original.check_native(&mut vm).unwrap_err(), first);
         assert!(loan.value().resident_string_bytes().is_some());
+    }
+}
+
+#[cfg(test)]
+mod original_format_scan_tests {
+    use super::*;
+    use crate::interp::native_operation_currency::NativeOperationScope;
+    use tcl_runtime_api::Code;
+
+    #[test]
+    fn original_binary_counted_formats_keep_literal_zero_extent_and_reached_scan_assignment() {
+        // naming.binary.original-object-format-grammar-extent
+        // docs/design/analysis/name-resolution-proofs/binary-original-object-format-grammar-extent.md
+        // Actual VM software callers; Native captures are independent evidence.
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for format in [b"a1".as_slice(), b"a1\0TAIL", b"a1\xc0\x80TAIL"] {
+                let mut vm = crate::native_fixture::interpreter(
+                    crate::environment::profile_for_dialect(profile),
+                );
+                assert!(
+                    vm.set_var_bytes(b"::errorCode", Value::string("SEEDED"))
+                        .is_ok()
+                );
+                assert!(
+                    vm.set_var_bytes(b"assigned", Value::string("SEEDED"))
+                        .is_ok()
+                );
+                let scope = NativeOperationScope::enter(&mut vm).unwrap();
+                let original = Value::from_string_bytes(format);
+                let format_count = original.native_object_reference_count();
+                let completion = binary_format(&mut vm, &[original.clone(), Value::string("AB")]);
+                let modified = format.contains(&0xc0);
+                assert_eq!(
+                    completion.code,
+                    if modified { Code::Error } else { Code::Ok },
+                    "{profile}"
+                );
+                if modified {
+                    let expected = if profile == "jim" {
+                        b"bad field specifier \"\xc0\"".as_slice()
+                    } else {
+                        b"bad field specifier \"\xc0\x80\"".as_slice()
+                    };
+                    assert_eq!(
+                        completion.result.string_bytes().as_ref(),
+                        expected,
+                        "{profile}"
+                    );
+                    assert_eq!(
+                        vm.get_var_bytes(b"::errorCode")
+                            .unwrap()
+                            .string_bytes()
+                            .as_ref(),
+                        if profile == "jim" {
+                            b"SEEDED".as_slice()
+                        } else {
+                            b"NONE".as_slice()
+                        }
+                    );
+                } else {
+                    assert_eq!(
+                        value_to_bytes(&mut vm, &completion.result)
+                            .unwrap_or_else(|_| panic!("binary result bytes")),
+                        b"A"
+                    );
+                    assert_eq!(
+                        vm.get_var_bytes(b"::errorCode")
+                            .unwrap()
+                            .string_bytes()
+                            .as_ref(),
+                        b"SEEDED"
+                    );
+                }
+                assert!(
+                    vm.set_var_bytes(b"::errorCode", Value::string("SEEDED"))
+                        .is_ok()
+                );
+                let completion = binary_scan(
+                    &mut vm,
+                    &[
+                        Value::string("AB"),
+                        original.clone(),
+                        Value::string("assigned"),
+                    ],
+                );
+                assert_eq!(
+                    completion.code,
+                    if modified { Code::Error } else { Code::Ok },
+                    "{profile}"
+                );
+                let assigned = vm.get_var_bytes(b"assigned").unwrap();
+                assert_eq!(
+                    value_to_bytes(&mut vm, &assigned)
+                        .unwrap_or_else(|_| panic!("binary assigned bytes")),
+                    b"A"
+                );
+                if !modified {
+                    assert_eq!(completion.result.string_bytes().as_ref(), b"1");
+                }
+                assert_eq!(original.resident_string_bytes().unwrap().as_ref(), format);
+                assert_eq!(original.native_object_reference_count(), format_count);
+                scope.check(&mut vm).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn original_binary_result_recipe_scalar_list_and_cache_issuer_stay_distinct() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let double = Value::native_double(1.25, vm.native_invocation_dialect());
+        let formatted = binary_format(
+            &mut vm,
+            &[
+                Value::string("c*d"),
+                Value::list(vec![Value::int(65), Value::int(66)]),
+                double,
+            ],
+        );
+        assert_eq!(formatted.code, Code::Ok);
+        assert_eq!(
+            &value_to_bytes(&mut vm, &formatted.result)
+                .unwrap_or_else(|_| panic!("binary result bytes"))[..2],
+            b"AB"
+        );
+        let scanned = binary_scan(
+            &mut vm,
+            &[
+                formatted.result.clone(),
+                Value::string("a2d"),
+                Value::string("letters"),
+                Value::string("number"),
+            ],
+        );
+        assert_eq!(scanned.code, Code::Ok);
+        assert_eq!(scanned.result.string_bytes().as_ref(), b"2");
+        let number = vm.get_var_bytes(b"number").unwrap();
+        assert_eq!(
+            tcl_syntax::value::ValueOps::as_double(&mut vm, &number),
+            Ok(1.25)
+        );
+        scope.check(&mut vm).unwrap();
+        let foreign = Value::from_native_byte_array(
+            std::rc::Rc::from(b"AB".as_slice()),
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+        )
+        .unwrap();
+        let completion = binary_scan(
+            &mut vm,
+            &[foreign, Value::string("a1"), Value::string("unreached")],
+        );
+        let first = vm
+            .finish_host_execution(completion)
+            .err()
+            .expect("original Host refusal");
+        assert!(vm.get_var_bytes(b"unreached").is_none());
+        assert_eq!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original binary getter cache issuer"
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core
+        ));
+        let formatted = binary_format(
+            &mut vm,
+            &[
+                Value::string("c*d"),
+                Value::string("65 66"),
+                Value::string("1.25"),
+            ],
+        );
+        assert_eq!(formatted.code, Code::Ok);
+        let scanned = binary_scan(
+            &mut vm,
+            &[
+                formatted.result,
+                Value::string("a2d"),
+                Value::string("letters"),
+                Value::string("number"),
+            ],
+        );
+        assert_eq!(scanned.code, Code::Ok);
+        assert_eq!(scanned.result.string_bytes().as_ref(), b"2");
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(vm.execution_refusal.is_none());
+        let retired = Value::string("65");
+        let held_allocation = retired.native_lifetime_lease();
+        drop(retired);
+        let original =
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::capture(
+                &mut vm,
+            )
+            .unwrap();
+        let context = vm.authored_numeric_context();
+        let conversion = vm
+            .native_invocation_dialect()
+            .binary_data_conversion()
+            .unwrap();
+        let narrowing = vm
+            .native_invocation_dialect()
+            .binary_format_conversion()
+            .unwrap();
+        let mut ops = OriginalBinaryFormat {
+            format: None,
+            vm: &mut vm,
+            original: &original,
+            conversion,
+            narrowing,
+            syntax: tcl_dialect::NumberSyntax::Tcl84,
+            numeric: context,
+        };
+        let first = tcl_cmd_core::binary::FormatValueOps::binary_format_integer(
+            &mut ops,
+            held_allocation.value(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            first.native_execution_refusal(),
+            vm.execution_refusal.as_ref()
+        );
+        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(original.finish(&mut vm).is_err());
+    }
+
+    #[test]
+    fn original_binary_scan_trace_first_cause_stops_later_assignment() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm =
+            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
+        vm.register("originalBinaryTrace", |vm, _| {
+            vm.refuse_host_command("binary assignment first Host".into())
+        });
+        assert!(
+            vm.add_var_trace_bytes_checked(
+                b"first",
+                vec!["write".into()],
+                &Value::string("originalBinaryTrace"),
+                false
+            )
+            .is_ok()
+        );
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        let completion = binary_scan(
+            &mut vm,
+            &[
+                Value::string("AB"),
+                Value::string("a1a1"),
+                Value::string("first"),
+                Value::string("later"),
+            ],
+        );
+        let first = vm.execution_refusal.clone().unwrap();
+        assert_eq!(
+            vm.finish_host_execution(completion)
+                .err()
+                .expect("original Host refusal"),
+            first
+        );
+        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
+        assert!(vm.get_var_bytes(b"later").is_none());
+        assert!(matches!(
+            first,
+            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
+        ));
     }
 }

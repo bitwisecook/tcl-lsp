@@ -32,6 +32,12 @@ impl ObjectMaterialization {
         self.recipe().protocol()
     }
 
+    pub(crate) fn byte_array_string_recipe(
+        self,
+    ) -> Option<tcl_registry::native_string_materialization::ByteArrayStringRecipe> {
+        self.recipe().byte_array_string_recipe()
+    }
+
     pub(crate) const fn length_protocol(
         self,
     ) -> tcl_registry::native_stock_list::NativeObjectLengthProtocol {

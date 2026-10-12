@@ -4268,3 +4268,25 @@ Native command/namespace identity nor splice or admission authority.
 The embedding `OriginalOperandProjection` observes the actual operation/context, Name world, frame and namespace through `OriginalAuthoredOperandScope`; it exposes no currency, entry or Native provider. Raw result/argument bytes keep the existing formatter-None String worker. Selected callback strings use the genuine captured recipe and require strict Rust UTF-8 immediately before the next operand; Tcl/Jim counted Unicode is a separate existing interface. Completion/error cleanup precedes projection settlement through the real outer Host boundary. IRule event enrolment retains the same original per-word owner through actual child publication, and its typed child-registration sibling shares the existing target restoration worker.
 
 Explicit measured event inputs use the same observed-name/storage replacement and invalidation worker under the original issuer. Only the exact forward generation at callback-free field/NameWorld/guard/profile publication can extend that same currency lineage; no new entry or recipe is issued, and unscoped setters still invalidate. The typed publication hook runs before actual cache retirement and the same full original checks run after each reached cache clear. A first refusal never skips mandatory remaining clears. Checked cache retirement uses the captured physical target for each clear while preserving a callback-selected child; neutral cache retirement retains its original direct order. Event storage then naming inputs restore on the captured physical target, with refused Completion ownership retired inside that attachment; callback-caused Host/profile/world/frame/header changes and foreign targets remain terminal. Neutral replacement preserves its prior order and cache algorithms. These are software owner contracts, not physical Native callback or reference-count chronology claims.
+
+
+Binary format and scan retain one original operand observation through the
+selected String, byte-array, numeric and List doors. The captured object purpose
+supplies the byte-array result recipe at the existing allocation stage; authored
+and standalone materialization keep their independent formatter-None purpose.
+The format grammar consumes the original literal-NUL extent through the shared
+byte owner. Bad-field units use the selected C character formatter or Jim
+scripted byte field and retain their distinct error-code update. The same scan
+worker emits each reached field before parsing the next field, so an earlier
+variable assignment survives a later grammar failure. The neutral collector
+uses that same worker and retains its prior conversion and collection order.
+Original operand headers, frame, Name world, Host and full first cause remain
+checked across getters, backing retirement and actual assignment callbacks.
+
+Authored rule-callable owner and local target operands retain strict legacy
+Unicode access through the same checked raw String worker. Existing RuleIdentity
+and procedure-target domain validators, unqualified declaration rule, private
+namespace projection, Procedure publication and lookup remain their independent
+owners. The observation issues neither a Native entry nor a provider. Missing
+providers, retired headers and non-text bytes stay typed refusals before later
+operand reads or publication.

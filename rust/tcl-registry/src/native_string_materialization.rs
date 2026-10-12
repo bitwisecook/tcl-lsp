@@ -23,6 +23,15 @@ impl NativeStringMaterialization {
     pub const fn protocol(self) -> NativeStringProtocol {
         self.protocol
     }
+    /// Project the same sealed C recipe for a byte-array backing. Jim has no
+    /// C byte-array updater; this preserves the original logical provenance.
+    #[must_use]
+    pub fn byte_array_string_recipe(self) -> Option<ByteArrayStringRecipe> {
+        self.protocol.tcl_version().map(|_| ByteArrayStringRecipe {
+            protocol: self.protocol,
+            logical: self.logical,
+        })
+    }
     /// Explicit logical origin; absent for authentic native issuance.
     #[must_use]
     pub const fn logical_provider(self) -> Option<LogicalStringProvider> {

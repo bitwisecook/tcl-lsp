@@ -333,3 +333,76 @@ mod tests {
         );
     }
 }
+
+/// Extent and bad-field unit of a genuinely selected binary format grammar.
+/// Both counted-object C and Jim Binary workers stop at the first literal NUL;
+/// modified zero remains a field and has its selected provider diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeBinaryFormatGrammar(tcl_syntax::native_string::NativeStringProtocol);
+impl NativeBinaryFormatGrammar {
+    /// Retain an already selected String protocol, without issuing engine entry.
+    #[must_use]
+    pub const fn from_string_protocol(
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Self {
+        Self(protocol)
+    }
+    /// Native grammar sees only the original C-string extent, never a rewrite.
+    #[must_use]
+    pub fn extent(self, original: &[u8]) -> &[u8] {
+        tcl_core_types::c_string_extent(original)
+    }
+    /// Bad field bytes follow the actual C character formatter or Jim's raw
+    /// scripted field capture. C stores NONE; Jim performs no error-code store.
+    #[must_use]
+    pub fn bad_field(self, original: &[u8]) -> (Vec<u8>, bool) {
+        let mut message = b"bad field specifier \"".to_vec();
+        match self.0 {
+            tcl_syntax::native_string::NativeStringProtocol::C(version) => {
+                let units = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version);
+                if let Some(unit) = units.decode_unit(original, None) {
+                    units
+                        .encode_unit(unit.value, &mut message)
+                        .expect("a decoded native field unit has a native encoding");
+                }
+            }
+            tcl_syntax::native_string::NativeStringProtocol::Jim084 => {
+                if let Some(byte) = original.first() {
+                    message.push(*byte);
+                }
+            }
+        }
+        message.push(b'"');
+        (message, !self.0.is_jim084())
+    }
+}
+
+#[cfg(test)]
+mod original_format_grammar_tests {
+    use super::*;
+    #[test]
+    fn original_binary_grammar_distinguishes_literal_and_modified_zero_units() {
+        // naming.binary.original-object-format-grammar-extent
+        // docs/design/analysis/name-resolution-proofs/binary-original-object-format-grammar-extent.md
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let protocol = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(profile).unit_profile(),
+            )
+            .native_string_protocol()
+            .unwrap();
+            let grammar = NativeBinaryFormatGrammar::from_string_protocol(protocol);
+            assert_eq!(grammar.extent(b"a1\0TAIL"), b"a1");
+            assert_eq!(grammar.extent(b"a1\xc0\x80TAIL"), b"a1\xc0\x80TAIL");
+            let (message, store_none) = grammar.bad_field(b"\xc0\x80TAIL");
+            assert_eq!(
+                message,
+                if profile == "jim" {
+                    b"bad field specifier \"\xc0\"".as_slice()
+                } else {
+                    b"bad field specifier \"\xc0\x80\"".as_slice()
+                }
+            );
+            assert_eq!(store_none, profile != "jim");
+        }
+    }
+}

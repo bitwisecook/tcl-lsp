@@ -103,67 +103,91 @@ fn private_name(target: &RuleProcedureTarget) -> String {
     )
 }
 
-fn selected_target(owner: &Value, target: &Value) -> Result<RuleProcedureTarget, String> {
-    let owner = owner.try_to_str().map_err(|error| error.to_string())?;
-    let target = target.try_to_str().map_err(|error| error.to_string())?;
-    let owner = RuleIdentity::new(owner.to_string()).map_err(|error| error.to_string())?;
-    RuleProcedureTarget::resolve(&target, Some(&owner)).map_err(|error| error.to_string())
+fn selected_target(
+    vm: &mut Vm,
+    owner: &Value,
+    target: &Value,
+    original: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Result<RuleProcedureTarget, tcl_cmd_core::CmdError> {
+    let owner = original.unicode(vm, owner)?;
+    let target = original.unicode(vm, target)?;
+    let owner =
+        RuleIdentity::new(owner).map_err(|error| tcl_cmd_core::CmdError::new(error.to_string()))?;
+    RuleProcedureTarget::resolve(&target, Some(&owner))
+        .map_err(|error| tcl_cmd_core::CmdError::new(error.to_string()))
 }
 
 fn declare(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, original| {
+        declare_in_original(vm, args, original)
+    })
+}
+
+fn declare_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    original: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Result<Completion<Value>, tcl_cmd_core::CmdError> {
     if !vm.authored_rule_providers.callables {
-        return vm.refuse_host_command("authored rule callable provider is unavailable".into());
+        return Ok(vm.refuse_host_command("authored rule callable provider is unavailable".into()));
     }
     let [owner, name, parameters, body] = args else {
-        return err("rule declaration requires owner, name, parameters and body");
+        return Ok(err(
+            "rule declaration requires owner, name, parameters and body",
+        ));
     };
-    let target = match selected_target(owner, name) {
-        Ok(target) => target,
-        Err(error) => return err(error),
-    };
-    let owner_text = match owner.try_to_str() {
-        Ok(owner) => owner,
-        Err(error) => return err(error.to_string()),
-    };
-    if target.rule.as_path() != owner_text.as_ref()
-        || name.try_to_str().is_ok_and(|name| name.contains("::"))
-    {
-        return err("a rule procedure declaration requires an unqualified local name");
+    let target = selected_target(vm, owner, name, original)?;
+    let owner_text = original.unicode(vm, owner)?;
+    if target.rule.as_path() != owner_text.as_str() || original.unicode(vm, name)?.contains("::") {
+        return Ok(err(
+            "a rule procedure declaration requires an unqualified local name",
+        ));
     }
+    original.check(vm)?;
     vm.declare_namespace(&format!(
         "::tmm::_rule_callables::{}",
         target.rule.as_path()
     ));
+    original.check(vm)?;
     let private = private_name(&target);
-    crate::command::cmd_authored_rule_proc(
+    Ok(crate::command::cmd_authored_rule_proc(
         vm,
         &[
             Value::string(private.as_str()),
             parameters.clone(),
             body.clone(),
         ],
-    )
+    ))
 }
 
 fn target(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    super::original_authored_operands::with_original_authored_operands(vm, |vm, original| {
+        target_in_original(vm, args, original)
+    })
+}
+
+fn target_in_original(
+    vm: &mut Vm,
+    args: &[Value],
+    original: &super::original_authored_operands::OriginalAuthoredOperandScope,
+) -> Result<Completion<Value>, tcl_cmd_core::CmdError> {
     if !vm.authored_rule_providers.callables {
-        return vm.refuse_host_command("authored rule callable provider is unavailable".into());
+        return Ok(vm.refuse_host_command("authored rule callable provider is unavailable".into()));
     }
     let [owner, name] = args else {
-        return err("rule target requires owner and procedure");
+        return Ok(err("rule target requires owner and procedure"));
     };
-    let target = match selected_target(owner, name) {
-        Ok(target) => target,
-        Err(error) => return err(error),
-    };
+    let target = selected_target(vm, owner, name, original)?;
     let private = private_name(&target);
+    original.check(vm)?;
     if !matches!(vm.lookup_command(&private), Some(Command::Proc(_))) {
-        return err(format!("proc {} not found", target.procedure));
+        return Ok(err(format!("proc {} not found", target.procedure)));
     }
-    ok(Value::list(vec![
+    original.check(vm)?;
+    Ok(ok(Value::list(vec![
         Value::string(target.rule.as_path()),
         Value::string(private),
-    ]))
+    ])))
 }
 
 fn string_member(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -287,5 +311,102 @@ mod tests {
         assert!(!vm.install_irules_counted_string_simulation());
         assert!(!vm.authored_rule_providers.callables);
         assert!(!vm.authored_rule_providers.counted_strings);
+    }
+    fn callable_vm() -> Vm {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.4"));
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
+        ));
+        assert!(vm.install_irules_rule_callable_simulation());
+        vm
+    }
+
+    #[test]
+    fn original_rule_callable_text_keeps_actual_provider_declaration_and_domain_failures() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = callable_vm();
+        let owner = Value::string("/Common/folder/request");
+        let name = Value::string("local");
+        let owner_count = owner.native_object_reference_count();
+        let declared = declare(
+            &mut vm,
+            &[
+                owner.clone(),
+                name.clone(),
+                Value::string(""),
+                Value::string("return OK"),
+            ],
+        );
+        assert_eq!(declared.code, crate::Code::Ok);
+        let selected = target(&mut vm, &[owner.clone(), name.clone()]);
+        assert_eq!(selected.code, crate::Code::Ok);
+        let members = selected.result.as_list().unwrap();
+        assert_eq!(
+            members[0].string_bytes().as_ref(),
+            b"/Common/folder/request"
+        );
+        assert_eq!(
+            members[1].string_bytes().as_ref(),
+            b"::tmm::_rule_callables::/Common/folder/request::local"
+        );
+        assert_eq!(owner.native_object_reference_count(), owner_count);
+        let invalid = declare(
+            &mut vm,
+            &[
+                owner.clone(),
+                Value::string("other::local"),
+                Value::string(""),
+                Value::string("return BAD"),
+            ],
+        );
+        assert_eq!(invalid.code, crate::Code::Error);
+        assert_eq!(
+            invalid.result.string_bytes().as_ref(),
+            b"a rule procedure declaration requires an unqualified local name"
+        );
+        let absent = target(&mut vm, &[owner, Value::string("missing")]);
+        assert_eq!(absent.code, crate::Code::Error);
+        assert_eq!(
+            absent.result.string_bytes().as_ref(),
+            b"proc missing not found"
+        );
+        assert!(vm.execution_refusal.is_none());
+        assert!(!vm.native_operation_context.has_entered_operation());
+    }
+
+    #[test]
+    fn original_rule_callable_strict_text_refusal_precedes_unreached_header_and_publication() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        let mut vm = callable_vm();
+        let owner = Value::new_native_string_bytes(b"/Common/\xff".as_slice());
+        let name = Value::string("unreached");
+        let released = name.native_lifetime_lease();
+        drop(name);
+        let original =
+            super::super::original_authored_operands::OriginalAuthoredOperandScope::capture(
+                &mut vm,
+            )
+            .unwrap();
+        let failed = selected_target(&mut vm, &owner, released.value(), &original).unwrap_err();
+        assert_eq!(
+            failed.native_execution_refusal(),
+            vm.execution_refusal.as_ref()
+        );
+        assert!(original.finish(&mut vm).is_err());
+        let first = vm.execution_refusal.clone().unwrap();
+        assert!(matches!(
+            first,
+            tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(_)
+            )
+        ));
+        assert!(
+            vm.lookup_command("::tmm::_rule_callables::/Common/request::unreached")
+                .is_none()
+        );
+        assert!(!vm.native_operation_context.has_entered_operation());
     }
 }
