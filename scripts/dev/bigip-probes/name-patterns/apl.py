@@ -27,6 +27,7 @@ from pathlib import Path
 import capture
 import cases
 import broader_cases
+import campaign
 
 
 def receipt(job, label, command):
@@ -42,7 +43,7 @@ def main():
     parser.add_argument("--run", required=True)
     parser.add_argument(
         "--kind",
-        choices=["capabilities", "patterns", "broader", "wiki"],
+        choices=["capabilities", "patterns", "broader", "wiki", "exact"],
         default="capabilities",
     )
     parser.add_argument("--phase", choices=["prepare", "finish"], required=True)
@@ -77,10 +78,12 @@ def main():
         Path(capture.__file__),
         Path(cases.__file__),
         Path(broader_cases.__file__),
+        Path(campaign.__file__),
     ]:
         (dest / module.name).write_bytes(module.read_bytes())
     provenance = {
         "run_id": tag,
+        "kind": args.kind,
         "configuration_saved": False,
         "remote_staging": staging,
         "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -100,6 +103,8 @@ def main():
         selected = capture.capabilities(tag)
     elif args.kind == "patterns":
         selected = cases.build_cases(tag)
+    elif args.kind == "exact":
+        selected = cases.hosted_cases()
     elif args.kind == "wiki":
         selected = cases.wiki_cases()
         for item in selected:
@@ -110,15 +115,42 @@ def main():
             item["variant_id"] = "apl-real-tcltest-capability-guard-v1"
     else:
         selected = broader_cases.build_cases(tag)
+        for item in selected:
+            prefix = "__tcl_lsp_probe_" + tag + "_" + item["id"].replace("-", "_")
+            if "fresh interpreter only" in item["scope"]:
+                original = item["setup"] + item["operation"]
+                item["setup"] = "set nh_fresh [interp create]"
+                item["operation"] = "interp eval $nh_fresh " + capture.literal(original)
+                item["cleanup"] = "interp delete $nh_fresh"
+                item["scope"] += " Child-interpreter adaptation."
+            else:
+                item["cleanup"] = campaign.cleanup_prefix(prefix)
+    if args.kind != "capabilities":
+        selected.append(capture.capabilities(tag)[0])
     presentation = "section probe {\n"
     sources = []
     for index, item in enumerate(selected):
         item["context"] = "iapp-apl"
+        if args.kind == "exact" and item.get("exact_source") is True:
+            item["source_channel"] = {
+                "kind": "apl-choice-callback-eval-of-retained-whole-source",
+                "operation_bytes": "unchanged original UTF-8 source",
+                "transport": "binary format H* from retained ASCII hex; see complete input/configuration",
+                "wrapper_frame": "actual APL choice callback namespace/frame; execution namespace appears in original-case ownership guard result",
+                "ownership": "original names guarded before each callback; exact-name cleanup only after successful guard setup",
+                "result_channel": "captured NHO rows returned as actual choice option strings during browser form rendering",
+                "scope": "APL callback measurement only. Missing guard capability/collision/package prevents original execution. Application implementation remains empty and supplies no implementation answer.",
+            }
+        elif args.kind == "exact":
+            item["variant_id"] = "apl-provider-version-control-v1"
+            item["scope"] = (
+                "Provider control in its own APL choice callback: info patchlevel, info tclversion and namespace current. It supplies no original naming answer."
+            )
         source = capture.body([item], "iapp-apl", tag)
         source = "set nh_apl_rows {}\n" + source.replace(
             'puts "NHO|', 'lappend nh_apl_rows "NHO|'
         )
-        source += "\nset nh_apl_choices {}; foreach nh_apl_row $nh_apl_rows {lappend nh_apl_choices [list $nh_apl_row $nh_apl_row]}; return $nh_apl_choices\n"
+        source += '\nreturn [join $nh_apl_rows "\\n"]\n'
         sources.append(source)
         presentation += "choice result" + str(index) + " tcl {\n" + source + "\n}\n"
     presentation += "}\n"

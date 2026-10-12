@@ -41,6 +41,12 @@ CONTEXTS = [
     "tmm-traffic-event",
     "iapp-apl",
 ]
+EXACT_HOSTED_CONTEXTS = ["tmsh-cli-script", "iapp-implementation", "icall"]
+EXACT_HOSTED_SELECTABLE_CONTEXTS = EXACT_HOSTED_CONTEXTS + [
+    "tmm-RULE_INIT",
+    "tmm-procedure",
+    "tmm-traffic-event",
+]
 
 
 def cleanup_prefix(prefix):
@@ -56,8 +62,29 @@ def main():
     parser.add_argument("--run", required=True)
     parser.add_argument("--kind", choices=["patterns", "broader"], required=True)
     parser.add_argument("--resume-from", type=Path)
-    parser.add_argument("--contexts", default=",".join(CONTEXTS))
+    parser.add_argument("--contexts")
+    parser.add_argument(
+        "--exact-hosted",
+        action="store_true",
+        help="Original corpus and full real-tcltest selections, one guarded job each; defaults CLI/iApp/iCall, TMM contexts explicitly selectable",
+    )
     args = parser.parse_args()
+    contexts = (
+        args.contexts.split(",")
+        if args.contexts
+        else EXACT_HOSTED_CONTEXTS
+        if args.exact_hosted
+        else CONTEXTS
+    )
+    if any(context not in CONTEXTS for context in contexts):
+        raise ValueError("Unknown context")
+    if args.exact_hosted:
+        if args.kind != "patterns" or any(
+            context not in EXACT_HOSTED_SELECTABLE_CONTEXTS for context in contexts
+        ):
+            raise ValueError("--exact-hosted requires patterns in CLI/iApp/iCall/TMM")
+        if args.resume_from:
+            raise ValueError("--exact-hosted requires a new run without resume")
     tag = args.run
     if not re.fullmatch("[a-z0-9]{6,24}", tag):
         raise ValueError("Invalid tag")
@@ -94,6 +121,7 @@ def main():
                 ).strip(),
                 "configuration_saved": False,
                 "remote_staging": remote,
+                "exact_hosted": args.exact_hosted,
             },
             indent=2,
         )
@@ -114,12 +142,16 @@ def main():
             )
             + "\n"
         )
-    for context in args.contexts.split(","):
+    for context in contexts:
         if context not in CONTEXTS:
             raise ValueError(context)
         context_tag = tag + str(CONTEXTS.index(context))
         if args.kind == "patterns":
-            selected = cases.build_cases(context_tag)
+            selected = (
+                cases.hosted_cases()
+                if args.exact_hosted
+                else cases.build_cases(context_tag)
+            )
             if context.startswith("stock-"):
                 selected = cases.stock_split_cases() + cases.wiki_cases()
                 for item in selected:
@@ -192,10 +224,22 @@ def main():
             selected = [item for item in selected if item["id"] not in complete_ids]
         for item in selected:
             item["context"] = context
+            if args.exact_hosted:
+                item["source_channel"] = {
+                    "kind": "capture-wrapper-eval-of-retained-whole-source",
+                    "literal_load_control": False,
+                    "operation_bytes": "unchanged original UTF-8 source",
+                    "transport": "binary format H* from retained ASCII hex; see complete input/configuration",
+                    "wrapper_frame": "rule procedure invoked by RULE_INIT call measure"
+                    if context == "tmm-procedure"
+                    else "actual " + context + " callback/procedure frame",
+                    "ownership": "same actual interpreter; original names guarded before each singleton job and cleaned only after successful guard setup",
+                    "scope": "Dynamic whole-source evaluation is independent of literal iRule loader acceptance. Missing guard capability/collision/package prevents the original operation and supplies no lookup answer.",
+                }
         (dest / (context + "-cases.json")).write_text(
             json.dumps(selected, indent=2) + "\n"
         )
-        if context.startswith("stock-"):
+        if context.startswith("stock-") or args.exact_hosted:
             groups = [[x] for x in selected]
         elif context in {"tmm-RULE_INIT", "tmm-procedure", "tmm-traffic-event"}:
             groups = [selected[i : i + 3] for i in range(0, len(selected), 3)]

@@ -1,0 +1,126 @@
+[
+  {
+    "id": "error-rename-conflict",
+    "question_id": "F5-N15",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict {proc source {} {return SOURCE}; proc destination {} {return DESTINATION}}\n",
+    "operation": "rename ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict::source ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict::destination\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc",
+      "rename"
+    ],
+    "scope": "Conflict between owned commands only.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_error_rename_conflict* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*] [info commands ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*] [info vars ::__tcl_lsp_probe_nh20261012broad26_error_rename_conflict*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "error-import-conflict",
+    "question_id": "F5-N15",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict::source {proc p {} {return SOURCE}; namespace export p}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict::consumer {proc p {} {return LOCAL}}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict::consumer {namespace import ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict::source::p}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "namespace.export",
+      "namespace.import",
+      "proc"
+    ],
+    "scope": "Non-force import conflict between owned commands.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_error_import_conflict* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*] [info commands ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*] [info vars ::__tcl_lsp_probe_nh20261012broad26_error_import_conflict*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "name-braced-head",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_braced_head {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_name_braced_head {proc {two words} x {return $x}}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_braced_head {{two words} {a b}}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc"
+    ],
+    "scope": "Braced spaced command spelling.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_name_braced_head* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*] [info commands ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*] [info vars ::__tcl_lsp_probe_nh20261012broad26_name_braced_head*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "name-quoted-head",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head {proc {two words} x {return $x}}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head {\"two words\" {a b}}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc"
+    ],
+    "scope": "Quoted spaced command spelling.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_name_quoted_head* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*] [info commands ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*] [info vars ::__tcl_lsp_probe_nh20261012broad26_name_quoted_head*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "name-substituted-head",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head {proc {two words} x {return $x}; set head {two words}}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head {$head {a b}}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc",
+      "command.computed-head"
+    ],
+    "scope": "Substitution forms a single command word.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_name_substituted_head* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*] [info commands ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*] [info vars ::__tcl_lsp_probe_nh20261012broad26_name_substituted_head*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "name-list-prefix",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix {proc {two words} x {return $x}; set prefix [list {two words} {a b}]}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix {eval $prefix}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc",
+      "eval"
+    ],
+    "scope": "List prefix retains spaced head and data.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_name_list_prefix* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*] [info commands ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*] [info vars ::__tcl_lsp_probe_nh20261012broad26_name_list_prefix*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "name-script-prefix-near-miss",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {proc {two words} x {return $x}; set head {two words}}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {eval \"$head {a b}\"}\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "proc",
+      "eval"
+    ],
+    "scope": "String script reparses spaced head.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*] [info commands ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*] [info vars ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "brace-newline-command",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command {}\n",
+    "operation": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command {list a b\n{c}}\n",
+    "required_capabilities": [
+      "namespace.eval"
+    ],
+    "scope": "Actual newline in runtime script; keep literal-load variant separate.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_brace_newline_command* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*] [info commands ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*] [info vars ::__tcl_lsp_probe_nh20261012broad26_brace_newline_command*]",
+    "context": "tmm-procedure"
+  },
+  {
+    "id": "display-name-roundtrip",
+    "question_id": "F5-N16",
+    "setup": "namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {}\nnamespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {namespace eval a: {proc p {} {return FIRST_SLOT}}; namespace eval a {proc :p {} {return SECOND_SLOT}}}\n",
+    "operation": "set ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip::displayed [namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip::a: {namespace which p}]; eval [list [set ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip::displayed]]\n",
+    "required_capabilities": [
+      "namespace.eval",
+      "namespace.which",
+      "proc",
+      "eval"
+    ],
+    "scope": "Display-FQN roundtrip after duplicate-slot setup; returned spelling need not identify the original command slot.",
+    "cleanup": "foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad26_display_name_roundtrip* $nh_child]} {interp delete $nh_child}}\nforeach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*] {namespace delete $nh_ns}\nforeach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*] {rename $nh_cmd {}}\nforeach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*] {unset -nocomplain $nh_var}\nlist [namespace children :: ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*] [info commands ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*] [info vars ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip*]",
+    "context": "tmm-procedure"
+  }
+]

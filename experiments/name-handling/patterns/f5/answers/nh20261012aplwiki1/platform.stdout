@@ -1,0 +1,34 @@
+
+Sys::Hardware
+Chassis Information
+  Maximum MAC Count  1
+  Registration Key   -
+
+Hardware Version Information
+  Name        cpus        
+  Type        base-board  
+  Model       Intel(R) Core(TM) Ultra 7 265K
+  Parameters  --            --
+              cache size    16384 KB
+              cores         4  (physical:4)
+              cpu MHz       3878.400
+              cpu sockets   1
+              cpu stepping  2
+            
+
+Platform
+  Name  BIG-IP Virtual Edition
+  BIOS Revision   
+  Base MAC       bc:24:11:4a:88:ae
+  Hypervisor     Standard PC (Q35 + ICH9, 2009)
+  Cloud           
+
+System Information         
+  Type                       Z100
+  Chassis Serial             acd75a47-2eee-0848-7d953b412c37
+  Level 200/400 Part          
+  Switchboard Serial          
+  Switchboard Part Revision   
+  Host Board Serial           
+  Host Board Part Revision    
+

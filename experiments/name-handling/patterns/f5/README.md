@@ -4,9 +4,20 @@
 44 canonical questions, plus five appliance-specific questions from two
 pinned public rule-call sites. Each question records CLI, iApp implementation,
 TMM `RULE_INIT`, TMM procedure, traffic event, appliance stock tclsh, iCall and
-APL separately. All 400 context rows are `not-tested`: there is no accepted
-exact-case F5 answer for this bundle. A null `reached` means no measurement;
-it does not mean an observed failure to reach the case.
+APL separately. Eleven of the 400 context rows are `observed`, from reviewed
+exact whole-source corpus runs on appliance stock Tcl; 389 rows remain
+`not-tested` for an accepted exact-input/context answer. The
+[stock review](answers/stock-original-source-review.md) links all 21 successful
+8.4/8.5 receipts and identifies each selected matrix pointer. A null `reached`
+means no accepted measurement; it does not mean an observed failure to reach
+the case. Related adapted and narrower measurements are retained separately.
+
+Returned adapted controls, original-source review candidates and remaining
+questions are indexed in [the answer directory](answers/README.md) and its
+[coverage snapshot](answers/nh20261012coverage1/answers.md). The snapshot links
+individual units/invocations and preserves load, setup and lookup boundaries;
+it does not silently promote a related variant into an original matrix row.
+That immutable snapshot predates the eleven reviewed stock row updates.
 
 Use the [main request](../../f5/REQUEST.md),
 [answer protocol](../../f5/ANSWER-TEMPLATE.md), and
@@ -40,6 +51,18 @@ case. Do not embed unsupported `interp`, TclOO or tcltest branches in a TMM
 rule under an assumption that an unexecuted branch or `catch` avoids the loader.
 Keep literal load controls separate from dynamically constructed command/script
 controls. A dynamic variant has different source bytes and must be retained.
+
+The prepared `campaign.py --exact-hosted` mode keeps original operation bytes
+and names, guards their absence, and retains each whole-source wrapper. CLI,
+iApp implementation and iCall are defaults; TMM `RULE_INIT`, procedure and
+traffic are explicitly selectable. TMM setup and original source travel as
+retained ASCII hex decoded with `binary format H*` and evaluated in the actual
+host frame. This dynamic source channel supplies no literal iRule loader
+answer. Each case is a separate configuration job, and runtime cleanup deletes
+only exact original names whose absence was proved before execution. Missing
+guard capabilities, collisions or Wiki package failure leave the source
+unreached. A traffic request supplies its own unit/invocation receipt, not a
+claim that every TMM executed.
 
 An iRule load result is independent of `RULE_INIT` or a reached traffic event.
 For a TMM procedure record its invoking event or `RULE_INIT`, caller/provider
@@ -86,4 +109,4 @@ answer the bundle's exact portable cases or its unmaterialised variants.
 
 The existing controls report BIG-IP 21.1.0.1 build 0.0.26, Point Release 1 in
 their explicitly recorded contexts. Do not extrapolate to another build,
-context or source. C Tcl and Jim observations supply no F5 answer.
+context or source. Desktop C Tcl and Jim observations supply no F5 answer.

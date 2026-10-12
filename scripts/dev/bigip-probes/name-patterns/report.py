@@ -154,6 +154,7 @@ def _capture(run, job, context, run_id, case_id, root):
         if context.startswith("stock-")
         else "invoke.stdout"
         if context == "tmsh-cli-script"
+        or (context == "iapp-apl" and (job / "invocation.json").exists())
         else "runtime-logs.stdout"
     )
     ordinary = job / name
@@ -372,6 +373,17 @@ def build_records(run_path, root=ROOT):
                     if context == "tmm-procedure"
                     else None
                 )
+                if context == "iapp-apl" and job:
+                    browser_invocation = _json(job / "invocation.json", {})
+                    if browser_invocation.get("action"):
+                        provider["invoking_action"] = browser_invocation["action"]
+                    facts = _json(run / "interpreter-facts.json", {})
+                    if facts:
+                        for key in ("interpreter_patchlevel", "execution_namespace"):
+                            provider[key] = facts.get(key)
+                        provider["evidence"].append(
+                            _descriptor(run / "interpreter-facts.json", root)
+                        )
                 event_name = re.search(r"event-name ([^\s}]+)", configuration)
                 if context == "icall" and event_name:
                     provider["configured_event_name"] = event_name[1]
@@ -683,7 +695,7 @@ def write_report(run_path):
         "",
         "This derived report describes recorded case/context/unit/invocation evidence. It does not promote manifest answers or infer unavailable contexts. Byte fields are hex with their recorded encoding; duplicate chunks remain unjoined.",
         "",
-        "| Case / variant | Context / unit / invocation | Load | Setup code | Intended operation | Runtime code | Encoding / exact result hex | Error availability | Status |",
+        "| Case / variant | Context / unit / invocation | Load | Setup code | Intended operation reached | Runtime code | Encoding / exact result hex | Unavailable fields | Status |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for record in records:
@@ -702,7 +714,7 @@ def write_report(run_path):
                     + str(record["invocation_id"]),
                     record["load"]["status"],
                     record["setup"]["completion_code"],
-                    lookup["reached"],
+                    record["intended_lookup_reached"],
                     lookup["completion_code"],
                     str(lookup["result_encoding"])
                     + " / `"

@@ -23,7 +23,9 @@ rename owned namespaces/global wrapper procedures. They are never exact-input
 answers. Exact stock cases retain the complete original bytes and require a
 fresh child interpreter or process for each input. Wiki records retain the full
 real-tcltest suite and selected-test metadata; no extracted substitute harness
-is provided. JSON-serialisable original-input metadata accompanies every case.
+is provided. Hosted originals require exact-name absence guards before whole
+source evaluation, and cleanup is conditional on successful guard setup.
+JSON-serialisable original-input metadata accompanies every case.
 """
 
 import hashlib
@@ -282,6 +284,177 @@ def stock_split_cases():
             }
         )
         result.append(item)
+    return result
+
+
+def _hosted_guard(namespaces, procedures, variables, commands=()):
+    """Own only exact names whose absence was checked in the retained frame."""
+    namespace_words = " ".join(namespaces)
+    procedure_words = " ".join(procedures)
+    variable_words = " ".join(variables)
+    command_words = " ".join(commands)
+    setup = f"""set nh_guard_scope [namespace current]
+set nh_guard_procs {{}}
+set nh_guard_absent {{}}
+foreach nh_guard_name {{{namespace_words}}} {{
+    if {{[namespace exists $nh_guard_name] || [llength [info commands $nh_guard_name]]}} {{error [list ownership-collision namespace-or-command $nh_guard_name]}}
+    lappend nh_guard_absent [list namespace-and-command $nh_guard_name]
+}}
+foreach nh_guard_tail {{{procedure_words}}} {{
+    set nh_guard_name [string trimright $nh_guard_scope :]::$nh_guard_tail
+    if {{[llength [info commands $nh_guard_name]] || [string length [namespace which -command $nh_guard_tail]]}} {{error [list ownership-collision procedure $nh_guard_name resolved [namespace which -command $nh_guard_tail]]}}
+    lappend nh_guard_procs $nh_guard_name
+    lappend nh_guard_absent [list procedure $nh_guard_name fallback $nh_guard_tail]
+}}
+foreach nh_guard_name {{{command_words}}} {{
+    if {{[namespace exists $nh_guard_name] || [llength [info commands $nh_guard_name]]}} {{error [list ownership-collision command-or-namespace $nh_guard_name]}}
+    lappend nh_guard_procs $nh_guard_name
+    lappend nh_guard_absent [list command-and-namespace $nh_guard_name]
+}}
+foreach nh_guard_name {{{variable_words}}} {{
+    if {{[info exists $nh_guard_name] || [llength [info vars $nh_guard_name]] || [llength [trace vinfo $nh_guard_name]]}} {{error [list ownership-collision frame-variable $nh_guard_name]}}
+    lappend nh_guard_absent [list frame-variable $nh_guard_name]
+}}
+list ownership-guard execution-namespace $nh_guard_scope absent $nh_guard_absent
+"""
+    cleanup = f"""if {{$nh_setup_code == 0}} {{
+    foreach nh_guard_name $nh_guard_procs {{
+        if {{[llength [info commands $nh_guard_name]]}} {{rename $nh_guard_name {{}}}}
+    }}
+    foreach nh_guard_name {{{namespace_words}}} {{
+        if {{[namespace exists $nh_guard_name]}} {{namespace delete $nh_guard_name}}
+    }}
+    foreach nh_guard_name {{{variable_words}}} {{unset -nocomplain $nh_guard_name}}
+    set nh_guard_remaining {{}}
+    foreach nh_guard_name $nh_guard_procs {{
+        if {{[llength [info commands $nh_guard_name]]}} {{lappend nh_guard_remaining [list command $nh_guard_name]}}
+    }}
+    foreach nh_guard_name {{{namespace_words}}} {{
+        if {{[namespace exists $nh_guard_name]}} {{lappend nh_guard_remaining [list namespace $nh_guard_name]}}
+    }}
+    foreach nh_guard_name {{{variable_words}}} {{
+        if {{[info exists $nh_guard_name]}} {{lappend nh_guard_remaining [list frame-variable $nh_guard_name]}}
+    }}
+    list ownership-cleanup execution-namespace $nh_guard_scope remaining $nh_guard_remaining
+}} else {{
+    list ownership-not-acquired original-source-unreached
+}}
+"""
+    return setup, cleanup
+
+
+def hosted_cases():
+    """Complete original sources in the actual host, with collision guards.
+
+    The capture wrapper owns nh_* bookkeeping. Original source is evaluated
+    once, without a setup/final split, name rewriting or substitute interpreter.
+    Intrinsic child interpreters in the Wiki source remain part of that source.
+    """
+    variables = {
+        "alias-prefix-lifetime": ["description"],
+        "computed-qualified": ["ns", "head"],
+        "computed-binding-mutation": ["ns", "head"],
+        "list-prefix": ["target", "prefix"],
+        "string-prefix-near-miss": ["target"],
+        "oo-self-prefix": ["object"],
+        "oo-prefix-deleted-near-miss": ["object", "prefix", "result"],
+    }
+    result = []
+    for case in stock_cases():
+        case_id = case["id"]
+        frame_case = case_id.startswith("frame-wrapper")
+        object_case = case_id.startswith("oo-")
+        namespaces = [] if frame_case or object_case else ["::nh"]
+        procedures = (
+            ["forward", "change", "outer"]
+            if frame_case
+            else ["emit"]
+            if case_id == "namespace-captured-prefix"
+            else []
+        )
+        commands = ["::nhclass"] if object_case else []
+        owned_variables = variables.get(case_id, [])
+        setup, cleanup = _hosted_guard(
+            namespaces, procedures, owned_variables, commands
+        )
+        if case_id == "tcltest-shared-lifecycle":
+            # A retained suite's -match/-skip state can suppress this test.
+            # Reject that state instead of reporting a silently skipped body.
+            setup = (
+                setup.rsplit("list ownership-guard", 1)[0]
+                + """if {[string length [package provide tcltest]] && [llength [info commands ::tcltest::configure]]} {
+    if {[::tcltest::configure -match] != "*" || [llength [::tcltest::configure -skip]]} {error {ownership-collision pre-existing tcltest selection}}
+}
+list ownership-guard execution-namespace $nh_guard_scope absent $nh_guard_absent
+"""
+            )
+        case.update(
+            {
+                "setup": setup,
+                "cleanup": cleanup,
+                "owned_namespaces": namespaces,
+                "owned_frame_procedures": procedures,
+                "owned_absolute_commands": commands,
+                "owned_frame_variables": owned_variables,
+                "required_guard_capabilities": ["namespace.which"]
+                + (["trace.variable.inspect"] if owned_variables else []),
+                "scope": "Complete byte-identical original source evaluated in the retained host wrapper's actual namespace/frame. Ownership guard precedes the entire program; cleanup deletes only original exact names proven absent. Whole-program completion does not by itself prove that a particular nested/final lookup was reached.",
+                "hosted_guard": {
+                    "absence_proof_stage": "setup",
+                    "collision": "setup error; entire original source unreached; no original-name cleanup",
+                    "cleanup_gate": "nh_setup_code == 0",
+                    "namespace_for_unqualified_procedures": "runtime namespace current, retained in setup result",
+                    "class_cleanup": "delete newly owned class command, including its newly created instances"
+                    if object_case
+                    else None,
+                },
+            }
+        )
+        result.append(case)
+    for case in wiki_cases():
+        setup, cleanup = _hosted_guard([], ["isolated"], [])
+        setup = setup.rsplit("list ownership-guard", 1)[0]
+        setup += """package require tcltest
+set nh_guard_tcltest_match [::tcltest::configure -match]
+set nh_guard_tcltest_skip [::tcltest::configure -skip]
+set nh_guard_tcltest_verbose [::tcltest::configure -verbose]
+"""
+        setup += "::tcltest::configure -match " + case["id"] + " -skip {}\n"
+        setup += (
+            "list ownership-guard execution-namespace $nh_guard_scope absent $nh_guard_absent selected "
+            + case["id"]
+            + " tcltest [package present tcltest]\n"
+        )
+        cleanup = cleanup.replace(
+            "    set nh_guard_remaining {}",
+            "    ::tcltest::configure -match $nh_guard_tcltest_match -skip $nh_guard_tcltest_skip -verbose $nh_guard_tcltest_verbose\n    set nh_guard_remaining {}",
+        )
+        case.update(
+            {
+                "setup": setup,
+                "cleanup": cleanup,
+                "owned_namespaces": [],
+                "owned_frame_procedures": ["isolated"],
+                "owned_absolute_commands": [],
+                "owned_frame_variables": [],
+                "required_guard_capabilities": ["namespace.which"],
+                "scope": "Complete byte-identical real-tcltest Wiki suite evaluated in the retained host namespace/frame, with one selected test. Original isolated helper/child interpreters and constraints are unchanged. Package load failure or ownership collision leaves suite/body unreached. Pass/skip output is harness evidence; selected body bytes and inner options remain unavailable without separately labelled instrumentation.",
+                "hosted_guard": {
+                    "absence_proof_stage": "setup",
+                    "collision": "setup error; original suite unreached; no original-name cleanup",
+                    "cleanup_gate": "nh_setup_code == 0",
+                    "tcltest_selection": case["id"],
+                    "tcltest_configuration_restored": [
+                        "-match",
+                        "-skip",
+                        "-verbose",
+                    ],
+                    "package_state": "Real package loading and suite counters/constraints are retained; no package namespace/commands are deleted.",
+                    "namespace_for_unqualified_procedures": "runtime namespace current, retained in setup result",
+                },
+            }
+        )
+        result.append(case)
     return result
 
 

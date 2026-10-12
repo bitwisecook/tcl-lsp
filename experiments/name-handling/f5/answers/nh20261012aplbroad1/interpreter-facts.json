@@ -1,0 +1,9 @@
+{
+  "interpreter_patchlevel": "8.4.6",
+  "execution_namespace": "::script",
+  "value_hex": "382e342e3620382e34203a3a736372697074",
+  "source": "/Users/jimd/src/tcl-lsp/experiments/name-handling/f5/answers/nh20261012aplbroad1/iapp-apl-0/invoke.stdout",
+  "source_sha256": "121f4267995b84e8193b3be0631461eecc5e545fd686fd0b3e7ccde48d953cb9",
+  "case_id": "version",
+  "context": "iapp-apl"
+}

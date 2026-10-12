@@ -156,7 +156,7 @@ def main():
             provider_config = (
                 "ltm rule "
                 + base
-                + " {\nproc target {fixed value} {list OLD $fixed $value}\nproc cells {cell} {global $cell; incr $cell; list [set $cell] [info level] [namespace current]}\n}\nltm rule /Common/"
+                + " {\nproc target {fixed value} {list OLD $fixed $value}\nproc cells {cell} {global $cell; incr $cell; set ns namespace; list [set $cell] [info level] [$ns current]}\n}\nltm rule /Common/"
                 + other
                 + " {\nproc target {fixed value} {list OTHER $fixed $value}\n}\n"
             )
@@ -198,7 +198,7 @@ def main():
                 text = (
                     "ltm rule "
                     + base
-                    + " {\nproc target {fixed value} {list NEW $fixed $value}\nproc cells {cell} {global $cell; incr $cell; list [set $cell] [info level] [namespace current]}\n}\n"
+                    + " {\nproc target {fixed value} {list NEW $fixed $value}\nproc cells {cell} {global $cell; incr $cell; set ns namespace; list [set $cell] [info level] [$ns current]}\n}\n"
                 )
                 path = staging + "/replacement.conf"
                 capture.rpc("cat > " + shlex.quote(path), text.encode())

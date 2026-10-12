@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope": "45 portable cases covering 44 canonical questions; five independent appliance-only questions motivated by two pinned public rule-call sites. No case has an accepted exact-input/context F5 answer.",
+  "scope": "45 portable cases covering 44 canonical questions; five independent appliance-only questions motivated by two pinned public rule-call sites. Eleven appliance-stock-tclsh rows have reviewed exact whole-source code-zero corpus answers; other exact input/context answers remain pending.",
   "canonical_owners": [
     "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
     "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json"
@@ -64,11 +64,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/0",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -135,11 +140,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/1",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -206,11 +216,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/2",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -277,11 +292,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/48",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -419,11 +439,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/5",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -490,11 +515,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/6",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -561,11 +591,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/7",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -632,11 +667,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/8",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -703,11 +743,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/9",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -774,11 +819,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/10",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",
@@ -1058,11 +1108,16 @@
           "answer_record": null
         },
         "appliance-stock-tclsh": {
-          "status": "not-tested",
-          "load": "not-tested",
-          "reached": null,
-          "runtime": "not-tested",
-          "answer_record": null
+          "status": "observed",
+          "load": "not-applicable",
+          "reached": true,
+          "runtime": "observed",
+          "answer_record": {
+            "path": "experiments/name-handling/patterns/f5/answers/nh20261012stock2/records.json",
+            "sha256": "2e413c93a1a358d84a0b35f9bfd4ee7f2d0ba76a3f2f0ea4a7e385159313fcf1",
+            "json_pointer": "/14",
+            "answer_document": "experiments/name-handling/patterns/f5/answers/stock-original-source-review.md"
+          }
         },
         "icall": {
           "status": "not-tested",

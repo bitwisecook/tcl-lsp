@@ -1,0 +1,104 @@
+[
+  {
+    "id": "version",
+    "setup": "",
+    "operation": "list [info patchlevel] [info tclversion] [namespace current]",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_version]} {namespace delete ::__nh_nh20261012cap3_version}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_version_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_version] [info commands ::__nh_nh20261012cap3_version_*]"
+  },
+  {
+    "id": "encoding",
+    "setup": "",
+    "operation": "binary scan [encoding convertto utf-8 [format %c 945]] H* x; set x",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_encoding]} {namespace delete ::__nh_nh20261012cap3_encoding}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_encoding_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_encoding] [info commands ::__nh_nh20261012cap3_encoding_*]"
+  },
+  {
+    "id": "namespace.eval",
+    "setup": "",
+    "operation": "namespace eval ::__nh_nh20261012cap3_namespace_eval {namespace current}",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_eval]} {namespace delete ::__nh_nh20261012cap3_namespace_eval}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_eval_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_eval] [info commands ::__nh_nh20261012cap3_namespace_eval_*]"
+  },
+  {
+    "id": "namespace.code",
+    "setup": "",
+    "operation": "namespace eval ::__nh_nh20261012cap3_namespace_code {namespace code {list captured}}",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_code]} {namespace delete ::__nh_nh20261012cap3_namespace_code}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_code_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_code] [info commands ::__nh_nh20261012cap3_namespace_code_*]"
+  },
+  {
+    "id": "namespace.path",
+    "setup": "",
+    "operation": "namespace path",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_path]} {namespace delete ::__nh_nh20261012cap3_namespace_path}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_path_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_path] [info commands ::__nh_nh20261012cap3_namespace_path_*]"
+  },
+  {
+    "id": "namespace.export",
+    "setup": "namespace eval ::__nh_nh20261012cap3_namespace_export {}",
+    "operation": "namespace eval ::__nh_nh20261012cap3_namespace_export {namespace export nh_none}",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_export]} {namespace delete ::__nh_nh20261012cap3_namespace_export}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_export_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_export] [info commands ::__nh_nh20261012cap3_namespace_export_*]"
+  },
+  {
+    "id": "namespace.import",
+    "setup": "namespace eval ::__nh_nh20261012cap3_namespace_import {}",
+    "operation": "namespace eval ::__nh_nh20261012cap3_namespace_import {namespace import ::__absent_nh_*}",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_import]} {namespace delete ::__nh_nh20261012cap3_namespace_import}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_import_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_import] [info commands ::__nh_nh20261012cap3_namespace_import_*]"
+  },
+  {
+    "id": "namespace.ensemble",
+    "setup": "namespace eval ::__nh_nh20261012cap3_namespace_ensemble {}",
+    "operation": "namespace eval ::__nh_nh20261012cap3_namespace_ensemble {namespace ensemble create -command facade -map {}}",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_ensemble]} {namespace delete ::__nh_nh20261012cap3_namespace_ensemble}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_ensemble_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_ensemble] [info commands ::__nh_nh20261012cap3_namespace_ensemble_*]"
+  },
+  {
+    "id": "namespace.upvar",
+    "setup": "namespace eval ::__nh_nh20261012cap3_namespace_upvar {variable x VALUE}",
+    "operation": "namespace upvar ::__nh_nh20261012cap3_namespace_upvar x nh_link; set nh_link",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_namespace_upvar]} {namespace delete ::__nh_nh20261012cap3_namespace_upvar}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_namespace_upvar_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_namespace_upvar] [info commands ::__nh_nh20261012cap3_namespace_upvar_*]"
+  },
+  {
+    "id": "interp.create",
+    "setup": "",
+    "operation": "set nh_child [interp create]; set nh_result [interp eval $nh_child {info patchlevel}]; interp delete $nh_child; set nh_result",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_interp_create]} {namespace delete ::__nh_nh20261012cap3_interp_create}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_interp_create_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_interp_create] [info commands ::__nh_nh20261012cap3_interp_create_*]"
+  },
+  {
+    "id": "interp.alias",
+    "setup": "proc ::__nh_nh20261012cap3_interp_alias_target {} {return TARGET}",
+    "operation": "interp alias {} ::__nh_nh20261012cap3_interp_alias_alias {} ::__nh_nh20261012cap3_interp_alias_target; set r [::__nh_nh20261012cap3_interp_alias_alias]; interp alias {} ::__nh_nh20261012cap3_interp_alias_alias {}; set r",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_interp_alias]} {namespace delete ::__nh_nh20261012cap3_interp_alias}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_interp_alias_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_interp_alias] [info commands ::__nh_nh20261012cap3_interp_alias_*]"
+  },
+  {
+    "id": "tcltest",
+    "setup": "",
+    "operation": "package require tcltest",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_tcltest]} {namespace delete ::__nh_nh20261012cap3_tcltest}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_tcltest_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_tcltest] [info commands ::__nh_nh20261012cap3_tcltest_*]"
+  },
+  {
+    "id": "tcloo",
+    "setup": "",
+    "operation": "oo::class create ::__nh_nh20261012cap3_tcloo_class {}; ::__nh_nh20261012cap3_tcloo_class destroy",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_tcloo]} {namespace delete ::__nh_nh20261012cap3_tcloo}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_tcloo_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_tcloo] [info commands ::__nh_nh20261012cap3_tcloo_*]"
+  },
+  {
+    "id": "catch.options",
+    "setup": "",
+    "operation": "catch {list value} nh_r nh_o; list $nh_r $nh_o",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_catch_options]} {namespace delete ::__nh_nh20261012cap3_catch_options}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_catch_options_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_catch_options] [info commands ::__nh_nh20261012cap3_catch_options_*]"
+  },
+  {
+    "id": "trace.execution",
+    "setup": "proc ::__nh_nh20261012cap3_trace_execution_target {} {return TARGET}; proc ::__nh_nh20261012cap3_trace_execution_trace args {}",
+    "operation": "trace add execution ::__nh_nh20261012cap3_trace_execution_target leave ::__nh_nh20261012cap3_trace_execution_trace; ::__nh_nh20261012cap3_trace_execution_target",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_trace_execution]} {namespace delete ::__nh_nh20261012cap3_trace_execution}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_trace_execution_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_trace_execution] [info commands ::__nh_nh20261012cap3_trace_execution_*]"
+  },
+  {
+    "id": "proc.dynamic",
+    "setup": "",
+    "operation": "proc ::__nh_nh20261012cap3_proc_dynamic_target {} {return TARGET}; ::__nh_nh20261012cap3_proc_dynamic_target",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_proc_dynamic]} {namespace delete ::__nh_nh20261012cap3_proc_dynamic}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_proc_dynamic_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_proc_dynamic] [info commands ::__nh_nh20261012cap3_proc_dynamic_*]"
+  },
+  {
+    "id": "call",
+    "setup": "",
+    "operation": "call ::__nh_nh20261012cap3_call_absent",
+    "cleanup": "if {[namespace exists ::__nh_nh20261012cap3_call]} {namespace delete ::__nh_nh20261012cap3_call}; foreach nh_cmd [info commands ::__nh_nh20261012cap3_call_*] {rename $nh_cmd {}}; list [namespace exists ::__nh_nh20261012cap3_call] [info commands ::__nh_nh20261012cap3_call_*]"
+  }
+]

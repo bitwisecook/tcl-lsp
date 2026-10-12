@@ -1,0 +1,350 @@
+[
+  {
+    "id": "naming.bigip-pattern.version.iapp-apl.capability-runtime-control-v1.nh20261012aplwiki1.invocation-once",
+    "kind": "native-observation",
+    "document": "docs/design/analysis/name-resolution-proofs/bigip-pattern.version.iapp-apl.capability-runtime-control-v1.nh20261012aplwiki1.invocation-once.md",
+    "problem_statement": "Related question F5-N01-version; this record retains one reviewed provider/input/context observation independently of the original C/Jim and exact portable evidence.",
+    "question": "What completion and result did retained variant capability-runtime-control-v1 of case version produce in iapp-apl, run nh20261012aplwiki1, unit None, invocation 'once'?",
+    "conclusion": "Setup reached with completion 0. Intended lookup reached with completion 0; result encoding utf-8; exact result hex \"382e342e3620382e34203a3a736372697074\". Error metadata and availability: {\"errorcode\": null, \"errorinfo\": null, \"return_options\": null, \"unavailable_fields\": [\"return_options\", \"errorcode\", \"errorinfo\"]}. Only this recorded invocation is answered.",
+    "scope": "Only retained case version, variant capability-runtime-control-v1, run nh20261012aplwiki1, context iapp-apl; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Actual browser-selected APL callback version control. The independent real-tcltest suite attempts in this same capture failed setup and supply no selected Wiki operation results.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": \"8.4.6\", \"tcltest_version\": null, \"execution_namespace\": \"::script\", \"invoking_action\": \"Chrome Application Services Create form template selection; callback values retained from live DOM\"}. Null means not observed by this receipt.  Recorded adaptation: {\"kind\": \"apl-browser-version-control\", \"projection\": \"One live DOM option.value per NHO row; independently reproduced exactly against invoke.stdout.\", \"source_provenance\": {\"path\": \"experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/capture.py\", \"sha256\": \"67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583\", \"kind\": \"authored-capability-template-provenance-not-portable-original\"}, \"implementation_action\": \"empty\"}",
+    "providers": [
+      {
+        "id": "tcl8.4",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.5",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl8.6",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.0",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "tcl9.1",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "jim",
+        "version": "not recorded",
+        "build": "not recorded",
+        "input_channel": "not recorded",
+        "dialect": "Jim Tcl",
+        "status": "not-tested",
+        "answer": "No execution of this exact context/input/invocation is claimed for this provider.",
+        "evidence": []
+      },
+      {
+        "id": "bigip",
+        "version": "21.1.0.1",
+        "build": "0.0.26; hotfix None",
+        "input_channel": "Only retained case version, variant capability-runtime-control-v1, run nh20261012aplwiki1, context iapp-apl; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Actual browser-selected APL callback version control. The independent real-tcltest suite attempts in this same capture failed setup and supply no selected Wiki operation results.. Interpreter/action facts retained in the measurement: {\"interpreter_path\": null, \"interpreter_patchlevel\": \"8.4.6\", \"tcltest_version\": null, \"execution_namespace\": \"::script\", \"invoking_action\": \"Chrome Application Services Create form template selection; callback values retained from live DOM\"}. Null means not observed by this receipt.  Recorded adaptation: {\"kind\": \"apl-browser-version-control\", \"projection\": \"One live DOM option.value per NHO row; independently reproduced exactly against invoke.stdout.\", \"source_provenance\": {\"path\": \"experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/capture.py\", \"sha256\": \"67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583\", \"kind\": \"authored-capability-template-provenance-not-portable-original\"}, \"implementation_action\": \"empty\"}",
+        "dialect": "F5 hosted Tcl",
+        "status": "observed",
+        "answer": "Setup reached with completion 0. Intended lookup reached with completion 0; result encoding utf-8; exact result hex \"382e342e3620382e34203a3a736372697074\". Error metadata and availability: {\"errorcode\": null, \"errorinfo\": null, \"return_options\": null, \"unavailable_fields\": [\"return_options\", \"errorcode\", \"errorinfo\"]}. Only this recorded invocation is answered.",
+        "evidence": [
+          "original-input",
+          "actual-input",
+          "wrapper",
+          "raw-0",
+          "raw-1",
+          "raw-2",
+          "raw-3",
+          "raw-4",
+          "raw-5",
+          "raw-6",
+          "raw-7",
+          "raw-8",
+          "raw-9",
+          "raw-10",
+          "raw-11",
+          "raw-12",
+          "cleanup-0",
+          "cleanup-1",
+          "cleanup-2",
+          "cleanup-3",
+          "cleanup-4",
+          "cleanup-5",
+          "cleanup-6",
+          "cleanup-7",
+          "cleanup-8",
+          "extra-0",
+          "extra-1",
+          "extra-2",
+          "extra-3",
+          "extra-4",
+          "extra-5",
+          "measurement"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "original-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/capture.py",
+        "sha256": "67de5f6a5d39df7640d53aeff2fd5e48a4646bf4f65c06603ea0f653baf0a583",
+        "description": "Complete retained original_input bytes."
+      },
+      {
+        "id": "actual-input",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/input.tcl",
+        "sha256": "67ee83e66f7c178b4a9def276ce65ee57b1866b3e0c3db6e9c6238e466b2e145",
+        "description": "Complete retained actual_input bytes."
+      },
+      {
+        "id": "wrapper",
+        "role": "input",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/applied.conf",
+        "sha256": "e97ed21bf3347044b538a3f8a9c6f3e8574cb7dd9c9cb3172194e8cb270b330c",
+        "description": "Complete retained wrapper bytes."
+      },
+      {
+        "id": "raw-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/invoke.stdout",
+        "sha256": "d1a05d0bbf0164076c5f1a02c83c14b4fa743c1645e49ef9576018a39777214b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/load.stdout",
+        "sha256": "6a39b69effecc08529d3190f6255f8133dda297bf2a3f33f8d64442778e8a9cf",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/load.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/invoke.stdout",
+        "sha256": "d1a05d0bbf0164076c5f1a02c83c14b4fa743c1645e49ef9576018a39777214b",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/invocation.json",
+        "sha256": "37391f7a55058e0e2914d77bc73f868fc51f64b9737cbb711ffae04a79d74d2f",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/version.stdout",
+        "sha256": "ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-6",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/platform.stdout",
+        "sha256": "f1dc3e5bc162517771c3ba6cca300cb6448a54daec71dbe12701fa9e8adeb28d",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-7",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/tmm-roster.stdout",
+        "sha256": "d16a882e9952cd5633155b3806706e62f156b53c7333636c5005dadad1306ec2",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-8",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/provenance.json",
+        "sha256": "f210fd9f1534f74c6b533d97e22a0d918236ab402705a76b9cfa83ddeeaa1e55",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-9",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/interpreter-facts.json",
+        "sha256": "32a8ad54683d2960482ae63c5fb50974f9d6034e7454b066f898b4e4fe4c96fc",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-10",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/applied-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-11",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/applied-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "raw-12",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/applied-0.stdout",
+        "sha256": "afb1a944a455839f36d98503d6c465ea9684353735f721d374314e61465f0c80",
+        "description": "Exact retained capture or provider receipt."
+      },
+      {
+        "id": "cleanup-0",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/after-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-1",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/after-0.stderr",
+        "sha256": "b893c115f8bb88c8da16bb32ba1f90e20527cf21e44756a606202160cd752c00",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-2",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/after-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-3",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/before-0.exit",
+        "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-4",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/before-0.stderr",
+        "sha256": "b893c115f8bb88c8da16bb32ba1f90e20527cf21e44756a606202160cd752c00",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-5",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/before-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-6",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/delete-0.exit",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-7",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/delete-0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "cleanup-8",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-0/delete-0.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "description": "Retained cleanup result; scope remains explicit."
+      },
+      {
+        "id": "extra-0",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/browser-options.json",
+        "sha256": "f87e58e24e5529a0d521627bef6d198119b6a039dcb8ad6d90fe4f57d5461800",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "extra-1",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/browser-dom.txt",
+        "sha256": "279870a4357811e62796cb1ad56d37ed9f7673a3eb606855a4d78bf83dab0f8f",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "extra-2",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/browser.png",
+        "sha256": "78b13dea421587d8e8eb0bf2497269e954e2a7cc66a4befad0defc24975da4a3",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "extra-3",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/interpreter-facts.json",
+        "sha256": "32a8ad54683d2960482ae63c5fb50974f9d6034e7454b066f898b4e4fe4c96fc",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "extra-4",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/apl.py",
+        "sha256": "4b174573db205b4d58ad9a76615bf77cedee6f5fd6e3a240a185b440d7c66bd5",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "extra-5",
+        "role": "provider",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/iapp-apl-cases.json",
+        "sha256": "121a7375c3124cf39a2de3abe3407d445b1ed60dde4a48c046787b14cb09200b",
+        "description": "Independent retained provider or run provenance."
+      },
+      {
+        "id": "measurement",
+        "role": "observation",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012aplwiki1/records.json",
+        "sha256": "149c0858a665e9f9d3ea89187051cf6c6f5e6290ae449c11cdac16e4a266f13f",
+        "description": "Reviewed measurement record.",
+        "json_pointer": "/30"
+      }
+    ],
+    "source_anchors": [],
+    "tests": [],
+    "owners": [],
+    "replay": {
+      "command": [],
+      "limitations": "Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution."
+    }
+  }
+]
