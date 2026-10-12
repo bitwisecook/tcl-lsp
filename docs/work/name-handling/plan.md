@@ -56,6 +56,26 @@ A passing focused suite is insufficient while original upstream files abort,
 time out or remain unexecuted. Static, backend, Jim and F5 obligations in the
 consumer matrix remain required.
 
+## Dynamic-pattern coverage and abstention
+
+All static consumer rows must handle ordinary Tcl metaprogramming idioms through
+shared analysis facts. Literal-only lookup is insufficient. Implement and audit
+the [pattern acceptance matrix](../../../experiments/name-handling/case-catalogue.md#dynamic-pattern-acceptance)
+alongside the [evidence/use contract](../../design/contracts/name-handling.md#dynamic-code-and-familiar-naming-patterns).
+
+For each pattern record semantic owner, preconditions, supporting spans/value
+provenance, namespace/frame/interpreter context, conditional assumptions,
+invalidation and budget, result category, allowed consumers and abstention reason.
+Reuse or extend the registry's declarations and the existing value/binding/frame
+summaries. Consumers receive common results; they do not add private recognisers.
+
+Acceptance requires positive idiom coverage and adversarial near misses. Test
+shadowed name builders, intervening rename/write/trace, conditional or empty
+factories, incomplete indexes, source order, aliases and changing OO receivers.
+Compare wrong targets, missed provable targets and abstention reasons separately.
+Heuristic candidate ranking never satisfies a transformation proof. Improvements
+must reduce unnecessary abstention without increasing confident wrong results.
+
 ## Ordered work
 
 1. **Reproduce and establish evidence.** Refresh issue relationships and the

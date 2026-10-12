@@ -46,6 +46,27 @@ output. Different slots can have the same rendered FQN: `a:` / `p` versus
 Do not parse displays back into identities or prove a target by a simple-name
 fallback. Uncertain static facts must abstain consistently.
 
+Tcl is a highly dynamic metaprogramming language. Do not make the tool useful
+only for literal declarations and direct calls. Build solid shared heuristics
+for ordinary Tcl naming idioms: constant/list/format-built names and callbacks,
+namespace code/inscope, aliases/imports/ensembles, frame-forwarding wrappers,
+package/autoload/source conventions, finite procedure factories, object-handle
+provenance and supported framework definers. Use the registry, binding model,
+value provenance and shared name/frame owners, with context, effects, budgets
+and invalidation. A dynamic source shape is not automatically unknowable.
+
+Distinguish proved identity, conditional identity with explicit assumptions,
+plausible candidates and unresolved/ambiguous results. Useful heuristics may
+guide completion and explicit candidate navigation; they cannot silently
+authorise rename, reference rewriting, constant folding or direct binding.
+Prove the constructed value and the call-time target separately. Do not infer
+uniqueness from an incomplete index or report a definitely missing variable
+when its frame/effects are unknown. Demur with a recorded reason where proof
+is unavailable, preserving unaffected facts rather than suppressing everything.
+Use the dynamic-pattern acceptance matrix in
+`experiments/name-handling/case-catalogue.md` to test both useful coverage and
+false target selection. This is required completion work, not optional polish.
+
 Use and extend existing owner crates, not a second name system. Preserve
 command slots versus live command objects, interpreter domains, frames and
 variable links, imports versus late-bound aliases, mutation ordering,

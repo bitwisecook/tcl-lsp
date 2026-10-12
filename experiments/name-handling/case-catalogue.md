@@ -35,3 +35,32 @@ descendant tokens, trace mutation windows, OO forwards/method namespace,
 mathfunc lookup, command/variable error options, binary names and complex array
 indices. Those need their own oracle-specific setup and are not claimed covered
 by these sixteen starter observations.
+
+## Dynamic-pattern acceptance
+
+These are required static-analysis acceptance scenarios. They extend the
+experiment backlog; they are not claims that probes or consumer implementations
+already exist. Keep one positive example and a counterexample for each pattern,
+with C/Jim/F5 expectations scoped to actual supported contexts.
+
+| Pattern | Useful result when established | Required counterexample / boundary |
+| --- | --- | --- |
+| Constant command head: `set cmd helper; $cmd` | Flow-sensitive name value plus the correct call-time binding | Reassign the value or rename/shadow/delete the command before invocation. |
+| `${ns}::helper`, `format` or list-built names | Preserve constructed spelling, provenance and namespace context | Dynamic prefix, shadowed builder, lone-colon/display collision or unknown later definition. |
+| `[list helper $arg]`, `{*}$prefix` callbacks | Command-prefix roles, target candidates and bound arguments | Unknown list head/expansion, value position instead of command-prefix role, or a caller frame different from the callback frame. |
+| `namespace code` / `inscope` | Captured namespace and execution scope | Shimmered text versus retained namespace identity, deleted/recreated namespace or opaque callback execution. |
+| Alias/import/ensemble wrappers | Shared binding/lifecycle facts and inherited roles | Prefix-argument shifts, import snapshots, intervening rename/delete/redefinition, force conflicts or map mutation. |
+| `upvar` / namespace variable wrappers | Target frame, alias cell and read/write effects from a supported summary | Computed level, different caller frame, self/cyclic link, dead target or open-world name argument. |
+| Package/autoload/source conventions | Indexed target with declared environment and load-order evidence | Unindexed or conditional source, replaced package implementation, cyclic order or a second possible definition. |
+| Finite procedure factories | Definitions derived from bounded literal inputs and known definition semantics | Empty/unknown iteration, opaque eval body, conditional execution or renamed/shadowed definer. |
+| OO receiver and framework provenance | Object/class candidates and known method namespace/grammar | Reassignment, dynamic metaclass or factory, mutable mixins/forwards and same-name definition commands. |
+| Tcltest setup/body/cleanup | Shared frame and ordered definitions/reads across registry-declared bodies | Shadowed `test`, different wrapper contract or conditional setup/completion that cannot establish the later state. |
+| F5 rule `call` and protocol prefixes | Rule-qualified procedure identity and registry/context availability | Unknown rule/partition/profile, duplicate tails across rules or a protocol prefix mistaken for a Tcl namespace. |
+
+For every static case retain source, expected identity/candidate/abstention,
+reason, provenance spans, affected surface and real-oracle semantic observations.
+An oracle execution establishes that program's behaviour; the consumer test
+also establishes whether its available static evidence permits the conclusion.
+Do not require static certainty merely because an oracle can execute the code.
+Completion, navigation candidates, diagnostics, rename and optimisers need
+separate expectations reflecting their evidence requirements.

@@ -82,6 +82,67 @@ proofs; source colon-run widths cannot be reconstructed from display names.
 Per-command roles and semantics come from the registry, including overlays
 and stubs, rather than spelling tests in consumers.
 
+## Dynamic code and familiar naming patterns
+
+Tcl naming is executable behaviour. Definitions, command prefixes, aliases,
+imports, variable links and object commands can be assembled, changed and
+invoked at runtime. Static analysis must support familiar metaprogramming
+patterns and demur where their meaning cannot be established. A dynamic source
+shape alone is insufficient reason to stop analysis: constant propagation,
+finite alternatives, declared effects and frame context may recover its meaning.
+
+Keep the evidence and its permitted use explicit:
+
+| Evidence | Consumer behaviour |
+| --- | --- |
+| Proven identity in the modelled context | Publish the target/place and its provenance. A rewrite still needs editable spans, completeness and binding/effect proofs. |
+| Conditional identity | Retain the assumptions and context that make the result hold. Consumers must verify them or use guarded runtime dispatch; do not silently treat them as unconditional. |
+| Plausible candidates from a familiar pattern | Offer ranked completion or an explicit candidate list with supporting evidence. Do not present a candidate as a definite reference or use it to authorise mutation or optimisation. |
+| Unknown or ambiguous | Preserve the reason and any bounded candidate set. Demur on definite target selection, unsafe edits and unsupported diagnostic conclusions. |
+
+This is a consumer contract, not a claim that every current result type already
+records these distinctions. Extend existing analysis/binding/provenance facts
+to carry them; do not introduce a second resolver per provider.
+
+Recognise common idioms through the existing semantic owners:
+
+- Names assembled with constants, `list`, `format`, string concatenation and
+  `${ns}::name`; flow-sensitive constant command heads and finite alternatives.
+- List-built callbacks, `{*}` command prefixes, `namespace code` and `inscope`,
+  with their captured namespace and actual invocation frame.
+- `rename`, `interp alias`, export/import/forget and ensemble maps, including
+  wrapper commands with declared prefix arguments and binding lifecycle.
+- `global`, `variable`, `upvar`, `namespace upvar`, array-element names and
+  frame-forwarding wrappers with known argument/effect contracts.
+- Package/autoload/source conventions with indexed files, declared overlays
+  or stubs and proved load order; repeated procedure factories over finite
+  literal inputs and recognisable definition-body grammars.
+- TclOO object-handle provenance, `my`/`self`/forwards/mixins, supported framework
+  definers, and shared execution scopes such as Tcltest setup/body/cleanup.
+- F5 `call` and rule namespaces where rule/profile context is known, keeping
+  protocol command prefixes and BIG-IP object paths distinct.
+
+Knowing the bytes of a computed name does not prove which command occupies its
+slot when invoked. Knowing a callback prefix does not prove when or in which
+frame it executes. Establish these separately. Pattern recognition consumes
+registry roles, binding facts, value provenance and shared name/frame policy;
+framework knowledge belongs in registry declarations or supported summaries.
+
+Each heuristic needs concrete preconditions, evidence, mutation/invalidation
+rules, a bounded evaluation budget and an abstention reason. Unknown writes,
+traces, eval/source/uplevel, dynamic factories and external package effects
+widen or invalidate affected facts according to their proved effects. Preserve
+facts outside that affected scope. A single candidate in an incomplete workspace
+does not prove uniqueness; a variable read in an opaque frame does not prove it
+is unset. Avoid blanket diagnostic suppression and confident false positives.
+
+Measure useful coverage as well as correctness. Test ordinary developer idioms
+that should resolve, near-matching patterns that must not resolve, shadowed
+builders, intervening mutation, conditional definitions and cross-file order.
+Retain real-oracle programs and outcomes for semantic claims. Review rejected
+patterns to improve coverage rather than relaxing the proof required for edits
+or optimisations. See [the pattern acceptance matrix](../../../experiments/name-handling/case-catalogue.md#dynamic-pattern-acceptance).
+
 ## Surface boundaries
 
 LSP providers, server middleware, CLI tools and MCP tools consume common
