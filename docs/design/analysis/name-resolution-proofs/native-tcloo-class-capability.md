@@ -66,7 +66,7 @@ No appliance observation for this question.
 
 - `native_oo` (implementation): [rust/tcl-runtime-api/src/native_oo.rs](../../../../rust/tcl-runtime-api/src/native_oo.rs). SHA-256 `a33ee52d1b12df77cea1403653d2a58b05017a8ecf4e229c7fb7de20713c513a`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
 - `native_compilation` (implementation): [rust/tcl-runtime-api/src/native_compilation.rs](../../../../rust/tcl-runtime-api/src/native_compilation.rs). SHA-256 `dc642bbf0181e849561b09db0c5ec98b5097444dda05aa80bc365607b2de4171`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
-- `native_bootstrap` (implementation): [rust/tcl-vm/src/cmd_oo/native_bootstrap.rs](../../../../rust/tcl-vm/src/cmd_oo/native_bootstrap.rs). SHA-256 `ccaff3640251ebfcb6ec76c035ff77cce93fc9a987ea1407ab2a30c912810d92`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
+- `native_bootstrap` (implementation): [rust/tcl-vm/src/cmd_oo/native_bootstrap.rs](../../../../rust/tcl-vm/src/cmd_oo/native_bootstrap.rs). SHA-256 `2ee400961d8694daf181ba7223c69af461f4b63e2f6f9be7c65aacbf0fbf0b7d`. Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest.
 
 ## Source inspection
 

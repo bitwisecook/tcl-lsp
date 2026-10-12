@@ -26669,7 +26669,7 @@
           "id": "naming-command-native-command-entry-currency-native_body_artifact.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact.rs",
-          "sha256": "214486c743502f12431642b69b1791ebb1ad4df4cff49c1fa0c7898cad234092",
+          "sha256": "88a19960571a9c71ace5bc2a34627dd9412003375d6d07c4c89024de7e6839c9",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -95956,7 +95956,7 @@
           "id": "naming-ensemble-original-missing-selector-source-usage-runtime-rust-src-interp.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         },
         {
@@ -95977,7 +95977,7 @@
           "id": "naming-ensemble-original-missing-selector-source-usage-rust-tcl-vm-src-interp.rs",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp.rs",
-          "sha256": "43a04c7a3df72fce2647776f4b9e43fd42a54a4ff18777e90091ed0b29e7408e",
+          "sha256": "3d479b8809ca2c890c63925f940ae05c45ab70774435790fd14c661d4d0b01fa",
           "description": "Current source/API owner and software assertion definition; no executed Rust or native provider result."
         }
       ],
@@ -103985,21 +103985,21 @@
           "id": "implementation2",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_event.rs",
-          "sha256": "909c1c6dd066fe140d0bb9d0699cbc7012359a51f6e960a6069af49b110336b8",
+          "sha256": "7e3477ce9bae5ce48f9d9975884c234e0049ef1dd37c0173b54522fccfb09c3f",
           "description": "Current implementation source only; no native launch or Rust execution inferred."
         },
         {
           "id": "implementation3",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_event.rs",
-          "sha256": "c634b5eb552658ec2426b54bd855941f9ceaff3d38c54622e71c16e6693c59dc",
+          "sha256": "c37e4957633efd221adaf90fa098ab385e21be3f0d97507027e30d35eab7ef4d",
           "description": "Current implementation source only; no native launch or Rust execution inferred."
         },
         {
           "id": "implementation4",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/native_event_context.rs",
-          "sha256": "68615a38cb60f5b938ca0e2d3307c8fac9d00674f0cdcd3a0c6521860bc9193b",
+          "sha256": "8e1402b5bdc6b38cdd8c9807b3afc602a447d6af9d9548dc5b85f9345e65fa9f",
           "description": "Current implementation source only; no native launch or Rust execution inferred."
         },
         {
@@ -140409,7 +140409,7 @@
           "id": "naming-interpreter-original-child-host-refusal-transport-native_children.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_children.rs",
-          "sha256": "031e15ade1cc46697b47b7705d5526ada7c5e933e192ae14cde670fe4dc1b4d5",
+          "sha256": "75ff0bee80accee5234303ea7442255a400d2f8b4fd4842c9ad4ba8b3e6b867f",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -158319,14 +158319,14 @@
           "id": "naming-list-original-value-append-storage-currency-list.rs",
           "role": "implementation",
           "path": "runtime/rust/src/list.rs",
-          "sha256": "9d5f31d716c5b9fa55184d194f3e13137d7bfba0d5ef1bc35b57aefa74b14854",
+          "sha256": "58b0d91f856c78b015c26ff4b48bd23b5fdd5499b01854d30e96202a2475f10a",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
           "id": "naming-list-original-value-append-storage-currency-value_ops.rs",
           "role": "implementation",
           "path": "runtime/rust/src/value_ops.rs",
-          "sha256": "dbead35bcdc32a6a8cc0e34cfd54da0d5fa258855fcefa7267d9a5f04d5f405b",
+          "sha256": "2441b1e3513df815c2a527ea8313196e62f909adde821fcf93c82cf74134a41c",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -209136,7 +209136,7 @@
           "id": "naming-procedure-original-usage-called-name-and-formatter-runtime-rust-src-interp.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome."
         },
         {
@@ -209150,7 +209150,7 @@
           "id": "naming-procedure-original-usage-called-name-and-formatter-rust-tcl-vm-src-exec.rs",
           "role": "implementation",
           "path": "rust/tcl-vm/src/exec.rs",
-          "sha256": "2f252c4ab13edc2ca841224483bac83ea982ee12ff26085d8405cc1c3855ae5d",
+          "sha256": "d4575b75531a60e48d78f7013784c5b75ba56033cf90a3a571c54025835bbcdf",
           "description": "Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome."
         }
       ],
@@ -210973,14 +210973,14 @@
           "id": "receiver-current642-3130fecefbdfb6d3",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_properties.rs",
-          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "sha256": "0ecb26738bc7a0740d53a635badb71ffa62489c058404d4a52544ef9b31f7b65",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         },
         {
           "id": "receiver-current642-8ce69af7c7160e4b",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
-          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "sha256": "7dcb4b9ac8026652e71d6260660878501782be4a37f361d9be96c5338db5df5d",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
@@ -211138,14 +211138,14 @@
           "id": "receiver-current642-3130fecefbdfb6d3",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_properties.rs",
-          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "sha256": "0ecb26738bc7a0740d53a635badb71ffa62489c058404d4a52544ef9b31f7b65",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         },
         {
           "id": "receiver-current642-8ce69af7c7160e4b",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
-          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "sha256": "7dcb4b9ac8026652e71d6260660878501782be4a37f361d9be96c5338db5df5d",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
@@ -212587,14 +212587,14 @@
           "id": "receiver-current642-3130fecefbdfb6d3",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_properties.rs",
-          "sha256": "b35eb59faae0a588f0b15b3f1f3969c28b0b57b4473aecb58e6c72407a527fa3",
+          "sha256": "0ecb26738bc7a0740d53a635badb71ffa62489c058404d4a52544ef9b31f7b65",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         },
         {
           "id": "receiver-current642-8ce69af7c7160e4b",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
-          "sha256": "258a825eeb851678c253a4394fb6e939740ef22736e2dd6f165a91953c15b4f1",
+          "sha256": "7dcb4b9ac8026652e71d6260660878501782be4a37f361d9be96c5338db5df5d",
           "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
         }
       ],
@@ -223788,14 +223788,14 @@
           "id": "naming-runtime-compiled-procedure-fallback-and-source-log-codegen_abi.rs",
           "role": "implementation",
           "path": "runtime/rust/src/codegen_abi.rs",
-          "sha256": "23fa58e4c1634a52d16087c362ac046862e2c1fb020768dcb6506c82dd8e3039",
+          "sha256": "778398194539f7f9f82f1c51442414165954b3bd74eeffc20900b17a7c4c6aec",
           "description": "Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result."
         },
         {
           "id": "naming-runtime-compiled-procedure-fallback-and-source-log-interp.rs",
           "role": "implementation",
           "path": "runtime/rust/src/interp.rs",
-          "sha256": "6793e998d8865986c97cf68490a83478c0b1ee2e96113562a542d69aa0ff2921",
+          "sha256": "95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7",
           "description": "Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result."
         }
       ],
@@ -223941,7 +223941,7 @@
           "id": "native_bootstrap",
           "role": "implementation",
           "path": "rust/tcl-vm/src/cmd_oo/native_bootstrap.rs",
-          "sha256": "ccaff3640251ebfcb6ec76c035ff77cce93fc9a987ea1407ab2a30c912810d92",
+          "sha256": "2ee400961d8694daf181ba7223c69af461f4b63e2f6f9be7c65aacbf0fbf0b7d",
           "description": "Current independently issued backend observation implementation; Root final formatting may reissue this mutable source digest."
         }
       ],
@@ -243016,7 +243016,7 @@
           "id": "e3",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact/native_substitution.rs",
-          "sha256": "52b13c74f652f327c77299c3834972a4fee13c119e8614954857cbebe2b44dae",
+          "sha256": "224069297d6ec5b43e2d40bab2c8f28f7342f33b262fafbed7826d73980cb5a6",
           "description": "Implementation source at the recorded digest. It is not native execution evidence."
         }
       ],
@@ -322636,14 +322636,14 @@
         {
           "id": "naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-interp.rs",
           "path": "rust/tcl-vm/src/interp.rs",
-          "sha256": "43a04c7a3df72fce2647776f4b9e43fd42a54a4ff18777e90091ed0b29e7408e",
+          "sha256": "3d479b8809ca2c890c63925f940ae05c45ab70774435790fd14c661d4d0b01fa",
           "role": "implementation",
           "description": "Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result."
         },
         {
           "id": "naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec.rs",
           "path": "rust/tcl-vm/src/exec.rs",
-          "sha256": "2f252c4ab13edc2ca841224483bac83ea982ee12ff26085d8405cc1c3855ae5d",
+          "sha256": "d4575b75531a60e48d78f7013784c5b75ba56033cf90a3a571c54025835bbcdf",
           "role": "implementation",
           "description": "Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result."
         },
@@ -323862,7 +323862,7 @@
           "id": "original-source-consumer-4a477da09249",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_context.rs",
-          "sha256": "e85789abb501883498841ce7d565a5a07e47f360891aa53404c38c2bd0fb5b4f",
+          "sha256": "8fa3416823689222a96dc3caebf50556da1ae3a51a06e73021d694a8768b8ecf",
           "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
         },
         {
@@ -324037,7 +324037,7 @@
           "id": "receiver-current642b-5f1c18f6e8a06931",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/variable_cleanup.rs",
-          "sha256": "a6df4338563eda18a498014b5ebad0dded9970563dd5d21741856c7d9d528711",
+          "sha256": "eba54013ce58d18a91dfa90be1d072912ed7d6a8b176e580b2839893b796d4df",
           "description": "Actual authored OO/definition/variable-cleanup/bootstrap source and registered software control inspected for its selected current ownership/currency/typed-error purpose. This hash supplies no executed assertion, Native observation, callback/reference equivalence or independent lookup purpose."
         },
         {
@@ -546563,7 +546563,7 @@
         {
           "id": "rust-tcl-vm-src-cmd_oo.rs",
           "path": "rust/tcl-vm/src/cmd_oo.rs",
-          "sha256": "919116b182df9f5d26028a99139e126d3e31984aebc613780aef8821badd93c1",
+          "sha256": "f8223e889a949d91aefe1334e5fa89ec4e3771f536e7a815d7c7786ff2d457f9",
           "role": "implementation",
           "description": "Current inspected selected role, real Foundation report owner, actual reached-chain producer, parent registration or four unexecuted software control definitions. No physical external execution or Rust assertion outcome."
         },
@@ -556834,7 +556834,7 @@
           "id": "implementation-source-1",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_context.rs",
-          "sha256": "e85789abb501883498841ce7d565a5a07e47f360891aa53404c38c2bd0fb5b4f",
+          "sha256": "8fa3416823689222a96dc3caebf50556da1ae3a51a06e73021d694a8768b8ecf",
           "description": "Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome."
         },
         {
@@ -557446,7 +557446,7 @@
           "id": "implementation-source-1",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_context.rs",
-          "sha256": "e85789abb501883498841ce7d565a5a07e47f360891aa53404c38c2bd0fb5b4f",
+          "sha256": "8fa3416823689222a96dc3caebf50556da1ae3a51a06e73021d694a8768b8ecf",
           "description": "Exact current Class facet or receiver/report continuation and finite software definitions. Only the described source/API target continuity is bound; physical original C pointers, payload/refcount lifetime and matching owned execution are independent."
         },
         {
@@ -573698,14 +573698,14 @@
           "id": "implementation-source-1",
           "role": "implementation",
           "path": "runtime/rust/src/cmd_oo/native_context.rs",
-          "sha256": "e85789abb501883498841ce7d565a5a07e47f360891aa53404c38c2bd0fb5b4f",
+          "sha256": "8fa3416823689222a96dc3caebf50556da1ae3a51a06e73021d694a8768b8ecf",
           "description": "Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent."
         },
         {
           "id": "implementation-source-2",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_variable_names.rs",
-          "sha256": "3366bc4a8d39ccd8f447488a18f864afb2a8bbc043722553354695bfe57306f8",
+          "sha256": "3f47fb74a8a020e667fd1defb52e219d251cb3840ad8a98166542c03ca284506",
           "description": "Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent."
         },
         {
