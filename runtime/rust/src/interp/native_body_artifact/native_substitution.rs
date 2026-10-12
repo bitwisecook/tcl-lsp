@@ -49,8 +49,8 @@ impl Interp {
         original: *mut TclObj,
         flags: NativeSubstitutionFlags,
     ) -> Result<Rc<NativeSubstitutionArtifact>, Code> {
-        let scope = native_operation_currency::NativeOperationScope::enter(self)
-            .map_err(|first| self.refuse_native_execution(first))?;
+        let entered =
+            BodyObjectOperation::capture(self).map_err(|first| self.report_cmd_error(first))?;
         let reached = (|| -> Result<Rc<NativeSubstitutionArtifact>, Code> {
             obj::check_native_liveness(original)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -76,22 +76,23 @@ impl Interp {
                 return Ok(current);
             }
             if cache(original).is_some() {
-                obj::change_type(original, core::ptr::null(), 0);
-                scope
-                    .currency()
-                    .ensure_current_or_refuse()
-                    .map_err(|first| self.refuse_native_execution(first))?;
+                obj::change_type_with_stage_check(original, core::ptr::null(), 0, &mut || {
+                    entered.check(self)
+                })
+                .map_err(|error| self.report_cmd_error(entered.retain(error)))?;
+                entered
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
                 obj::check_native_liveness(original_lifetime.as_ptr())
                     .map_err(|error| self.report_cmd_error(error.into()))?;
             }
-            let bytes = ValueOps::native_string_bytes(self, &original);
-            scope
-                .currency()
-                .ensure_current_or_refuse()
-                .map_err(|first| self.refuse_native_execution(first))?;
+            let bytes = entered.bytes(self, original);
+            entered
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
             obj::check_native_liveness(original_lifetime.as_ptr())
                 .map_err(|error| self.report_cmd_error(error.into()))?;
-            let bytes = bytes.map_err(|error| self.report_cmd_error(error.into()))?;
+            let bytes = bytes.map_err(|error| self.report_cmd_error(error))?;
             stamp = self
                 .native_body_stamp(self.current_ns.get(), None)
                 .ok_or_else(|| {
@@ -131,7 +132,7 @@ impl Interp {
             .map_err(|_| {
                 self.report_cmd_error(unavailable("native substitution template geometry").into())
             })?;
-            let (lvt, local_cache) = self.native_body_local_table(&stamp, &[])?;
+            let (lvt, local_cache) = self.native_body_local_table(&stamp, &[], &entered)?;
             let mut builder = Builder {
                 interp: self,
                 image: image.clone(),
@@ -161,6 +162,9 @@ impl Interp {
             let literals = builder
                 .materialize_body_literals(original)
                 .map_err(|error| builder.report_compilation_error(error))?;
+            entered
+                .check(builder.interp)
+                .map_err(|first| builder.interp.report_cmd_error(first))?;
             if builder
                 .interp
                 .native_body_stamp(stamp.namespace, None)
@@ -187,17 +191,13 @@ impl Interp {
                 empty,
                 _local_cache: local_cache,
             });
-            obj::change_type(
-                original,
-                &SUBSTITUTION_TYPE,
-                Box::into_raw(Box::new(Rc::clone(&artifact))) as usize as u64,
-            );
+            install(original, &artifact, &SUBSTITUTION_TYPE, &entered, self)
+                .map_err(|error| self.report_cmd_error(error))?;
             Ok(artifact)
         })();
-        scope
-            .currency()
-            .ensure_current_or_refuse()
-            .map_err(|first| self.refuse_native_execution(first))?;
+        entered
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         reached
     }
 

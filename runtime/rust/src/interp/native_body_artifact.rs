@@ -292,12 +292,30 @@ fn cache(value: *mut TclObj) -> Option<Rc<NativeBodyArtifact>> {
     // SAFETY: exact descriptor identity authenticates this boxed owner.
     Some(unsafe { &*(obj::internal_rep(value) as usize as *const Rc<NativeBodyArtifact>) }.clone())
 }
-fn install(value: *mut TclObj, artifact: &Rc<NativeBodyArtifact>) {
-    obj::change_type(
-        value,
-        &BYTECODE_TYPE,
-        Box::into_raw(Box::new(Rc::clone(artifact))) as usize as u64,
-    );
+fn install<T>(
+    value: *mut TclObj,
+    artifact: &Rc<T>,
+    descriptor: *const obj::TclObjType,
+    entered: &native_list_conversion::BodyObjectOperation,
+    actual: &Interp,
+) -> Result<(), tcl_cmd_core::CmdError> {
+    entered.check(actual)?;
+    let incoming = Box::into_raw(Box::new(Rc::clone(artifact)));
+    let reached =
+        obj::change_type_with_stage_check(value, descriptor, incoming as usize as u64, &mut || {
+            entered.check(actual)?;
+            obj::check_native_liveness(value).map_err(|error| entered.refuse(error))
+        });
+    match reached {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let first = entered.retain(error);
+            // The same primary worker leaves this exact incoming owner unadopted.
+            unsafe { drop(Box::from_raw(incoming)) };
+            entered.check(actual)?;
+            Err(first)
+        }
+    }
 }
 
 struct Builder<'a> {
@@ -1812,6 +1830,7 @@ impl Interp {
         &mut self,
         stamp: &CacheStamp,
         names: &[tcl_runtime_api::NameBytes],
+        entered: &native_list_conversion::BodyObjectOperation,
     ) -> Result<(LocalVarTable, Option<RetainedBodyLocalTable>), Code> {
         let borrowed_table = if stamp.borrowed_table.is_some() {
             self.frames.borrow().native_local_name_table().cloned()
@@ -1827,15 +1846,34 @@ impl Interp {
                     .map(|name| {
                         name.as_ref()
                             .map(|name| {
-                                ValueOps::native_string_bytes(self, &name.as_ptr())
+                                entered
+                                    .bytes_using(self, name.as_ptr(), &|| {
+                                        entered.check(self)?;
+                                        let same_table = self
+                                            .frames
+                                            .borrow()
+                                            .native_local_name_table()
+                                            .is_some_and(|current| Rc::ptr_eq(current, table));
+                                        if !same_table
+                                            || self
+                                                .native_body_stamp(stamp.namespace, None)
+                                                .as_ref()
+                                                != Some(stamp)
+                                        {
+                                            return Err(entered.refuse(unavailable(
+                                                "native body borrowed table changed",
+                                            )));
+                                        }
+                                        Ok(())
+                                    })
                                     .map(|bytes| tcl_runtime_api::NameBytes::from(bytes.as_ref()))
                             })
                             .transpose()
                     })
-                    .collect::<Result<Vec<_>, ValueError>>()
+                    .collect::<Result<Vec<_>, tcl_cmd_core::CmdError>>()
             })
             .transpose()
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+            .map_err(|error| self.report_cmd_error(error))?;
         // Canonical name materialisation may call a native updater. The same
         // table and physical compiler context must still own the compilation.
         if stamp.borrowed_table.is_some()
@@ -1865,8 +1903,8 @@ impl Interp {
         namespace: NsId,
         procedure: Option<&Rc<ProcDef>>,
     ) -> Result<Option<Rc<NativeBodyArtifact>>, Code> {
-        let scope = native_operation_currency::NativeOperationScope::enter(self)
-            .map_err(|first| self.refuse_native_execution(first))?;
+        let entered = native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         let reached = (|| -> Result<Option<Rc<NativeBodyArtifact>>, Code> {
             obj::check_native_liveness(original)
                 .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -1897,20 +1935,21 @@ impl Interp {
             {
                 return Ok(Some(current));
             }
-            let bytes = ValueOps::native_string_bytes(self, &original);
-            scope
-                .currency()
-                .ensure_current_or_refuse()
-                .map_err(|first| self.refuse_native_execution(first))?;
+            let bytes = entered.bytes(self, original);
+            entered
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
             obj::check_native_liveness(original_lifetime.as_ptr())
                 .map_err(|error| self.report_cmd_error(error.into()))?;
-            let bytes = bytes.map_err(|error| self.report_cmd_error(error.into()))?;
+            let bytes = bytes.map_err(|error| self.report_cmd_error(error))?;
             if cache(original).is_some() {
-                obj::change_type(original, core::ptr::null(), 0);
-                scope
-                    .currency()
-                    .ensure_current_or_refuse()
-                    .map_err(|first| self.refuse_native_execution(first))?;
+                obj::change_type_with_stage_check(original, core::ptr::null(), 0, &mut || {
+                    entered.check(self)
+                })
+                .map_err(|error| self.report_cmd_error(entered.retain(error)))?;
+                entered
+                    .check(self)
+                    .map_err(|first| self.report_cmd_error(first))?;
                 obj::check_native_liveness(original_lifetime.as_ptr())
                     .map_err(|error| self.report_cmd_error(error.into()))?;
             }
@@ -1955,7 +1994,7 @@ impl Interp {
                     .map(|param| tcl_runtime_api::NameBytes::from(param.name.as_slice()))
                     .collect()
             });
-            let (lvt, borrowed_table) = self.native_body_local_table(&stamp, &names)?;
+            let (lvt, borrowed_table) = self.native_body_local_table(&stamp, &names, &entered)?;
             let mut builder = Builder {
                 interp: self,
                 image: image.clone(),
@@ -1973,6 +2012,9 @@ impl Interp {
                 .script(region, 0)
                 .and_then(|()| builder.finish_compactible_body(region, original));
             let compilation = builder.check_compilation_stage(compilation);
+            entered
+                .check(builder.interp)
+                .map_err(|first| builder.interp.report_cmd_error(first))?;
             let literals = match compilation {
                 Ok(literals) => literals,
                 Err(error) => {
@@ -2022,24 +2064,22 @@ impl Interp {
             if let (Some(procedure), Some(layout)) = (procedure, artifact.locals.as_ref()) {
                 procedure.retain_native_compiled_names(layout);
             }
-            install(original, &artifact);
-            scope
-                .currency()
-                .ensure_current_or_refuse()
-                .map_err(|first| self.refuse_native_execution(first))?;
+            install(original, &artifact, &BYTECODE_TYPE, &entered, self)
+                .map_err(|error| self.report_cmd_error(error))?;
+            entered
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
             obj::check_native_liveness(original_lifetime.as_ptr())
                 .map_err(|error| self.report_cmd_error(error.into()))?;
             drop(original_lifetime);
-            scope
-                .currency()
-                .ensure_current_or_refuse()
-                .map_err(|first| self.refuse_native_execution(first))?;
+            entered
+                .check(self)
+                .map_err(|first| self.report_cmd_error(first))?;
             Ok(Some(artifact))
         })();
-        scope
-            .currency()
-            .ensure_current_or_refuse()
-            .map_err(|first| self.refuse_native_execution(first))?;
+        entered
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
         reached
     }
 
@@ -4205,3 +4245,7 @@ mod original_return_parent_tests;
 #[cfg(test)]
 #[path = "native_body_artifact/original_word_input_tests.rs"]
 mod original_word_input_tests;
+
+#[cfg(test)]
+#[path = "native_body_artifact/original_preparation_boundary_tests.rs"]
+mod original_preparation_boundary_tests;
