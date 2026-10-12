@@ -1,0 +1,13 @@
+{
+  "scoped_paths": 32,
+  "shared_frozen_paths": [
+    "rust/tcl-syntax/src/native_tcl_utf.rs",
+    "rust/tcl-syntax/src/value.rs",
+    "rust/tcl-cmd-core/src/list.rs"
+  ],
+  "unlinked_runtime_context": [
+    "runtime/rust/src/cmd_clock.rs",
+    "runtime/rust/src/interp.rs"
+  ],
+  "authority": "Explicit scoped hashes only; no allRust or unlinked-runtime compiled currency claim."
+}

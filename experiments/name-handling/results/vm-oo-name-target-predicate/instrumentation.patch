@@ -1,0 +1,167 @@
+--- a/rust/tcl-vm/src/cmd_oo/original_name_operands.rs
++++ b/rust/tcl-vm/src/cmd_oo/original_name_operands.rs
+@@ -5,6 +5,26 @@
+ use std::rc::Weak;
+ use tcl_cmd_core::CmdError;
+ use tcl_runtime_api::NsId;
++
++#[cfg(test)]
++fn trace_target_predicate(vm: &Vm, id: OoId, stage: &str, current: bool) {
++    if std::env::var_os("TCL_LSP_VM_OO_TARGET_DIAGNOSTIC").is_some() {
++        let interpreter = vm.native_interpreter_identity();
++        eprintln!(
++            "OO_TARGET owner={} interpreter={} target={} stage={stage} current={current}",
++            interpreter.owner, interpreter.interpreter, id.0,
++        );
++    }
++}
++
++macro_rules! observed_target {
++    ($vm:expr, $id:expr, $stage:literal, $predicate:expr) => {{
++        let current = $predicate;
++        #[cfg(test)]
++        trace_target_predicate($vm, $id, $stage, current);
++        current
++    }};
++}
+ 
+ #[derive(Clone)]
+ pub(super) struct OriginalOoTarget {
+@@ -17,9 +37,15 @@
+ }
+ impl OriginalOoTarget {
+     fn capture(vm: &Vm, class: bool, id: OoId) -> Option<Self> {
+-        let object = vm.oo.objects.get(&id)?;
++        let object = vm.oo.objects.get(&id);
++        #[cfg(test)]
++        trace_target_predicate(vm, id, "capture.object_present", object.is_some());
++        let object = object?;
+         let facet = if class {
+-            Some(Rc::downgrade(&vm.oo.classes.get(&id)?.birth))
++            let facet = vm.oo.classes.get(&id);
++            #[cfg(test)]
++            trace_target_predicate(vm, id, "capture.class_present", facet.is_some());
++            Some(Rc::downgrade(&facet?.birth))
+         } else {
+             None
+         };
+@@ -33,27 +59,63 @@
+         })
+     }
+     pub(super) fn is_current(&self, vm: &Vm) -> bool {
+-        let Some(original) = self.object.upgrade() else {
++        let original = self.object.upgrade();
++        #[cfg(test)]
++        trace_target_predicate(vm, self.id, "current.object_birth_live", original.is_some());
++        let Some(original) = original else {
+             return false;
+         };
+-        let Some(object) = vm.oo.objects.get(&self.id) else {
++        let object = vm.oo.objects.get(&self.id);
++        #[cfg(test)]
++        trace_target_predicate(vm, self.id, "current.object_present", object.is_some());
++        let Some(object) = object else {
+             return false;
+         };
+-        Rc::ptr_eq(&original, &object.cached_name)
+-            && object.creation_id == self.creation
+-            && object.namespace_token == self.namespace
+-            && object.destroyed == self.destroyed
+-            && self
+-                .namespace
+-                .is_none_or(|namespace| vm.native_namespace_token_has_owner(namespace))
+-            && self.class.as_ref().is_none_or(|birth| {
+-                birth.upgrade().is_some_and(|birth| {
+-                    vm.oo
+-                        .classes
+-                        .get(&self.id)
+-                        .is_some_and(|facet| Rc::ptr_eq(&birth, &facet.birth))
++        observed_target!(
++            vm,
++            self.id,
++            "current.object_birth_same",
++            Rc::ptr_eq(&original, &object.cached_name)
++        ) && observed_target!(
++            vm,
++            self.id,
++            "current.creation_same",
++            object.creation_id == self.creation
++        ) && observed_target!(
++            vm,
++            self.id,
++            "current.namespace_same",
++            object.namespace_token == self.namespace
++        ) && observed_target!(
++            vm,
++            self.id,
++            "current.destroyed_same",
++            object.destroyed == self.destroyed
++        ) && self.namespace.is_none_or(|namespace| {
++            observed_target!(
++                vm,
++                self.id,
++                "current.namespace_owner",
++                vm.native_namespace_token_has_owner(namespace)
++            )
++        }) && self.class.as_ref().is_none_or(|birth| {
++            let original = birth.upgrade();
++            #[cfg(test)]
++            trace_target_predicate(vm, self.id, "current.class_birth_live", original.is_some());
++            original.is_some_and(|birth| {
++                let facet = vm.oo.classes.get(&self.id);
++                #[cfg(test)]
++                trace_target_predicate(vm, self.id, "current.class_present", facet.is_some());
++                facet.is_some_and(|facet| {
++                    observed_target!(
++                        vm,
++                        self.id,
++                        "current.class_birth_same",
++                        Rc::ptr_eq(&birth, &facet.birth)
++                    )
+                 })
+             })
++        })
+     }
+ }
+ 
+--- a/rust/tcl-vm/src/interp/native_namespace_names.rs
++++ b/rust/tcl-vm/src/interp/native_namespace_names.rs
+@@ -98,6 +98,10 @@
+     pub(crate) fn native_namespace_token_has_owner(&self, namespace: NsId) -> bool {
+         let world = self.name_world.borrow();
+         let Some(path) = world.ns_arena.get(namespace.0 as usize) else {
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_VM_OO_TARGET_DIAGNOSTIC").is_some() {
++                eprintln!("OO_NAMESPACE token={} arena_present=false", namespace.0);
++            }
+             return false;
+         };
+         if self
+@@ -109,11 +113,25 @@
+             // of C namespace tree registration. NsId births are never reused.
+             return world.is_live() && world.jim_namespace_objects.contains_key(&namespace);
+         }
+-        world.is_live()
++        let current = world.is_live()
+             && ((world.namespaces.contains(path) && world.ns_intern.get(path) == Some(&namespace))
+                 || world.dying_namespaces.contains(&namespace)
+                 || world.ns_deferral.owners.contains_key(&namespace)
+-                || world.ns_deferral.retained.contains_key(&namespace))
++                || world.ns_deferral.retained.contains_key(&namespace));
++        #[cfg(test)]
++        if !current && std::env::var_os("TCL_LSP_VM_OO_TARGET_DIAGNOSTIC").is_some() {
++            eprintln!(
++                "OO_NAMESPACE token={} arena_present=true world_live={} declared={} intern_same={} dying={} deferred_owner={} retained={}",
++                namespace.0,
++                world.is_live(),
++                world.namespaces.contains(path),
++                world.ns_intern.get(path) == Some(&namespace),
++                world.dying_namespaces.contains(&namespace),
++                world.ns_deferral.owners.contains_key(&namespace),
++                world.ns_deferral.retained.contains_key(&namespace),
++            );
++        }
++        current
+     }
+ 
+     pub(crate) fn native_namespace_name_token(&self, namespace: NsId) -> Result<Token, ValueError> {

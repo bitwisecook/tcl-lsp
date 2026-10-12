@@ -65,16 +65,9 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
     private var disposed = false
 
     /**
-     * Which sample-dialect pin is the studio's current intent.
-     *
-     * Each pin now waits for the lazily-started LSP server, so two can be in
-     * flight at once — the one sent when the studio mounts, and one from a
-     * picker change made while that is still waiting.  They are independent
-     * pooled tasks with no ordering between them, so without this the initial
-     * dialect could be applied *after* the newer selection and leave the sample
-     * disagreeing with the UI until the user changed it again.  A pin claims
-     * a generation before it is dispatched and rechecks
-     * it before sending, so only the newest intent reaches the server.
+     * Pins wait for the lazily-started server on independent pooled tasks.
+     * Claim a generation before dispatch and recheck under the send lock to
+     * drop waiting requests superseded by a newer dialect selection.
      */
     private val dialectPinGeneration = AtomicLong()
 
@@ -195,12 +188,8 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
         // in is not.
         val generation = dialectPinGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
-            // Start the server and wait, rather than give up on one that has
-            // not started yet. The server is launched lazily by the first Tcl
-            // editor, so in a project with no Tcl file already open the studio
-            // is the first thing to want it — and a dropped pin is never
-            // retried, leaving the sample under generic Tcl for the rest of
-            // the session. Same wait the Compiler Explorer has always used.
+            // Wait for the lazily-started server so the studio can pin its
+            // sample before any Tcl editor has opened.
             val server = awaitRunningTclLspServer(project) ?: run {
                 SPEC_LOG.warn("No Tcl LSP server to pin the Spec Studio sample dialect on")
                 return@executeOnPooledThread

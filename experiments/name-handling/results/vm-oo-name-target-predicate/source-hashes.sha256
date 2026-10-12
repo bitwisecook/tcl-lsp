@@ -1,0 +1,3 @@
+c42806b9b98bcd58ba5358d2d81b3b834fface5f4e4670dea6458e496703a68d  rust/tcl-vm/src/cmd_oo.rs
+c0604e82dd1f5793a31475798f25ecebe3b2d0faf3f348d5589e9ab1564fc8a0  rust/tcl-vm/src/cmd_oo/original_name_operands.rs
+c88beeec6d01294ac771daa7d2c5bca1e46197bb7209b089c3684cc20510fcc8  rust/tcl-vm/src/interp/native_namespace_names.rs

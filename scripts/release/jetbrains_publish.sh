@@ -69,15 +69,9 @@ fi
 [ -f "$zip" ] || { echo "error: plugin zip not found: $zip" >&2; exit 1; }
 echo "Uploading $zip to the JetBrains Marketplace (xmlId=$XML_ID${channel:+, channel=$channel})"
 
-# The status check is ours rather than curl's --fail-with-body, which exits
-# non-zero on a 4xx: inside the http_code="$(curl …)" assignment under `set -e`
-# that aborts the script *before* the body is printed, so the Marketplace's
-# stated reason is lost exactly when it is needed.  (That is how a v2.1.16 eap
-# upload failed with a bare `curl: (22) … error: 400` and nothing else.)  So
-# curl only transports here: its exit status is captured without killing the
-# shell, the body is printed unconditionally, and the HTTP code is judged
-# afterwards.  channel is passed only when non-empty so a stable release
-# genuinely uses the Marketplace default.
+# Capture curl's exit status and response body before checking the HTTP code,
+# so `set -e` cannot hide the Marketplace's rejection reason. Pass channel
+# only when non-empty so stable releases use the Marketplace default.
 response_body="$(mktemp)"
 trap 'rm -f "$response_body"' EXIT
 

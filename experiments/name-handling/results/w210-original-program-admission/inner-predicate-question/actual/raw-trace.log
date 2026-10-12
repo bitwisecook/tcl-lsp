@@ -1,0 +1,24 @@
+W210_INNER stage=metadata-context verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=token-binding verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=original-site verdict=Some source_hash=37b290e8a91613f4
+W210_INNER site=1076 input_equal=Some(true)
+W210_INNER stage=original-image-config verdict=Current source_hash=37b290e8a91613f4
+W210_INNER stage=original-source-advice-purpose verdict=NonLogical source_hash=37b290e8a91613f4
+W210_INNER stage=metadata-context verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=token-binding verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=original-site verdict=Some source_hash=37b290e8a91613f4
+W210_INNER site=441 input_equal=Some(true)
+W210_INNER stage=original-image-config verdict=Current source_hash=37b290e8a91613f4
+W210_INNER stage=original-source-advice-purpose verdict=NonLogical source_hash=37b290e8a91613f4
+W210_INNER stage=metadata-context verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=token-binding verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=original-site verdict=Some source_hash=37b290e8a91613f4
+W210_INNER site=760 input_equal=Some(true)
+W210_INNER stage=original-image-config verdict=Current source_hash=37b290e8a91613f4
+W210_INNER stage=original-source-advice-purpose verdict=NonLogical source_hash=37b290e8a91613f4
+W210_INNER stage=metadata-context verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=token-binding verdict=Some source_hash=37b290e8a91613f4
+W210_INNER stage=original-site verdict=Some source_hash=37b290e8a91613f4
+W210_INNER site=58 input_equal=Some(true)
+W210_INNER stage=original-image-config verdict=Current source_hash=37b290e8a91613f4
+W210_INNER stage=original-source-advice-purpose verdict=NonLogical source_hash=37b290e8a91613f4

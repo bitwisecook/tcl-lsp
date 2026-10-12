@@ -1,0 +1,60 @@
+{
+  "question": "Does the first source-purpose predicate inside the refusing original procedure-read factory decline the unchanged original C8.4 input?",
+  "answer": "No. All4prefix/source-purpose joins pass with matching retained input. Each source-purpose verdict isNonLogical, so the existing nonLogical/native-header grammar branch applies; no Native entry or execution is established. A later factory guard remains unmeasured.",
+  "test": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 2
+  },
+  "check": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T22:20:17.811431+00:00",
+    "elapsed_seconds": 180.511,
+    "exit_code": 101,
+    "counts": {
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "observations": {
+    "source_hash_kind": "DefaultHasher counted source bytes",
+    "source_hash": "37b290e8a91613f4",
+    "site_offsets": [
+      1076,
+      441,
+      760,
+      58
+    ],
+    "all_metadata_context_some": true,
+    "all_token_binding_some": true,
+    "all_original_site_some": true,
+    "all_image_config_current": true,
+    "all_retained_input_equal": true,
+    "all_source_advice_purpose": "NonLogical",
+    "trace_lines": 24
+  },
+  "limit": "No prefix predicate refused. The original factory still returnsNone, so row applicability, actual native-definition/formal selection, body-origin or unanimity remains the unknown boundary. Observed separate Standalone replay from the earlier receipt cannot explain a refused source-purpose join, which now passes. No forwarding fix is justified.",
+  "scope": "One original control executed once; one temporary owner only, no guards/semantic facts/Native entry/frame/Normal result/proof/edit authority changed.",
+  "restoration": {
+    "owner_before_sha256": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+    "owner_instrumented_sha256": "9b305a463532048d248abcb75936a9a52ca78fa0690ba25e9fc96f9ceb78570f",
+    "owner_restored_byte_exact": true,
+    "other31_scoped_hashes_unchanged": true,
+    "post_restore_build": false,
+    "instrumented_binary_status": "Stale to restored source; retained as measured artifact only."
+  },
+  "source_scope": {
+    "scoped_paths": 32,
+    "shared_frozen_paths": [
+      "rust/tcl-syntax/src/native_tcl_utf.rs",
+      "rust/tcl-syntax/src/value.rs",
+      "rust/tcl-cmd-core/src/list.rs"
+    ],
+    "unlinked_runtime_context": [
+      "runtime/rust/src/cmd_clock.rs",
+      "runtime/rust/src/interp.rs"
+    ],
+    "authority": "Explicit scoped hashes only; no allRust or unlinked-runtime compiled currency claim."
+  }
+}

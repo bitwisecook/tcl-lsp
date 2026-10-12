@@ -1,0 +1,10 @@
+{
+  "command": "command.sh",
+  "started_utc": "2026-10-12T22:20:17.811431+00:00",
+  "elapsed_seconds": 180.511,
+  "exit_code": 101,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  }
+}

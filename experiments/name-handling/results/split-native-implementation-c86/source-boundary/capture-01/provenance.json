@@ -1,0 +1,124 @@
+{
+  "source_and_binary_before": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18": "bb446fe17ca800923c8f2fcc15105322f3d3716a82646b8cbf0e2a4d6d204d73",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture.py": "c35d372093917a259a5fdae1cf111728c5e2288621dbd3e700502e2b857c0e43",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c": "4ac4b5309e0f4fb2773a9ea6ae105360c58542b135abeb59e592e0d9acfaa497",
+    "/workspace/tcl-lsp/runtime/rust/src/parse.rs": "14332e2d403ac7c9e2837b4f877f790e1a0bfe9692cb9aee3ae4815b40964e07",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/backslash.rs": "afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e"
+  },
+  "source_and_binary_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18": "bb446fe17ca800923c8f2fcc15105322f3d3716a82646b8cbf0e2a4d6d204d73",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture.py": "c35d372093917a259a5fdae1cf111728c5e2288621dbd3e700502e2b857c0e43",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c": "4ac4b5309e0f4fb2773a9ea6ae105360c58542b135abeb59e592e0d9acfaa497",
+    "/workspace/tcl-lsp/runtime/rust/src/parse.rs": "14332e2d403ac7c9e2837b4f877f790e1a0bfe9692cb9aee3ae4815b40964e07",
+    "/workspace/tcl-lsp/runtime/rust/src/interp.rs": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/backslash.rs": "afdbb8dcf02748133b483f7b29c9b8edfa0b5e280f71e406ece9367bcf89c02e"
+  },
+  "records": [
+    {
+      "label": "written-nul",
+      "engine": "c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/written-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "30b178c0217d550f3e90290feeff4fcae9b06bb4ffd6eec9f8f11770ce82153b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "written-nul",
+      "engine": "native-c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/written-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cb239e46370e0e9f57e3091c774bbc0664fc2840afa1eec66776298d63567df0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "literal-nul",
+      "engine": "c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/literal-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "b94f124f09d20c12264d0a50f14450c1a654d08f3126f1173abc69a765ef3d65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "literal-nul",
+      "engine": "native-c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/literal-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cb239e46370e0e9f57e3091c774bbc0664fc2840afa1eec66776298d63567df0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "literal-encoded-nul",
+      "engine": "c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/literal-encoded-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "30b178c0217d550f3e90290feeff4fcae9b06bb4ffd6eec9f8f11770ce82153b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "literal-encoded-nul",
+      "engine": "native-c86",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/source-boundary/capture-01/literal-encoded-nul.tcl"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cd3dc5bf4bf364d7f31be1758c199e772794c4ef20441105598321bbcbe0a164",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "input_hashes": {
+    "written-nul.tcl": "9a6ac2489b16fa79b3b0158bea0b27e7350b551d57a1991fe57ec658003cdd0d",
+    "literal-encoded-nul.tcl": "14cd1094370d28b3f7bde74e4825d80370c6f0259f652b02554a3bedbab8d29a",
+    "literal-nul.tcl": "55031dba3f679d87bf50b67cea1ca263aebbf75fdc4b336b8b748e608eff8c1a"
+  },
+  "scope": "Benign source producer extents only; counted real C86 Tcl_Init/Tcl_EvalEx control from frozen split reference; retained Native C86 runner with real --init. No Rust build/source changes or environment values queried."
+}

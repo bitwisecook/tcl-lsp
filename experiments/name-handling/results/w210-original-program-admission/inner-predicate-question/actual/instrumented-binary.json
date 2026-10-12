@@ -1,0 +1,6 @@
+{
+  "path": "tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+  "size": 219976632,
+  "sha256": "bce52263909035dff54a3884a3cd853e094016de8f70a9f8e5adf333b8f126b2",
+  "status": "Instrumented snapshot only; stale to restored source; no post-restore build."
+}
