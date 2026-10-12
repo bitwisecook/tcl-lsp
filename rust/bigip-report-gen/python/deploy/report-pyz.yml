@@ -165,7 +165,7 @@ jobs:
           echo "CLI_PATH=${out}" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artefacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: f5-report-${{ runner.os }}-${{ matrix.arch }}
           path: |
@@ -229,7 +229,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack + wasm-bindgen-cli
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate pinned in
           # rust/bigip-report-gen/wasm/Cargo.toml.
@@ -255,7 +255,7 @@ jobs:
           echo "HTML_PATH=${out}" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artefact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: f5-report-generator-html
           path: ${{ steps.build.outputs.HTML_PATH }}
