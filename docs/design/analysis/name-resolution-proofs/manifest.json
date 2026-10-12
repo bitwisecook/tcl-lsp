@@ -322679,8 +322679,8 @@
           "id": "receiver-current642-f20d1e8bacc1908f",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
-          "sha256": "58b4bea70d6aad8a867fe2c41b33f96a54ef6dafed96ee46aa784807f892772b",
-          "description": "Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached."
+          "sha256": "a98a6a4aeaa4ba5562ab85bf1f9a6131fba485d810970f0ebeb244bdfd722fb2",
+          "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
         },
         {
           "id": "original-encoding-owner-8bc5a15bd80b",
@@ -323239,8 +323239,8 @@
           "id": "receiver-current642b-475a9a3807985ce1",
           "role": "implementation",
           "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
-          "sha256": "b2a6e18bf97d83d27f9cb7eb1c70193da458a176bec18a3dd45938e4bb5d9aed",
-          "description": "Actual authored OO/definition/variable-cleanup/bootstrap source and registered software control inspected for its selected current ownership/currency/typed-error purpose. This hash supplies no executed assertion, Native observation, callback/reference equivalence or independent lookup purpose."
+          "sha256": "e4386d263c77a55f816b902bb624dedfc5e979ffaad2562c064eaea73e97b8c8",
+          "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
         },
         {
           "id": "receiver-current642b-06a5830d8ff513c6",
@@ -323367,6 +323367,27 @@
           "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_publication_boundary_tests.rs",
           "sha256": "690a1c45dcff3d8debb50c4352d556fbad9c161efb74f4d7b1c8fad714abd41a",
           "description": "Actual current software control body/document and recursive Rust module binding for interp::native_body_artifact::native_dictionary_scope::original_publication_boundary_tests::original_compiled_dictionary_publication_retains_frame_before_working_cleanup_and_keeps_replacement. Real callback and role observations are software-only; no passed assertion, owned-image admission or external Native chronology is granted."
+        },
+        {
+          "id": "original-saved-target-activation-source-87f8c3b4990d1945",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/exec.rs",
+          "sha256": "d4575b75531a60e48d78f7013784c5b75ba56033cf90a3a571c54025835bbcdf",
+          "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
+        },
+        {
+          "id": "original-saved-target-activation-source-6841ae549bb1b2bd",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "sha256": "e3efc54848f4b53e1197d3f30d19905820d61d1eb22528bc061ca2d63d2368ec",
+          "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
+        },
+        {
+          "id": "original-saved-target-activation-source-95dd759a47be3dcf",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "sha256": "392fd0eb70f69523eb7fa1a0b33a6ffb790e6b61c4ba4387011a9c97282d8879",
+          "description": "Current original physical execution target, same saved currency and weak call/namespace cleanup observations, their shared retirement workers and finite software controls. Typed first cause survives mandatory owned cleanup and physical restoration. Source definitions establish no executed assertions, Native callback schedule, object-reference equivalence or general lifetime/coroutine admission."
         }
       ],
       "source_anchors": [],
@@ -324090,6 +324111,46 @@
           "path": "runtime/rust/src/interp/stock_ensembles.rs",
           "symbol": "Interp::register_stock_worker",
           "purpose": "Preserve already owned helper commands and consume the actual new helper publication before compiler or registry bookkeeping under the original operation."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "SavedExecutionTarget::capture",
+          "purpose": "Readonly authentic physical target and current entered currency before body effects; saved data retains no entered invocation and supplies no command/object/frame/namespace or Native getter admission."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "SavedExecutionTarget::in_original",
+          "purpose": "Authenticate original saved physical owner, retain callback-current first cause before mandatory cleanup, attach only original cleanup currency and check after restoration/Jim teardown; independent metadata never issues a Native receipt."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "symbol": "SavedExecutionTarget::from_currency",
+          "purpose": "Derive cleanup-only original physical observations from an already issued tailcall currency when its final activation is gone; no current-target capture, refreshed scope or new issuer."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec.rs",
+          "symbol": "Vm::push_frame",
+          "purpose": "Capture each actual activation target and plain-procedure weak exit before body callbacks, retaining no entered scope through suspension; genuine OO captures retain their independent Method requirement."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec.rs",
+          "symbol": "Vm::abort_refused_activations_using",
+          "purpose": "Retire only original activation and pending ownership under captured targets through the existing matching frame/namespace worker, preserving callback children/reborn activations and full first cause."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+          "symbol": "OriginalOoCallExit::capture_procedure",
+          "purpose": "Record exact plain-procedure weak call/namespace births through readonly current observations; no strong activation/Method/native hold or selected OO purpose donation."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+          "symbol": "OriginalOoCleanup::pop_selected_call_frame",
+          "purpose": "Existing matching original call-frame retirement, with actual procedure execution release before frame extraction and local cleanup outside storage; callback-created replacement births remain intact."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+          "symbol": "OriginalOoCleanup::retire_selected_namespace",
+          "purpose": "Existing original namespace activation retirement using its genuine birth, preserving callback-created replacements and only retiring the authentic old role."
         }
       ],
       "tests": [
@@ -329264,6 +329325,72 @@
           "selector": "interp::native_body_artifact::native_dictionary_scope::original_publication_boundary_tests::original_compiled_dictionary_publication_retains_frame_before_working_cleanup_and_keeps_replacement",
           "assertion": "The selected cell and result publishers check and retain the original compiled frame cause immediately after reached publication while the existing incoming owner is still held, then complete mandatory retirement before continuation. Real old-header callbacks and later working-header Host callbacks preserve the earlier cause; ordinary legal replacement and genuine reference roles stay observable. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_saved_execution_target_is_descriptive_until_same_currency_cleanup",
+          "status": "linked",
+          "assertion": "Readonly saved physical targets carry independent metadata or the original currency without retaining an entered operation. Mandatory cleanup attaches only that same currency; an independent target issues no Native receipt. This associates the definition only and supplies no assertion outcome or Native execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_saved_execution_target_cleans_parent_and_preserves_callback_child",
+          "status": "linked",
+          "assertion": "The actual callback-selected child remains current while mandatory cleanup restores the original parent target, preserving child storage and the earliest typed context refusal. Saved cleanup does not refresh the original currency. This associates the definition only and supplies no assertion outcome or Native callback chronology."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_saved_execution_target_retains_failed_issue_and_finishes_owned_cleanup",
+          "status": "linked",
+          "assertion": "A failed readonly issue retains its actual first cause while the original mandatory unit cleanup runs exactly once. Failed metadata keeps no entered receipt, and attempted Native entry remains refused by that same cause. This associates the definition only and supplies no assertion outcome or Native execution grant."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_saved_execution_target_rejects_foreign_owner_before_state_publication",
+          "status": "linked",
+          "assertion": "Saved physical observations from an independent VM cannot select or publish state in another owner. The genuine typed refusal occurs before cleanup work is admitted. This associates the definition only and supplies no assertion outcome or Native admission."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_operation_currency.rs",
+          "selector": "interp::native_operation_currency::tests::original_saved_execution_target_checks_real_jim_teardown_after_restoration",
+          "status": "linked",
+          "assertion": "The actual software Jim interpreter teardown can retain a full refusal after saved-target work returns during physical restoration. That cause prevents publication and retires the unpublished result, while the intended callback target is preserved. This associates the definition only and supplies no assertion outcome or external Native teardown chronology."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_abort_retires_userproc_in_parent_and_preserves_child_and_first_cause",
+          "status": "linked",
+          "assertion": "A user-procedure NativeCommand leaves a child current with either an existing Host cause or actual context withdrawal. The original parent call and local roles retire, the child's actual frame and namespace survive, later work stops, and the boundary preserves the exact first cause and local reference comparison. This associates the definition only and supplies no assertion outcome or Native reference equivalence."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_abort_keeps_apply_publication_and_oo_cleanup_on_original_target",
+          "status": "linked",
+          "assertion": "Actual apply and OO method callbacks use original physical cleanup through owned procedure, publication and method contexts while preserving a child left current. The first cause and later-worker suppression remain checked; OO Method purpose stays distinct from plain-procedure cleanup. This associates the definition only and supplies no assertion outcome or Native activation schedule."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_abort_preserves_callback_reborn_call_and_namespace_in_parent",
+          "status": "linked",
+          "assertion": "A real same-parent callback removes the original call and namespace and creates replacements. Captured weak births prevent abort from popping those new activations, and the original Host cause remains unchanged through mandatory settlement. This associates the definition only and supplies no assertion outcome or Native replacement chronology."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_unwind_keeps_saved_target_after_last_frame_before_leave_callback",
+          "status": "linked",
+          "assertion": "The actual procedure leave callback occurs after its call frame retires and leaves a child current. The consumed activation's saved target still governs pending cleanup, preserving child state and the typed first cause. This associates the definition only and supplies no assertion outcome or Native leave-callback chronology."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_empty_tailcall_cleanup_uses_issued_parent_and_preserves_child_pending",
+          "status": "linked",
+          "assertion": "An actual tailcall resume refuses against a callback-selected child when the activation stack is empty. Cleanup derives its parent target from the already issued currency and retires parent pending ownership while preserving the child's genuine pending continuation. This associates the definition only and supplies no assertion outcome or Native tailcall schedule."
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs",
+          "selector": "exec::original_activation_cleanup_tests::original_activation_positive_procedure_keeps_existing_owned_roles_and_no_saved_entry",
+          "status": "linked",
+          "assertion": "A positive actual procedure returns its original value through existing result ownership, retires its call and namespace, and leaves no entered saved scope. Clearing the reached result preserves the original value's exact reference comparison. This associates the definition only and supplies no assertion outcome or Native reference schedule."
         }
       ],
       "replay": {
