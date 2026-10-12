@@ -140,7 +140,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
 /// registry carries both fully-qualified and bare spellings of some commands;
 /// this collapses them for cross-referencing.
 fn canon(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 /// The reason [`KNOWN_UNBACKED`] gives for the core command `name`, exactly or
@@ -219,8 +219,10 @@ struct Reports {
 impl Reports {
     fn ask() -> Self {
         Self {
-            wasm: BackingReport::from_entries(tcl_runtime::interp::Interp::new().backing_report()),
-            vm: BackingReport::from_entries(tcl_vm::Vm::new().backing_report()),
+            wasm: BackingReport::from_unrooted_entries(
+                tcl_runtime::interp::Interp::new().backing_report(),
+            ),
+            vm: BackingReport::from_unrooted_entries(tcl_vm::Vm::new().backing_report()),
         }
     }
 }

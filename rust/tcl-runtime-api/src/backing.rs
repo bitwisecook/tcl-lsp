@@ -82,33 +82,53 @@ impl RegisteredBacking {
 
 /// A runtime's answers, by command name.
 ///
-/// A name is stored and looked up without a leading `::`: a runtime holds one
-/// command per name whichever spelling a spec gives it, and the two spellings
-/// of a command must not disagree.
+/// Runtime reports carry constructed unrooted command keys. A literal colon
+/// component in such a key is retained. The compatibility entry/query facades
+/// separately accept the stock descriptor domain with one optional root marker;
+/// neither report representation supplies a live command lookup or identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BackingReport {
     entries: BTreeMap<String, RegisteredBacking>,
 }
 
 impl BackingReport {
-    /// A report holding `entries`, each name without its leading `::`. The
-    /// last answer for a name wins.
+    /// Stock descriptor compatibility: remove one optional constructed root
+    /// from each name, then store the report. The last answer for a key wins.
+    /// Already-unrooted runtime keys use [`Self::from_unrooted_entries`].
     #[must_use]
     pub fn from_entries(entries: impl IntoIterator<Item = (String, RegisteredBacking)>) -> Self {
-        Self {
-            entries: entries
+        Self::from_unrooted_entries(
+            entries
                 .into_iter()
-                .map(|(name, backing)| (canonical(&name).to_owned(), backing))
-                .collect(),
+                .map(|(name, backing)| (canonical(&name).to_owned(), backing)),
+        )
+    }
+
+    /// Store genuine constructed unrooted keys without another projection.
+    /// Literal leading colon components remain part of the key. The last
+    /// answer for a key wins; the report grants no command lookup authority.
+    #[must_use]
+    pub fn from_unrooted_entries(
+        entries: impl IntoIterator<Item = (String, RegisteredBacking)>,
+    ) -> Self {
+        Self {
+            entries: entries.into_iter().collect(),
         }
     }
 
-    /// What the runtime reports for `name`: [`RegisteredBacking::Absent`] for a
-    /// name it does not mention.
+    /// Stock descriptor compatibility: ask about a name with one optional
+    /// constructed root. Exact runtime keys use [`Self::of_unrooted`].
     #[must_use]
     pub fn of(&self, name: &str) -> RegisteredBacking {
+        self.of_unrooted(canonical(name))
+    }
+
+    /// Ask about an exact constructed unrooted report key, retaining literal
+    /// leading colons. Unreported keys answer [`RegisteredBacking::Absent`].
+    #[must_use]
+    pub fn of_unrooted(&self, key: &str) -> RegisteredBacking {
         self.entries
-            .get(canonical(name))
+            .get(key)
             .copied()
             .unwrap_or(RegisteredBacking::Absent)
     }
@@ -134,7 +154,7 @@ impl BackingReport {
 }
 
 fn canonical(name: &str) -> &str {
-    name.strip_prefix("::").unwrap_or(name)
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
 }
 
 #[cfg(test)]
@@ -176,4 +196,27 @@ mod tests {
             assert_eq!(backing.executes(), executes, "{}", backing.label());
         }
     }
+    #[test]
+    fn exact_unrooted_backing_keys_keep_literal_leading_colons() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Pure diagnostic key storage; no Native lookup, dispatch or injectivity claim.
+        let report = BackingReport::from_unrooted_entries([
+            ("run".to_owned(), RegisteredBacking::Builtin),
+            (":run".to_owned(), RegisteredBacking::Unsupported),
+            ("::run".to_owned(), RegisteredBacking::Object),
+            (":::run".to_owned(), RegisteredBacking::NeedsNumericTower),
+        ]);
+        assert_eq!(report.of_unrooted("run"), RegisteredBacking::Builtin);
+        assert_eq!(report.of_unrooted(":run"), RegisteredBacking::Unsupported);
+        assert_eq!(report.of_unrooted("::run"), RegisteredBacking::Object);
+        assert_eq!(
+            report.of_unrooted(":::run"),
+            RegisteredBacking::NeedsNumericTower
+        );
+        assert_eq!(report.of_unrooted("::::run"), RegisteredBacking::Absent);
+        assert_eq!(report.of("::run"), RegisteredBacking::Builtin);
+        assert_eq!(report.len(), 4);
+    }
+
 }

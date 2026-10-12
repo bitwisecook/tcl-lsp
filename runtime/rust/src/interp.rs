@@ -3246,7 +3246,9 @@ impl Interp {
     /// the commands that library defines, which exist once `init_library` has
     /// sourced it. A build without the numeric tower reports the commands a
     /// build with it registers as needing the tower. Names are without a
-    /// leading `::`. This Unicode catalogue omits opaque byte names; lookup and
+    /// constructed root marker; literal colon components remain part of each
+    /// unrooted key. Use `BackingReport::from_unrooted_entries` to store these
+    /// keys. This Unicode catalogue omits opaque byte names; lookup and
     /// publication retain those names independently through their counted APIs.
     #[must_use]
     pub fn backing_report(&self) -> Vec<(String, RegisteredBacking)> {
@@ -3286,7 +3288,9 @@ impl Interp {
                     let Ok(text) = std::str::from_utf8(&fqn) else {
                         continue;
                     };
-                    report.insert(text.trim_start_matches("::").to_owned(), backing);
+                    let key = tcl_syntax::naming::unroot_rooted_key(text)
+                        .expect("actual command FQN contains its constructed root");
+                    report.insert(key.to_owned(), backing);
                 }
             }
             if !roots.is_empty() {
@@ -21551,6 +21555,55 @@ mod tests {
                 .any(|(name, backing)| name == "café" && *backing == RegisteredBacking::Builtin));
             assert!(!report.iter().any(|(name, _)| name == "opaque_�"));
             assert!(!report.iter().any(|(name, _)| name.starts_with("opaque_")));
+        });
+    }
+
+    #[test]
+    fn backing_report_preserves_colon_components_from_actual_placed_slots() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Actual software table placement and diagnostic projection only; no Native dispatch or inverse-name claim.
+        leak_free(|interp| {
+            let holder = {
+                let mut namespaces = interp.namespaces.borrow_mut();
+                for name in [b"run".as_slice(), b":run", b"::run"] {
+                    namespaces.bind(GLOBAL, name, Command::Builtin(guarded_builtin));
+                }
+                let holder = namespaces.ensure_namespace(GLOBAL, b":");
+                namespaces.bind(holder, b"run", Command::Builtin(guarded_builtin));
+                namespaces.bind(holder, b":run", Command::Builtin(guarded_builtin));
+                assert_eq!(namespaces.command_fqn_at(GLOBAL, b":run"), b":::run");
+                assert_eq!(namespaces.command_fqn_at(GLOBAL, b"::run"), b"::::run");
+                assert_eq!(namespaces.command_fqn_at(holder, b"run"), b":::::run");
+                holder
+            };
+            let original = interp
+                .namespaces
+                .borrow()
+                .command_generation(holder, b"run");
+            assert!(original.is_some());
+            let entries = interp.backing_report();
+            for expected in ["run", ":run", "::run", ":::run", "::::run"] {
+                assert!(
+                    entries
+                        .iter()
+                        .any(|(key, backing)| key == expected
+                            && *backing == RegisteredBacking::Builtin),
+                    "{expected}"
+                );
+            }
+            let report = tcl_runtime_api::BackingReport::from_unrooted_entries(entries);
+            for expected in ["run", ":run", "::run", ":::run", "::::run"] {
+                assert_eq!(report.of_unrooted(expected), RegisteredBacking::Builtin);
+            }
+            assert_eq!(report.of_unrooted(":::::run"), RegisteredBacking::Absent);
+            assert_eq!(
+                interp
+                    .namespaces
+                    .borrow()
+                    .command_generation(holder, b"run"),
+                original
+            );
         });
     }
 
