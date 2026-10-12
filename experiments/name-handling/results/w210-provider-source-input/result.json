@@ -1,0 +1,116 @@
+{
+  "question": "Does sealing the same prepared source input into the explicit provider fixture fix the observed Standalone/supplied-input refusal?",
+  "answer": "The producer now retains the genuine current complete input before points. Both owner controls pass. Tcltest remains6pass/3fail, with direct/alias diagnostics now reporting genuine absent plus an extra prepared cleanup warning (2 vs1); the original-program control remains0 vs2. No complete W210 fix is claimed.",
+  "production_owner": "rust/tcl-compiler/src/provider_fixtures.rs",
+  "production_change": "Prepare one genuine resolved analysis input, build the unchanged entry facts from its actual context registry, retain that SAME input in entry metadata and analyser before analyse creates any points. entry() standalone callers unchanged; no retrospective point/metadata upgrade.",
+  "authority_limits": "Loader, dialect, compilation facts unchanged; no Native entry/frame/Normal execution or name/object reconstruction. Existing guards unchanged.",
+  "regression": "provider_read_domain_requires_the_same_current_complete_input accepts the current full C8.4 source owner and refuses explicit Standalone, Unavailable, foreign input and changed original word vector. Existing script_binds currentness regression also passes.",
+  "checks": [
+    {
+      "name": "provider-currentness",
+      "command": "provider-currentness-command.sh",
+      "started_utc": "2026-10-12T19:55:24.297021+00:00",
+      "elapsed_seconds": 180.119,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "owner-currentness",
+      "command": "owner-currentness-command.sh",
+      "started_utc": "2026-10-12T19:58:24.418618+00:00",
+      "elapsed_seconds": 1.098,
+      "exit_code": 0,
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      }
+    },
+    {
+      "name": "tcltest-9",
+      "command": "tcltest-9-command.sh",
+      "started_utc": "2026-10-12T19:58:25.518145+00:00",
+      "elapsed_seconds": 123.014,
+      "exit_code": 101,
+      "counts": {
+        "passed": 6,
+        "failed": 3
+      }
+    }
+  ],
+  "packaged_consumer_check": {
+    "executed": false,
+    "reason": "Prescribed green Tcltest9 prerequisite unmet."
+  },
+  "remaining_failures": [
+    {
+      "control": "direct",
+      "profile": "tcl8.4",
+      "w210_actual": 2,
+      "w210_expected": 1,
+      "observed_names": [
+        "absent",
+        "prepared"
+      ],
+      "prepared_span": {
+        "start": 170,
+        "end": 179
+      }
+    },
+    {
+      "control": "alias",
+      "profile": "tcl8.4",
+      "w210_actual": 2,
+      "w210_expected": 1,
+      "observed_names": [
+        "absent",
+        "prepared"
+      ],
+      "prepared_span": {
+        "start": 223,
+        "end": 232
+      }
+    },
+    {
+      "control": "original-oracle-program",
+      "profile": "tcl8.4",
+      "w210_actual": 0,
+      "w210_expected": 2
+    }
+  ],
+  "next_boundaries": "Direct/alias: inspect cleanup warning eligibility and setup completion paths; native occurrence of absent is now emitted. Original-program: report acquisition/read-domain admission remains unmeasured for that distinct input/caller scope. Keep these obligations separate; no automatic follow-up trace or guard relaxation.",
+  "source_before": "source-before.json",
+  "source_frozen": "source-frozen.json",
+  "source_after": "source-after.json",
+  "source_status": {
+    "after_equals_frozen": true,
+    "only_provider_fixtures_changed_from_before": true,
+    "owner_before_sha256": "b5b5b098a507a306bafec9cac6da73d3ea20a53b7d48341f0ecc04e59d957f0a",
+    "owner_frozen_after_sha256": "6d4facc342f6fd1f99590398f90691c380d12a308a7818d1d6b09f26f4ab3161",
+    "shared_special_vars_sha256": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+  },
+  "scope": "Two bounded owner controls and one Tcltest nine-control filter. No packaged post-change run, real oracle/runtime conformance/full gates/issue closure claim. Eight scoped hashes; runtime/VM/security files excluded.",
+  "artifact_sha256": {
+    "provider-currentness.stdout": "986d63b6cf7e5b1862fc0a847879436593235d941b2ba050a41b5a87e2d58794",
+    "provider-currentness.stderr": "88bd81b00793e90083b3aea299ae9093a9737c7c11940f305fa9c27bce82dcb2",
+    "owner-currentness-result.json": "156416a9c54311e790c7c9c0fb298f5fdf24a98e8f9550d6cc98ee60d3cb39ca",
+    "provider-currentness-command.sh": "a02ed307f81bd71f8705b051fbfce293750a639918909fde7559a76b212ae4d5",
+    "tcltest-9.stderr": "d6e8b4721e7ef1d08d217c5f237bd2f15de2d1ebd0e53ca046399606cb33687f",
+    "source-frozen.json": "1753786568774586ef8f50e2a03d7724fb4dd455e4a2c55eacc2c666c072c9d4",
+    "question.md": "7c23ba6511d882f121cfcf8e94bc91040414148c9bb2ec2d0b91e928e27bd6b0",
+    "owner-currentness-command.sh": "428937b89bcff0c3caca825cc36d648f59b1bd4ec0c49a9609dfdcd87c43baf6",
+    "owner-currentness.stderr": "2d12e8a1f14f6008999cc35b6cae3c99f853e6be1eb6101a3f31db00256f37ef",
+    "provider_fixtures-frozen.rs.gz": "c69a77c6387af4e6ad4c7bff9dd03a68d579a0982fe21de3e7fb35601600de45",
+    "provider_fixtures-before.rs.gz": "e0a17bed197506ac08541ee5db4e30568f14545ab5dd0d37695eb2c8df796f1b",
+    "provider-currentness-result.json": "6a4e6af2d1d4a615dcd0e660ac0314a4a57e7f673df51ee87e335454b7bf242c",
+    "owner-currentness.stdout": "a3fdc1ad0612909551e857ea25857bdb61926ebfca44f419b02468f2d4fdd4c2",
+    "source-after.json": "1753786568774586ef8f50e2a03d7724fb4dd455e4a2c55eacc2c666c072c9d4",
+    "tcltest-9-command.sh": "ac6378b03b8c555b44a9004f56245fa47fe57e8746ac13057f65ec87df4b3d9d",
+    "source-before.json": "303226d2a1fb2f8b531119e68ef9f2b825f88dc2fb988bc6864b55bb01e77829",
+    "production.patch": "44f454ba571958cf2c7a53a5b63f5e39f158fb4336e8e28aa9e50f8c5e704a45",
+    "tcltest-9.stdout": "6e807e99ac66e47f7f7c00658d45cd2fcedba0285d964de80f79644571a3a0f6",
+    "tcltest-9-result.json": "c1d85043afec398fbdb34db67a45a1964a3be5b3d76dfadb1e8a9a56b46682c0"
+  }
+}

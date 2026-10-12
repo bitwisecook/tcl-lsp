@@ -75,7 +75,9 @@ Current independent checks and outstanding work:
   regression passes1/1 but nine controls remain6/3. Next read-only comparison
   measured retained proc-point Standalone versus full source request as the
   first refusal; Native header/formals unreached. Trace owners restored.
-  Genuine provider input producer fix is in validation; see
+  Genuine provider input producer passes2 owner controls; filterstill6/3
+  (direct/alias2vs1 with preparedcleanup warning, original0vs2).
+  Packaged regression check running. See
   `results/w210-source-purpose-join/` and its separate producer result.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:

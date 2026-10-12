@@ -1,0 +1,3 @@
+# Provider source input
+
+Does the explicit provider fixture retain the SAME genuine prepared input before creating source binding points, so current source advice can pass without repairing a Standalone point retrospectively? Only provider_fixtures.rs production/test change; loaders, dialect and compilation facts unchanged. Run explicit owner refusal/currentness regression, existing script owner control and Tcltest9 once; packaged2 only if these are green. Eight-file scoped source freeze; runtime/VM/security artifacts excluded. No Native activation/frame/Normal grant or oracle/full-gate claim.

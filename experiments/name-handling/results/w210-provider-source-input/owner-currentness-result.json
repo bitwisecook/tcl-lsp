@@ -1,0 +1,10 @@
+{
+  "command": "owner-currentness-command.sh",
+  "started_utc": "2026-10-12T19:58:24.418618+00:00",
+  "elapsed_seconds": 1.098,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  }
+}

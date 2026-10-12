@@ -155,15 +155,77 @@ pub(crate) fn analyse(
     dialect: &str,
     providers: &[Provider],
 ) -> crate::analyser::types::AnalysisResult {
-    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
-    crate::analyser::Analyser::new()
-        .with_source_analysis_entry(entry(registry, providers))
+    let mut analyser = crate::analyser::Analyser::new();
+    let input = analyser
+        .prepare_analysis_input(dialect)
+        .expect("available provider fixture environment");
+    let context = input.context_registry();
+    let mut selected = (*entry(context.commands(), providers)).clone();
+    selected.metadata_context =
+        crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(&input));
+    analyser
+        .with_resolved_input(input)
+        .with_source_analysis_entry(Arc::new(selected))
         .analyse(source, dialect)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_read_domain_requires_the_same_current_complete_input() {
+        let source = "proc p {} {puts $absent}";
+        let analysis = analyse(source, "tcl8.4", &[Provider::Tcltest]);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        let accepts = |analysis: &crate::analyser::types::AnalysisResult,
+                       request: &crate::analyser::ResolvedAnalysisInput| {
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), request)
+                .is_some()
+        };
+        assert!(accepts(&analysis, input));
+
+        let with_entry = |selected: Arc<SourceAnalysisEntry>| {
+            crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .with_source_analysis_entry(selected)
+                .analyse(source, "tcl8.4")
+        };
+        assert!(!accepts(
+            &with_entry(entry(context.commands(), &[Provider::Tcltest])),
+            input,
+        ));
+        let mut missing = (*entry(context.commands(), &[Provider::Tcltest])).clone();
+        missing.metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
+        assert!(!accepts(&with_entry(Arc::new(missing)), input));
+        let foreign = crate::analyser::Analyser::new()
+            .prepare_analysis_input("tcl9.0")
+            .unwrap();
+        assert!(!accepts(&analysis, &foreign));
+
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source("", 0);
+        let (_, mut tokens) = binding.original_recorded_command().unwrap();
+        tokens.source_binding = Some(binding);
+        let crate::ir::WordExpr::Literal { text, .. } = &mut tokens.word_exprs[1] else {
+            panic!("literal procedure name");
+        };
+        *text = "q".into();
+        tokens.argv_texts[1] = "q".into();
+        assert!(realm
+            .source_bindings_ref()
+            .original_procedure_read_declaration(&tokens, context.commands(), input)
+            .is_none());
+    }
+
 
     #[test]
     fn provider_surface_requires_selection_loading_and_an_unchanged_handler() {

@@ -1,0 +1,10 @@
+{
+  "command": "provider-currentness-command.sh",
+  "started_utc": "2026-10-12T19:55:24.297021+00:00",
+  "elapsed_seconds": 180.119,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  }
+}

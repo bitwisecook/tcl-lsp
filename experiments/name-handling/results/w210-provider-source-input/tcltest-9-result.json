@@ -1,0 +1,10 @@
+{
+  "command": "tcltest-9-command.sh",
+  "started_utc": "2026-10-12T19:58:25.518145+00:00",
+  "elapsed_seconds": 123.014,
+  "exit_code": 101,
+  "counts": {
+    "passed": 6,
+    "failed": 3
+  }
+}

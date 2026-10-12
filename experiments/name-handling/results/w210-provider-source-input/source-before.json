@@ -1,0 +1,10 @@
+{
+  "rust/tcl-compiler/src/provider_fixtures.rs": "b5b5b098a507a306bafec9cac6da73d3ea20a53b7d48341f0ecc04e59d957f0a",
+  "rust/tcl-compiler/src/script_binds.rs": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f",
+  "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+  "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "418e3aeae18b7541e28cc4a6f2138b5e67cbe0e10a70d26b08121d1b4b5a739d",
+  "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs": "011423521d0adf0776e92919541ba6dd693468b7e077ce05fbc31a0d92ca58ee",
+  "rust/tcl-compiler/src/realm/declared_source.rs": "9c9c32016c6e6f90898643b0018324957d5c8c29376d54a4f7af56e9217478c5",
+  "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "0f7379249f43b07cecc56996f30f1bd49df719cf0df9c927c3ee550d70f38956",
+  "rust/tcl-registry/src/special_vars.rs": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5"
+}
