@@ -1,0 +1,17 @@
+ltm virtual __tcl_lsp_probe_nh20261012exact2_7_10_vs {
+    destination 192.168.9.24:19912
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        http { }
+        tcp { }
+    }
+    rules {
+        __tcl_lsp_probe_nh20261012exact2_7_10
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    translate-address enabled
+    translate-port enabled
+    vs-index 90
+}
