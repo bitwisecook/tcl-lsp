@@ -1,0 +1,20 @@
+{
+  "oracle": "C Tcl",
+  "patchlevel": "8.6.16",
+  "reference_gate": false,
+  "context": "fresh global interpreter",
+  "timestamp_utc": "2026-10-12T10:18:02.868354+00:00",
+  "executable": "/usr/bin/tclsh8.6",
+  "invocation": [
+    "/usr/bin/tclsh8.6",
+    "experiments/name-handling/cases.tcl"
+  ],
+  "script_sha256": "76db20cdfc157a5da82a72adb6cde7c8b633d85827f7dd49a462a6424bb80742",
+  "source_revision": "not validated; installed interpreter",
+  "build_flags": "not recorded; installed interpreter",
+  "exit_code": 0,
+  "stdout": "stdout.txt",
+  "stderr": "stderr.txt",
+  "conformance_promotion": "not promoted",
+  "locale": "LANG=C.UTF-8\nLANGUAGE=\nLC_CTYPE=\"C.UTF-8\"\nLC_NUMERIC=\"C.UTF-8\"\nLC_TIME=\"C.UTF-8\"\nLC_COLLATE=\"C.UTF-8\"\nLC_MONETARY=\"C.UTF-8\"\nLC_MESSAGES=\"C.UTF-8\"\nLC_PAPER=\"C.UTF-8\"\nLC_NAME=\"C.UTF-8\"\nLC_ADDRESS=\"C.UTF-8\"\nLC_TELEPHONE=\"C.UTF-8\"\nLC_MEASUREMENT=\"C.UTF-8\"\nLC_IDENTIFICATION=\"C.UTF-8\"\nLC_ALL=C.UTF-8"
+}

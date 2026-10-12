@@ -104,6 +104,9 @@ passes, and ownership matrices.
 One contract per file: who owns a surface, what its rules are, and how it
 fails.
 
+- [name-handling.md](contracts/name-handling.md) - shared name representations,
+  semantic owners and lookup boundaries across all consumers.
+
 - [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
   registry-derived executable/callback coverage, the audited external and
   dynamic catalogue, and the generated JSON/Markdown drift gate.

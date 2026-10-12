@@ -148,6 +148,8 @@ crate and one semantic axis; never re-derive one, and never add an
 owner-shaped implementation without updating the contract and its gate.
 `cargo xtask owner-resolution` (in `make rust-check`) enforces it. Owner map:
 [shared-utility-contracts-rust.md](docs/design/contracts/shared-utility-contracts-rust.md).
+For name representations, lookup context and consumer boundaries, read
+[name-handling.md](docs/design/contracts/name-handling.md).
 
 ### WASM command parity
 
