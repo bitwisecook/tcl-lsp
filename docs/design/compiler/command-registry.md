@@ -2059,3 +2059,14 @@ make that namespace unknown. Case, Unicode and literal colon segments stay exact
 The package name is independent of the namespace spelling. These queries describe
 selected declarations; they establish no package loading, installed command,
 Native namespace identity, source correspondence or edit permission.
+
+
+`CommandRegistry::declares_command_at_rooted_key` reads source-catalogue
+declaration metadata from a rooted constructed reporting key. Syntax removes
+exactly one root; the remaining bytes must select an exact Registry descriptor
+label. `declares_command_at` retains rooted/unrooted compatibility through the
+same worker. Written-name fallback and repeated-colon canonicalisation do not
+participate. Bare operator imports and method-only global names retain their
+declaration exclusions. Package rows retain `required_package` / `tcllib_package`
+metadata independently of loading. These answers supply no installed command
+table, Native binding, namespace identity or source import/export permission.

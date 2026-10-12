@@ -2596,63 +2596,48 @@ impl CommandRegistry {
         self.by_name.get(name).and_then(|v| v.last().copied())
     }
 
-    /// Whether a **fresh interpreter** of this registry's dialect already holds
-    /// a command at exactly `qualified_name` — the question `namespace
-    /// import`'s "already exists" conflict asks, and the one `info commands
-    /// ::x` answers.
+    /// Whether this source catalogue declares a command at a constructed
+    /// rooted or unrooted reporting key. This compatibility interface removes
+    /// exactly one leading root marker; callers with a known rooted key use
+    /// [`Self::declares_command_at_rooted_key`].
     ///
-    /// Deliberately *not* [`Self::get`], which resolves every **spelling** a
-    /// call site may legally write, including spellings that only become
-    /// callable after an explicit `namespace import`.  The bare operator forms
-    /// are exactly that case, and conflating the two inverts a real answer:
+    /// The remaining bytes must equal the selected descriptor's exact label.
+    /// Written command spelling lookup, imports and repeated-colon
+    /// canonicalisation cannot supply that equality. Bare operator imports
+    /// and method-context-only commands retain their separate declaration
+    /// conventions; their qualified declarations remain available.
     ///
-    /// ```text
-    /// # oracle, tclsh 9.0.4 and 8.6.14, byte-identical
-    /// info commands ::+            ;# -> {}          (empty!)
-    /// + 1 2                        ;# -> invalid command name "+"
-    /// info commands ::set          ;# -> ::set
-    ///
-    /// namespace eval ::Ops { proc + {a b} {…}; namespace export + }
-    /// namespace import ::Ops::*    ;# -> OK, namespace origin ::+ is ::Ops::+
-    ///
-    /// namespace eval ::Foo { proc set {a b} {…}; namespace export set }
-    /// namespace import ::Foo::*    ;# -> can't import command "set": already exists
-    /// ```
-    ///
-    /// So `set` blocks an unforced import and `+` does not, even though
-    /// [`Self::get`] answers `Some` for both.  A bare
-    /// [`Traits::OPERATOR_COMMAND`] spelling is the post-`namespace import
-    /// ::tcl::mathop::*` form and is excluded here; the namespaced
-    /// `::tcl::mathop::+` spelling is a genuine member of a fresh
-    /// interpreter's command table and is kept.
-    ///
-    /// The name must also *be* the spec's own canonical name, so `get`'s
-    /// leading-`::` fallback cannot make a namespaced command answer for a
-    /// global one.
-    ///
-    /// # Known imprecision
-    ///
-    /// A command a *package* provides (`::csv::split`, `::math::statistics::mean`)
-    /// is declared here whether or not the script `package require`s it, so
-    /// asking about a package's own namespace can over-claim.  The registry
-    /// carries no "needs a `package require`" marker to gate on yet.  Reaching
-    /// that case means importing *into* a package's own namespace, which is
-    /// why it is documented rather than worked around.
+    /// Package declarations remain in the catalogue with their
+    /// [`CommandSpec::required_package`] or `tcllib_package` metadata. This
+    /// query does not establish package loading, an installed command table,
+    /// a current Native binding or namespace/import/export authority.
     #[must_use]
     pub fn declares_command_at(&self, qualified_name: &str) -> bool {
-        let bare = qualified_name.trim_start_matches("::");
-        self.get(bare).is_some_and(|spec| {
-            // `get` resolves spellings; this asks about one exact name, so the
-            // spec has to be the one that *is* that command.
-            if spec.name.trim_start_matches("::") != bare {
+        let key = tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
+        self.declares_command_at_unrooted_key(key)
+    }
+
+    /// Source-catalogue declaration metadata for a rooted constructed key.
+    /// Removes exactly the root supplied by the constructed-key producer;
+    /// every remaining byte, including leading literal colons, survives.
+    /// An unrooted argument declines. No written-name or Native lookup runs.
+    #[must_use]
+    pub fn declares_command_at_rooted_key(&self, key: &str) -> bool {
+        tcl_syntax::naming::unroot_rooted_key(key)
+            .is_some_and(|key| self.declares_command_at_unrooted_key(key))
+    }
+
+    fn declares_command_at_unrooted_key(&self, key: &str) -> bool {
+        self.get_exact(key).is_some_and(|spec| {
+            let descriptor = crate::CanonicalCommandDescriptorKey::from_registry_label(spec.name);
+            if descriptor.label() != key {
                 return false;
             }
-            if !bare.contains("::") && spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
+            let qualified = !tcl_syntax::naming::key_holder_and_tail(key).0.is_empty();
+            if !qualified && spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
                 return false;
             }
-            // The namespaced `::tcl::mathop::+` is in a fresh interpreter's
-            // command table; the bare `+` it can be imported to is not.
-            bare.contains("::") || !spec.traits.contains(Traits::OPERATOR_COMMAND)
+            qualified || !spec.traits.contains(Traits::OPERATOR_COMMAND)
         })
     }
 
@@ -18885,5 +18870,67 @@ mod original_instance_descriptor_tests {
             selected.facts().arity_accepts_frozen_arguments(),
             Some(false)
         );
+    }
+}
+
+#[cfg(test)]
+mod declaration_key_tests {
+    use super::*;
+
+    #[test]
+    fn rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes() {
+        // naming.registry.constructed-command-declaration-keys
+        // docs/design/analysis/name-resolution-proofs/registry-constructed-command-declaration-keys.md
+        // Pure catalogue keys; these declarations do not install commands.
+        let mut registry = CommandRegistry::build_default();
+        assert!(registry.declares_command_at_rooted_key("::set"));
+        assert!(!registry.declares_command_at_rooted_key("::::set"));
+        assert!(!registry.declares_command_at_rooted_key("set"));
+        registry.insert(CommandSpec {
+            name: "::literal",
+            ..CommandSpec::DEFAULT
+        });
+        assert!(registry.declares_command_at_rooted_key("::::literal"));
+        assert!(!registry.declares_command_at_rooted_key("::literal"));
+        assert!(!registry.declares_command_at_rooted_key("::::::literal"));
+        for label in [":counted", ":::counted", "N:::member", "N::", "名字"] {
+            registry.insert(CommandSpec {
+                name: label,
+                ..CommandSpec::DEFAULT
+            });
+            let key = tcl_syntax::naming::root_unrooted_key(label);
+            assert!(registry.declares_command_at_rooted_key(&key), "{label}");
+            assert_eq!(registry.get_exact(label).unwrap().name, label);
+        }
+    }
+
+    #[test]
+    fn catalogue_declarations_keep_operator_context_and_package_metadata_separate() {
+        // naming.registry.constructed-command-declaration-keys
+        // docs/design/analysis/name-resolution-proofs/registry-constructed-command-declaration-keys.md
+        // Existing authored declaration conventions; no loaded-table claim.
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        for key in ["::set", "::tcl::mathop::+", "::oo::Helpers::self"] {
+            assert!(registry.declares_command_at_rooted_key(key), "{key}");
+        }
+        for key in ["::+", "::my", "::self", "::unknownDeclaration"] {
+            assert!(!registry.declares_command_at_rooted_key(key), "{key}");
+        }
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "Catalogue::provided",
+            required_package: Some("Catalogue"),
+            ..CommandSpec::DEFAULT
+        });
+        assert!(registry.declares_command_at_rooted_key("::Catalogue::provided"));
+        assert_eq!(
+            registry
+                .get_exact("Catalogue::provided")
+                .unwrap()
+                .required_package,
+            Some("Catalogue")
+        );
+        assert!(!registry.declares_command_at_rooted_key("::provided"));
     }
 }

@@ -594736,6 +594736,177 @@
         "command": [],
         "limitations": "Two fixed source-defined software controls permit later owned-executable reconfirmation. Existing tcl-spectcl runtime reference tests remain unchanged and have no new outcome attached here. No external C/Jim/BIG-IP execution or Native chronology is claimed."
       }
+    },
+    {
+      "id": "naming.registry.constructed-command-declaration-keys",
+      "kind": "implementation-contract",
+      "document": "docs/design/analysis/name-resolution-proofs/registry-constructed-command-declaration-keys.md",
+      "problem_statement": "A source declaration query can strip every leading root pair from both a constructed reporting key and the selected descriptor label, conflating literal colon bytes with the one root supplied by the key producer. Its package catalogue is also broader than an installed interpreter table.",
+      "question": "How does the shared Registry declaration query preserve exactly one constructed root and the selected descriptor bytes while keeping operator/method declaration conventions, source import guards and package loading separate?",
+      "conclusion": "The rooted constructed-key query delegates exactly one root removal to Syntax and declines an unrooted argument. The existing rooted/unrooted compatibility query reaches the same unrooted worker. Exact Registry spelling selection and byte-exact CanonicalCommandDescriptorKey label equality precede the existing operator and method-context exclusions; a shared constructed holder projection supplies only that reporting distinction. No descriptor punctuation is stripped or treated as a written-name recipe. Package-required catalogue rows remain declared with their original requirement metadata, independently of actual loading. The two production import conflict consumers already supply rooted constructed keys; their caller Registry selection, source/import/export/force/site and current link gates remain separate. Two fixed software controls cover one-root versus literal-leading-colon selection, trailing/Unicode labels, stock declaration conventions and a genuine package-required row. Their source definitions have no attached assertion or provider execution.",
+      "scope": "Finite CommandRegistry catalogue declaration metadata, its existing compatibility entry, new rooted constructed-key entry and two actual WorkspaceIndex import conflict consumers. This is neither generic written command lookup nor a NameKey/Native namespace resolver. No source reporting key, selected descriptor or catalogue membership establishes current Native command identity, an installed table, package loading or import/export permission. Existing old operator/global-name test bodies are unchanged; their separately documented observations receive no new execution here. This question does not certify the caller Registry selection or its document-store provenance.",
+      "providers": [
+        {
+          "id": "tcl8.4",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "tcl8.4",
+          "status": "not-tested",
+          "answer": "This source-only question records no external tcl8.4 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.5",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "tcl8.5",
+          "status": "not-tested",
+          "answer": "This source-only question records no external tcl8.5 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "tcl8.6",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "tcl8.6",
+          "status": "not-tested",
+          "answer": "This source-only question records no external tcl8.6 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.0",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "tcl9.0",
+          "status": "not-tested",
+          "answer": "This source-only question records no external tcl9.0 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "tcl9.1",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "tcl9.1",
+          "status": "not-tested",
+          "answer": "This source-only question records no external tcl9.1 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "jim",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "jim",
+          "status": "not-tested",
+          "answer": "This source-only question records no external jim result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        },
+        {
+          "id": "bigip",
+          "version": "No external provider execution is attached to this source-catalogue query.",
+          "build": "Current Registry/Syntax source and two fixed software control definitions only.",
+          "input_channel": "Exact Registry descriptor labels and rooted constructed reporting keys.",
+          "dialect": "bigip",
+          "status": "not-tested",
+          "answer": "This source-only question records no external bigip result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.",
+          "evidence": []
+        }
+      ],
+      "evidence": [
+        {
+          "id": "registry-declaration-source-0",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "1de8aafe803a4ca72bdd3374c6348938f1e75ec4f9c7b2501127e6e27de17024",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-declaration-source-1",
+          "role": "implementation",
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "sha256": "66784f60107d941e748c803a64f0ca052d6dd601cc95b4e24ca5233552c2a87d",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-declaration-source-2",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "sha256": "a813cd6be686d087e807d9468b256c5dd16d94bfef83d7093c3537b57adb2379",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-declaration-source-3",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/spec.rs",
+          "sha256": "553a01b03ae5834bf1650fbc573c9a38562906492ebbe726d45da9e920b11381",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-declaration-source-4",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/lib.rs",
+          "sha256": "51e694f4609dd94828b00d3cac9d9aff73d723d97677e9cb537aa573f5b2e593",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        },
+        {
+          "id": "registry-declaration-source-5",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "sha256": "feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc",
+          "description": "Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome."
+        }
+      ],
+      "source_anchors": [],
+      "tests": [
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "selector": "registry::declaration_key_tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+          "status": "linked",
+          "assertion": "The stock set declaration accepts one constructed root and refuses a repeated-root key that would erase literal colons. A genuinely inserted ::literal descriptor is declared only at its one-root constructed key; selected colon-run, trailing-empty and Unicode labels retain their exact bytes. An unrooted argument to the rooted query declines. These are catalogue metadata results, not written Tcl namespace or installed-command outcomes."
+        },
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "selector": "registry::declaration_key_tests::catalogue_declarations_keep_operator_context_and_package_metadata_separate",
+          "status": "linked",
+          "assertion": "Existing global set, qualified math operator and qualified helper declarations remain available, while bare operator imports and method-only global forms decline. A genuine inserted package-required declaration remains catalogue metadata with its original required_package value; its unrelated global tail is absent. No package load or Native table state is asserted."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "symbol": "declares_command_at_rooted_key",
+          "purpose": "One-root constructed-key entry; no written lookup or Native authority."
+        },
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "symbol": "declares_command_at_unrooted_key",
+          "purpose": "One exact selected descriptor label with existing declaration traits, independent of loaded table."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "unroot_rooted_key",
+          "purpose": "Remove exactly the root supplied by the constructed-key producer."
+        },
+        {
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "symbol": "CanonicalCommandDescriptorKey",
+          "purpose": "Byte-exact selected descriptor label; punctuation supplies no root encoding."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "symbol": "declares_builtin_at",
+          "purpose": "Guarded source import conflict metadata; caller Registry selection and actual source/import/export/site remain independent."
+        }
+      ],
+      "replay": {
+        "command": [],
+        "limitations": "Two fixed source definitions support later owned-software reconfirmation. No new test assertions, C Tcl/Jim/BIG-IP observations, command installation, package load or private/native chronology are attached."
+      }
     }
   ]
 }
