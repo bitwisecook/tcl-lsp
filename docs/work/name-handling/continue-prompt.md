@@ -32,6 +32,8 @@ branch documents first:
 - `experiments/name-handling/README.md`
 - `experiments/name-handling/results/RESULTS.md`
 - `experiments/name-handling/pattern-sources.md`
+- `experiments/name-handling/patterns/README.md`
+- `experiments/name-handling/patterns/f5/README.md`
 - `experiments/name-handling/f5/REQUEST.md`
 
 The user's `work` instruction overrides the stale AGENTS statement that only
@@ -50,6 +52,15 @@ output. Different slots can have the same rendered FQN: `a:` / `p` versus
 `a` / `:p`. Never repair that collision with another string canonicaliser.
 Do not parse displays back into identities or prove a target by a simple-name
 fallback. Uncertain static facts must abstain consistently.
+
+Commit coherent reviewed batches regularly, including affected contracts,
+experiment indexes and tracking documents. Keep the implementation ledger and
+current-state claims accurate in the same commit. Before pausing or handing off,
+commit accepted work, record any remaining shared-file ownership, and leave exact
+evidence paths, validation outcomes, blockers and ordered next actions. Inspect
+git for the latest checkpoint; do not rely on another chat's memory or an agent
+report alone. Local checkpoint commits do not waive publication gates. Keep
+coordination documents as a current snapshot, with history in git.
 
 Use current Original/source-binding/native object owners and the existing
 proof index. Logical reporting, original C/Jim and hosted source inputs are
@@ -185,7 +196,8 @@ This chat does not have BIG-IP access. Prepare executable probes and exact
 questions in `experiments/name-handling/f5/REQUEST.md`, using its IDs and answer
 protocol. The user will give them to the chat with appliance access. That chat
 returns answer documents/raw transcripts to `work` under
-`experiments/name-handling/f5/answers/`. Ingest them without overwriting their
+`experiments/name-handling/f5/answers/`, or for the wild-pattern bundle under
+`experiments/name-handling/patterns/f5/answers/`. Ingest them without overwriting their
 provenance. Appliance tclsh is a control; TMM, CLI script and iApp are separate
 contexts. Distinguish load acceptance from runtime semantics and named-command
 from dynamically constructed lookup. Continue independent work while waiting;

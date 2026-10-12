@@ -4,9 +4,12 @@ This is temporary coordination material. Keep each obligation's current status,
 owner and acceptance evidence here; retain experiments separately. Remove this
 ledger from the completed implementation diff. Git records implementation history.
 
-The integrated source baseline is `c49ef6fd5`, including remote `work`
-`bcaf88c12`. Earlier suite measurements identify their own source and binary;
-they do not certify this baseline. A source audit is not an executed test.
+The integration baseline is `c49ef6fd5`, including remote `work` `bcaf88c12`.
+Local checkpoint `d9b573dc9` contains the implementation and scoped validation;
+`e9159312d` contains the maintained wild-pattern catalogue and new Jim/F5
+bundles. No subagent assignment is currently active. Check git for later changes
+before assigning lanes. Measurements identify their own source and binary;
+a source audit is not an executed test.
 
 ## Active assignments
 
@@ -18,10 +21,10 @@ they do not certify this baseline. A source audit is not an executed test.
 | Real matching `init.tcl` / `tcltest.tcl` bootstrap | Bootstrap / VM agents | Scoped fixes verified; full startup incomplete | Physical byte length and 9.1 auto-path use shared owners. Four native runtime controls and three VM driver controls pass. Both engines' helper-presence tests match all five C releases and Jim; native drivers retain startup refusals. |
 | Static aliases, constructor hints and auto-path keys | Static agent | Three focused regressions pass | Current source binding handles paths/shadows; written variable tails and constructed colon namespaces are preserved; unknown effects withdraw imported constants. Unused analyser alias helper removed. Broader typing/class/dispatch controls remain red. |
 | Corpus naming patterns | Corpus agent | Source/C/Jim observations retained | All 35 public pins verified; 19 sites / 12 repositories, 15 reductions, 75 C observations retained. Catalogue links 45 original-question Jim captures and four distinct native controls. Static held-out coverage, canonical Jim answer registration and F5 observations remain required. |
-| Wiki naming patterns | Wiki agent | C questions indexed; native attempts captured | 17 read pages and 30 probes. C passes 21/22/29/29/29. All 44 Wiki/corpus questions are indexed with original runner snapshots; current native Wiki attempts stop before tests. |
+| Wiki naming patterns | Wiki agent | C questions indexed; Jim observations retained | 17 read pages and 30 probes. C passes 21/22/29/29/29. All 44 Wiki/corpus questions are indexed with original runner snapshots. Jim's 30 adapted inner questions have separate captures; unchanged C harness and our native Wiki attempts stop before tests. Canonical Jim registration and consumer coverage remain required. |
 | Related issue state and reproduction | Issue agent / coordinator | Updated; two defects remain open | #2450 closed from published removal. #2286 positives pass but direct/alias undefined-read controls fail. #2287 namespaced and top-level token controls fail; generic conditional import/path advice needs repair. |
 | Latest Jim oracle | Coordinator | Upstream reference verified and executed | Upstream HEAD matches shared pin `5bac7c99`; revision-bearing 0.84 build passes 339 tests in 12 real Jim naming suites. VM/runtime Jim conformance remains required. |
-| F5 appliance questions/answers | Appliance chat / coordinator | Evidence audit required | Inspect integrated BIG-IP proof records and appliance bundle; request only unanswered contexts. Returned documents must bind exact input, release, execution channel and reached event. |
+| F5 appliance questions/answers | Appliance chat / coordinator | Exact pattern bundle pending | [Pattern bundle](../../../experiments/name-handling/patterns/f5/README.md) has 50 questions across eight contexts, all 400 rows pending. Existing BIG-IP controls are linked separately. Returned documents must bind exact input, release, execution channel and reached event; ingest only matching answers. |
 | Required gates and publication | Coordinator | Red; publication blocked | Rust gate stops on formatting drift; full proof audit has 139 changed implementation digests. Command-backing and owner-resolution also report existing drift. Review evidence and repair gates before `make prep-pr` and any push. |
 
 ## Consumer acceptance census
@@ -81,6 +84,12 @@ temporary work directory and its links only when the consumer census is complete
 
 ## Concrete next work
 
+Keep this list and the acceptance rows current at every coherent commit and
+before handing off. Link exact raw results and distinguish passing controls,
+remaining failures, unreached checks and source-only inspection. Research
+scripts/capture validation passed for `e9159312d`; this does not repair the
+publication gates or establish current engine/static conformance.
+
 1. Repair conditional readonly import/export/path advice in the existing
    `source_catalogue_advice` / `source_transition_advice` owner. Preserve package
    availability and positioned namespace context, with known shadows, forget,
@@ -103,6 +112,11 @@ temporary work directory and its links only when the consumer census is complete
 7. Review changed implementation evidence bindings, formatting and owner/backing
    drift; finish required gates and publish. Never rewrite original native
    inputs or provider answers merely to match a new implementation digest.
+8. Register reviewed Jim pattern answers in the existing canonical proof index,
+   keeping exact original questions separate from adaptations. Add held-out
+   static consumer coverage and ingest matching F5 answers when the appliance
+   chat returns them. Maintain the [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
+   alongside each new experiment, answer or recognised idiom.
 
 [Retained gate/scoped validation](../../../experiments/name-handling/results/current-validation/README.md)
 separates passed controls, failed controls and gates which were not reached.

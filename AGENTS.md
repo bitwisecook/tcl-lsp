@@ -20,6 +20,14 @@ what good Rust looks like here in
 
 ## Gates before every push
 
+Commit coherent, reviewed changes regularly, including their current contracts,
+experiment indexes and tracking updates. Before pausing or handing off, record
+the current obligations, exact validation/evidence paths, blockers and next
+actions in the project's active coordination documents. Keep these documents
+as a current snapshot; git records the sequence of completed changes. Coordinate
+shared-file ownership before committing subagent work. A local checkpoint does
+not waive the gates required before publishing.
+
 ```
 make rust-check     # fmt + clippy + xtask drift gates; mirrors CI's rust-check worker
 make prep-pr        # format + codegen + lint/typecheck + smoke tier

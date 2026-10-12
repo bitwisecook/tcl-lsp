@@ -1,7 +1,8 @@
 # Current state
 
-Source basis: merged `work` HEAD
-`c49ef6fd5d147edd0cf473070dfaac2834c20dd7`, 12 October 2026.
+Integration source basis: `c49ef6fd5d147edd0cf473070dfaac2834c20dd7`,
+12 October 2026. Local implementation/evidence checkpoint is `d9b573dc9`;
+the current wild-pattern/evidence index checkpoint is `e9159312d`.
 The published `work` ref was
 `bcaf88c12400c1a0a529a54ba8a73dacb216da41` when checked.
 Earlier `127dba9d9` source audits and `b7ad30f1f` engine captures are
@@ -98,13 +99,18 @@ corpus questions.
 
 [The corpus findings](../../../experiments/name-handling/patterns/corpus-findings.md)
 verify 35 public pins and retain 75 reduced C observations, including capability
-absences and near misses. Jim/F5 remain pending for those exact inputs.
-Canonical answers to other inputs are separate. Static recogniser accuracy
-and held-out target-selection coverage remain unmeasured by this lane.
+absences and near misses. The [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
+links five-release C outcomes, 45 original-question Jim attempts and four
+distinct Jim-native controls. Unchanged Wiki harness refusal and adapted inner
+questions are recorded separately. These supplemental Jim observations still
+need canonical registration. The F5 pattern bundle's 400 context rows remain
+pending; other canonical appliance answers do not fill them. Static recogniser
+accuracy and held-out target-selection coverage remain unmeasured by this lane.
 
-[The earlier VM/runtime report](../../../experiments/name-handling/results/RESULTS.md)
-retains evidence for its recorded source. Re-run its failures on the new
-owners before reporting current gaps. Likewise, an OPEN issue supplies an
+[The VM/runtime report](../../../experiments/name-handling/results/RESULTS.md)
+separates the frozen actual-native 8.5 capture from older Logical harness
+measurements. The ledger records scoped fixes and remaining failures; each
+receipt certifies its captured source rather than every later edit. An OPEN issue supplies an
 acceptance target, not a demonstrated current failure.
 [The refreshed issue inventory](issues.md) separates those states.
 

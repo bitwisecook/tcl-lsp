@@ -6,14 +6,17 @@ C Tcl 8.4–9.1, latest JimTcl and F5 oracle evidence. The starting report is
 across `tcltest` setup/body/cleanup execution. Its reproduction must be covered
 alongside the broader command, namespace, variable and object identity work.
 
-Current source basis: merged HEAD `c49ef6fd5`, 12 October 2026. Earlier
-source audits and retained execution receipts remain separate baselines;
-current execution must be recorded before calling their gaps resolved.
+Current checkpoints, 12 October 2026: integration baseline `c49ef6fd5`,
+implementation/evidence `d9b573dc9`, wild-pattern catalogue and C/Jim/F5
+evidence index `e9159312d`. These are local commits on `work`; the last checked
+published ref is `bcaf88c12`. Evidence certifies its recorded source and inputs,
+not every later commit. Check `git log` and `git status` for subsequent changes.
 
 | Document | Purpose |
 | --- | --- |
 | [Shared contract](../../design/contracts/name-handling.md) | Durable entry point for agents and all consumers; existing APIs and representation rules |
 | [Current state](current-state.md) | Verified source audit, gaps and misleading claims |
+| [Implementation ledger](implementation-ledger.md) | Current consumer obligations, validation, blockers and concrete next work |
 | [Issues](issues.md) | Related open/closed issues, dependencies and branch evidence rules |
 | [Issue action proposals](issue-actions.md) | Exact closure/update text and current validation requirements |
 | [Canonical naming proofs](../../design/analysis/name-resolution-proofs/README.md) | Sole question/evidence index and provider-specific proof authority |
@@ -27,6 +30,18 @@ current execution must be recorded before calling their gaps resolved.
 | [BIG-IP handoff](../../../experiments/name-handling/f5/REQUEST.md) | Questions and return format for the chat with appliance access |
 
 ## Lifecycle
+
+Commit reviewed, coherent batches regularly. Update the ledger, current-state
+claims and affected contracts/experiment indexes in the same batch. Before
+pausing, ensure accepted work is committed and record any remaining uncommitted
+ownership explicitly. Preserve source/binary/input hashes and exact evidence
+paths; never replace a failed result with an unexecuted claim.
+
+A new chat starts with `AGENTS.md`, this page, the ledger and the continuation
+prompt. Inspect branch/status and incoming changes, verify the evidence source
+before rerunning or interpreting a result, then take the next unresolved ledger
+obligation. No subagent assignment is currently active; assign fresh bounded
+lanes. Rust/proof/owner gates remain red, so these checkpoints are not published.
 
 This directory is temporary coordination material on `work`. Keep the current
 state and remaining obligations accurate while work is active. Do not append
