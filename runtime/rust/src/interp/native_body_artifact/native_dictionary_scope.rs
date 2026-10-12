@@ -183,16 +183,18 @@ impl Interp {
         original
             .check(self)
             .map_err(|error| self.report_cmd_error(error))?;
+        let actual = self.clone();
+        let stage = || original.check(&actual);
         let reached = (|| {
             use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
             let captured = if slot.is_some() {
-                match self.body_capture_target(target, slot, with) {
+                match self.body_capture_target_using(target, slot, with, Some(original)) {
                     Ok(captured) => Some(captured),
                     Err(code) if self.host_refusal_pending() => return Err(code),
                     Err(_) => None,
                 }
             } else {
-                match self.capture_original_c_variable_report(
+                match self.capture_original_c_variable_report_using(
                     target
                         .original_name
                         .as_ref()
@@ -203,6 +205,7 @@ impl Interp {
                     } else {
                         Purpose::Exists
                     },
+                    Some(&stage),
                 ) {
                     Ok(captured) => captured,
                     Err(code) if with || self.host_refusal_pending() => return Err(code),
@@ -242,6 +245,11 @@ impl Interp {
             } else {
                 false
             };
+            // This is the same entered Body, immediately after the reached
+            // observer and before any selected read or missing-field update.
+            original
+                .check(self)
+                .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
             if self.host_refusal_pending() {
                 return Err(Code::Error);
             }
@@ -285,28 +293,29 @@ impl Interp {
         captured: &super::super::native_variable_names::OriginalCVariableCapture,
         value: RuntimeAppendValue,
     ) -> Result<(), Code> {
+        let actual = self.clone();
+        let stage = || original.check(&actual);
         original
             .check(self)
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
         let reached = (|| {
-            captured
-                .receiver
-                .store(value.as_ptr())
-                .map_err(|error| crate::builtins::var_error(self, &captured.root, error))?;
+            let stored = captured.receiver.store(value.as_ptr());
+            original.check(self).map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+            stored.map_err(|error| crate::builtins::var_error_using(self, &captured.root, error, Some(&stage)))?;
             // Capture the original frame cause before the working value's
             // mandatory release can reach another callback.
             let published = original
                 .check(self)
-                .map_err(|error| self.report_cmd_error(error));
+                .map_err(|error| self.report_cmd_error_using(error, Some(&stage)));
             drop(value);
             original
                 .check(self)
-                .map_err(|error| self.report_cmd_error(error))?;
+                .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
             published?;
             captured
                 .receiver
                 .check_current()
-                .map_err(|error| crate::builtins::var_error(self, &captured.root, error))?;
+                .map_err(|error| crate::builtins::var_error_using(self, &captured.root, error, Some(&stage)))?;
             if self.original_variable_trace_requires_name(
                 &captured.home,
                 captured.element.as_deref(),
@@ -321,7 +330,7 @@ impl Interp {
                             .map(|bytes| bytes.to_vec())
                     })
                     .transpose()
-                    .map_err(|error| self.report_cmd_error(error.into()))?
+                    .map_err(|error| self.report_cmd_error_using(error.into(), Some(&stage)))?
                     .unwrap_or_else(|| target.root.clone());
                 let access = self.trace_access(
                     &spelling,
@@ -330,15 +339,14 @@ impl Interp {
                     &captured.home,
                     false,
                 );
-                if self
-                    .fire_var_trace_resolved(&captured.home, &access, b"write")
-                    .map_err(|first| self.refuse_native_execution(first))?
-                    .is_guest_error()
-                {
-                    return Err(crate::builtins::var_error(
+                let traced = self.fire_var_trace_resolved(&captured.home, &access, b"write")
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                original.check(self).map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                if traced.is_guest_error() {
+                    return Err(crate::builtins::var_error_using(
                         self,
                         &spelling,
-                        crate::frame::VarError::TraceError,
+                        crate::frame::VarError::TraceError, Some(&stage)
                     ));
                 }
             }
@@ -349,7 +357,7 @@ impl Interp {
         })();
         original
             .check(self)
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
         reached
     }
 
@@ -411,10 +419,11 @@ impl Interp {
                     .lookup(self, original, &bytes)
                     .map_err(|error| self.report_cmd_error(error))?;
                 if let Some(value) = member {
-                    self.body_store_value(
+                    self.body_store_value_using(
                         &local_target(name),
                         Some(*slot),
                         &obj::Owned::retain(value),
+                        original,
                     )?;
                 } else {
                     let original = obj::Owned::fresh(obj::new_string_bytes(name));
@@ -772,7 +781,8 @@ impl Interp {
             original
                 .check(self)
                 .map_err(|error| self.report_cmd_error(error))?;
-            let dictionary = self.body_read_original_parts(&target, operation.root_slot)?;
+            let dictionary =
+                self.body_read_original_parts_using(&target, operation.root_slot, original)?;
             original
                 .check(self)
                 .map_err(|error| self.report_cmd_error(error))?;

@@ -49,11 +49,11 @@ use native_introspection::IntrospectionOperation;
 use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
+#[path = "native_body_artifact/native_lappend.rs"]
+mod native_lappend;
 mod native_list_conversion;
 #[path = "native_body_artifact/native_oo_next.rs"]
 mod native_oo_next;
-#[path = "native_body_artifact/native_lappend.rs"]
-mod native_lappend;
 use native_list_conversion::{BodyListArguments, BodyListFrame};
 mod native_info_exists;
 mod native_unset;
@@ -2307,7 +2307,7 @@ impl Interp {
                         self.body_variable_substitution_target(artifact, arena, name);
                     evaluated.original_index = Some(value);
                     evaluated.combined = false;
-                    let read = self.body_read_original_parts(&evaluated, slot)?;
+                    let read = self.body_read_original_parts_using(&evaluated, slot, &original)?;
                     original
                         .check(self)
                         .map_err(|error| self.report_cmd_error(error))?;
@@ -2336,9 +2336,10 @@ impl Interp {
                         continue;
                     }
                     ExecutablePart::Variable { name, index: None } => self
-                        .body_read_original_parts(
+                        .body_read_original_parts_using(
                             &self.body_variable_substitution_target(artifact, arena, *name),
                             arena.locals.get(name).copied(),
+                            &original,
                         )?,
                     ExecutablePart::Command { body } => {
                         let mut saved = self.cmd_frames.borrow().last().map(|frame| {
@@ -2613,6 +2614,17 @@ impl Interp {
         }
     }
 
+    fn check_body_variable_stage(
+        &mut self,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        if let Some(check) = stage {
+            check().map_err(|error| self.report_cmd_error_using(error, stage))?;
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
     fn body_capture_target(
         &mut self,
         evaluated: &EvaluatedTarget,
@@ -2629,9 +2641,26 @@ impl Interp {
         creates: bool,
         original: Option<&native_list_conversion::BodyObjectOperation>,
     ) -> Result<super::native_variable_names::OriginalCVariableCapture, Code> {
-        if let Some(original) = original {
-            original.check(self).map_err(|first| self.report_cmd_error(first))?;
+        let actual = self.clone();
+        match original {
+            Some(original) => self.body_capture_target_with_check(
+                evaluated,
+                slot,
+                creates,
+                Some(&|| original.check(&actual)),
+            ),
+            None => self.body_capture_target_with_check(evaluated, slot, creates, None),
         }
+    }
+
+    fn body_capture_target_with_check(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        creates: bool,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Result<super::native_variable_names::OriginalCVariableCapture, Code> {
+        self.check_body_variable_stage(stage)?;
         use tcl_syntax::naming::{
             NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
         };
@@ -2649,15 +2678,11 @@ impl Interp {
                 .original_index
                 .as_ref()
                 .map(|value| {
-                    if let Some(original) = original {
-                        original.bytes(self, value.as_ptr()).map(|bytes| bytes.to_vec())
-                    } else {
-                        ValueOps::native_string_bytes(self, &value.as_ptr())
-                            .map(|bytes| bytes.to_vec()).map_err(tcl_cmd_core::CmdError::from)
-                    }
+                    self.original_c_name_bytes_using(value.as_ptr(), stage)
+                        .map(|bytes| bytes.to_vec())
                 })
                 .transpose()
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
             let captured = crate::vars::capture_original_indexed_receiver(
                 &mut self.frames.borrow_mut(),
                 &mut self.namespaces.borrow_mut(),
@@ -2665,15 +2690,16 @@ impl Interp {
                 element.clone(),
                 creates,
             );
+            self.check_body_variable_stage(stage)?;
             let captured = captured
                 .map_err(|error| {
-                    self.body_variable_receiver_error(evaluated, purpose, Site::NameLookup, error)
+                    self.body_variable_receiver_error_with_check(evaluated, purpose, Site::NameLookup, error, stage)
                 })?
                 .ok_or_else(|| {
                     if creates {
                     self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
                 } else {
-                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                    self.body_variable_missing_value_with_check(evaluated, Reason::NoSuchVariable, stage)
                 }
                 })?;
             if creates
@@ -2695,7 +2721,7 @@ impl Interp {
         } else {
             if evaluated.combined {
                 return self
-                    .capture_original_c_variable_report(
+                    .capture_original_c_variable_report_using(
                         evaluated
                             .original_name
                             .as_ref()
@@ -2705,17 +2731,17 @@ impl Interp {
                             Purpose::Write
                         } else {
                             Purpose::Read
-                        },
+                        }, stage
                     )?
                     .ok_or_else(|| {
                         if creates {
                     self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
                 } else {
-                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                    self.body_variable_missing_value_with_check(evaluated, Reason::NoSuchVariable, stage)
                 }
                     });
             }
-            self.capture_original_c_parts_report(
+            self.capture_original_c_parts_report_using(
                 evaluated
                     .original_name
                     .as_ref()
@@ -2726,176 +2752,284 @@ impl Interp {
                     Purpose::Write
                 } else {
                     Purpose::Read
-                },
+                }, stage
             )?
             .ok_or_else(|| if creates {
                     self.refuse_native_access(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("compiled created variable receiver"))
                 } else {
-                    self.body_variable_missing_value(evaluated, Reason::NoSuchVariable)
+                    self.body_variable_missing_value_with_check(evaluated, Reason::NoSuchVariable, stage)
                 })
         }
     }
 
-    fn body_variable_reporting_input(
+    fn body_variable_reporting_input_with_check(
         &mut self,
         evaluated: &EvaluatedTarget,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
     ) -> Result<super::native_variable_names::OriginalCVariableReportingInput, Code> {
-        self.original_c_variable_reporting_input(
+        self.check_body_variable_stage(stage)?;
+        self.original_c_variable_reporting_input_using(
             (&evaluated.root, evaluated.element.as_deref()),
             (
                 evaluated.original_name.as_ref().map(obj::Owned::as_ptr),
                 evaluated.original_index.as_ref().map(obj::Owned::as_ptr),
                 evaluated.combined,
             ),
+            stage,
         )
     }
 
-    fn body_variable_receiver_error(
+    fn body_variable_receiver_error_with_check(
         &mut self,
         evaluated: &EvaluatedTarget,
         purpose: tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose,
         site: tcl_syntax::naming::NativeVariableFailureSite,
         error: crate::frame::VarError,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
     ) -> Code {
+        if let Err(code) = self.check_body_variable_stage(stage) {
+            return code;
+        }
         if self.host_refusal_pending() {
             return Code::Error;
         }
-        let input = match self.body_variable_reporting_input(evaluated) {
+        let input = match self.body_variable_reporting_input_with_check(evaluated, stage) {
             Ok(input) => input,
             Err(code) => return code,
         };
-        self.original_c_variable_receiver_error(input.input(), purpose, error, Some(site))
+        self.original_c_variable_receiver_error_using(
+            input.input(),
+            purpose,
+            error,
+            Some(site),
+            stage,
+        )
     }
 
-    fn body_variable_missing_value(
+    fn body_variable_missing_value_with_check(
         &mut self,
         evaluated: &EvaluatedTarget,
         reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
     ) -> Code {
+        if let Err(code) = self.check_body_variable_stage(stage) {
+            return code;
+        }
         if self.host_refusal_pending() {
             return Code::Error;
         }
-        let input = match self.body_variable_reporting_input(evaluated) {
+        let input = match self.body_variable_reporting_input_with_check(evaluated, stage) {
             Ok(input) => input,
             Err(code) => return code,
         };
-        self.original_c_variable_failure_input(
+        self.original_c_variable_failure_input_using(
             input.input(),
             tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose::Read,
             reason,
             tcl_syntax::naming::NativeVariableFailureSite::ValueRead,
+            stage,
         )
     }
 
-    fn body_read_original_parts(
+    fn body_read_original_parts_using(
         &mut self,
         evaluated: &EvaluatedTarget,
         slot: Option<usize>,
+        original: &native_list_conversion::BodyObjectOperation,
     ) -> Result<obj::Owned, Code> {
-        use tcl_syntax::naming::{
-            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
-        };
-        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
-        let capture = self.body_capture_target(evaluated, slot, false)?;
-        let root = capture.root.as_slice();
-        let element = capture.element.as_deref();
-        let receiver = capture.receiver;
-        let home = capture.home;
-        if self.has_variable_traces() {
-            let access = self.trace_access(root, root, element, &home, false);
-            if self
-                .fire_var_trace_resolved(&home, &access, b"read")
-                .map_err(|first| self.refuse_native_execution(first))?
-                .is_guest_error()
-            {
-                return Err(self.body_variable_receiver_error(
-                    evaluated,
-                    Purpose::Read,
-                    Site::ValueRead,
-                    crate::frame::VarError::TraceError,
-                ));
-            }
-        }
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
-        let value = receiver
-            .read()
-            .map_err(|error| {
-                self.body_variable_receiver_error(evaluated, Purpose::Read, Site::ValueRead, error)
-            })?
-            .ok_or_else(|| {
-                self.body_variable_missing_value(
-                    evaluated,
-                    if element.is_some() && receiver.is_array() {
-                        Reason::NoSuchElement
-                    } else {
-                        Reason::NoSuchVariable
-                    },
-                )
-            })?;
-        Ok(obj::Owned::retain(value))
+        let actual = self.clone();
+        self.body_read_original_parts_with_check(evaluated, slot, Some(&|| original.check(&actual)))
     }
 
-    fn body_store(
+    fn body_read_original_parts_with_check(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Result<obj::Owned, Code> {
+        self.check_body_variable_stage(stage)?;
+        let reached = (|| {
+            use tcl_syntax::naming::{
+                NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+            };
+            use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+            let capture = self.body_capture_target_with_check(evaluated, slot, false, stage)?;
+            let root = capture.root.as_slice();
+            let element = capture.element.as_deref();
+            let receiver = capture.receiver;
+            let home = capture.home;
+            if self.has_variable_traces() {
+                let access = self.trace_access(root, root, element, &home, false);
+                let traced = self
+                    .fire_var_trace_resolved(&home, &access, b"read")
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                self.check_body_variable_stage(stage)?;
+                if traced.is_guest_error() {
+                    return Err(self.body_variable_receiver_error_with_check(
+                        evaluated,
+                        Purpose::Read,
+                        Site::ValueRead,
+                        crate::frame::VarError::TraceError,
+                        stage,
+                    ));
+                }
+            }
+            if self.host_refusal_pending() {
+                return Err(Code::Error);
+            }
+            let value = receiver
+                .read()
+                .map_err(|error| {
+                    self.body_variable_receiver_error_with_check(
+                        evaluated,
+                        Purpose::Read,
+                        Site::ValueRead,
+                        error,
+                        stage,
+                    )
+                })?
+                .ok_or_else(|| {
+                    self.body_variable_missing_value_with_check(
+                        evaluated,
+                        if element.is_some() && receiver.is_array() {
+                            Reason::NoSuchElement
+                        } else {
+                            Reason::NoSuchVariable
+                        },
+                        stage,
+                    )
+                })?;
+            Ok(obj::Owned::retain(value))
+        })();
+        self.check_body_variable_stage(stage)?;
+        reached
+    }
+
+    fn body_store_using(
         &mut self,
         evaluated: &EvaluatedTarget,
         slot: Option<usize>,
         value: &obj::Owned,
+        original: &native_list_conversion::BodyObjectOperation,
     ) -> Code {
-        match self.body_store_value(evaluated, slot, value) {
+        let actual = self.clone();
+        self.body_store_with_check(evaluated, slot, value, Some(&|| original.check(&actual)))
+    }
+
+    fn body_store_with_check(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        value: &obj::Owned,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(code) = self.check_body_variable_stage(stage) {
+            return code;
+        }
+        match self.body_store_value_with_check(evaluated, slot, value, stage) {
             Ok(Some(result)) => {
                 self.set_result(result.as_ptr());
-                Code::Ok
+                let current = self.check_body_variable_stage(stage);
+                drop(result);
+                match current.and_then(|()| self.check_body_variable_stage(stage)) {
+                    Ok(()) => Code::Ok,
+                    Err(code) => code,
+                }
             }
             Ok(None) => {
                 self.set_result_bytes(b"");
-                Code::Ok
+                match self.check_body_variable_stage(stage) {
+                    Ok(()) => Code::Ok,
+                    Err(code) => code,
+                }
             }
             Err(code) => code,
         }
     }
 
+    #[cfg(test)]
     fn body_store_value(
         &mut self,
         evaluated: &EvaluatedTarget,
         slot: Option<usize>,
         value: &obj::Owned,
     ) -> Result<Option<obj::Owned>, Code> {
-        use tcl_syntax::naming::NativeVariableFailureSite as Site;
-        use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
-        let capture = self.body_capture_target(evaluated, slot, true)?;
-        let root = capture.root.as_slice();
-        let element = capture.element.as_deref();
-        let receiver = capture.receiver;
-        let home = capture.home;
-        if let Err(error) = receiver.store(value.as_ptr()) {
-            return Err(self.body_variable_receiver_error(
-                evaluated,
-                Purpose::Write,
-                Site::ValueWrite,
-                error,
-            ));
-        }
-        if self.has_variable_traces() {
-            let access = self.trace_access(root, root, element, &home, false);
-            if self
-                .fire_var_trace_resolved(&home, &access, b"write")
-                .map_err(|first| self.refuse_native_execution(first))?
-                .is_guest_error()
-            {
-                return Err(self.body_variable_receiver_error(
+        self.body_store_value_with_check(evaluated, slot, value, None)
+    }
+
+    fn body_store_value_using(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        value: &obj::Owned,
+        original: &native_list_conversion::BodyObjectOperation,
+    ) -> Result<Option<obj::Owned>, Code> {
+        let actual = self.clone();
+        self.body_store_value_with_check(evaluated, slot, value, Some(&|| original.check(&actual)))
+    }
+
+    fn body_store_value_with_check(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        value: &obj::Owned,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Result<Option<obj::Owned>, Code> {
+        self.check_body_variable_stage(stage)?;
+        let reached = (|| {
+            use tcl_syntax::naming::NativeVariableFailureSite as Site;
+            use tcl_syntax::native_variable_name::NativeVariableNameLookupPurpose as Purpose;
+            let capture = self.body_capture_target_with_check(evaluated, slot, true, stage)?;
+            let root = capture.root.as_slice();
+            let element = capture.element.as_deref();
+            let receiver = capture.receiver;
+            let home = capture.home;
+            let stored = receiver.store(value.as_ptr());
+            self.check_body_variable_stage(stage)?;
+            if let Err(error) = stored {
+                return Err(self.body_variable_receiver_error_with_check(
                     evaluated,
                     Purpose::Write,
                     Site::ValueWrite,
-                    crate::frame::VarError::TraceError,
+                    error,
+                    stage,
                 ));
             }
-        }
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
-        Ok(receiver.read().ok().flatten().map(obj::Owned::retain))
+            if self.has_variable_traces() {
+                let access = self.trace_access(root, root, element, &home, false);
+                let traced = self
+                    .fire_var_trace_resolved(&home, &access, b"write")
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                self.check_body_variable_stage(stage)?;
+                if traced.is_guest_error() {
+                    return Err(self.body_variable_receiver_error_with_check(
+                        evaluated,
+                        Purpose::Write,
+                        Site::ValueWrite,
+                        crate::frame::VarError::TraceError,
+                        stage,
+                    ));
+                }
+            }
+            if self.host_refusal_pending() {
+                return Err(Code::Error);
+            }
+            let value = match receiver.read() {
+                Err(crate::frame::VarError::NameProtocolUnavailable) if stage.is_some() => {
+                    return Err(self.body_variable_receiver_error_with_check(
+                        evaluated,
+                        Purpose::Write,
+                        Site::ValueRead,
+                        crate::frame::VarError::NameProtocolUnavailable,
+                        stage,
+                    ));
+                }
+                reached => reached.ok().flatten(),
+            };
+            Ok(value.map(obj::Owned::retain))
+        })();
+        self.check_body_variable_stage(stage)?;
+        reached
     }
 
     fn body_helper_operand(
@@ -3258,132 +3392,208 @@ impl Interp {
                 generic: Some(_), ..
             }) => self.execute_body_generic_invocation(artifact, command, execution),
             Operation::NamespaceBindings(scope) => {
-                use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind;
-                let prefix = scope.prefix.map(|index| {
-                    obj::Owned::retain(
-                        artifact
-                            .literals
-                            .original(index)
-                            .expect("pooled root namespace operand"),
-                    )
-                });
-                let namespace_object = scope
-                    .namespace
-                    .as_ref()
-                    .map(|operand| {
-                        self.body_namespace_operand(artifact, command, operand, execution)
-                    })
-                    .transpose()?;
-                if execution.done {
-                    return Ok(Code::Ok);
-                }
-                for binding in &scope.bindings {
-                    let name =
-                        self.body_namespace_operand(artifact, command, &binding.name, execution)?;
+                let original = native_list_conversion::BodyObjectOperation::capture(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let stage = || original.check(&actual);
+                let reached = (|| {
+                    use tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingKind;
+                    let prefix = scope.prefix.map(|index| {
+                        obj::Owned::retain(
+                            artifact
+                                .literals
+                                .original(index)
+                                .expect("pooled root namespace operand"),
+                        )
+                    });
+                    let namespace_object = scope
+                        .namespace
+                        .as_ref()
+                        .map(|operand| {
+                            self.body_namespace_operand(artifact, command, operand, execution)
+                        })
+                        .transpose()?;
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
                     if execution.done {
                         return Ok(Code::Ok);
                     }
-                    let namespace = if scope.kind == NativeNamespaceBindingKind::Global {
-                        let prefix = prefix.as_ref().expect("original root namespace operand");
-                        self.native_namespace_object_lookup(prefix.as_ptr())
-                            .map_err(|error| self.report_cmd_error(error.into()))?
-                            .ok_or_else(|| {
-                                self.report_cmd_error(
-                                    unavailable("compiled root namespace operand lookup").into(),
-                                )
-                            })?
-                    } else if scope.kind == NativeNamespaceBindingKind::Upvar {
-                        let original = namespace_object
-                            .as_ref()
-                            .expect("original namespace upvar operand");
-                        match self.native_namespace_object_lookup(original.as_ptr()) {
-                            Ok(Some(namespace)) => namespace,
-                            Ok(None) => return Ok(crate::cmd_namespace::ns_operation_not_found(
-                                self,
-                                original.as_ptr(),
-                                tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
-                            )),
-                            Err(error) => return Ok(self.report_cmd_error(error.into())),
-                        }
-                    } else {
-                        let frames = self.frames.borrow();
-                        frames.frame_ns(frames.current_level())
-                    };
-                    let code = self.link_original_compiled_namespace_variable(
-                        name.as_ptr(),
-                        namespace,
-                        binding.slot,
-                        scope.kind == NativeNamespaceBindingKind::Variable,
-                    );
-                    if code != Code::Ok || self.host_refusal_pending() {
-                        return Ok(code);
-                    }
-                    drop(name);
-                    if let Some(operand) = &binding.value {
-                        let value =
-                            self.body_namespace_operand(artifact, command, operand, execution)?;
+                    for binding in &scope.bindings {
+                        let name = self.body_namespace_operand(
+                            artifact,
+                            command,
+                            &binding.name,
+                            execution,
+                        )?;
+                        original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
                         if execution.done {
                             return Ok(Code::Ok);
                         }
-                        let code = self.body_store(
-                            &EvaluatedTarget {
-                                root: binding.local.clone(),
-                                element: None,
-                                original_name: None,
-                                original_index: None,
-                                combined: false,
-                            },
-                            Some(binding.slot),
-                            &value,
+                        let namespace = if scope.kind == NativeNamespaceBindingKind::Global {
+                            let prefix = prefix.as_ref().expect("original root namespace operand");
+                            self.native_namespace_object_lookup_using(
+                                prefix.as_ptr(),
+                                &stage,
+                                &|error| original.refuse(error),
+                            )
+                            .map_err(|error| {
+                                self.report_cmd_error_using(error.into(), Some(&stage))
+                            })?
+                            .ok_or_else(|| {
+                                self.report_cmd_error_using(
+                                    unavailable("compiled root namespace operand lookup").into(),
+                                    Some(&stage),
+                                )
+                            })?
+                        } else if scope.kind == NativeNamespaceBindingKind::Upvar {
+                            let namespace_original = namespace_object
+                                .as_ref()
+                                .expect("original namespace upvar operand");
+                            match self.native_namespace_object_lookup_using(namespace_original.as_ptr(), &stage, &|error| original.refuse(error)) {
+                            Ok(Some(namespace)) => namespace,
+                            Ok(None) => return Ok(crate::cmd_namespace::ns_operation_not_found_using(
+                                self,
+                                namespace_original.as_ptr(),
+                                tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+                                Some(&stage),
+                            )),
+                            Err(error) => return Ok(self.report_cmd_error_using(error.into(), Some(&stage))),
+                        }
+                        } else {
+                            let frames = self.frames.borrow();
+                            frames.frame_ns(frames.current_level())
+                        };
+                        original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                        let code = self.link_original_compiled_namespace_variable_using(
+                            name.as_ptr(),
+                            namespace,
+                            binding.slot,
+                            scope.kind == NativeNamespaceBindingKind::Variable,
+                            Some(&stage),
                         );
                         if code != Code::Ok || self.host_refusal_pending() {
                             return Ok(code);
                         }
+                        drop(name);
+                        original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                        if let Some(operand) = &binding.value {
+                            let value =
+                                self.body_namespace_operand(artifact, command, operand, execution)?;
+                            original.check(self).map_err(|error| {
+                                self.report_cmd_error_using(error, Some(&stage))
+                            })?;
+                            if execution.done {
+                                return Ok(Code::Ok);
+                            }
+                            let code = self.body_store_using(
+                                &EvaluatedTarget {
+                                    root: binding.local.clone(),
+                                    element: None,
+                                    original_name: None,
+                                    original_index: None,
+                                    combined: false,
+                                },
+                                Some(binding.slot),
+                                &value,
+                                &original,
+                            );
+                            if code != Code::Ok || self.host_refusal_pending() {
+                                return Ok(code);
+                            }
+                        }
                     }
-                }
-                drop(prefix);
-                self.set_result(
-                    artifact
-                        .literals
-                        .original(scope.empty.expect("namespace empty result"))
-                        .expect("pooled namespace empty result"),
-                );
-                Ok(Code::Ok)
+                    drop(prefix);
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    self.set_result(
+                        artifact
+                            .literals
+                            .original(scope.empty.expect("namespace empty result"))
+                            .expect("pooled namespace empty result"),
+                    );
+                    Ok(Code::Ok)
+                })();
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                reached
             }
             Operation::Unset(unset) => self.execute_body_unset(artifact, command, unset, execution),
             Operation::Load(target) => {
-                let evaluated = self.body_target(artifact, command, target, execution)?;
-                let value = if evaluated.combined {
-                    obj::Owned::retain(
-                        self.read_original_c_variable(
+                let original = native_list_conversion::BodyObjectOperation::capture(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let stage = || original.check(&actual);
+                let reached = (|| {
+                    let evaluated = self.body_target(artifact, command, target, execution)?;
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    let value = if evaluated.combined {
+                        obj::Owned::retain(
+                            self.read_original_c_variable_using(
+                                evaluated
+                                    .original_name
+                                    .as_ref()
+                                    .expect("original dynamic name")
+                                    .as_ptr(),
+                                Some(&stage),
+                            )?,
+                        )
+                    } else {
+                        self.body_read_original_parts_using(&evaluated, target.slot, &original)?
+                    };
+                    self.set_result(value.as_ptr());
+                    let current = original.check(self);
+                    drop(value);
+                    current.map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    Ok(Code::Ok)
+                })();
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                reached
+            }
+            Operation::Store(target, value) => {
+                let original = native_list_conversion::BodyObjectOperation::capture(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let stage = || original.check(&actual);
+                let reached = (|| {
+                    let evaluated = self.body_target(artifact, command, target, execution)?;
+                    let value = self.body_word(artifact, &command.words[*value], execution)?;
+                    original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    if evaluated.combined {
+                        self.store_original_c_variable_using(
                             evaluated
                                 .original_name
                                 .as_ref()
                                 .expect("original dynamic name")
                                 .as_ptr(),
-                        )?,
-                    )
-                } else {
-                    self.body_read_original_parts(&evaluated, target.slot)?
-                };
-                self.set_result(value.as_ptr());
-                Ok(Code::Ok)
-            }
-            Operation::Store(target, value) => {
-                let evaluated = self.body_target(artifact, command, target, execution)?;
-                let value = self.body_word(artifact, &command.words[*value], execution)?;
-                if evaluated.combined {
-                    self.store_original_c_variable(
-                        evaluated
-                            .original_name
-                            .as_ref()
-                            .expect("original dynamic name")
-                            .as_ptr(),
-                        value.as_ptr(),
-                    )?;
-                    return Ok(Code::Ok);
-                }
-                Ok(self.body_store(&evaluated, target.slot, &value))
+                            value.as_ptr(),
+                            Some(&stage),
+                        )?;
+                        return Ok(Code::Ok);
+                    }
+                    Ok(self.body_store_using(&evaluated, target.slot, &value, &original))
+                })();
+                original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                reached
             }
             Operation::Increment(target, amount, immediate) => {
                 let evaluated = self.body_target(artifact, command, target, execution)?;
@@ -4249,3 +4459,7 @@ mod original_word_input_tests;
 #[cfg(test)]
 #[path = "native_body_artifact/original_preparation_boundary_tests.rs"]
 mod original_preparation_boundary_tests;
+
+#[cfg(test)]
+#[path = "native_body_artifact/original_variable_boundary_tests.rs"]
+mod original_variable_boundary_tests;

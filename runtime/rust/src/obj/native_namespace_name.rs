@@ -67,37 +67,85 @@ pub(crate) fn install(
     cache: NativeNamespaceNameCache,
     protocol: tcl_registry::native_namespace_name::NativeNamespaceNameProtocol,
 ) -> Result<(), ValueError> {
+    install_using(value, cache, protocol, None, None)
+}
+
+pub(crate) fn install_using(
+    value: *mut TclObj,
+    cache: NativeNamespaceNameCache,
+    protocol: tcl_registry::native_namespace_name::NativeNamespaceNameProtocol,
+    stage: Option<&dyn Fn() -> Result<(), ValueError>>,
+    retain: Option<&dyn Fn(ValueError) -> ValueError>,
+) -> Result<(), ValueError> {
     if cache.version() != protocol.recipe().version() || !super::has_string_rep(value) {
-        return Err(ValueError::CommandProtocolUnavailable(
+        let error = ValueError::CommandProtocolUnavailable(
             "native namespace-name primary origin and resident storage",
-        ));
+        );
+        let first = match retain { Some(retain) => retain(error), None => error };
+        drop(cache);
+        return Err(first);
     }
-    install_unchecked(value, cache);
+    install_unchecked_using(value, cache, stage, retain)?;
     Ok(())
 }
 
 fn install_unchecked(value: *mut TclObj, cache: NativeNamespaceNameCache) {
+    install_unchecked_using(value, cache, None, None)
+        .expect("neutral namespace primary installation");
+}
+
+fn install_unchecked_using(
+    value: *mut TclObj,
+    cache: NativeNamespaceNameCache,
+    stage: Option<&dyn Fn() -> Result<(), ValueError>>,
+    retain: Option<&dyn Fn(ValueError) -> ValueError>,
+) -> Result<(), ValueError> {
     let descriptor = if cache.version() == tcl_dialect::TclVersion::V8_4 {
         &C84_TYPE
     } else {
         &C_TYPE
     };
-    super::change_type(
-        value,
-        descriptor,
-        Box::into_raw(Box::new(cache)) as usize as u64,
-    );
+    let mut backing = Box::new(cache);
+    let representation = core::ptr::from_mut(backing.as_mut()) as usize as u64;
+    if let Some(check) = stage {
+        if let Err(error) =
+            super::change_type_with_stage_check(value, descriptor, representation, &mut || check())
+        {
+            let first = retain.map_or_else(|| error.clone(), |retain| retain(error.clone()));
+            drop(backing);
+            return Err(first);
+        }
+        let _ = Box::into_raw(backing);
+    } else {
+        super::change_type(value, descriptor, Box::into_raw(backing) as usize as u64);
+    }
+    Ok(())
 }
 
 pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
+    retire_using(value, None)
+}
+
+pub(crate) fn retire_using(
+    value: *mut TclObj,
+    stage: Option<&dyn Fn() -> Result<(), ValueError>>,
+) -> Result<(), ValueError> {
     if cache(value).is_some() {
         if !super::has_string_rep(value) {
-            super::change_type(value, core::ptr::null(), 0);
+            if let Some(check) = stage {
+                super::change_type_with_stage_check(value, core::ptr::null(), 0, &mut || check())?;
+            } else {
+                super::change_type(value, core::ptr::null(), 0);
+            }
             return Err(ValueError::CommandProtocolUnavailable(
                 "retired namespace-name resident storage",
             ));
         }
-        super::discard_native_internal_representation(value)?;
+        if let Some(check) = stage {
+            super::discard_native_internal_representation_with_stage_check(value, &mut || check())?;
+        } else {
+            super::discard_native_internal_representation(value)?;
+        }
     }
     Ok(())
 }

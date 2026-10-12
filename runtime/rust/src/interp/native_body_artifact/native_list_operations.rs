@@ -176,6 +176,8 @@ impl Interp {
         recipe: &ListOperationsOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
+        let variable_original = super::native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|error| self.report_cmd_error(error))?;
         let protocol = NativeStringProtocol::C(artifact.stamp.physical);
         let result = match &recipe.operation {
             ListOperation::Range { list, range } => {
@@ -205,7 +207,12 @@ impl Interp {
                     )
                     .map_err(|error| self.report_cmd_error(error))?;
                     drop(duplicate);
-                    drop(self.body_store_value(&evaluated, target.slot(), member.owned())?);
+                    drop(self.body_store_value_using(
+                        &evaluated,
+                        target.slot(),
+                        member.owned(),
+                        &variable_original,
+                    )?);
                 }
                 crate::list::native_list_range(
                     original.as_ptr(),

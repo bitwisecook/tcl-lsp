@@ -23,6 +23,8 @@ use tcl_syntax::{
     value::{ValueError, ValueOps},
 };
 
+pub(crate) type OriginalCNameStage<'a> = Option<&'a dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>;
+
 struct OriginalCNameSelection {
     root: Vec<u8>,
     element: Option<Vec<u8>>,
@@ -194,14 +196,83 @@ impl Interp {
         Ok(())
     }
 
-    fn install_original_c_name_cache(
+    pub(super) fn check_original_c_name_stage(
+        &self,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        if let Some(check) = stage {
+            check().map_err(|error| {
+                if let Some(first) = error.native_execution_refusal() {
+                    self.clone().refuse_native_execution(first.clone());
+                }
+                error
+            })?;
+        }
+        Ok(())
+    }
+
+    fn check_original_c_name_operation_using(
+        &self,
+        originals: &[*mut TclObj],
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check_original_c_name_stage(stage)?;
+        self.check_original_c_name_operation(originals)
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn original_c_name_bytes_using(
+        &self,
+        original: *mut TclObj,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError> {
+        match stage {
+            None => ValueOps::native_string_bytes(self, &original).map_err(Into::into),
+            Some(_) => self.native_object_string_bytes_using(
+                original,
+                &|| self.check_original_c_name_operation_using(&[original], stage),
+                &|error| {
+                    tcl_cmd_core::CmdError::from_execution_refusal(
+                        self.clone().refuse_completion_value_access(error),
+                    )
+                },
+            ),
+        }
+    }
+
+    pub(super) fn read_original_c_variable_using(
+        &mut self,
+        original: *mut TclObj,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<*mut TclObj, Code> {
+        self.read_original_c_variable_reported_using(original, original, false, stage)
+    }
+
+    pub(super) fn store_original_c_variable_using(
+        &mut self,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        self.assign_original_c_selection_using(
+            original,
+            value,
+            true,
+            NativeVariableNameLookupPurpose::Write,
+            stage,
+        )
+    }
+
+    fn install_original_c_name_cache_using(
         &self,
         original: *mut TclObj,
         selected: &crate::vars::NativeOriginalNameCell,
         currency: &super::native_operation_currency::NativeOperationCurrency,
+        stage: OriginalCNameStage<'_>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check_original_c_name_stage(stage)?;
         selected.check(self, currency)?;
-        self.check_original_c_name_operation(&[original])?;
+        self.check_original_c_name_operation_using(&[original], stage)?;
         let retain = |error: &tcl_cmd_core::CmdError| {
             if let Some(first) = error.native_execution_refusal() {
                 self.clone().refuse_native_execution(first.clone());
@@ -209,7 +280,7 @@ impl Interp {
         };
         let mut current = || {
             selected.check(self, currency).and_then(|()| {
-                self.check_original_c_name_operation(&[original])
+                self.check_original_c_name_operation_using(&[original], stage)
                     .map_err(Into::into)
             })
         };
@@ -230,7 +301,7 @@ impl Interp {
                 &retain,
             );
             selected.check(self, currency)?;
-            self.check_original_c_name_operation(&[original])?;
+            self.check_original_c_name_operation_using(&[original], stage)?;
             return result;
         };
         if protocol.local_cache_owns_procedure() {
@@ -260,7 +331,7 @@ impl Interp {
                 &retain,
             );
             selected.check(self, currency)?;
-            self.check_original_c_name_operation(&[original])?;
+            self.check_original_c_name_operation_using(&[original], stage)?;
             return result;
         }
         let canonical = {
@@ -292,7 +363,7 @@ impl Interp {
             &retain,
         );
         selected.check(self, currency)?;
-        self.check_original_c_name_operation(&[original, canonical])?;
+        self.check_original_c_name_operation_using(&[original, canonical], stage)?;
         result?;
         if canonical != original && protocol.installs_canonical_local_self_cache() {
             let result = obj::discard_native_internal_representation_with_stage_check(
@@ -300,7 +371,7 @@ impl Interp {
                 &mut current,
             );
             selected.check(self, currency)?;
-            self.check_original_c_name_operation(&[original, canonical])?;
+            self.check_original_c_name_operation_using(&[original, canonical], stage)?;
             result?;
             let result = obj::native_variable_name::install_local_with_stage_check(
                 canonical,
@@ -314,7 +385,7 @@ impl Interp {
                 &retain,
             );
             selected.check(self, currency)?;
-            self.check_original_c_name_operation(&[original, canonical])?;
+            self.check_original_c_name_operation_using(&[original, canonical], stage)?;
             result?;
         } else if canonical != original
             && protocol.version() == tcl_dialect::TclVersion::V8_6
@@ -328,7 +399,7 @@ impl Interp {
                 &mut current,
             );
             selected.check(self, currency)?;
-            self.check_original_c_name_operation(&[original, canonical])?;
+            self.check_original_c_name_operation_using(&[original, canonical], stage)?;
             result?;
         }
         Ok(())
@@ -339,17 +410,28 @@ impl Interp {
         original: *mut TclObj,
         create: bool,
     ) -> Result<OriginalCNameSelection, Code> {
+        self.prepare_original_c_name_using(original, create, None)
+    }
+
+    fn prepare_original_c_name_using(
+        &mut self,
+        original: *mut TclObj,
+        create: bool,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<OriginalCNameSelection, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let purpose = if create {
             NativeVariableNameLookupPurpose::Write
         } else {
             NativeVariableNameLookupPurpose::Read
         };
-        self.prepare_original_c_name_for(original, purpose)?
+        self.prepare_original_c_name_for_using(original, purpose, stage)?
             .ok_or_else(|| {
-                let bytes = self.native_string_bytes(&original);
+                let bytes = self.original_c_name_bytes_using(original, stage);
                 match bytes {
-                    Ok(bytes) => self.no_such_variable(&bytes, None),
-                    Err(error) => self.report_cmd_error(error.into()),
+                    Ok(bytes) => self.no_such_variable_using(&bytes, None, stage),
+                    Err(error) => self.report_cmd_error_using(error.into(), stage),
                 }
             })
     }
@@ -359,7 +441,18 @@ impl Interp {
         original: *mut TclObj,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
-        self.prepare_original_c_name_in(original, purpose, None)
+        self.prepare_original_c_name_for_using(original, purpose, None)
+    }
+
+    fn prepare_original_c_name_for_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        self.prepare_original_c_name_in_using(original, purpose, None, stage)
     }
 
     fn prepare_original_c_name_in(
@@ -368,7 +461,19 @@ impl Interp {
         purpose: NativeVariableNameLookupPurpose,
         namespace: Option<crate::namespace::NsId>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
-        self.prepare_original_c_name_parts(original, purpose, namespace, None)
+        self.prepare_original_c_name_in_using(original, purpose, namespace, None)
+    }
+
+    fn prepare_original_c_name_in_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        namespace: Option<crate::namespace::NsId>,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        self.prepare_original_c_name_parts_using(original, purpose, namespace, None, stage)
     }
 
     fn prepare_original_c_name_parts(
@@ -378,10 +483,29 @@ impl Interp {
         namespace: Option<crate::namespace::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.prepare_original_c_name_parts_using(
+            original,
+            purpose,
+            namespace,
+            explicit_element,
+            None,
+        )
+    }
+
+    fn prepare_original_c_name_parts_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        namespace: Option<crate::namespace::NsId>,
+        explicit_element: Option<&[u8]>,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let operation = super::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
-        self.check_original_c_name_operation(&[original])
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+        self.check_original_c_name_operation_using(&[original], stage)
+            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
         let _original_lifetime = obj::NativeObjectLifetime::retain(original);
         let create = purpose.creates_entries();
         let dialect = self.native_invocation_dialect();
@@ -389,13 +513,20 @@ impl Interp {
             .native_variable_name_protocol()
             .expect("C variable issuer");
         if !protocol.uses_original_name_cache(purpose) {
-            return self.prepare_original_c_byte_name_parts(original, namespace, explicit_element);
+            return self.prepare_original_c_byte_name_parts_using(
+                original,
+                namespace,
+                explicit_element,
+                stage,
+            );
         }
         if !protocol.cache_precedes_string_getter() {
-            self.native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+            self.original_c_name_bytes_using(original, stage)
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
         }
-        let mut parts = explicit_element
+        // Project only allocation leases/bytes while the original Parsed owner
+        // is borrowed. The reached element getter runs after that projection.
+        let projected = explicit_element
             .is_none()
             .then(|| {
                 obj::native_variable_name::with_parsed(original, |cache| {
@@ -403,22 +534,84 @@ impl Interp {
                         return None;
                     }
                     cache.array.as_ref().map(|(root, element)| {
-                        let element = match element {
+                        let (bytes, object) = match element {
                             NativeParsedVariableElement::Bytes(bytes) => {
-                                Ok(tcl_core_types::c_string_extent(bytes).to_vec())
+                                (Some(tcl_core_types::c_string_extent(bytes).to_vec()), None)
                             }
-                            NativeParsedVariableElement::Object(object) => self
-                                .native_string_bytes(&object.as_ptr())
-                                .map(|bytes| bytes.to_vec()),
+                            NativeParsedVariableElement::Object(object) => (
+                                None,
+                                Some(obj::NativeObjectLifetime::retain(object.as_ptr())),
+                            ),
                         };
-                        element.map(|element| (root.as_ptr(), element))
+                        (
+                            obj::NativeObjectLifetime::retain(root.as_ptr()),
+                            bytes,
+                            object,
+                        )
                     })
                 })
             })
             .flatten()
-            .flatten()
-            .transpose()
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+            .flatten();
+        let parsed_primary = if stage.is_some() && projected.is_some() {
+            Some(
+                obj::NativePrimaryReceipt::capture(original).map_err(|error| {
+                    self.report_cmd_error_using(
+                        tcl_cmd_core::CmdError::from_execution_refusal(
+                            self.clone().refuse_completion_value_access(error),
+                        ),
+                        stage,
+                    )
+                })?,
+            )
+        } else {
+            None
+        };
+        let actual = self.clone();
+        let original_stage = stage;
+        let parsed_stage = || {
+            actual.check_original_c_name_stage(original_stage)?;
+            if let Some(primary) = &parsed_primary {
+                primary.check_for(original, "changed original Parsed variable primary")
+                    .map_err(|error| tcl_cmd_core::CmdError::from_execution_refusal(
+                        actual.clone().refuse_completion_value_access(error)))?;
+            }
+            Ok(())
+        };
+        let stage = stage.map(|_| &parsed_stage as &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>);
+        let mut parts = if let Some((root, bytes, element)) = &projected {
+            let bytes = match bytes {
+                Some(bytes) => bytes.clone(),
+                None => self
+                    .original_c_name_bytes_using(
+                        element
+                            .as_ref()
+                            .expect("projected original element")
+                            .as_ptr(),
+                        stage,
+                    )
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?
+                    .to_vec(),
+            };
+            self.check_original_c_name_stage(stage)
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
+            if let Some(primary) = &parsed_primary {
+                primary
+                    .check_for(original, "changed original Parsed variable primary")
+                    .map_err(|error| {
+                        let first = self.refuse_completion_value_access(error);
+                        self.report_cmd_error_using(
+                            tcl_cmd_core::CmdError::from_execution_refusal(first),
+                            stage,
+                        )
+                    })?;
+                self.check_original_c_name_operation_using(&[original, root.as_ptr()], stage)
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
+            }
+            Some((root.as_ptr(), bytes))
+        } else {
+            None
+        };
         let parsed_scalar = obj::native_variable_name::with_parsed(original, |cache| {
             cache.protocol == protocol && cache.array.is_none()
         })
@@ -429,8 +622,8 @@ impl Interp {
             && obj::native_variable_name::with_local(original, |_| ()).is_none()
         {
             let original_bytes = self
-                .native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?;
+                .original_c_name_bytes_using(original, stage)
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
             if let Some((root, element)) = protocol.parsed_array_parts(&original_bytes) {
                 let root = Owned::fresh(obj::new_string_bytes(root));
                 let element = match protocol.new_element_bytes(element) {
@@ -445,7 +638,7 @@ impl Interp {
                         .ensure_current_or_refuse()
                         .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
                         .and_then(|()| {
-                            self.check_original_c_name_operation(&[original])
+                            self.check_original_c_name_operation_using(&[original], stage)
                                 .map_err(Into::into)
                         })
                 };
@@ -464,10 +657,10 @@ impl Interp {
                     &mut current,
                     &retain,
                 );
-                self.check_original_c_name_operation(&[original])
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                result.map_err(|error| self.report_cmd_error(error.into()))?;
-                return self.prepare_original_c_name_in(original, purpose, namespace);
+                self.check_original_c_name_operation_using(&[original], stage)
+                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                result.map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                return self.prepare_original_c_name_in_using(original, purpose, namespace, stage);
             }
         }
         let (root, element) = parts.take().map_or(
@@ -486,8 +679,8 @@ impl Interp {
                 .to_vec()
         } else {
             let root_bytes = self
-                .native_string_bytes(&root)
-                .map_err(|error| self.report_cmd_error(error.into()))?
+                .original_c_name_bytes_using(root, stage)
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
                 .to_vec();
             let kind = obj::obj_type_ptr(root);
             // SAFETY: a non-NULL type pointer names the live original descriptor.
@@ -500,7 +693,7 @@ impl Interp {
                         .ensure_current_or_refuse()
                         .map_err(tcl_cmd_core::CmdError::from_execution_refusal)
                         .and_then(|()| {
-                            self.check_original_c_name_operation(&[original, root])
+                            self.check_original_c_name_operation_using(&[original, root], stage)
                                 .map_err(Into::into)
                         })
                 };
@@ -508,9 +701,9 @@ impl Interp {
                     root,
                     &mut current,
                 );
-                self.check_original_c_name_operation(&[original, root])
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                result.map_err(|error| self.report_cmd_error(error.into()))?;
+                self.check_original_c_name_operation_using(&[original, root], stage)
+                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+                result.map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
             }
             root_bytes
         };
@@ -539,9 +732,10 @@ impl Interp {
             Ok(Some(selected)) => selected,
             Ok(None) => return Ok(None),
             Err(crate::frame::VarError::NameProtocolUnavailable) => {
-                return Err(self.report_cmd_error(
+                return Err(self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("actual original simple variable cell")
                         .into(),
+                    stage,
                 ));
             }
             Err(error) if create => {
@@ -552,20 +746,25 @@ impl Interp {
                     crate::frame::VarError::IsScalar => {
                         tcl_syntax::naming::NativeVariableDiagnosticReason::NotArray
                     }
-                    _ => return Err(self.original_c_lookup_var_error(original, purpose, error)),
+                    _ => {
+                        return Err(
+                            self.original_c_lookup_var_error_using(original, purpose, error, stage)
+                        )
+                    }
                 };
-                return Err(self.original_c_variable_failure_for_object(
+                return Err(self.original_c_variable_failure_for_object_using(
                     original,
                     purpose,
                     reason,
                     tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
+                    stage,
                 ));
             }
             Err(_) => return Ok(None),
         };
         if cached.is_none() {
-            self.install_original_c_name_cache(root, &selected, operation.currency())
-                .map_err(|error| self.report_cmd_error(error))?;
+            self.install_original_c_name_cache_using(root, &selected, operation.currency(), stage)
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
         }
         let mut materialised = None;
         if create
@@ -576,12 +775,15 @@ impl Interp {
             if let Some(element) = &element {
                 let operation = super::native_operation_currency::NativeOperationScope::enter(self)
                     .map_err(|error| {
-                        self.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
+                        self.report_cmd_error_using(
+                            tcl_cmd_core::CmdError::from_execution_refusal(error),
+                            stage,
+                        )
                     })?;
                 let retained_key = self.original_c_parsed_element_key(original);
                 selected
                     .check(self, operation.currency())
-                    .map_err(|error| self.report_cmd_error(error))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
                 let prepared = crate::vars::capture_original_c_selected_element_materialisation(
                     &mut self.frames.borrow_mut(),
                     &mut self.namespaces.borrow_mut(),
@@ -592,7 +794,9 @@ impl Interp {
                     protocol,
                 );
                 let reached = match prepared {
-                    Ok(prepared) => prepared.finish(self, operation.currency()).map_err(Ok),
+                    Ok(prepared) => prepared
+                        .finish_using(self, operation.currency(), stage)
+                        .map_err(Ok),
                     Err(crate::frame::JimLinkStoreError::Variable(error)) => Err(Err(error)),
                     Err(crate::frame::JimLinkStoreError::Command(error)) => Err(Ok(error)),
                 };
@@ -608,21 +812,21 @@ impl Interp {
                     .currency()
                     .ensure_current_or_refuse()
                     .map_err(|first| self.refuse_native_execution(first))?;
-                self.check_original_c_name_operation(&[original, root])
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                self.check_original_c_name_operation_using(&[original, root], stage)
+                    .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
                 materialised = Some(reached.map_err(|error| {
                     let error = match error {
-                        Ok(error) => return self.report_cmd_error(error),
+                        Ok(error) => return self.report_cmd_error_using(error, stage),
                         Err(error) => error,
                     };
                     let reason = match error {
                         crate::frame::VarError::IsScalar if purpose == NativeVariableNameLookupPurpose::Define => tcl_syntax::naming::NativeVariableDiagnosticReason::ArrayElement,
                         crate::frame::VarError::IsScalar => tcl_syntax::naming::NativeVariableDiagnosticReason::NotArray,
                         crate::frame::VarError::NoSuchNamespace => tcl_syntax::naming::NativeVariableDiagnosticReason::MissingParentNamespace,
-                        _ => return self.original_c_lookup_var_error(original, purpose, error),
+                        _ => return self.original_c_lookup_var_error_using(original, purpose, error, stage),
                     };
-                    self.original_c_variable_failure_for_object(original, purpose, reason,
-                        tcl_syntax::naming::NativeVariableFailureSite::NameLookup)
+                    self.original_c_variable_failure_for_object_using(original, purpose, reason,
+                        tcl_syntax::naming::NativeVariableFailureSite::NameLookup, stage)
                 })?);
             }
         }
@@ -639,21 +843,26 @@ impl Interp {
     /// Legacy C84 existence obtains only bytes from the original name. Its
     /// selected cell and read observers remain the same receiver owners; no
     /// parsed or local primary is inspected, discarded or installed here.
-    fn prepare_original_c_byte_name_parts(
+
+    fn prepare_original_c_byte_name_parts_using(
         &mut self,
         original: *mut TclObj,
         namespace: Option<crate::namespace::NsId>,
         explicit_element: Option<&[u8]>,
+        stage: OriginalCNameStage<'_>,
     ) -> Result<Option<OriginalCNameSelection>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let operation = super::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
         let bytes = self
-            .native_string_bytes(&original)
-            .map_err(|error| self.report_cmd_error(error.into()))?
+            .original_c_name_bytes_using(original, stage)
+            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
             .to_vec();
         let protocol = self.native_c_variable_name_protocol().ok_or_else(|| {
-            self.report_cmd_error(
+            self.report_cmd_error_using(
                 ValueError::CommandProtocolUnavailable("original C byte variable lookup").into(),
+                stage,
             )
         })?;
         let input = tcl_syntax::naming::NativeNameProtocol::C(protocol.version())
@@ -688,9 +897,12 @@ impl Interp {
                 simple: selected,
                 currency: operation.currency().clone(),
             })),
-            Err(crate::frame::VarError::NameProtocolUnavailable) => Err(self.report_cmd_error(
-                ValueError::CommandProtocolUnavailable("actual original byte variable cell").into(),
-            )),
+            Err(crate::frame::VarError::NameProtocolUnavailable) => Err(self
+                .report_cmd_error_using(
+                    ValueError::CommandProtocolUnavailable("actual original byte variable cell")
+                        .into(),
+                    stage,
+                )),
             Ok(None) | Err(_) => Ok(None),
         }
     }
@@ -702,23 +914,49 @@ impl Interp {
         slot: usize,
         declare: bool,
     ) -> Code {
+        self.link_original_compiled_namespace_variable_using(
+            original, namespace, slot, declare, None,
+        )
+    }
+
+    pub(crate) fn link_original_compiled_namespace_variable_using(
+        &mut self,
+        original: *mut TclObj,
+        namespace: crate::namespace::NsId,
+        slot: usize,
+        declare: bool,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let purpose = NativeVariableNameLookupPurpose::Link;
-        let selection = match self.prepare_original_c_name_in(original, purpose, Some(namespace)) {
+        let selection = match self.prepare_original_c_name_in_using(
+            original,
+            purpose,
+            Some(namespace),
+            stage,
+        ) {
             Ok(Some(selection)) => selection,
             Ok(None) => {
-                return self.report_cmd_error(
+                return self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("original namespace binding lookup")
                         .into(),
+                    stage,
                 );
             }
             Err(code) => return code,
         };
-        let mut link = match self.prepare_selected_c_namespace_target(original, &selection) {
-            Ok(target) => target,
-            Err(code) => return code,
-        };
+        let mut link =
+            match self.prepare_selected_c_namespace_target_using(original, &selection, stage) {
+                Ok(target) => target,
+                Err(code) => return code,
+            };
         if let Err(error) = self.prepare_upvar_target(&mut link) {
-            return self.original_c_lookup_var_error(original, purpose, error);
+            return self.original_c_lookup_var_error_using(original, purpose, error, stage);
+        }
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
         }
         if declare {
             match link.home {
@@ -728,16 +966,17 @@ impl Interp {
                     .var_table_mut(namespace)
                     .mark_namespace_declared(&link.name),
                 crate::frame::VarHome::Frame(_) => {
-                    return self.report_cmd_error(
+                    return self.report_cmd_error_using(
                         ValueError::CommandProtocolUnavailable(
                             "namespace variable declaration target",
                         )
                         .into(),
+                        stage,
                     );
                 }
             }
         }
-        self.settle_original_c_local_alias(Some(slot), &selection.root, link)
+        self.settle_original_c_local_alias_using(Some(slot), &selection.root, link, stage)
     }
 
     /// The automatic TclOO compiler resolver supplies an actual installed
@@ -816,6 +1055,13 @@ impl Interp {
     }
 
     fn original_c_alias_error(&mut self, message: &[u8], code: &[u8]) -> Code {
+        self.original_c_alias_error_using(message, code, None)
+    }
+
+    fn original_c_alias_error_using(&mut self, message: &[u8], code: &[u8],
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) { return self.report_cmd_error_using(error, stage); }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
@@ -824,7 +1070,7 @@ impl Interp {
         } else {
             tcl_cmd_core::CmdErrorCodeUpdate::Default
         };
-        self.original_c_alias_diagnostic(message, code)
+        self.original_c_alias_diagnostic_using(message, code, stage)
     }
 
     fn original_c_alias_diagnostic(
@@ -832,10 +1078,20 @@ impl Interp {
         message: &[u8],
         code: tcl_cmd_core::CmdErrorCodeUpdate,
     ) -> Code {
+        self.original_c_alias_diagnostic_using(message, code, None)
+    }
+
+    fn original_c_alias_diagnostic_using(
+        &mut self,
+        message: &[u8],
+        code: tcl_cmd_core::CmdErrorCodeUpdate,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) { return self.report_cmd_error_using(error, stage); }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
-        self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
+        self.report_cmd_error_using(tcl_cmd_core::CmdError::from_byte_details(
             tcl_cmd_core::CmdErrorDetails {
                 message: message.to_vec(),
                 string_result: protocol.diagnostic_string_protocol(),
@@ -844,7 +1100,7 @@ impl Interp {
                 error_line: None,
                 primitive_getter: None,
             },
-        ))
+        ), stage)
     }
 
     fn settle_original_c_local_alias(
@@ -853,6 +1109,19 @@ impl Interp {
         name: &[u8],
         target: OriginalCLinkTarget,
     ) -> Code {
+        self.settle_original_c_local_alias_using(compiled, name, target, None)
+    }
+
+    fn settle_original_c_local_alias_using(
+        &mut self,
+        compiled: Option<usize>,
+        name: &[u8],
+        target: OriginalCLinkTarget,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let local = if let Some(slot) = compiled {
             let name = self
                 .frames
@@ -860,9 +1129,10 @@ impl Interp {
                 .compiled_slot_name(slot)
                 .map(<[u8]>::to_vec);
             let Some(name) = name else {
-                return self.report_cmd_error(
+                return self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("original namespace alias local slot")
                         .into(),
+                    stage,
                 );
             };
             name
@@ -876,7 +1146,7 @@ impl Interp {
                 .to_vec()
         };
         let home = crate::frame::VarHome::Frame(self.frames.borrow().current_level());
-        self.settle_original_c_alias_at(home, compiled, &local, target)
+        self.settle_original_c_alias_at_using(home, compiled, &local, target, stage)
     }
 
     fn settle_original_c_alias_at(
@@ -886,12 +1156,27 @@ impl Interp {
         local: &[u8],
         target: OriginalCLinkTarget,
     ) -> Code {
-        self.settle_original_c_alias_at_with_origin(
+        self.settle_original_c_alias_at_using(home, compiled, local, target, None)
+    }
+
+    fn settle_original_c_alias_at_using(
+        &mut self,
+        home: crate::frame::VarHome,
+        compiled: Option<usize>,
+        local: &[u8],
+        target: OriginalCLinkTarget,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
+        self.settle_original_c_alias_at_with_origin_using(
             home,
             compiled,
             local,
             target,
             tcl_runtime_api::FrameLinkOrigin::Ordinary,
+            stage,
         )
     }
 
@@ -903,8 +1188,25 @@ impl Interp {
         target: OriginalCLinkTarget,
         origin: tcl_runtime_api::FrameLinkOrigin,
     ) -> Code {
+        self.settle_original_c_alias_at_with_origin_using(
+            home, compiled, local, target, origin, None,
+        )
+    }
+
+    fn settle_original_c_alias_at_with_origin_using(
+        &mut self,
+        home: crate::frame::VarHome,
+        compiled: Option<usize>,
+        local: &[u8],
+        target: OriginalCLinkTarget,
+        origin: tcl_runtime_api::FrameLinkOrigin,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         if let Err(error) = target.check(self) {
-            return self.report_cmd_error(error);
+            return self.report_cmd_error_using(error, stage);
         }
         let link = target.link.clone();
         let (frame_level, namespace, identity) = match home {
@@ -944,9 +1246,10 @@ impl Interp {
         let local_observation = match local_observation {
             Ok(observation) => observation,
             Err(_) => {
-                return self.report_cmd_error(
+                return self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("original local alias table receipt")
                         .into(),
+                    stage,
                 )
             }
         };
@@ -973,6 +1276,7 @@ impl Interp {
                 let reached = prepared.finish(
                     target.protocol.alias_publication_order(),
                     || {
+                        self.check_original_c_name_stage(stage)?;
                         target.check(self).and_then(|()| {
                             local_observation.check_cell(self, target.operation.currency())
                         })
@@ -985,15 +1289,17 @@ impl Interp {
                 );
                 match reached {
                     Ok(()) => Code::Ok,
-                    Err(error) => self.report_cmd_error(error),
+                    Err(error) => self.report_cmd_error_using(error, stage),
                 }
             }
-            Err(crate::frame::NativeCompiledAliasError::Unavailable) => self.report_cmd_error(
-                ValueError::CommandProtocolUnavailable("original namespace alias local cell")
-                    .into(),
-            ),
+            Err(crate::frame::NativeCompiledAliasError::Unavailable) => self
+                .report_cmd_error_using(
+                    ValueError::CommandProtocolUnavailable("original namespace alias local cell")
+                        .into(),
+                    stage,
+                ),
             Err(crate::frame::NativeCompiledAliasError::SelfLink) => self
-                .original_c_alias_error(b"can't upvar from variable to itself", b"TCL UPVAR SELF"),
+                .original_c_alias_error_using(b"can't upvar from variable to itself", b"TCL UPVAR SELF", stage),
             Err(error) => {
                 let mut message = b"variable \"".to_vec();
                 message.extend_from_slice(tcl_core_types::c_string_extent(local));
@@ -1006,13 +1312,13 @@ impl Interp {
                     }
                     _ => unreachable!("handled alias errors"),
                 });
-                self.original_c_alias_error(
+                self.original_c_alias_error_using(
                     &message,
                     if error == crate::frame::NativeCompiledAliasError::Traced {
                         b"TCL UPVAR TRACED"
                     } else {
                         b"TCL UPVAR EXISTS"
-                    },
+                    }, stage
                 )
             }
         }
@@ -1426,6 +1732,17 @@ impl Interp {
         fallback: (&[u8], Option<&[u8]>),
         originals: (Option<*mut TclObj>, Option<*mut TclObj>, bool),
     ) -> Result<OriginalCVariableReportingInput, Code> {
+        self.original_c_variable_reporting_input_using(fallback, originals, None)
+    }
+
+    pub(super) fn original_c_variable_reporting_input_using(
+        &mut self,
+        fallback: (&[u8], Option<&[u8]>),
+        originals: (Option<*mut TclObj>, Option<*mut TclObj>, bool),
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<OriginalCVariableReportingInput, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         if self.native_c_variable_name_protocol().is_none() {
             return Err(self.refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -1450,28 +1767,28 @@ impl Interp {
                 ));
             }
             return self
-                .native_string_bytes(&original)
+                .original_c_name_bytes_using(original, stage)
                 .map(|bytes| OriginalCVariableReportingInput::Combined(bytes.to_vec()))
-                .map_err(|error| self.report_cmd_error(error.into()));
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage));
         }
         let root = original_root
             .map_or_else(
                 || Ok(fallback.0.to_vec()),
                 |original| {
-                    self.native_string_bytes(&original)
+                    self.original_c_name_bytes_using(original, stage)
                         .map(|bytes| bytes.to_vec())
                 },
             )
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
         let element = original_element
             .map_or_else(
                 || Ok(fallback.1.map(<[u8]>::to_vec)),
                 |original| {
-                    self.native_string_bytes(&original)
+                    self.original_c_name_bytes_using(original, stage)
                         .map(|bytes| Some(bytes.to_vec()))
                 },
             )
-            .map_err(|error| self.report_cmd_error(error.into()))?;
+            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
         Ok(OriginalCVariableReportingInput::Separate { root, element })
     }
 
@@ -1482,28 +1799,49 @@ impl Interp {
         reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
         site: tcl_syntax::naming::NativeVariableFailureSite,
     ) -> Code {
+        self.original_c_variable_failure_for_object_using(original, purpose, reason, site, None)
+    }
+
+    fn original_c_variable_failure_for_object_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
+        site: tcl_syntax::naming::NativeVariableFailureSite,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         if !purpose.leaves_error_message() {
             return Code::Error;
         }
-        let bytes = match self.native_string_bytes(&original) {
+        let bytes = match self.original_c_name_bytes_using(original, stage) {
             Ok(bytes) => bytes.to_vec(),
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return self.report_cmd_error_using(error.into(), stage),
         };
-        self.original_c_variable_failure(&bytes, purpose, reason, site)
+        self.original_c_variable_failure_using(&bytes, purpose, reason, site, stage)
     }
 
-    fn original_c_variable_failure(
+
+
+    fn original_c_variable_failure_using(
         &mut self,
         original: &[u8],
         purpose: NativeVariableNameLookupPurpose,
         reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
         site: tcl_syntax::naming::NativeVariableFailureSite,
+        stage: OriginalCNameStage<'_>,
     ) -> Code {
-        self.original_c_variable_failure_input(
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
+        self.original_c_variable_failure_input_using(
             tcl_syntax::naming::NativeVariableInputForm::Combined(original),
             purpose,
             reason,
             site,
+            stage,
         )
     }
 
@@ -1514,6 +1852,20 @@ impl Interp {
         reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
         site: tcl_syntax::naming::NativeVariableFailureSite,
     ) -> Code {
+        self.original_c_variable_failure_input_using(input, purpose, reason, site, None)
+    }
+
+    pub(super) fn original_c_variable_failure_input_using(
+        &mut self,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+        purpose: NativeVariableNameLookupPurpose,
+        reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
+        site: tcl_syntax::naming::NativeVariableFailureSite,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         if !purpose.leaves_error_message() {
             return Code::Error;
         }
@@ -1547,9 +1899,10 @@ impl Interp {
         ) {
             Ok(diagnostic) => diagnostic,
             Err(_) => {
-                return self.report_cmd_error(
+                return self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("original variable lookup diagnostic")
                         .into(),
+                    stage,
                 );
             }
         };
@@ -1558,10 +1911,12 @@ impl Interp {
         message.extend_from_slice(b"\": ");
         message.extend_from_slice(diagnostic.reason.message().as_bytes());
         if protocol.diagnostic_resets_interpreter_result() {
-            self.reset_native_global_error_episode();
+            if let Err(error) = self.reset_native_global_error_episode_using(stage) {
+                return self.report_cmd_error_using(error, stage);
+            }
         }
-        self.report_cmd_error(tcl_cmd_core::CmdError::from_byte_details(
-            tcl_cmd_core::CmdErrorDetails {
+        self.report_cmd_error_using(
+            tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
                 message,
                 string_result: protocol.diagnostic_string_protocol(),
                 error_code: diagnostic.error_code.map_or(
@@ -1574,8 +1929,9 @@ impl Interp {
                 error_info: None,
                 error_line: None,
                 primitive_getter: None,
-            },
-        ))
+            }),
+            stage,
+        )
     }
 
     pub(super) fn capture_original_c_variable_report(
@@ -1583,7 +1939,19 @@ impl Interp {
         original: *mut TclObj,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<OriginalCVariableCapture>, Code> {
-        let selected = self.prepare_original_c_name(original, purpose.creates_entries())?;
+        self.capture_original_c_variable_report_using(original, purpose, None)
+    }
+
+    pub(super) fn capture_original_c_variable_report_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<OriginalCVariableCapture>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        let selected =
+            self.prepare_original_c_name_using(original, purpose.creates_entries(), stage)?;
         Ok(self
             .capture_original_c_selection(original, &selected, purpose)?
             .map(|(receiver, home)| OriginalCVariableCapture {
@@ -1642,25 +2010,40 @@ impl Interp {
         element: Option<*mut TclObj>,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<OriginalCVariableCapture>, Code> {
+        self.capture_original_c_parts_report_using(root, element, purpose, None)
+    }
+
+    pub(super) fn capture_original_c_parts_report_using(
+        &mut self,
+        root: *mut TclObj,
+        element: Option<*mut TclObj>,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<OriginalCVariableCapture>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         // The root lookup cannot publish a root-only error before the original
         // element operand reaches the caller's separate-input presenter.
-        let Some(mut selected) = self.prepare_original_c_name_for(root, purpose)? else {
+        let Some(mut selected) = self.prepare_original_c_name_for_using(root, purpose, stage)?
+        else {
             return Ok(None);
         };
         if selected.element.is_some() {
-            return Err(self.report_cmd_error(
+            return Err(self.report_cmd_error_using(
                 ValueError::CommandProtocolUnavailable("compiled separate base-name geometry")
                     .into(),
+                stage,
             ));
         }
         selected.element = element
             .map(|element| {
-                ValueOps::native_string_bytes(self, &element).map(|bytes| bytes.to_vec())
+                self.original_c_name_bytes_using(element, stage)
+                    .map(|bytes| bytes.to_vec())
             })
             .transpose()
-            .map_err(|error| self.report_cmd_error(error.into()))?;
-        let captured =
-            self.capture_original_c_parts_selection(root, element, &selected, purpose)?;
+            .map_err(|error| self.report_cmd_error_using(error.into(), stage))?;
+        let captured = self
+            .capture_original_c_parts_selection_using(root, element, &selected, purpose, stage)?;
         if purpose.creates_entries()
             && self
                 .native_c_variable_name_protocol()
@@ -1699,8 +2082,24 @@ impl Interp {
         selected: &OriginalCNameSelection,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
-        self.capture_original_c_selection_receiver(original, selected, purpose)
-            .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))
+        self.capture_original_c_selection_using(original, selected, purpose, None)
+    }
+
+    fn capture_original_c_selection_using(
+        &mut self,
+        original: *mut TclObj,
+        selected: &OriginalCNameSelection,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        let reached = self.capture_original_c_selection_receiver(original, selected, purpose);
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        reached.map_err(|error| {
+            self.original_c_lookup_var_error_using(original, purpose, error, stage)
+        })
     }
 
     fn capture_original_c_parts_selection(
@@ -1710,23 +2109,40 @@ impl Interp {
         selected: &OriginalCNameSelection,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
+        self.capture_original_c_parts_selection_using(original, element, selected, purpose, None)
+    }
+
+    fn capture_original_c_parts_selection_using(
+        &mut self,
+        original: *mut TclObj,
+        element: Option<*mut TclObj>,
+        selected: &OriginalCNameSelection,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<Option<(crate::frame::VariableReceiver, crate::vars::TraceHome)>, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let captured = self.capture_original_c_selection_receiver(original, selected, purpose);
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         captured.map_err(|error| {
             if !purpose.leaves_error_message() || element.is_none() {
-                return self.original_c_lookup_var_error(original, purpose, error);
+                return self.original_c_lookup_var_error_using(original, purpose, error, stage);
             }
-            let input = match self.original_c_variable_reporting_input(
+            let input = match self.original_c_variable_reporting_input_using(
                 (&selected.root, selected.element.as_deref()),
                 (Some(original), element, false),
+                stage,
             ) {
                 Ok(input) => input,
                 Err(code) => return code,
             };
-            self.original_c_variable_receiver_error(
+            self.original_c_variable_receiver_error_using(
                 input.input(),
                 purpose,
                 error,
                 Some(tcl_syntax::naming::NativeVariableFailureSite::NameLookup),
+                stage,
             )
         })
     }
@@ -1736,10 +2152,23 @@ impl Interp {
         original: *mut TclObj,
         selected: &OriginalCNameSelection,
     ) -> Result<OriginalCLinkTarget, Code> {
+        self.prepare_selected_c_namespace_target_using(original, selected, None)
+    }
+
+    fn prepare_selected_c_namespace_target_using(
+        &mut self,
+        original: *mut TclObj,
+        selected: &OriginalCNameSelection,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<OriginalCLinkTarget, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         selected
             .simple
             .check(self, &selected.currency)
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let operation = super::native_operation_currency::NativeOperationScope::enter(self)
             .map_err(|first| self.refuse_native_execution(first))?;
         let mut target =
@@ -1755,26 +2184,36 @@ impl Interp {
                 selected
                     .simple
                     .check(self, &selected.currency)
-                    .map_err(|error| self.report_cmd_error(error))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
                 reached.map_err(|error| {
-                    self.original_c_lookup_var_error(
+                    self.original_c_lookup_var_error_using(
                         original,
                         NativeVariableNameLookupPurpose::Link,
                         error,
+                        stage,
                     )
                 })?
             };
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let reached = crate::vars::prepare_selected_upvar_target(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             &mut target,
         );
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         selected
             .simple
             .check(self, &selected.currency)
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         reached.map_err(|error| {
-            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+            self.original_c_lookup_var_error_using(
+                original,
+                NativeVariableNameLookupPurpose::Link,
+                error,
+                stage,
+            )
         })?;
         let observed = crate::vars::OriginalAliasTargetObservation::capture(
             &self.frames.borrow(),
@@ -1782,7 +2221,12 @@ impl Interp {
             &target,
         );
         let observed = observed.map_err(|error| {
-            self.original_c_lookup_var_error(original, NativeVariableNameLookupPurpose::Link, error)
+            self.original_c_lookup_var_error_using(
+                original,
+                NativeVariableNameLookupPurpose::Link,
+                error,
+                stage,
+            )
         })?;
         let target = OriginalCLinkTarget {
             protocol: self
@@ -1795,7 +2239,7 @@ impl Interp {
         };
         target
             .check(self)
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         Ok(target)
     }
 
@@ -1894,11 +2338,17 @@ impl Interp {
         Ok(captured)
     }
 
-    fn original_c_variable_error_without_operand(
+
+
+    fn original_c_variable_error_without_operand_using(
         &mut self,
         purpose: NativeVariableNameLookupPurpose,
         error: crate::frame::VarError,
+        stage: OriginalCNameStage<'_>,
     ) -> Option<Code> {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return Some(self.report_cmd_error_using(error, stage));
+        }
         if !purpose.leaves_error_message()
             && error != crate::frame::VarError::NameProtocolUnavailable
         {
@@ -1906,8 +2356,9 @@ impl Interp {
             return Some(Code::Error);
         }
         (error == crate::frame::VarError::NameProtocolUnavailable).then(|| {
-            self.report_cmd_error(
+            self.report_cmd_error_using(
                 ValueError::CommandProtocolUnavailable("actual indexed variable receiver").into(),
+                stage,
             )
         })
     }
@@ -1918,7 +2369,22 @@ impl Interp {
         purpose: NativeVariableNameLookupPurpose,
         error: crate::frame::VarError,
     ) -> Code {
-        if let Some(code) = self.original_c_variable_error_without_operand(purpose, error) {
+        self.original_c_lookup_var_error_using(original, purpose, error, None)
+    }
+
+    fn original_c_lookup_var_error_using(
+        &mut self,
+        original: *mut TclObj,
+        purpose: NativeVariableNameLookupPurpose,
+        error: crate::frame::VarError,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
+        if let Some(code) =
+            self.original_c_variable_error_without_operand_using(purpose, error, stage)
+        {
             return code;
         }
         // Retire the reached callback failure before materialising its name,
@@ -1930,23 +2396,29 @@ impl Interp {
                 .take()
                 .unwrap_or_default()
         });
-        let bytes = match self.native_string_bytes(&original) {
+        let bytes = match self.original_c_name_bytes_using(original, stage) {
             Ok(bytes) => bytes.to_vec(),
-            Err(error) => return self.report_cmd_error(error.into()),
+            Err(error) => return self.report_cmd_error_using(error.into(), stage),
         };
         let input = tcl_syntax::naming::NativeVariableInputForm::Combined(&bytes);
         if let Some(reason) = trace_reason {
-            return self.original_c_variable_trace_error(input, purpose, &reason);
+            return self.original_c_variable_trace_error_using(input, purpose, &reason, stage);
         }
-        self.original_c_variable_receiver_error(input, purpose, error, None)
+        self.original_c_variable_receiver_error_using(input, purpose, error, None, stage)
     }
 
-    fn original_c_variable_trace_error(
+
+
+    fn original_c_variable_trace_error_using(
         &mut self,
         input: tcl_syntax::naming::NativeVariableInputForm<'_>,
         purpose: NativeVariableNameLookupPurpose,
         reason: &[u8],
+        stage: OriginalCNameStage<'_>,
     ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let Some(protocol) = self.native_c_variable_name_protocol() else {
             return self.refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -1966,7 +2438,7 @@ impl Interp {
                     ),
                 ),
             };
-        self.var_trace_error(
+        self.var_trace_error_using(
             &name,
             if matches!(
                 purpose,
@@ -1979,6 +2451,7 @@ impl Interp {
                 b"write"
             },
             reason,
+            stage,
         )
     }
 
@@ -2038,11 +2511,27 @@ impl Interp {
         error: crate::frame::VarError,
         reached_site: Option<tcl_syntax::naming::NativeVariableFailureSite>,
     ) -> Code {
+        self.original_c_variable_receiver_error_using(input, purpose, error, reached_site, None)
+    }
+
+    pub(super) fn original_c_variable_receiver_error_using(
+        &mut self,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+        purpose: NativeVariableNameLookupPurpose,
+        error: crate::frame::VarError,
+        reached_site: Option<tcl_syntax::naming::NativeVariableFailureSite>,
+        stage: OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         use crate::frame::VarError;
         use tcl_syntax::naming::{
             NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
         };
-        if let Some(code) = self.original_c_variable_error_without_operand(purpose, error) {
+        if let Some(code) =
+            self.original_c_variable_error_without_operand_using(purpose, error, stage)
+        {
             return code;
         }
         let reason = match error {
@@ -2054,11 +2543,12 @@ impl Interp {
             VarError::IsConstant => Reason::Constant,
             VarError::Confined => {
                 let Some(protocol) = self.native_c_variable_name_protocol() else {
-                    return self.report_cmd_error(
+                    return self.report_cmd_error_using(
                         ValueError::CommandProtocolUnavailable(
                             "original C confined variable report",
                         )
                         .into(),
+                        stage,
                     );
                 };
                 let name = match tcl_syntax::naming::report_native_c_variable_value_name(
@@ -2067,11 +2557,12 @@ impl Interp {
                 ) {
                     Ok(name) => name,
                     Err(_) => {
-                        return self.report_cmd_error(
+                        return self.report_cmd_error_using(
                             ValueError::CommandProtocolUnavailable(
                                 "original C confined variable report name",
                             )
                             .into(),
+                            stage,
                         );
                     }
                 };
@@ -2080,9 +2571,9 @@ impl Interp {
                     NativeVariableNameLookupPurpose::Unset
                         | NativeVariableNameLookupPurpose::QuietUnset
                 ) {
-                    self.confined_unset_error(&name)
+                    self.confined_unset_error_using(&name, stage)
                 } else {
-                    self.confined_store_error(&name)
+                    self.confined_store_error_using(&name, stage)
                 };
             }
 
@@ -2096,7 +2587,7 @@ impl Interp {
                     .pending_err
                     .take()
                     .unwrap_or_default();
-                return self.original_c_variable_trace_error(input, purpose, &reason);
+                return self.original_c_variable_trace_error_using(input, purpose, &reason, stage);
             }
         };
         let site = reached_site.unwrap_or_else(|| match purpose {
@@ -2121,7 +2612,7 @@ impl Interp {
             }
             _ => Site::NameLookup,
         });
-        self.original_c_variable_failure_input(input, purpose, reason, site)
+        self.original_c_variable_failure_input_using(input, purpose, reason, site, stage)
     }
 
     pub(super) fn original_variable_trace_requires_name(
@@ -2179,30 +2670,44 @@ impl Interp {
         original: *mut TclObj,
         create: bool,
     ) -> Result<*mut TclObj, Code> {
+        self.read_original_c_variable_reported_using(lookup, original, create, None)
+    }
+
+    fn read_original_c_variable_reported_using(
+        &mut self,
+        lookup: *mut TclObj,
+        original: *mut TclObj,
+        create: bool,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<*mut TclObj, Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let purpose = NativeVariableNameLookupPurpose::Read;
-        let selected = self.prepare_original_c_name(lookup, create)?;
+        let selected = self.prepare_original_c_name_using(lookup, create, stage)?;
         let capture_purpose = if create {
             NativeVariableNameLookupPurpose::Link
         } else {
             purpose
         };
-        let captured = self.capture_original_c_selection(lookup, &selected, capture_purpose)?;
+        let captured =
+            self.capture_original_c_selection_using(lookup, &selected, capture_purpose, stage)?;
         let Some((receiver, home)) = captured else {
             let bytes = self
-                .native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?
+                .original_c_name_bytes_using(original, stage)
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
                 .to_vec();
-            return Err(self.original_c_variable_failure(
+            return Err(self.original_c_variable_failure_using(
                 &bytes,
                 purpose,
                 tcl_syntax::naming::NativeVariableDiagnosticReason::NoSuchVariable,
                 tcl_syntax::naming::NativeVariableFailureSite::NameLookup,
+                stage,
             ));
         };
         if self.original_variable_trace_requires_name(&home, selected.element.as_deref(), b"read") {
             let bytes = self
-                .native_string_bytes(&original)
-                .map_err(|error| self.report_cmd_error(error.into()))?
+                .original_c_name_bytes_using(original, stage)
+                .map_err(|error| self.report_cmd_error_using(error.into(), stage))?
                 .to_vec();
             let access = self.trace_access(
                 &bytes,
@@ -2211,15 +2716,17 @@ impl Interp {
                 &home,
                 false,
             );
-            if self
+            let traced = self
                 .fire_var_trace_resolved(&home, &access, b"read")
-                .map_err(|first| self.refuse_native_execution(first))?
-                .is_guest_error()
-            {
-                return Err(self.original_c_lookup_var_error(
+                .map_err(|first| self.refuse_native_execution(first))?;
+            self.check_original_c_name_stage(stage)
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
+            if traced.is_guest_error() {
+                return Err(self.original_c_lookup_var_error_using(
                     original,
                     purpose,
                     crate::frame::VarError::TraceError,
+                    stage,
                 ));
             }
         }
@@ -2228,9 +2735,11 @@ impl Interp {
         }
         receiver
             .read()
-            .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?
+            .map_err(|error| {
+                self.original_c_lookup_var_error_using(original, purpose, error, stage)
+            })?
             .ok_or_else(|| {
-                self.original_c_variable_failure_for_object(
+                self.original_c_variable_failure_for_object_using(
                     original,
                     purpose,
                     if selected.element.is_some() && receiver.is_array() {
@@ -2239,6 +2748,7 @@ impl Interp {
                         tcl_syntax::naming::NativeVariableDiagnosticReason::NoSuchVariable
                     },
                     tcl_syntax::naming::NativeVariableFailureSite::ValueRead,
+                    stage,
                 )
             })
     }
@@ -2250,30 +2760,45 @@ impl Interp {
         publish_result: bool,
         purpose: NativeVariableNameLookupPurpose,
     ) -> Result<(), Code> {
+        self.assign_original_c_selection_using(original, value, publish_result, purpose, None)
+    }
+
+    fn assign_original_c_selection_using(
+        &mut self,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        publish_result: bool,
+        purpose: NativeVariableNameLookupPurpose,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let arguments = OriginalArguments::enter(self, &[original, value])
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let result = (|| {
-            let reached = self.prepare_original_c_name_for(original, purpose);
+            let reached = self.prepare_original_c_name_for_using(original, purpose, stage);
             arguments
                 .original(1)
-                .map_err(|error| self.report_cmd_error(error))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             let selected = reached?.ok_or_else(|| {
-                self.report_cmd_error(
+                self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("actual original write selection")
                         .into(),
+                    stage,
                 )
             })?;
-            self.assign_prepared_original_c_selection(
+            self.assign_prepared_original_c_selection_using(
                 original,
                 value,
                 publish_result,
                 purpose,
                 &selected,
+                stage,
             )
         })();
         arguments
             .check()
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         result
     }
 
@@ -2285,13 +2810,35 @@ impl Interp {
         purpose: NativeVariableNameLookupPurpose,
         selected: &OriginalCNameSelection,
     ) -> Result<(), Code> {
-        self.assign_prepared_original_c_selection_reported(
+        self.assign_prepared_original_c_selection_using(
+            original,
+            value,
+            publish_result,
+            purpose,
+            selected,
+            None,
+        )
+    }
+
+    fn assign_prepared_original_c_selection_using(
+        &mut self,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        publish_result: bool,
+        purpose: NativeVariableNameLookupPurpose,
+        selected: &OriginalCNameSelection,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        self.assign_prepared_original_c_selection_reported_using(
             original,
             original,
             value,
             publish_result,
             purpose,
             selected,
+            stage,
         )
     }
 
@@ -2304,32 +2851,62 @@ impl Interp {
         purpose: NativeVariableNameLookupPurpose,
         selected: &OriginalCNameSelection,
     ) -> Result<(), Code> {
+        self.assign_prepared_original_c_selection_reported_using(
+            lookup,
+            original,
+            value,
+            publish_result,
+            purpose,
+            selected,
+            None,
+        )
+    }
+
+    fn assign_prepared_original_c_selection_reported_using(
+        &mut self,
+        lookup: *mut TclObj,
+        original: *mut TclObj,
+        value: *mut TclObj,
+        publish_result: bool,
+        purpose: NativeVariableNameLookupPurpose,
+        selected: &OriginalCNameSelection,
+        stage: OriginalCNameStage<'_>,
+    ) -> Result<(), Code> {
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let arguments = OriginalArguments::enter(self, &[lookup, original, value])
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         let result = (|| {
-            let reached = self.capture_original_c_selection(lookup, selected, purpose);
+            let reached = self.capture_original_c_selection_using(lookup, selected, purpose, stage);
             arguments
                 .original(2)
-                .map_err(|error| self.report_cmd_error(error))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             let (receiver, home) = reached?.ok_or_else(|| {
-                self.report_cmd_error(
+                self.report_cmd_error_using(
                     ValueError::CommandProtocolUnavailable("actual variable store receiver").into(),
+                    stage,
                 )
             })?;
             let protective_value = publish_result.then(|| Owned::retain(value));
             let stored = receiver.store(value);
+            self.check_original_c_name_stage(stage)
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             arguments
                 .original(2)
-                .map_err(|error| self.report_cmd_error(error))?;
-            stored.map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?;
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
+            stored.map_err(|error| {
+                self.original_c_lookup_var_error_using(original, purpose, error, stage)
+            })?;
             if self.original_variable_trace_requires_name(
                 &home,
                 selected.element.as_deref(),
                 b"write",
             ) {
-                let bytes = arguments
-                    .bytes(1)
-                    .map_err(|error| self.report_cmd_error(error))?;
+                let bytes = match stage {
+                    Some(_) => self.original_c_name_bytes_using(original, stage),
+                    None => arguments.bytes(1),
+                }
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
                 let access = self.trace_access(
                     &bytes,
                     &selected.root,
@@ -2348,31 +2925,37 @@ impl Interp {
                     .is_guest_error();
                 arguments
                     .check()
-                    .map_err(|error| self.report_cmd_error(error))?;
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
+                self.check_original_c_name_stage(stage)
+                    .map_err(|error| self.report_cmd_error_using(error, stage))?;
                 if traced {
-                    return Err(self.original_c_lookup_var_error(
+                    return Err(self.original_c_lookup_var_error_using(
                         original,
                         purpose,
                         crate::frame::VarError::TraceError,
+                        stage,
                     ));
                 }
             }
             if publish_result {
-                match receiver
-                    .read()
-                    .map_err(|error| self.original_c_lookup_var_error(original, purpose, error))?
-                {
+                match receiver.read().map_err(|error| {
+                    self.original_c_lookup_var_error_using(original, purpose, error, stage)
+                })? {
                     Some(value) => self.set_result(value),
                     None => self.set_result_bytes(b""),
                 }
             }
+            self.check_original_c_name_stage(stage)
+                .map_err(|error| self.report_cmd_error_using(error, stage))?;
             drop(protective_value);
             Ok(())
         })();
         // Receiver and protective result roles retire before final settlement.
         arguments
             .check()
-            .map_err(|error| self.report_cmd_error(error))?;
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
+        self.check_original_c_name_stage(stage)
+            .map_err(|error| self.report_cmd_error_using(error, stage))?;
         result
     }
 

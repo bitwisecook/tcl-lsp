@@ -57,6 +57,8 @@ impl Interp {
         use tcl_registry::native_dictionary_compilation::NativeDictionaryMutationKind as Kind;
         let operation =
             BodyObjectOperation::capture(self).map_err(|first| self.report_cmd_error(first))?;
+        let actual = self.clone();
+        let variable_stage = || operation.check(&actual);
         let mut values = Vec::with_capacity(dictionary.operands.len());
         let reached = (|| {
             for operand in &dictionary.operands {
@@ -134,7 +136,12 @@ impl Interp {
             original_index: None,
             combined: false,
         };
-        let capture = Rc::new(self.body_capture_target(&evaluated, Some(dictionary.slot), true)?);
+        let capture = Rc::new(self.body_capture_target_using(
+            &evaluated,
+            Some(dictionary.slot),
+            true,
+            Some(operation),
+        )?);
         operation
             .check(self)
             .map_err(|first| self.report_cmd_error(first))?;

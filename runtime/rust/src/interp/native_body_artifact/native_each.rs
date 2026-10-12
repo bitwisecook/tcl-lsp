@@ -207,42 +207,59 @@ impl Interp {
             .map_err(|error| self.report_cmd_error(error))
     }
 
-    fn each_assign(&mut self, name: &[u8], slot: usize, original: *mut TclObj) -> Result<(), Code> {
-        let target = EvaluatedTarget {
-            root: name.to_vec(),
-            element: None,
-            original_name: None,
-            original_index: None,
-            combined: false,
-        };
-        let captured = self.body_capture_target(&target, Some(slot), true)?;
-        let traced = self.original_variable_trace_requires_name(&captured.home, None, b"write");
-        let temporary = (traced
-            && self.native_invocation_dialect().tcl_version == Some(tcl_dialect::TclVersion::V8_4))
-        .then(|| obj::Owned::retain(original));
-        captured
-            .receiver
-            .store(original)
-            .map_err(|error| crate::builtins::var_error(self, name, error))?;
-        if traced {
-            let access = self.trace_access(name, name, None, &captured.home, false);
-            if self
-                .fire_var_trace_resolved(&captured.home, &access, b"write")
-                .map_err(|first| self.refuse_native_execution(first))?
-                .is_guest_error()
-            {
-                return Err(crate::builtins::var_error(
-                    self,
-                    name,
-                    crate::frame::VarError::TraceError,
-                ));
+    fn each_assign(
+        &mut self,
+        name: &[u8],
+        slot: usize,
+        original: *mut TclObj,
+        entered: &crate::interp::native_arguments::OriginalArguments,
+        frame: &BodyListFrame,
+    ) -> Result<(), Code> {
+        let actual = self.clone();
+        let stage = || frame.check(&actual, entered);
+        stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+        let reached = (|| {
+            let target = EvaluatedTarget {
+                root: name.to_vec(),
+                element: None,
+                original_name: None,
+                original_index: None,
+                combined: false,
+            };
+            let captured =
+                self.body_capture_target_with_check(&target, Some(slot), true, Some(&stage))?;
+            let traced = self.original_variable_trace_requires_name(&captured.home, None, b"write");
+            let temporary = (traced
+                && self.native_invocation_dialect().tcl_version
+                    == Some(tcl_dialect::TclVersion::V8_4))
+            .then(|| obj::Owned::retain(original));
+            let stored = captured.receiver.store(original);
+            stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+            stored.map_err(|error| crate::builtins::var_error_using(self, name, error, Some(&stage)))?;
+            if traced {
+                let access = self.trace_access(name, name, None, &captured.home, false);
+                let traced = self
+                    .fire_var_trace_resolved(&captured.home, &access, b"write")
+                    .map_err(|first| self.refuse_native_execution(first))?;
+                stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                if traced.is_guest_error() {
+                    return Err(crate::builtins::var_error_using(
+                        self,
+                        name,
+                        crate::frame::VarError::TraceError, Some(&stage)
+                    ));
+                }
             }
-        }
-        drop(temporary);
-        if self.host_refusal_pending() {
-            return Err(Code::Error);
-        }
-        Ok(())
+            stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+            drop(temporary);
+            stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+            if self.host_refusal_pending() {
+                return Err(Code::Error);
+            }
+            Ok(())
+        })();
+        stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+        reached
     }
 
     pub(super) fn execute_body_each(
@@ -460,7 +477,13 @@ impl Interp {
                         .or(fresh)
                         .expect("native iterator value");
                     let lifetime = fresh.map(obj::NativeObjectLifetime::retain);
-                    let result = self.each_assign(name, operation.slots[index][variable], value);
+                    let result = self.each_assign(
+                        name,
+                        operation.slots[index][variable],
+                        value,
+                        entered,
+                        frame,
+                    );
                     if fresh.is_some() && obj::allocation_is_live(value) {
                         // SAFETY: the lifetime lease keeps the actual fresh header readable.
                         if unsafe { (*value).ref_count == 0 } {

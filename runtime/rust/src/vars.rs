@@ -56,9 +56,9 @@ const LINK_LIMIT: usize = 1000;
 mod entered_container;
 mod jim_alias_publication;
 mod trace_shell;
-pub(crate) use trace_shell::CapturedTraceShell;
 pub(crate) use entered_container::{capture_byte_store_entered, EnteredVariablePlace};
 pub(crate) use jim_alias_publication::{CapturedJimAliasTarget, PreparedJimAliasLocal};
+pub(crate) use trace_shell::CapturedTraceShell;
 
 /// A concrete place a name resolves to: a table ([`VarHome`]) + simple name +
 /// optional array element. Never itself a link.
@@ -3322,6 +3322,15 @@ impl OriginalArrayMemberPreparation {
         interpreter: &crate::interp::Interp,
         currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
     ) -> Result<OriginalArrayMemberSelection, tcl_cmd_core::CmdError> {
+        self.finish_using(interpreter, currency, None)
+    }
+
+    pub(crate) fn finish_using(
+        self,
+        interpreter: &crate::interp::Interp,
+        currency: &crate::interp::native_operation_currency::NativeOperationCurrency,
+        stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+    ) -> Result<OriginalArrayMemberSelection, tcl_cmd_core::CmdError> {
         let observation = self.selected.observation();
         let epoch = self.selected.array_epoch();
         let home = self.home;
@@ -3330,6 +3339,9 @@ impl OriginalArrayMemberPreparation {
         let links = self.links;
         let selected = self.selected;
         let check = || {
+            if let Some(check) = stage {
+                check()?;
+            }
             currency
                 .ensure_current_or_refuse()
                 .map_err(tcl_cmd_core::CmdError::from_execution_refusal)?;

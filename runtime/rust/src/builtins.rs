@@ -209,6 +209,15 @@ pub(crate) fn var_element_error(
 }
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
+    var_error_using(interp, name, e, None)
+}
+
+pub(crate) fn var_error_using(
+    interp: &mut Interp, name: &[u8], e: VarError,
+    stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
+    if let Some(check) = stage { if let Err(first) = check() { return interp.report_cmd_error(first); } }
+
     if e == VarError::NameProtocolUnavailable {
         return interp.refuse_native_access(
             tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
@@ -226,10 +235,10 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .pending_err
             .take()
             .unwrap_or_default();
-        return interp.var_trace_error(name, b"write", &reason);
+        return interp.var_trace_error_using(name, b"write", &reason, stage);
     }
     if e == VarError::Confined {
-        return interp.confined_store_error(name);
+        return interp.confined_store_error_using(name, stage);
     }
     let verb = match e {
         VarError::NameProtocolUnavailable => unreachable!("host refusal handled above"),
@@ -244,7 +253,7 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     let mut msg = b"can't set \"".to_vec();
     msg.extend_from_slice(name);
     msg.extend_from_slice(verb);
-    interp.set_error(&msg)
+    interp.error_using(&msg, stage)
 }
 
 /// `can't incr "name": variable is a constant` when `incr` targets a `const`

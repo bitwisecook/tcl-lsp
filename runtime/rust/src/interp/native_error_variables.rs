@@ -91,6 +91,22 @@ impl Interp {
         }
     }
 
+    pub(super) fn reset_native_global_error_episode_using(
+        &self,
+        stage: super::native_variable_names::OriginalCNameStage<'_>,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        self.check_original_c_name_stage(stage)?;
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self)?;
+        if self.uses_c84_global_error_info() {
+            self.replace_exception_state_using(
+                scope.currency(),
+                super::ExceptionState::default(),
+                stage,
+            )?;
+        }
+        self.check_original_c_name_stage(stage)
+    }
+
     /// Tcl 8.4 CallVarTraces saves only these error-episode flag bits.
     pub(super) fn capture_native_global_error_flags(&self) -> Option<NativeGlobalErrorFlags> {
         self.uses_c84_global_error_info().then(|| {
@@ -432,6 +448,16 @@ impl Interp {
 
     /// Replace one genuine private owner and complete its retirement before
     /// the next getter or field publication. This supplies no object authority.
+    fn check_native_error_stage<E>(
+        &self,
+        stage: Option<&dyn Fn() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        match stage {
+            Some(check) => check(),
+            None => Ok(()),
+        }
+    }
+
     pub(super) fn replace_native_error_object_checked(
         &self,
         currency: &super::native_operation_currency::NativeOperationCurrency,
@@ -439,8 +465,23 @@ impl Interp {
         original: Option<obj::Owned>,
         info_len: Option<usize>,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        currency.ensure_current_or_refuse()?;
-        self.check_native_error_object_readable(variable)?;
+        self.replace_native_error_object_using(currency, variable, original, info_len, None)
+    }
+
+    pub(super) fn replace_native_error_object_using<
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    >(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        variable: Variable,
+        original: Option<obj::Owned>,
+        info_len: Option<usize>,
+        stage: Option<&dyn Fn() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)?;
+        self.check_native_error_object_readable(variable)
+            .map_err(E::from)?;
         let published = original
             .as_ref()
             .map(|value| obj::NativeObjectLifetime::retain(value.as_ptr()));
@@ -457,9 +498,11 @@ impl Interp {
             }
         };
         drop(retired);
-        currency.ensure_current_or_refuse()?;
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)?;
         if let Some(published) = published {
-            self.check_native_error_object(currency, variable, &published)?;
+            self.check_native_error_object(currency, variable, &published)
+                .map_err(E::from)?;
             drop(published);
         } else {
             let present = {
@@ -470,14 +513,15 @@ impl Interp {
                 }
             };
             if present {
-                return Err(self.clone().refuse_completion_value_access(
+                return Err(E::from(self.clone().refuse_completion_value_access(
                     tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                         "cleared native error field replaced during retirement",
                     ),
-                ));
+                )));
             }
         }
-        currency.ensure_current_or_refuse()
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)
     }
 
     /// Check the actual private role after an original getter's callback.
@@ -657,15 +701,31 @@ impl Interp {
         currency: &super::native_operation_currency::NativeOperationCurrency,
         bytes: &[u8],
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        currency.ensure_current_or_refuse()?;
+        self.replace_native_error_code_using(currency, bytes, None)
+    }
+
+    pub(super) fn replace_native_error_code_using<
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    >(
+        &mut self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        bytes: &[u8],
+        stage: Option<&dyn Fn() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)?;
         if self.uses_c84_global_error_info() {
             let original = obj::Owned::fresh(new_string(bytes));
             self.publish_original_c84_error_code(original.as_ptr());
             // The selected C84 setter settles its flag even after a reached
             // callback refusal. Classify only after that mandatory settlement
             // and temporary retirement, retaining the original first cause.
+            let first = self.check_native_error_stage(stage);
             drop(original);
-            return currency.ensure_current_or_refuse();
+            let after = self.check_native_error_stage(stage);
+            first?;
+            after?;
+            return currency.ensure_current_or_refuse().map_err(E::from);
         }
         if self
             .native_invocation_dialect()
@@ -673,14 +733,16 @@ impl Interp {
             .is_some()
         {
             let original = self.native_default_error_code(bytes);
-            self.replace_native_error_object_checked(
+            self.replace_native_error_object_using(
                 currency,
                 Variable::ErrorCode,
                 Some(original),
                 None,
+                stage,
             )?;
         }
-        currency.ensure_current_or_refuse()
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)
     }
 
     /// Publish the complete new state before retiring its genuine old owners.
@@ -690,10 +752,37 @@ impl Interp {
         currency: &super::native_operation_currency::NativeOperationCurrency,
         state: super::ExceptionState,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        currency.ensure_current_or_refuse()?;
-        let retired = self.exc.replace(state);
-        drop(retired);
-        currency.ensure_current_or_refuse()
+        self.replace_exception_state_using(currency, state, None)
+    }
+
+    pub(super) fn replace_exception_state_using<E: From<tcl_runtime_api::NativeExecutionError>>(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        state: super::ExceptionState,
+        stage: Option<&dyn Fn() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)?;
+        let mut retired = self.exc.replace(state);
+        if stage.is_some() {
+            // Genuine info/code roles keep their existing field-drop order.
+            // Both retire even when the first reached callback withdrew the
+            // caller's frame. No exception borrow spans either callback.
+            drop(retired.info.take());
+            drop(retired.native.info.take());
+            let first = self.check_native_error_stage(stage);
+            drop(retired.native.code.take());
+            let after_code = self.check_native_error_stage(stage);
+            drop(retired);
+            let after = self.check_native_error_stage(stage);
+            first?;
+            after_code?;
+            after?;
+        } else {
+            drop(retired);
+        }
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)
     }
 
     // Compatibility port for actual callers which already check their Scope.
@@ -710,7 +799,18 @@ impl Interp {
         &self,
         currency: &super::native_operation_currency::NativeOperationCurrency,
     ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        currency.ensure_current_or_refuse()?;
+        self.capture_native_error_objects_using(currency, None)
+    }
+
+    pub(super) fn capture_native_error_objects_using<
+        E: From<tcl_runtime_api::NativeExecutionError>,
+    >(
+        &self,
+        currency: &super::native_operation_currency::NativeOperationCurrency,
+        stage: Option<&dyn Fn() -> Result<(), E>>,
+    ) -> Result<(), E> {
+        self.check_native_error_stage(stage)?;
+        currency.ensure_current_or_refuse().map_err(E::from)?;
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
@@ -727,21 +827,24 @@ impl Interp {
             }
         };
         let original = self.native_default_error_code(&code);
-        self.replace_native_error_object_checked(
+        self.replace_native_error_object_using(
             currency,
             Variable::ErrorCode,
             Some(original),
             None,
+            stage,
         )?;
+        self.check_native_error_stage(stage)?;
         let info = self.exc.borrow().info.clone();
         let original = info
             .as_deref()
             .map(|bytes| obj::Owned::fresh(new_string(bytes)));
-        self.replace_native_error_object_checked(
+        self.replace_native_error_object_using(
             currency,
             Variable::ErrorInfo,
             original,
             Some(info.as_ref().map_or(0, Vec::len)),
+            stage,
         )
     }
 

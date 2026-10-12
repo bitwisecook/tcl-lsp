@@ -1270,16 +1270,26 @@ pub(crate) fn ns_operation_not_found(
     original: *mut TclObj,
     operation: tcl_syntax::naming::NativeNamespaceLookupOperation,
 ) -> Code {
-    let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &original) {
+    ns_operation_not_found_using(interp, original, operation, None)
+}
+
+pub(crate) fn ns_operation_not_found_using(
+    interp: &mut Interp,
+    original: *mut TclObj,
+    operation: tcl_syntax::naming::NativeNamespaceLookupOperation,
+    stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
+    let bytes = match interp.original_c_name_bytes_using(original, stage) {
         Ok(bytes) => bytes,
-        Err(error) => return interp.report_cmd_error(error.into()),
+        Err(error) => return interp.report_cmd_error_using(error.into(), stage),
     };
     let Some(policy) = interp.name_policy_protocol() else {
-        return interp.report_cmd_error(
+        return interp.report_cmd_error_using(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "namespace operation diagnostic issuer",
             )
             .into(),
+            stage,
         );
     };
     let current = interp.namespaces().qualified_name(interp.current_ns());
@@ -1291,11 +1301,12 @@ pub(crate) fn ns_operation_not_found(
     ) {
         Ok(error) => error,
         Err(_) => {
-            return interp.report_cmd_error(
+            return interp.report_cmd_error_using(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "namespace operation diagnostic purpose",
                 )
                 .into(),
+                stage,
             );
         }
     };
@@ -1308,22 +1319,33 @@ pub(crate) fn ns_operation_not_found(
             materialization
         }
         _ => {
-            return interp.report_cmd_error(
+            return interp.report_cmd_error_using(
                 tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "namespace diagnostic String producer issuer",
                 )
                 .into(),
+                stage,
             );
         }
     };
     let code = match error.error_code {
-        Some(code) => interp.error_with_code(&error.message, &code),
-        None => interp.set_error(&error.message),
+        Some(code) => interp.error_with_code_using(&error.message, &code, stage),
+        None => interp.error_using(&error.message, stage),
     };
+    if let Some(check) = stage {
+        if let Err(error) = check() {
+            return interp.report_cmd_error(error);
+        }
+    }
     if let Err(error) =
         obj::retain_native_string_representation(interp.result_obj(), materialization)
     {
-        return interp.report_cmd_error(error.into());
+        return interp.report_cmd_error_using(error.into(), stage);
+    }
+    if let Some(check) = stage {
+        if let Err(error) = check() {
+            return interp.report_cmd_error(error);
+        }
     }
     code
 }

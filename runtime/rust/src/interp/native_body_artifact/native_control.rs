@@ -1276,90 +1276,123 @@ impl Interp {
                 result,
                 options,
             } => {
-                // Construction of a substituted script precedes the protected
-                // range. Its errors propagate instead of becoming catch results.
-                let dynamic = if body.script.is_none() {
-                    Some(self.body_control_operand(
-                        artifact,
-                        command,
-                        &control.prepared,
-                        &body.operand,
-                        execution,
-                    )?)
-                } else {
-                    None
-                };
-                let code = if let Some(original) = dynamic {
-                    self.eval_generic_control_body(original.as_ptr())
-                } else {
-                    self.execute_body_region(
-                        artifact,
-                        body.script.expect("static catch script"),
-                        execution,
-                    )
-                };
-                if self.host_refusal_pending() || execution.done {
-                    return Ok(code);
-                }
-                obj::check_native_liveness(self.result_obj())
-                    .map_err(|error| self.report_cmd_error(error.into()))?;
-                let empty = obj::Owned::fresh(obj::new_string_bytes(b""));
-                let original_result = self.result.replace(empty.into_raw());
-                // SAFETY: PUSH_RESULT transfers the interpreter's existing
-                // reference to the protected result on the evaluation stack.
-                let original_result = unsafe { obj::Owned::from_raw(original_result) };
-                let original_options = if options.is_some() {
-                    let options = crate::cmd_error::completion_options(self, code)
-                        .map_err(|error| self.refuse_native_execution(error))?;
-                    Some(obj::Owned::fresh(options))
-                } else {
-                    None
-                };
-                if protocol.resets_result_before_stores() {
-                    // END_CATCH reaches Tcl_ResetResult after the original
-                    // result/options have been captured, before either store.
-                    // Its real global writes can invoke guest trace callbacks.
-                    self.publish_and_reset_error();
-                    if self.host_refusal_pending() {
-                        return Err(Code::Error);
-                    }
-                    self.set_return_state(1, Code::Ok);
-                }
-                self.clear_return_options_checked()
-                    .map_err(|first| self.refuse_native_execution(first))?;
-                let result_store = result.as_ref().map(|name| (name, &original_result));
-                let options_store = options.as_ref().zip(original_options.as_ref());
-                let stores = if protocol.result_before_options() {
-                    [result_store, options_store]
-                } else {
-                    [options_store, result_store]
-                };
-                for (name, value) in stores.into_iter().flatten() {
-                    let target = EvaluatedTarget {
-                        root: name.clone(),
-                        element: None,
-                        original_name: None,
-                        original_index: None,
-                        combined: false,
+                let variable_original = BodyObjectOperation::capture(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                let actual = self.clone();
+                let stage = || variable_original.check(&actual);
+                let reached = (|| {
+                    // Construction of a substituted script precedes the protected
+                    // range. Its errors propagate instead of becoming catch results.
+                    let dynamic = if body.script.is_none() {
+                        Some(self.body_control_operand(
+                            artifact,
+                            command,
+                            &control.prepared,
+                            &body.operand,
+                            execution,
+                        )?)
+                    } else {
+                        None
                     };
-                    let store_code = self.body_store(&target, Some(control.names[name]), value);
-                    if store_code != Code::Ok {
-                        return Ok(store_code);
+                    let code = if let Some(original) = dynamic {
+                        self.eval_generic_control_body(original.as_ptr())
+                    } else {
+                        self.execute_body_region(
+                            artifact,
+                            body.script.expect("static catch script"),
+                            execution,
+                        )
+                    };
+                    variable_original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    if self.host_refusal_pending() || execution.done {
+                        return Ok(code);
                     }
-                }
-                if code == Code::Ok {
-                    self.set_result(
-                        artifact
-                            .literals
-                            .original(control.zero.expect("native catch zero"))
-                            .expect("native catch zero literal"),
-                    );
-                } else {
-                    self.set_result(
-                        obj::Owned::fresh(obj::new_wide_int_obj(code.as_int())).as_ptr(),
-                    );
-                }
-                return Ok(Code::Ok);
+                    obj::check_native_liveness(self.result_obj())
+                        .map_err(|error| self.report_cmd_error_using(error.into(), Some(&stage)))?;
+                    let empty = obj::Owned::fresh(obj::new_string_bytes(b""));
+                    let original_result = self.result.replace(empty.into_raw());
+                    // SAFETY: PUSH_RESULT transfers the interpreter's existing
+                    // reference to the protected result on the evaluation stack.
+                    let original_result = unsafe { obj::Owned::from_raw(original_result) };
+                    let original_options = if options.is_some() {
+                        let options = crate::cmd_error::completion_options(self, code)
+                            .map_err(|error| self.refuse_native_execution(error))?;
+                        Some(obj::Owned::fresh(options))
+                    } else {
+                        None
+                    };
+                    variable_original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    if protocol.resets_result_before_stores() {
+                        // END_CATCH reaches Tcl_ResetResult after the original
+                        // result/options have been captured, before either store.
+                        // Its real global writes can invoke guest trace callbacks.
+                        self.publish_and_reset_error();
+                        variable_original
+                            .check(self)
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                        if self.host_refusal_pending() {
+                            return Err(Code::Error);
+                        }
+                        self.set_return_state(1, Code::Ok);
+                    }
+                    self.clear_return_options_checked()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    variable_original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    let result_store = result.as_ref().map(|name| (name, &original_result));
+                    let options_store = options.as_ref().zip(original_options.as_ref());
+                    let stores = if protocol.result_before_options() {
+                        [result_store, options_store]
+                    } else {
+                        [options_store, result_store]
+                    };
+                    for (name, value) in stores.into_iter().flatten() {
+                        let target = EvaluatedTarget {
+                            root: name.clone(),
+                            element: None,
+                            original_name: None,
+                            original_index: None,
+                            combined: false,
+                        };
+                        let store_code = self.body_store_using(
+                            &target,
+                            Some(control.names[name]),
+                            value,
+                            &variable_original,
+                        );
+                        if store_code != Code::Ok {
+                            return Ok(store_code);
+                        }
+                    }
+                    if code == Code::Ok {
+                        self.set_result(
+                            artifact
+                                .literals
+                                .original(control.zero.expect("native catch zero"))
+                                .expect("native catch zero literal"),
+                        );
+                    } else {
+                        let result = obj::Owned::fresh(obj::new_wide_int_obj(code.as_int()));
+                        self.set_result(result.as_ptr());
+                        let current = variable_original.check(self);
+                        drop(result);
+                        current
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    }
+                    variable_original
+                        .check(self)
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
+                    return Ok(Code::Ok);
+                })();
+                variable_original
+                    .check(self)
+                    .map_err(|error| self.report_cmd_error(error))?;
+                reached
             }
         }
         self.set_result(

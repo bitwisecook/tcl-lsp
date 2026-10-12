@@ -386,7 +386,8 @@ impl Interp {
                     // STORE_ARRAY owns the returned original only on the
                     // operand stack; its following POP never publishes it in
                     // the interpreter's result slot.
-                    let stored = self.body_store_value(&evaluated, slot, &value)?;
+                    let stored =
+                        self.body_store_value_using(&evaluated, slot, &value, body_original)?;
                     drop(stored);
                     selected
                         .check(self)

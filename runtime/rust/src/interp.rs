@@ -8084,19 +8084,43 @@ impl Interp {
     /// The error a confined store to `name` is refused with — the bytecode
     /// VM's words and code.
     pub(crate) fn confined_store_error(&mut self, name: &[u8]) -> Code {
+        self.confined_store_error_using(name, None)
+    }
+
+    pub(crate) fn confined_store_error_using(
+        &mut self,
+        name: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let mut message = b"can't set \"".to_vec();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": stores are confined to the activation");
-        self.error_with_code(&message, b"TCL WRITE VARNAME")
+        self.error_with_code_using(&message, b"TCL WRITE VARNAME", stage)
     }
 
     /// The error a confined unset of `name` is refused with — the bytecode
     /// VM's words and code.
     pub(crate) fn confined_unset_error(&mut self, name: &[u8]) -> Code {
+        self.confined_unset_error_using(name, None)
+    }
+
+    pub(crate) fn confined_unset_error_using(
+        &mut self,
+        name: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let mut message = b"can't unset \"".to_vec();
         message.extend_from_slice(name);
         message.extend_from_slice(b"\": stores are confined to the activation");
-        self.error_with_code(&message, b"TCL UNSET VARNAME")
+        self.error_with_code_using(&message, b"TCL UNSET VARNAME", stage)
     }
 
     /// The error a draw from the `rand()` generator is refused with while
@@ -9016,6 +9040,20 @@ impl Interp {
     /// throw the callback's trace away, leaving `errorInfo` as the bare
     /// `can't set "x": …` line.
     pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
+        self.var_trace_error_using(name, op, reason, None)
+    }
+
+    pub(crate) fn var_trace_error_using(
+        &mut self,
+        name: &[u8],
+        op: &[u8],
+        reason: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         // C's `TclCallVarTraces` verb table (tclTrace.c 9.0.4:2668-2681). The
         // `-errorcode` is *not* set there but by the access that failed, and
         // only `TclPtrGetVarIdx`/`TclPtrSetVarIdx` do so — `TclCheckArrayTraces`
@@ -9033,11 +9071,29 @@ impl Interp {
         msg.extend_from_slice(b"\": ");
         msg.extend_from_slice(reason);
         self.set_result_bytes(&msg);
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
+        }
         if let Some(word) = word {
             let mut code = b"TCL ".to_vec();
             code.extend_from_slice(word);
             code.extend_from_slice(b" VARNAME");
-            self.replace_native_error_code(&code);
+            if stage.is_some() {
+                let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
+                    return Code::Error;
+                };
+                if self
+                    .replace_native_error_code_using(scope.currency(), &code, stage)
+                    .is_err()
+                {
+                    return Code::Error;
+                }
+            } else {
+                self.replace_native_error_code(&code);
+            }
+            if self.check_original_c_name_stage(stage).is_err() {
+                return Code::Error;
+            }
             let mut exc = self.exc.borrow_mut();
             exc.code = code;
             exc.code_explicit = false;
@@ -11171,11 +11227,25 @@ impl Interp {
     ///
     /// Arbitrary result bytes carry the neutral `NONE` error-code identity.
     pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
+        self.error_using(msg, None)
+    }
+
+    pub(crate) fn error_using(
+        &mut self,
+        msg: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return Code::Error;
         };
         self.set_result_bytes(msg);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
             return Code::Error;
         }
         let code = b"NONE";
@@ -11189,8 +11259,8 @@ impl Interp {
             expression_error_stage: None,
         };
         if self
-            .replace_exception_state_checked(scope.currency(), state)
-            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .replace_exception_state_using(scope.currency(), state, stage)
+            .and_then(|()| self.capture_native_error_objects_using(scope.currency(), stage))
             .is_err()
         {
             return Code::Error;
@@ -11202,11 +11272,26 @@ impl Interp {
     /// still builds up as the error unwinds). For commands that mirror C's
     /// richer error codes (`TCL LOOKUP INDEX …`, `TCL OO …`).
     pub(crate) fn error_with_code(&mut self, msg: &[u8], code: &[u8]) -> Code {
+        self.error_with_code_using(msg, code, None)
+    }
+
+    pub(crate) fn error_with_code_using(
+        &mut self,
+        msg: &[u8],
+        code: &[u8],
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return Code::Error;
         };
         self.set_result_bytes(msg);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
             return Code::Error;
         }
         let state = ExceptionState {
@@ -11219,8 +11304,8 @@ impl Interp {
             expression_error_stage: None,
         };
         if self
-            .replace_exception_state_checked(scope.currency(), state)
-            .and_then(|()| self.capture_native_error_objects_checked(scope.currency()))
+            .replace_exception_state_using(scope.currency(), state, stage)
+            .and_then(|()| self.capture_native_error_objects_using(scope.currency(), stage))
             .is_err()
         {
             return Code::Error;
@@ -11259,12 +11344,24 @@ impl Interp {
     /// Publish a portable command-layer error through this runtime's result
     /// and exception-state ABI without losing a structured error code.
     pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        self.report_cmd_error_using(error, None)
+    }
+
+    pub(crate) fn report_cmd_error_using(
+        &mut self,
+        error: tcl_cmd_core::CmdError,
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
         if self.host_refusal_pending() {
             return Code::Error;
         }
         if let Some(error) = error.native_execution_refusal() {
             return self.refuse_native_execution(error.clone());
         }
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         let Ok(scope) = native_operation_currency::NativeOperationScope::enter(self) else {
             return Code::Error;
         };
@@ -11287,23 +11384,28 @@ impl Interp {
         let string_result =
             match self.command_error_string_result(details.string_result, wrong_arguments) {
                 Ok(result) => result,
-                Err(error) => return self.report_cmd_error(error.into()),
+                Err(error) => return self.report_cmd_error_using(error.into(), stage),
             };
         self.set_result_bytes(&details.message);
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
             return Code::Error;
         }
         if let Some(materialization) = string_result {
             if let Err(error) =
                 obj::retain_native_string_representation(self.get_obj_result(), materialization)
             {
-                return self.report_cmd_error(error.into());
+                return self.report_cmd_error_using(error.into(), stage);
             }
+        }
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
         }
         if let tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) = &update {
             if !self.uses_c84_global_error_info() || explicit_code_store {
                 if self
-                    .replace_native_error_code_checked(scope.currency(), code)
+                    .replace_native_error_code_using(scope.currency(), code, stage)
                     .is_err()
                 {
                     return Code::Error;
@@ -11311,6 +11413,9 @@ impl Interp {
             } else {
                 self.exc.borrow_mut().native.global_code_set = false;
             }
+        }
+        if self.check_original_c_name_stage(stage).is_err() {
+            return Code::Error;
         }
         let original_info = self
             .native_invocation_dialect()
@@ -11338,18 +11443,21 @@ impl Interp {
         drop(exc);
         if let Some(original_info) = original_info {
             if self
-                .replace_native_error_object_checked(
+                .replace_native_error_object_using(
                     scope.currency(),
                     tcl_registry::special_vars::NativeErrorStorageVariable::ErrorInfo,
                     original_info,
                     Some(info_len),
+                    stage,
                 )
                 .is_err()
             {
                 return Code::Error;
             }
         }
-        if scope.currency().ensure_current_or_refuse().is_err() {
+        if self.check_original_c_name_stage(stage).is_err()
+            || scope.currency().ensure_current_or_refuse().is_err()
+        {
             return Code::Error;
         }
         if let Some(line) = details
@@ -18594,11 +18702,24 @@ impl Interp {
     }
 
     fn no_such_variable(&mut self, name: &[u8], index: Option<&[u8]>) -> Code {
+        self.no_such_variable_using(name, index, None)
+    }
+
+    pub(super) fn no_such_variable_using(
+        &mut self,
+        name: &[u8],
+        index: Option<&[u8]>,
+        stage: native_variable_names::OriginalCNameStage<'_>,
+    ) -> Code {
+        if let Err(first) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error(first);
+        }
+
         if self.host_refusal_pending() {
             return Code::Error;
         }
         let msg = self.read_miss_msg(name, index);
-        self.error(&msg)
+        self.error_using(&msg, stage)
     }
 
     /// Build the C-faithful `can't read "NAME": …` message for a failed variable
