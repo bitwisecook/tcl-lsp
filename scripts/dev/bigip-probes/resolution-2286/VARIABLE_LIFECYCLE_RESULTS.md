@@ -16,7 +16,7 @@ were not substituted for TMM execution.
 | Topology | standalone, active |
 | TMM process and roster | PID 16500; `0:0`, `0:1`, `0:2`, `0:3` |
 | Tested source commit | `88198d83d3ef944670d7a1f24a3ada1b11187f69` on `work` |
-| VIP / backend | `192.168.9.24:18861` / `192.168.9.80:18761`; ordinary-global VIP `192.168.9.24:18862` |
+| VIP / backend | `192.0.2.10:18861` / `192.168.9.80:18761`; ordinary-global VIP `192.0.2.10:18862` |
 | Profiles / translation | TCP and HTTP; SNAT automap on both VIPs |
 | CMP | configured yes; observed `all-cpus` for the lifecycle and ordinary-global VIPs |
 
@@ -38,7 +38,7 @@ The complete TMM listing is retained in
 The identity phase selected source ports 42100, 42101, 42102 and 42103 for
 units 3, 2, 1 and 0 respectively. Every lifecycle traffic phase below recorded
 the actual unit in its response or LTM marker. The pool-backed baseline reached
-the server, whose raw response records peer `192.168.9.24`; this proves the
+the server, whose raw response records peer `192.0.2.10`; this proves the
 SNAT translation and return path rather than merely listing the configuration.
 See
 [`vl-vip-backend.body`](evidence/r2286_20261007vllex/client-server/vl-vip-backend.body)
@@ -210,7 +210,7 @@ Traffic was sent through the VIP with an explicitly bound client source port,
 for example:
 
 ```sh
-curl --local-port 42101 http://192.168.9.24:18861/r2286-vl1-static/read
+curl --local-port 42101 http://192.0.2.10:18861/r2286-vl1-static/read
 tclsh decode-variable-lifecycle.tcl vl-controls-42101.body vl-controls-42101.tsv
 ```
 

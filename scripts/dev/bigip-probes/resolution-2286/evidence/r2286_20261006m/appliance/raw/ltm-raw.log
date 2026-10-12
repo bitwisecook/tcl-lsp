@@ -11,7 +11,7 @@ Oct  6 08:15:11 bigip-21-1-0-1.bragi0.com err tmsh[15794]: 01420006:3: 01020036:
 Oct  6 08:15:11 bigip-21-1-0-1.bragi0.com err mcpd[23859]: 01070151:3: Rule [/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider] error: /R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider:4: error: [command is disabled: "namespace"][namespace current]
 Oct  6 08:15:11 bigip-21-1-0-1.bragi0.com err tmsh[15797]: 01420006:3: Loading configuration process failed.
 Oct  6 08:15:11 bigip-21-1-0-1.bragi0.com err tmsh[15804]: 01420006:3: 01020036:3: The requested iRule (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider) was not found.
-Oct  6 08:15:12 bigip-21-1-0-1.bragi0.com warning mcpd[23859]: 01071859:4: Warning generated : Virtual address (/R2286_r2286m/192.168.9.24) shares address with non-floating self IP (/Common/self_1nic), so traffic-group is being kept at (/Common/traffic-group-local-only).
+Oct  6 08:15:12 bigip-21-1-0-1.bragi0.com warning mcpd[23859]: 01071859:4: Warning generated : Virtual address (/R2286_r2286m/192.0.2.10) shares address with non-floating self IP (/Common/self_1nic), so traffic-group is being kept at (/Common/traffic-group-local-only).
 Oct  6 08:15:12 bigip-21-1-0-1.bragi0.com err tmsh[15814]: 01420006:3: 01020036:3: The requested Virtual Server (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_vs) was not found.
 Oct  6 08:15:12 bigip-21-1-0-1.bragi0.com err tmsh[15817]: 01420006:3: 01020036:3: The requested Pool (/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_pool) was not found.
 Oct  6 08:15:35 bigip-21-1-0-1.bragi0.com notice mcpd[23859]: 0107167d:5: Resuming log processing at this invocation; held 15 messages.

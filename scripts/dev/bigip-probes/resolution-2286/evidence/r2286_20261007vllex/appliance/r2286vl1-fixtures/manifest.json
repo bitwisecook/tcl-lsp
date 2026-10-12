@@ -1047,8 +1047,8 @@
     },
     {
       "file": "sources/lab.conf",
-      "sha256": "d0920ca4040b687d8329a36e140e6144f88bd503108239c0eb7982104cf5c337",
-      "size": 911
+      "sha256": "f59a271de4b6fa8efafc8b6ef20b7ecdf42f7da03beeb60bb82becb4bae0735f",
+      "size": 907
     },
     {
       "file": "sources/main-rule-body.tcl",
@@ -1071,11 +1071,12 @@
       "size": 1484
     }
   ],
-  "global_vip": "192.168.9.24:18862",
+  "global_vip": "192.0.2.10:18862",
   "main_body_sha256": "c2de31571f7f7d5f0d08d27fa37bae3af8595060193dd5a352f22ad36cb3c2ee",
   "request_block_sha256": "9070692d96ad4ed5ce889d922a6049fe4a94fc140ee99a896e0890e51ae85230",
   "request_sha256": "25fca270d76f2d33a292bc01bcdf70525536df9a59f735e5d589d75dafb5128c",
   "run": "vl1",
   "source_commit": "88198d83da0a239036da06386846699195f30220",
-  "vip": "192.168.9.24:18861"
+  "vip": "192.0.2.10:18861",
+  "sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed."
 }

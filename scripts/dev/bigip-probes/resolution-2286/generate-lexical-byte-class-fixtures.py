@@ -45,7 +45,7 @@ def replace_context(script: bytes, context: str) -> bytes:
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--out", required=True, type=Path)
 parser.add_argument("--source-commit", required=True)
-parser.add_argument("--vip", default="192.168.9.24")
+parser.add_argument("--vip", default="192.0.2.10")
 parser.add_argument("--vip-port", default=18860, type=int)
 parser.add_argument("--backend", default="192.168.9.80")
 parser.add_argument("--backend-port", default=18760, type=int)

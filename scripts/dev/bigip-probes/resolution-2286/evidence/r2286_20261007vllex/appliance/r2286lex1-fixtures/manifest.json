@@ -43,8 +43,8 @@
     },
     {
       "file": "sources/lab.conf",
-      "sha256": "995b92c0d695bc097fc7f772e2c9429ddfaa3fdd31ecedca2489e729ed924603",
-      "size": 586
+      "sha256": "9e59fb4b5d99a8a0dcec6c92a74c5134bc3f3608f8b2d46801dd3a17c7f389f5",
+      "size": 584
     },
     {
       "file": "sources/non-tmm-tmsh-cli.tcl",
@@ -61,5 +61,6 @@
   "request_sha256": "c8d1fcd88e14d8b2a61901b7250ee6c5b28cafc4db17c51ec231cd385e64595e",
   "run": "r2286lex1",
   "source_commit": "88198d83da0a239036da06386846699195f30220",
-  "vip": "192.168.9.24:18860"
+  "vip": "192.0.2.10:18860",
+  "sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed."
 }

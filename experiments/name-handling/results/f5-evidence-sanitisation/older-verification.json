@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "scope": "Known deleted-lab transport identity in older F5 evidence, plus encountered hardware/licensing inventories.",
+  "counts": {
+    "critical_projection_fields_verified": 32891,
+    "decoded_backend_body_copies_verified": 1792,
+    "hardware_inventory_copies_omitted": 3,
+    "archive_unaffected_member_bytes_verified": 881,
+    "archive_regular_members_before": 1526,
+    "archive_changed_member_files": 645,
+    "content_files_changed": 896,
+    "historical_hash_scalars_verified": 35324,
+    "changed_canonical_records": 18,
+    "total_changed_artifacts": 908
+  },
+  "actual_tcl_sensitive_fields_found": [],
+  "recent_seals_unchanged": 30,
+  "historical_execution_hashes_preserved": true,
+  "private_markers_written": false,
+  "archive_unaffected_member_bytes_preserved": true,
+  "source_status_result_projection": "All 1792 encoded backend bodies compared structurally; addresses occurred only in transport envelopes. No marked Tcl operation/result fields were found.",
+  "sanitised_body_files": [
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json",
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  ],
+  "base64_response_sanitisation": {
+    "backend_response_projections_verified": 2896,
+    "materialised_response_copies_sanitised": 2760,
+    "archive_response_copies_sanitised": 136,
+    "archive_additional_member_files_changed": 2,
+    "archive_additional_unaffected_member_bytes_verified": 1525
+  },
+  "base64_response_semantics": "Every decoded body was a backend JSON envelope; only client[0] changed. Other backend fields and HTTP headers/status were preserved, except Content-Length recomputed for retained bytes. Original response/hash/byte-count observations remain historical.",
+  "transport_peer_count_keys_sanitised": 14,
+  "final_audit": {
+    "affected_current_checksum_entries_checked": 67,
+    "encoded_base64_fields_checked": 32640,
+    "affected_file_descriptors_checked": 870,
+    "archive_regular_members_checked": 1527,
+    "archive_original_member_bytes_unchanged": 881,
+    "archive_original_member_bytes_changed": 645,
+    "archive_added_regular_members": 1,
+    "baseline_historical_hash_fields_checked": 23988,
+    "archive_historical_hash_fields_checked": 11336
+  },
+  "final_audit_mismatches": 0,
+  "known_marker_literal_hex_base64_residue": 0,
+  "archive_internal_current_reference_audit": {
+    "archive_local_file_descriptors_checked": 61
+  },
+  "repository_known_literal_marker_residue": 0,
+  "maintained_generator_sources_parse": 2,
+  "unrelated_rust_implementation_joins_renewed": 0,
+  "final_ready": true,
+  "audit_helpers": [
+    "/tmp/f5-older-final-audit.py",
+    "/tmp/f5-verify-private-targets-repo.py"
+  ]
+}

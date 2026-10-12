@@ -708,8 +708,8 @@ lab was built: a virtual server on the BIG-IP, with `dev` (192.168.9.80) acting 
 both client and backend.
 
 ```
-dev (curl) ──► 192.168.9.241:80  ltm virtual lab_vs2 ──► pool ──► dev:8000 (python http.server)
-dev (curl) ──► 192.168.9.240:80  ltm virtual lab_vs   ──► HTTP::respond (no backend)
+dev (curl) ──► 192.0.2.101:80  ltm virtual lab_vs2 ──► pool ──► dev:8000 (python http.server)
+dev (curl) ──► 192.0.2.100:80  ltm virtual lab_vs   ──► HTTP::respond (no backend)
 ```
 
 Both virtual servers, the pool, and the backend were removed afterwards. Note that

@@ -285,8 +285,8 @@
       "contains_cr": false,
       "contains_nul": false,
       "file": "lab.conf",
-      "sha256": "b9fc5fe4079ddfe0eaf0b4f1bc9177129a793d686edce84ee7d819b9e136405e",
-      "size": 585
+      "sha256": "1686122b755e2997c5a3ab701923928e71f6e65b9fcef0dd2eb5a1841d4a7b54",
+      "size": 583
     }
   ],
   "line_endings": "LF",

@@ -8,7 +8,7 @@ Status
   Reason           : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
   CMP              : enabled   
   CMP Mode         : single-cpu
-  Destination      : 192.168.9.24:18860
+  Destination      : 192.0.2.10:18860
                                
 Traffic                             ClientSide  Ephemeral  General
   Bits In                               276.5K          0        -
@@ -266,7 +266,7 @@ CPU Usage Ratio (%)
   |   Minimum                141.6M
 
   ---------------------------------------------------
-  | Ltm::Virtual Address: 192.168.9.24 (192.168.9.24)
+  | Ltm::Virtual Address: 192.0.2.10 (192.0.2.10)
   ---------------------------------------------------
   | Status               
   |   Availability : unknown

@@ -36,8 +36,10 @@ F5 answers come from the other BIG-IP chat via branch documents. The pushed
 resealed manifests / 26,091 retained entries verified;93 original observed pointers match input/context. General questions are under
 `experiments/name-handling/f5/`. Do not borrow C/Jim or adjacent appliance answers.
 
-Remove lab device/transport details and unrelated inventories from current F5
-evidence; preserve Tcl sources/results and historical execution hashes. All970
+Lab device/transport details and unrelated inventories were removed from current
+F5 evidence, including older receipts and archives; zero known literal/hex/base64
+residues and updated checksums/descriptors verified. Preserve Tcl sources/results
+and historical execution hashes. All970
 original Tcl programs are byte-identical; cleanup/seal verification is recorded
 in `experiments/name-handling/results/f5-evidence-sanitisation/`.
 

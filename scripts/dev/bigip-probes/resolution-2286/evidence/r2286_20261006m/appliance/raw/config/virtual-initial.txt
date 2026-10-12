@@ -1,5 +1,5 @@
 ltm virtual /R2286_r2286m/__tcl_lsp_2286_r2286m_vs {
-    destination /R2286_r2286m/192.168.9.24:18101
+    destination /R2286_r2286m/192.0.2.10:18101
     ip-protocol tcp
     mask 255.255.255.255
     partition R2286_r2286m

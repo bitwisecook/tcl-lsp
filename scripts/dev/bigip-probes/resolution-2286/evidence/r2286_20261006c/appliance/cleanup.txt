@@ -12,7 +12,7 @@ ltm virtual __tcl_lsp_probe_2286_r2286_20261006c_vs {
     connection-limit 0
     creation-time 1969-12-31:16:00:00
     description none
-    destination 192.168.9.24:18086
+    destination 192.0.2.10:18086
     enabled
     ephemeral-auth-access-config none
     eviction-protected disabled
@@ -81,7 +81,7 @@ Status
   Reason           : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
   CMP              : enabled   
   CMP Mode         : all-cpus  
-  Destination      : 192.168.9.24:18086
+  Destination      : 192.0.2.10:18086
                                
 Traffic                             ClientSide  Ephemeral  General
   Bits In                                40.1M          0        -
@@ -313,7 +313,7 @@ CPU Usage Ratio (%)
   |   Minimum                138.6K
 
   ---------------------------------------------------
-  | Ltm::Virtual Address: 192.168.9.24 (192.168.9.24)
+  | Ltm::Virtual Address: 192.0.2.10 (192.0.2.10)
   ---------------------------------------------------
   | Status               
   |   Availability : unknown

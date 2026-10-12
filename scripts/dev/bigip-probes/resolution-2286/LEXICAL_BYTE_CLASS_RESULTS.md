@@ -18,7 +18,7 @@ event. Standalone Tcl was not substituted for any BIG-IP context.
 | Topology | standalone, active |
 | TMM process and actual roster | PID 16500; `0:0`, `0:1`, `0:2`, `0:3` |
 | Tested source commit | `88198d83d3ef944670d7a1f24a3ada1b11187f69` on `work` |
-| VIP / backend | `192.168.9.24:18860` / `192.168.9.80:18760` |
+| VIP / backend | `192.0.2.10:18860` / `192.168.9.80:18760` |
 | Profiles / translation | TCP and HTTP; SNAT automap |
 | Context Tcl observation | Existing context payload on this appliance/build measured Tcl 8.4.6 / package Tcl 8.4 in TMM, tmsh, iApp and iCall; this lexical wrapper did not repeat the environment payload |
 
@@ -89,7 +89,7 @@ No tested producer, constructed source word or eval word was repaired.
 The direct reachable backend baseline and pool-backed baseline succeeded. The
 same heavy connection from client source port 43100 first passed
 `/r2286-backend-pass` through the pool, then requested the probe. The backend
-recorded translated peer `192.168.9.24`, request marker `lexical-43100-0`, and
+recorded translated peer `192.0.2.10`, request marker `lexical-43100-0`, and
 returned through the VIP. Raw bytes are
 [`lex-heavy-u0-0.request`](evidence/r2286_20261007vllex/client-server/lex-heavy-u0-0.request),
 [`lex-heavy-u0-0.body`](evidence/r2286_20261007vllex/client-server/lex-heavy-u0-0.body)
@@ -224,7 +224,7 @@ tmsh modify ltm virtual /Common/__tcl_lsp_2286_r2286lex1_vs \
 The retained client keeps the backend pass and probe on one connection:
 
 ```sh
-python3 http_keepalive_probe.py --host 192.168.9.24 --port 18860 \
+python3 http_keepalive_probe.py --host 192.0.2.10 --port 18860 \
   --local-port 43100 --output-prefix lex-heavy-u0 \
   /r2286-backend-pass /r2286-lexical-byte-class
 tclsh decode-lexical-byte-class.tcl lex-heavy-u0-1.body \

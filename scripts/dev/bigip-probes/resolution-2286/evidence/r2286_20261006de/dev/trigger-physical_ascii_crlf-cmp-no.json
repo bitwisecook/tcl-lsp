@@ -4,7 +4,7 @@
     "python3",
     "/tmp/traffic.py",
     "--vip",
-    "192.168.9.24",
+    "192.0.2.10",
     "--port",
     "18086",
     "--run",
@@ -22,5 +22,6 @@
   ],
   "returncode": 0,
   "stdout": "{\n  \"actual_response_unit_counts\": {},\n  \"expected_active_roster\": [],\n  \"missing_units\": [],\n  \"coverage\": \"INCOMPLETE_OR_ROSTER_UNSPECIFIED\"\n}\n",
-  "stderr": ""
+  "stderr": "",
+  "sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed."
 }

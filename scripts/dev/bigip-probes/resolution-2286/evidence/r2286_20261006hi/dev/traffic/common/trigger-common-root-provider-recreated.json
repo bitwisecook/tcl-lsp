@@ -4,7 +4,7 @@
     "python3",
     "/tmp/r2286i-dev/traffic.py",
     "--vip",
-    "192.168.9.24",
+    "192.0.2.10",
     "--port",
     "18087",
     "--run",
@@ -24,5 +24,6 @@
   ],
   "returncode": 0,
   "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"2\": 32,\n    \"1\": 32,\n    \"0\": 32,\n    \"3\": 32\n  },\n  \"expected_active_roster\": [\n    \"0\",\n    \"1\",\n    \"2\",\n    \"3\"\n  ],\n  \"missing_units\": [],\n  \"coverage\": \"COMPLETE_FOR_SUPPLIED_ROSTER\"\n}\n",
-  "stderr": ""
+  "stderr": "",
+  "sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed."
 }

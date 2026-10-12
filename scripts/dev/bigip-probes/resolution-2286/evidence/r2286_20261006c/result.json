@@ -4,8 +4,16 @@
     "version_build": "BIG-IP 21.1.0.1 build 0.0.26, Point Release 1",
     "platform": "BIG-IP Virtual Edition, Z100, Q35/KVM",
     "active_device": "Standalone ACTIVE, 1/1 active",
-    "active_tmm_roster": ["0:0", "0:1", "0:2", "0:3"],
-    "cmp_requested": ["disabled", "enabled"],
+    "active_tmm_roster": [
+      "0:0",
+      "0:1",
+      "0:2",
+      "0:3"
+    ],
+    "cmp_requested": [
+      "disabled",
+      "enabled"
+    ],
     "cmp_observed": "identity_group reached 0:0 only when disabled and all four group/unit pairs when enabled; ordinary global remained on unit 0 when enabled",
     "version": "21.1.0.1",
     "build": "0.0.26",
@@ -22,12 +30,12 @@
     "client_host": "dev.bragi0.com (192.168.9.80)",
     "server_host": "dev.bragi0.com (192.168.9.80)",
     "protocol": "HTTP/1.1 over fresh TCP connections",
-    "vip": "192.168.9.24:18086",
+    "vip": "192.0.2.10:18086",
     "pool_endpoint": "192.168.9.80:18080",
     "loopback_forwarding_endpoint": null,
     "snat_required": "automap",
     "snat_observed": true,
-    "backend_observed_peer": "192.168.9.24",
+    "backend_observed_peer": "192.0.2.10",
     "forwarder_ingress": null,
     "forwarder_egress": null,
     "backend_connection_reuse": false
@@ -61,11 +69,18 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/init_identity/load-init_identity.log",
       "source_sha256": "6527cbf6b13049831a031347481a8a247233310a35f1573f94141021b13400a4",
-      "actual_units": ["0:0", "0:1", "0:2", "0:3"],
+      "actual_units": [
+        "0:0",
+        "0:1",
+        "0:2",
+        "0:3"
+      ],
       "traffic_file": null,
       "ltm_log": "appliance/ltm-raw.log",
       "result": "Four initialization logs, each reporting cmp_count=4",
-      "limits": ["single TMM group"],
+      "limits": [
+        "single TMM group"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
@@ -81,16 +96,26 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/static_group/load-static_group.log",
       "source_sha256": "48890a015ae75d9ef6c3e3df00fb0c59b88dec67e79b8d47aa53639133e79eb7",
-      "actual_units": ["0:0", "0:1", "0:2", "0:3"],
+      "actual_units": [
+        "0:0",
+        "0:1",
+        "0:2",
+        "0:3"
+      ],
       "traffic_file": "dev/traffic-static-group-*.jsonl",
       "ltm_log": "appliance/ltm-raw.log",
       "result": "Initialization visible everywhere; targeted write/unset/recreate remained local to 0:2",
-      "limits": ["single TMM group"],
+      "limits": [
+        "single TMM group"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -101,16 +126,23 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/global_reinit_cmp_yes/load-global.log",
       "source_sha256": "72597f798e38d499d6d17188f9f7dbf5c3467d5f689f6dffb2b7301a33579e2c",
-      "actual_units": ["0"],
+      "actual_units": [
+        "0"
+      ],
       "traffic_file": "dev/traffic-global-*.jsonl",
       "ltm_log": "appliance/ltm-raw.log",
       "result": "Requested CMP enabled but all phases executed only on unit 0; mutation lifecycle succeeded there",
-      "limits": ["CMP demotion prevents cross-TMM global-sharing conclusion"],
+      "limits": [
+        "CMP demotion prevents cross-TMM global-sharing conclusion"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -121,16 +153,26 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/collision_*/",
       "source_sha256": "per canonical manifest",
-      "actual_units": ["0", "1", "2", "3"],
+      "actual_units": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
       "traffic_file": "dev/traffic-collision-*.jsonl and single-recreate/dev/traffic-*.jsonl",
       "ltm_log": "appliance/ltm-raw.log and single-recreate/appliance/ltm-raw.log",
       "result": "Shared spelling collided; last-created rule initialized the cell; recreating one rule reset every TMM view to that rule's seed",
-      "limits": ["single TMM group"],
+      "limits": [
+        "single TMM group"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -141,16 +183,26 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/procedure_*/",
       "source_sha256": "per canonical manifest",
-      "actual_units": ["0", "1", "2", "3"],
+      "actual_units": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
       "traffic_file": "dev/traffic-procedure-*.jsonl",
       "ltm_log": "appliance/ltm-raw.log",
       "result": "A called A, B called B, relative and absolute routes reached A, and caller_link upvar changed the event local",
-      "limits": ["same /Common folder only"],
+      "limits": [
+        "same /Common folder only"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -161,16 +213,26 @@
       "load_verdict": "26 ACCEPT",
       "load_log": "appliance/journals/dynamic_*/",
       "source_sha256": "per canonical manifest",
-      "actual_units": ["0", "1", "2", "3"],
+      "actual_units": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
       "traffic_file": "dev/traffic-dynamic_*-cmp-{no,yes}.jsonl",
       "ltm_log": "appliance/ltm-raw.log",
       "result": "See BIGIP_RESULTS.md dynamic resolution matrix",
-      "limits": ["literal Unicode dynamic wrappers rejected and are separate records"],
+      "limits": [
+        "literal Unicode dynamic wrappers rejected and are separate records"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -181,7 +243,12 @@
       "load_verdict": "ACCEPT",
       "load_log": "appliance/journals/event_frames/load-event_frames.log",
       "source_sha256": "b71b39d49579871936c26c01f9062606e97fdcc468cf120388ae3e049cad7e0e",
-      "actual_units": ["0", "1", "2", "3"],
+      "actual_units": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
       "traffic_file": "dev/traffic-event-frames-cmp-{no,yes}.jsonl",
       "ltm_log": "appliance/ltm-raw.log",
       "result": "event_local remained CLIENT_SEED with catch 0 through every listed event; backend returned 200",
@@ -190,8 +257,11 @@
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
-      "backend_receipt": "dev/backend.log; peer 192.168.9.24"
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
+      "backend_receipt": "dev/backend.log; peer 192.0.2.10"
     },
     {
       "case": "physical-ascii-lf-crlf",
@@ -205,12 +275,17 @@
       "traffic_file": "../r2286_20261006de/dev/traffic-physical_ascii_*.jsonl",
       "ltm_log": "../r2286_20261006de/appliance/ltm-raw.log",
       "result": "Both returned {A B} {A B} {\\n} in both CMP modes",
-      "limits": ["these isolated controls omit Unicode"],
+      "limits": [
+        "these isolated controls omit Unicode"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     },
     {
@@ -221,16 +296,26 @@
       "load_verdict": "literal REJECT; dynamic ACCEPT",
       "load_log": "../r2286_20261006de/appliance/journals/*embedded_nul*/",
       "source_sha256": "literal 592943254790ee3e4488c44fb4edf937cdc63b8b35799b0a8a114cc50914126d; dynamic 7fd169e98fe11c907f0a888b464609dafc57f0bfcee6571124b570e83cd0c3ca",
-      "actual_units": ["0:0", "0:1", "0:2", "0:3"],
+      "actual_units": [
+        "0:0",
+        "0:1",
+        "0:2",
+        "0:3"
+      ],
       "traffic_file": "../r2286_20261006de/dev/traffic-dynamic_embedded_nul-*.jsonl",
       "ltm_log": "../r2286_20261006de/appliance/ltm-raw.log",
       "result": "literal NUL rejected by config parser; dynamic 41 00 42 was length 3 and usable as a variable name",
-      "limits": ["literal diagnostic truncates at the NUL boundary"],
+      "limits": [
+        "literal diagnostic truncates at the NUL boundary"
+      ],
       "appliance_version": "21.1.0.1",
       "appliance_build": "0.0.26",
       "appliance_hotfix": "Point Release 1; no separate hotfix field",
       "protocol": "HTTP/1.1 over TCP",
-      "vip_profiles": ["/Common/tcp", "/Common/http"],
+      "vip_profiles": [
+        "/Common/tcp",
+        "/Common/http"
+      ],
       "backend_receipt": null
     }
   ],
@@ -255,7 +340,12 @@
     "backend_receipt": null
   },
   "cleanup": {
-    "runtime_cleanup_units": ["0:0", "0:1", "0:2", "0:3"],
+    "runtime_cleanup_units": [
+      "0:0",
+      "0:1",
+      "0:2",
+      "0:3"
+    ],
     "exact_objects_absent": true,
     "errors": []
   },
@@ -270,5 +360,6 @@
     "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md",
     "report_commit": "git commit containing this file",
     "raw_evidence_location": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c and evidence/r2286_20261006de"
-  }
+  },
+  "sanitised_provenance": "Sanitised retained artifact: lab transport/device values are documentation placeholders; backend envelope bytes may differ. Tcl operation/status/result fields are preserved; historical execution hashes are not renewed."
 }
