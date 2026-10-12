@@ -212,7 +212,7 @@ fn original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_sele
         assert!(vm.module_procs.is_empty());
         assert!(
             observed
-                .replace_observed_inputs(vm, None, None, true)
+                .replace_observed_inputs_using(vm, None, None, true, &mut |_| Ok(()))
                 .is_err()
         );
     });

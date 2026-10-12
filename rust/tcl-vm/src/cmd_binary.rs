@@ -1176,6 +1176,7 @@ mod native_ensemble_tests {
 mod original_decode_owner_tests {
     use super::*;
     use crate::interp::native_operation_currency::NativeOperationScope;
+    use tcl_runtime_api::Code;
 
     #[test]
     fn original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal() {
@@ -1197,14 +1198,14 @@ mod original_decode_owner_tests {
                 .contains("unselected_binary_member")
         );
         assert!(vm.execution_refusal.is_none());
-        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(!vm.current_native_operation_is_entered_for_test());
         let retired = Value::string("unselected_binary_member");
         let original = retired.native_lifetime_lease();
         drop(retired);
         let reached = cmd_binary(&mut vm, std::slice::from_ref(original.value()));
         assert_eq!(reached.code, crate::Code::Error);
         assert!(vm.execution_refusal.is_some());
-        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(!vm.current_native_operation_is_entered_for_test());
     }
 
     #[test]
@@ -1452,7 +1453,7 @@ mod original_format_scan_tests {
         );
         assert_eq!(scanned.code, Code::Ok);
         assert_eq!(scanned.result.string_bytes().as_ref(), b"2");
-        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(!vm.current_native_operation_is_entered_for_test());
         assert!(vm.execution_refusal.is_none());
         let retired = Value::string("65");
         let held_allocation = retired.native_lifetime_lease();
@@ -1489,7 +1490,7 @@ mod original_format_scan_tests {
             first.native_execution_refusal(),
             vm.execution_refusal.as_ref()
         );
-        assert!(!vm.native_operation_context.has_entered_operation());
+        assert!(!vm.current_native_operation_is_entered_for_test());
         assert!(original.finish(&mut vm).is_err());
     }
 

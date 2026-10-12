@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::variable_cleanup::tests::original_arena_withdrawal_never_releases_same_numbered_replacement_cell ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.19s
+

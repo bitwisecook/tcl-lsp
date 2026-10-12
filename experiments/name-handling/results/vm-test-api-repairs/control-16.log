@@ -1,0 +1,15 @@
+
+running 1 test
+test interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace ... 
+thread 'interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace' (216450) panicked at rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:397:157:
+called `Result::unwrap()` on an `Err` value: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable("original OO Name target/facet"))))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 2.18s
+

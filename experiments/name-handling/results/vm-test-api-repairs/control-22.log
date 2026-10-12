@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_binary::original_decode_owner_tests::original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal ... 
+thread 'cmd_binary::original_decode_owner_tests::original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal' (216547) panicked at rust/tcl-vm/src/cmd_binary.rs:1254:9:
+assertion failed: loan.value().resident_string_bytes().is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_binary::original_decode_owner_tests::original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s
+

@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_binary::original_format_scan_tests::original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal ... 
+thread 'cmd_binary::original_format_scan_tests::original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal' (216562) panicked at rust/tcl-vm/src/cmd_binary.rs:1444:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_binary::original_format_scan_tests::original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.25s
+

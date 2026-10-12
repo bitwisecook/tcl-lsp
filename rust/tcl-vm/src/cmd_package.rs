@@ -1457,6 +1457,26 @@ mod tests {
         super::cmd_package(vm, &args)
     }
 
+    fn selected_loader(
+        vm: &mut Vm,
+        name: &tcl_core_types::NameBytes,
+        requirements: &[tcl_core_types::NameBytes],
+        exact: bool,
+        release: TclVersion,
+    ) -> Option<super::SelectedLoader> {
+        let operands = std::iter::once(name)
+            .chain(requirements)
+            .map(|operand| Value::new_native_string_bytes(operand.as_bytes()))
+            .collect::<Vec<_>>();
+        let mut selected = None;
+        let completion = super::OriginalPackage::run(vm, false, &operands, |original| {
+            selected = super::selected_loader(original, name, requirements, exact, release);
+            crate::interp::ok(Value::empty())
+        });
+        assert_eq!(completion.code, Code::Ok);
+        selected
+    }
+
     #[test]
     fn package_operands_preserve_native_storage_extents_and_error_bytes() {
         for release in TclVersion::ALL {
@@ -2126,8 +2146,8 @@ mod tests {
             package(&mut exact_provider, &["ifneeded", "q", "1.3", ""]).code,
             Code::Ok
         );
-        let exact_loader = super::selected_loader(
-            &exact_provider,
+        let exact_loader = selected_loader(
+            &mut exact_provider,
             &tcl_core_types::NameBytes::from("q"),
             &[tcl_core_types::NameBytes::from("1.2+platform")],
             true,
@@ -2154,8 +2174,8 @@ mod tests {
         // grammar, so a Tcl 9-only provider is not selected by an 8.6 pin.
         tcl9.set_runtime_version(TclVersion::V8_6);
         assert!(
-            super::selected_loader(
-                &tcl9,
+            selected_loader(
+                &mut tcl9,
                 &tcl_core_types::NameBytes::from("q"),
                 &[],
                 false,

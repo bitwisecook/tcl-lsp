@@ -3600,6 +3600,11 @@ impl Vm {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn current_native_operation_is_entered_for_test(&self) -> bool {
+        self.state.native_operation_context.has_entered_operation()
+    }
+
     /// Compare the actual arena identity with this activation's interpreter.
     pub(crate) fn interp_is_current(&self, id: InterpId) -> bool {
         id == self.cur

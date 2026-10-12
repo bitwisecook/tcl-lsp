@@ -18,8 +18,8 @@
 
 //! Genuine definition producers and callback cleanup; software roles only.
 use super::*;
-use crate::command::{Command, NativeCommand, ok};
-use crate::interp::InterpId;
+use crate::command::{Command, NativeCommand};
+use crate::interp::{InterpId, ok};
 use std::cell::Cell;
 use tcl_runtime_api::Code;
 

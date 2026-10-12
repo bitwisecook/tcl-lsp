@@ -18,8 +18,8 @@
 
 //! Actual physical activation and callback controls; no Native frame equivalence.
 use super::*;
-use crate::command::{Command, NativeCommand, ok};
-use crate::interp::{InterpId, ParkedFlow};
+use crate::command::{Command, NativeCommand};
+use crate::interp::{InterpId, ParkedFlow, ok};
 use crate::value::Value;
 use std::cell::{Cell, RefCell};
 use tcl_runtime_api::{Code, Completion};
@@ -257,9 +257,7 @@ fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_n
             );
             assert!(vm.execution_refusal.is_none());
         } else {
-            let crate::TclError::Host(_) = reached.unwrap_err() else {
-                panic!("full original cleanup refusal");
-            };
+            assert_eq!(reached.unwrap_err(), first(&vm));
             assert!(vm.execution_refusal.is_some());
         }
         assert_eq!(vm.st_of(original_id).unwrap().oo.call_stack.len(), 0);
@@ -321,7 +319,10 @@ impl NativeCommand for SamePositionObserver {
         vm.oo.call_stack.push(selected);
         match reached {
             Ok(result) => result,
-            Err(error) => crate::command::completion_from_tcl_error(vm, error),
+            Err(error) => crate::command::completion_from_tcl_error(
+                vm,
+                crate::TclError::from_execution_failure(error),
+            ),
         }
     }
 }
@@ -338,12 +339,10 @@ fn original_method_cleanup_refuses_a_genuinely_new_same_position_context_without
         calls: Cell::new(0),
     });
     vm.register_command("same_position_observer", Command::Native(observer.clone()));
-    let crate::TclError::Host(_) = vm
+    let error = vm
         .try_invoke_command("samePositionObject", &[Value::string("fw")])
-        .unwrap_err()
-    else {
-        panic!("exact born context refusal");
-    };
+        .unwrap_err();
+    assert_eq!(error, first(&vm));
     assert_eq!(observer.calls.get(), 2);
     assert!(vm.execution_refusal.is_some());
     assert!(vm.oo.call_stack.is_empty());
@@ -364,7 +363,7 @@ impl NativeCommand for ProcedureObserver {
         *self.activation.borrow_mut() = Some(Rc::downgrade(&vm.frames.last().unwrap().activation));
         match self.mode {
             0 => ok(Value::string("BODY")),
-            1 => vm.refuse_host_command("first actual OO procedure body"),
+            1 => vm.refuse_host_command("first actual OO procedure body".to_owned()),
             2 => {
                 vm.switch_to(self.child);
                 let namespace = vm.definition_namespace_token("actual_proc_child");
@@ -428,14 +427,14 @@ fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_na
             );
             assert!(vm.execution_refusal.is_none());
         } else {
-            assert!(matches!(result, Err(crate::TclError::Host(_))));
+            assert_eq!(result.unwrap_err(), first(&vm));
             assert!(vm.execution_refusal.is_some());
         }
         if mode == 2 {
             assert_eq!(vm.cur, child);
             assert_eq!(vm.frames.len(), 2);
-            assert_eq!(vm.activation_depth, 0, "child driver depth remains its own");
-            assert_eq!(vm.st_of(original).unwrap().activation_depth, 0);
+            assert_eq!(vm.activation_depth, 0, "shared engine driver has unwound");
+            vm.in_interp(original, |vm| assert_eq!(vm.activation_depth, 0));
             assert_eq!(vm.st_of(original).unwrap().frames.len(), 1);
             assert_eq!(
                 vm.st_of(original).unwrap().resolution_stacks.ns_stack.len(),

@@ -23,7 +23,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; fresh all.tcl advances past implemented ParseFormatArgs and stops before suites on missing getenv |
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
 | C8.6 clock/bootstrap | Real init reaches marker; ParseFormatArgs matches eleven C8.6 answers, three runtime object/bootstrap tests and one registry release test pass | Fresh real all.tcl stops before suites at getenv; six other workers and shared-pool lifetime remain unsupported. SelectedC86 object backing parity needs explicit measurement. |
-| VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 lib-test compile-diagnostic clusters repaired; actual lib-test compilation passes,29 existing controls running, baseline unmeasured |
+| VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 lib-test compile-diagnostic clusters repaired; actual lib-test compilation passes,29 existing controls18pass/11fail, baseline unmeasured |
 | Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
 | Tcltest diagnostics | Eight diagnostic controls pass; original-program control fails0vs2. Final cleanup-only graph repair keeps20 controls at17pass/3fail. | Establish two loop failures against exact before-source; third refuses procedure lookup. #2286 remains open; original source-input boundary still unresolved. |
@@ -54,9 +54,11 @@ Exact raw results and limits:
 Compiler source and binary have been restored exactly; final nine diagnostic
 controls measure8pass/1fail. The VM lib-test binary compiles after26 recorded
 API diagnostic repairs, with4,943 source/manifest/toolchain hashes unchanged;
-29 existing controls are running. Four callback consumer tests are added but
-unexecuted. VM and owner-gate tests run in separate caches with Rust sources
-frozen. The ordered-state registry control passes; explicit crate-scope owner
+29 existing controls finished18pass/11fail. Four callback consumer tests are added but
+unexecuted. The owner-gate eight controls passed; independent review requires
+conditional-code rejection before publication. Byte-host getter and that gate
+repair have an active edit window; temporary original-program diagnostics are
+being prepared. The ordered-state registry control passes; explicit crate-scope owner
 validation remains pending. The byte-host getter proposal is unimplemented.
 
 ## Discovery, appliance answers and cleanup

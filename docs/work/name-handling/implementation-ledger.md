@@ -56,7 +56,7 @@ acceptance. Existing contracts/proofs are evidence to inspect, not completion.
 | Implementation proof currency | proof_bindings_review; coordinator | Last full checker2606 records, zero pending/unlinked,315 stale implementation digests. Three exact source-preserving transformations independently reviewed; inverse replacement preserves all other manifest fields. Next ASCII/Unicode wording review is source-meaning-only; full checker has not rerun. |
 | Durable docs/entry point and final cleanup | broad_docs_currentness; coordinator | Two further durable docs aligned with current unsupported WASM bundling and Salsa test acceptance. Three additional Markdown docs corrected and reviewed. Deferred Salsa crate comment correction waits for source freeze to end. Repository-wide comment/document cleanup and deletion of temporary tracking remain required. |
 
-| VM test API compilation | vm_test_api_repairs | Ten test owners frozen;26 compile-diagnostic clusters repaired without changing oracle assertions or production visibility. Actual lib-test compilation passes,4,943 input hashes unchanged;29 exact existing controls running. Baseline history unmeasured; full VM conformance remains open. |
+| VM test API compilation | vm_test_api_repairs | Ten test owners frozen;26 compile-diagnostic clusters repaired without changing oracle assertions or production visibility. Actual lib-test compilation passes,4,943 input hashes unchanged;29 exact existing controls finished18pass/11fail; first-cause diagnostics and actual value-access/OO entry repairs remain. Baseline history unmeasured; full VM conformance remains open. |
 
 ## Exact evidence and retention obligations
 

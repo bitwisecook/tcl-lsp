@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth ... 
+thread 'cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth' (216324) panicked at rust/tcl-vm/src/exec.rs:9170:9:
+command requires a genuine native expression provider
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.26s
+

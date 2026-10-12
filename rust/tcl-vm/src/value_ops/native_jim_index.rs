@@ -1072,7 +1072,7 @@ mod tests {
             -1
         );
         let before = original.native_object_snapshot();
-        vm.refuse_host_command("original Index full first cause");
+        let _ = vm.refuse_host_command("original Index full first cause".to_owned());
         let first = vm.execution_refusal.clone().unwrap();
         let error = native_jim_index::original_index(&mut vm, &original).unwrap_err();
         assert_eq!(error.native_execution_refusal(), Some(&first));
@@ -1368,7 +1368,7 @@ mod parsed_empty_duplicate_control {
         // The pinned helper source includes this early duplicate branch. This
         // direct software constructor control is not one of the16 native rows.
         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
-        let subject = Value::new_native_string_bytes(b"a\0b");
+        let subject = Value::new_native_string_bytes(b"a\0b".as_slice());
         let duplicate =
             tcl_cmd_core::string::replace_c_parsed_range(&mut vm, &subject, 1, 0, None, false)
                 .unwrap();

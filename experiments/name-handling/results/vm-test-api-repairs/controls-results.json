@@ -1,0 +1,553 @@
+[
+  {
+    "ordinal": 1,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-01.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.366,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.32s"
+    ]
+  },
+  {
+    "ordinal": 2,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_class_definition_failure_tears_down_only_its_allocated_original_record",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_class_definition_failure_tears_down_only_its_allocated_original_record",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-02.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.265,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.21s"
+    ]
+  },
+  {
+    "ordinal": 3,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-03.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.215,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.21s"
+    ]
+  },
+  {
+    "ordinal": 4,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_definition_rewrite_keeps_full_first_cause_through_physical_restoration",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_definition_rewrite_keeps_full_first_cause_through_physical_restoration",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-04.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.215,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 5,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-05.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.318,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.26s"
+    ]
+  },
+  {
+    "ordinal": 6,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-06.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.365,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.35s"
+    ]
+  },
+  {
+    "ordinal": 7,
+    "name": "cmd_oo::native_context::definition_exit::tests::original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_oo::native_context::definition_exit::tests::original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-07.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.317,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.27s"
+    ]
+  },
+  {
+    "ordinal": 8,
+    "name": "interp::oo_cleanup::active_frame::tests::original_namespace_activation_birth_survives_real_hide_selection_and_flow_transport",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_namespace_activation_birth_survives_real_hide_selection_and_flow_transport",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-08.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.215,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 9,
+    "name": "interp::oo_cleanup::active_frame::tests::original_namespace_cleanup_refuses_same_token_activation_rebirth_without_popping_it",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_namespace_cleanup_refuses_same_token_activation_rebirth_without_popping_it",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-09.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.265,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.22s"
+    ]
+  },
+  {
+    "ordinal": 10,
+    "name": "interp::oo_cleanup::active_frame::tests::original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new_namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new_namespace",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-10.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.221,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 11,
+    "name": "interp::oo_cleanup::active_frame::tests::original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-11.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.371,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.36s"
+    ]
+  },
+  {
+    "ordinal": 12,
+    "name": "interp::oo_cleanup::active_frame::tests::original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_child",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_child",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-12.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.317,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.28s"
+    ]
+  },
+  {
+    "ordinal": 13,
+    "name": "interp::oo_cleanup::active_frame::tests::original_call_cleanup_keeps_full_first_host_while_retiring_the_owned_frame_and_namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_call_cleanup_keeps_full_first_host_while_retiring_the_owned_frame_and_namespace",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-13.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.218,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 14,
+    "name": "interp::oo_cleanup::active_frame::tests::original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-14.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 2.238,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 2.21s"
+    ]
+  },
+  {
+    "ordinal": 15,
+    "name": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-15.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 2.025,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 2.01s"
+    ]
+  },
+  {
+    "ordinal": 16,
+    "name": "interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-16.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 2.229,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 2.18s"
+    ]
+  },
+  {
+    "ordinal": 17,
+    "name": "value_ops::native_jim_index::tests::original_jim_index_cache_preserves_the_complete_earlier_host_cause",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "value_ops::native_jim_index::tests::original_jim_index_cache_preserves_the_complete_earlier_host_cause",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-17.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.166,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.13s"
+    ]
+  },
+  {
+    "ordinal": 18,
+    "name": "value_ops::native_jim_index::parsed_empty_duplicate_control::omitted_zero_count_without_in_place_uses_original_duplicate_constructor",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "value_ops::native_jim_index::parsed_empty_duplicate_control::omitted_zero_count_without_in_place_uses_original_duplicate_constructor",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-18.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.215,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 19,
+    "name": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_search_long_results_preserve_wide_operands_and_true_list_member_roles",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "value_ops::native_jim_index::c84_integer_result_tests::original_c84_search_long_results_preserve_wide_operands_and_true_list_member_roles",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-19.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.219,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.16s"
+    ]
+  },
+  {
+    "ordinal": 20,
+    "name": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_target",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "value_ops::native_jim_index::c84_integer_result_tests::original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_target",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-20.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.367,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.34s"
+    ]
+  },
+  {
+    "ordinal": 21,
+    "name": "cmd_binary::original_decode_owner_tests::original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_binary::original_decode_owner_tests::original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-21.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.265,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.23s"
+    ]
+  },
+  {
+    "ordinal": 22,
+    "name": "cmd_binary::original_decode_owner_tests::original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_binary::original_decode_owner_tests::original_binary_decode_selector_keeps_guest_success_and_exact_header_refusal",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-22.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.219,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.18s"
+    ]
+  },
+  {
+    "ordinal": 23,
+    "name": "cmd_binary::original_format_scan_tests::original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_binary::original_format_scan_tests::original_authored_binary_scalar_fronts_keep_none_entry_and_full_header_refusal",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-23.log",
+    "exit_code": 101,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.272,
+    "summaries": [
+      "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.25s"
+    ]
+  },
+  {
+    "ordinal": 24,
+    "name": "cmd_list::native_original_group_command_controls::grouped_sort_and_original_comparator_result_public_predicates_match_native651",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_list::native_original_group_command_controls::grouped_sort_and_original_comparator_result_public_predicates_match_native651",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-24.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 5.095,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 5.05s"
+    ]
+  },
+  {
+    "ordinal": 25,
+    "name": "cmd_list::native_original_group_command_controls::original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_and_source",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_list::native_original_group_command_controls::original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_and_source",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-25.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 1.02,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 1.01s"
+    ]
+  },
+  {
+    "ordinal": 26,
+    "name": "cmd_list::native_original_group_command_controls::original_guest_compare_failure_preserves_result_and_native651_context",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_list::native_original_group_command_controls::original_guest_compare_failure_preserves_result_and_native651_context",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-26.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.817,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.79s"
+    ]
+  },
+  {
+    "ordinal": 27,
+    "name": "cmd_package::tests::package_commands_apply_the_pinned_plus_suffix_policy",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "cmd_package::tests::package_commands_apply_the_pinned_plus_suffix_policy",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-27.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 3.428,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 3.38s"
+    ]
+  },
+  {
+    "ordinal": 28,
+    "name": "interp::execution_name_policy::original_event_transition_tests::original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_selection",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::execution_name_policy::original_event_transition_tests::original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_selection",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-28.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 2.02,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 1.98s"
+    ]
+  },
+  {
+    "ordinal": 29,
+    "name": "interp::variable_cleanup::tests::original_arena_withdrawal_never_releases_same_numbered_replacement_cell",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+      "interp::variable_cleanup::tests::original_arena_withdrawal_never_releases_same_numbered_replacement_cell",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "log": "control-29.log",
+    "exit_code": 0,
+    "timed_out": false,
+    "exactly_one_test_executed": true,
+    "elapsed_seconds": 0.215,
+    "summaries": [
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.19s"
+    ]
+  }
+]

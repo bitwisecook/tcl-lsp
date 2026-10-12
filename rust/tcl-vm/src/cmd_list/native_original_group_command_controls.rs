@@ -98,7 +98,7 @@ fn grouped_sort_and_original_comparator_result_public_predicates_match_native651
         RETURNED.set(returned.as_ref().map(argument));
         CALLBACK_ERROR.set(row.error);
         vm.register("r2286cmp", callback);
-        let command_member = Value::new_native_string_bytes(b"r2286cmp");
+        let command_member = Value::new_native_string_bytes(b"r2286cmp".as_slice());
         let prefix = Value::native_list_constructor(vec![argument(&command_member)], protocol)
             .into_native_reference();
         let mode = word(if row.command {
@@ -231,7 +231,7 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
                 )
                 .into_native_reference();
                 vm.register("r2286groupcmp", unreached_group_callback);
-                let head = Value::new_native_string_bytes(b"r2286groupcmp");
+                let head = Value::new_native_string_bytes(b"r2286groupcmp".as_slice());
                 let prefix = Value::native_list_constructor(vec![argument(&head)], protocol)
                     .into_native_reference();
                 let mode = word(if command { b"-command" } else { b"-integer" });
@@ -328,13 +328,13 @@ fn original_guest_compare_failure_preserves_result_and_native651_context() {
         RETURNED.set(Some(argument(&returned)));
         CALLBACK_ERROR.set(true);
         vm.register("r2286cmp", callback);
-        let head = Value::new_native_string_bytes(b"r2286cmp");
+        let head = Value::new_native_string_bytes(b"r2286cmp".as_slice());
         let prefix =
             Value::native_list_constructor(vec![argument(&head)], protocol).into_native_reference();
         let container = Value::native_list_constructor(
             vec![
-                Value::new_native_string_bytes(b"B"),
-                Value::new_native_string_bytes(b"A"),
+                Value::new_native_string_bytes(b"B".as_slice()),
+                Value::new_native_string_bytes(b"A".as_slice()),
             ],
             protocol,
         )

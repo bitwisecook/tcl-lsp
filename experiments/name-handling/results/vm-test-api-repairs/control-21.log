@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_binary::original_decode_owner_tests::original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.23s
+

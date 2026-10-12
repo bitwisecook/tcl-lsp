@@ -1,0 +1,330 @@
+diff --git a/rust/tcl-vm/src/cmd_binary.rs b/rust/tcl-vm/src/cmd_binary.rs
+index 6aced0a38..ed063d381 100644
+--- a/rust/tcl-vm/src/cmd_binary.rs
++++ b/rust/tcl-vm/src/cmd_binary.rs
+@@ -1176,6 +1176,7 @@ mod native_ensemble_tests {
+ mod original_decode_owner_tests {
+     use super::*;
+     use crate::interp::native_operation_currency::NativeOperationScope;
++    use tcl_runtime_api::Code;
+ 
+     #[test]
+     fn original_authored_binary_selector_keeps_guest_word_and_terminal_header_refusal() {
+@@ -1197,14 +1198,14 @@ mod original_decode_owner_tests {
+                 .contains("unselected_binary_member")
+         );
+         assert!(vm.execution_refusal.is_none());
+-        assert!(!vm.native_operation_context.has_entered_operation());
++        assert!(!vm.current_native_operation_is_entered_for_test());
+         let retired = Value::string("unselected_binary_member");
+         let original = retired.native_lifetime_lease();
+         drop(retired);
+         let reached = cmd_binary(&mut vm, std::slice::from_ref(original.value()));
+         assert_eq!(reached.code, crate::Code::Error);
+         assert!(vm.execution_refusal.is_some());
+-        assert!(!vm.native_operation_context.has_entered_operation());
++        assert!(!vm.current_native_operation_is_entered_for_test());
+     }
+ 
+     #[test]
+@@ -1452,7 +1453,7 @@ mod original_format_scan_tests {
+         );
+         assert_eq!(scanned.code, Code::Ok);
+         assert_eq!(scanned.result.string_bytes().as_ref(), b"2");
+-        assert!(!vm.native_operation_context.has_entered_operation());
++        assert!(!vm.current_native_operation_is_entered_for_test());
+         assert!(vm.execution_refusal.is_none());
+         let retired = Value::string("65");
+         let held_allocation = retired.native_lifetime_lease();
+@@ -1489,7 +1490,7 @@ mod original_format_scan_tests {
+             first.native_execution_refusal(),
+             vm.execution_refusal.as_ref()
+         );
+-        assert!(!vm.native_operation_context.has_entered_operation());
++        assert!(!vm.current_native_operation_is_entered_for_test());
+         assert!(original.finish(&mut vm).is_err());
+     }
+ 
+diff --git a/rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs b/rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs
+index 4265911bf..aec27516e 100644
+--- a/rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs
++++ b/rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs
+@@ -98,7 +98,7 @@ fn grouped_sort_and_original_comparator_result_public_predicates_match_native651
+         RETURNED.set(returned.as_ref().map(argument));
+         CALLBACK_ERROR.set(row.error);
+         vm.register("r2286cmp", callback);
+-        let command_member = Value::new_native_string_bytes(b"r2286cmp");
++        let command_member = Value::new_native_string_bytes(b"r2286cmp".as_slice());
+         let prefix = Value::native_list_constructor(vec![argument(&command_member)], protocol)
+             .into_native_reference();
+         let mode = word(if row.command {
+@@ -231,7 +231,7 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
+                 )
+                 .into_native_reference();
+                 vm.register("r2286groupcmp", unreached_group_callback);
+-                let head = Value::new_native_string_bytes(b"r2286groupcmp");
++                let head = Value::new_native_string_bytes(b"r2286groupcmp".as_slice());
+                 let prefix = Value::native_list_constructor(vec![argument(&head)], protocol)
+                     .into_native_reference();
+                 let mode = word(if command { b"-command" } else { b"-integer" });
+@@ -328,13 +328,13 @@ fn original_guest_compare_failure_preserves_result_and_native651_context() {
+         RETURNED.set(Some(argument(&returned)));
+         CALLBACK_ERROR.set(true);
+         vm.register("r2286cmp", callback);
+-        let head = Value::new_native_string_bytes(b"r2286cmp");
++        let head = Value::new_native_string_bytes(b"r2286cmp".as_slice());
+         let prefix =
+             Value::native_list_constructor(vec![argument(&head)], protocol).into_native_reference();
+         let container = Value::native_list_constructor(
+             vec![
+-                Value::new_native_string_bytes(b"B"),
+-                Value::new_native_string_bytes(b"A"),
++                Value::new_native_string_bytes(b"B".as_slice()),
++                Value::new_native_string_bytes(b"A".as_slice()),
+             ],
+             protocol,
+         )
+diff --git a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
+index 7288e1e51..0045ff56d 100644
+--- a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
+@@ -18,8 +18,8 @@
+ 
+ //! Genuine definition producers and callback cleanup; software roles only.
+ use super::*;
+-use crate::command::{Command, NativeCommand, ok};
+-use crate::interp::InterpId;
++use crate::command::{Command, NativeCommand};
++use crate::interp::{InterpId, ok};
+ use std::cell::Cell;
+ use tcl_runtime_api::Code;
+ 
+diff --git a/rust/tcl-vm/src/cmd_package.rs b/rust/tcl-vm/src/cmd_package.rs
+index 0cacb67a0..b4b238a2a 100644
+--- a/rust/tcl-vm/src/cmd_package.rs
++++ b/rust/tcl-vm/src/cmd_package.rs
+@@ -1457,6 +1457,26 @@ mod tests {
+         super::cmd_package(vm, &args)
+     }
+ 
++    fn selected_loader(
++        vm: &mut Vm,
++        name: &tcl_core_types::NameBytes,
++        requirements: &[tcl_core_types::NameBytes],
++        exact: bool,
++        release: TclVersion,
++    ) -> Option<super::SelectedLoader> {
++        let operands = std::iter::once(name)
++            .chain(requirements)
++            .map(|operand| Value::new_native_string_bytes(operand.as_bytes()))
++            .collect::<Vec<_>>();
++        let mut selected = None;
++        let completion = super::OriginalPackage::run(vm, false, &operands, |original| {
++            selected = super::selected_loader(original, name, requirements, exact, release);
++            crate::interp::ok(Value::empty())
++        });
++        assert_eq!(completion.code, Code::Ok);
++        selected
++    }
++
+     #[test]
+     fn package_operands_preserve_native_storage_extents_and_error_bytes() {
+         for release in TclVersion::ALL {
+@@ -2126,8 +2146,8 @@ mod tests {
+             package(&mut exact_provider, &["ifneeded", "q", "1.3", ""]).code,
+             Code::Ok
+         );
+-        let exact_loader = super::selected_loader(
+-            &exact_provider,
++        let exact_loader = selected_loader(
++            &mut exact_provider,
+             &tcl_core_types::NameBytes::from("q"),
+             &[tcl_core_types::NameBytes::from("1.2+platform")],
+             true,
+@@ -2154,8 +2174,8 @@ mod tests {
+         // grammar, so a Tcl 9-only provider is not selected by an 8.6 pin.
+         tcl9.set_runtime_version(TclVersion::V8_6);
+         assert!(
+-            super::selected_loader(
+-                &tcl9,
++            selected_loader(
++                &mut tcl9,
+                 &tcl_core_types::NameBytes::from("q"),
+                 &[],
+                 false,
+diff --git a/rust/tcl-vm/src/interp.rs b/rust/tcl-vm/src/interp.rs
+index 5d97f00e9..efa81735c 100644
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -3600,6 +3600,11 @@ impl Vm {
+         }
+     }
+ 
++    #[cfg(test)]
++    pub(crate) fn current_native_operation_is_entered_for_test(&self) -> bool {
++        self.state.native_operation_context.has_entered_operation()
++    }
++
+     /// Compare the actual arena identity with this activation's interpreter.
+     pub(crate) fn interp_is_current(&self, id: InterpId) -> bool {
+         id == self.cur
+diff --git a/rust/tcl-vm/src/interp/execution_name_policy/original_event_transition_tests.rs b/rust/tcl-vm/src/interp/execution_name_policy/original_event_transition_tests.rs
+index 2df266b19..6798bc493 100644
+--- a/rust/tcl-vm/src/interp/execution_name_policy/original_event_transition_tests.rs
++++ b/rust/tcl-vm/src/interp/execution_name_policy/original_event_transition_tests.rs
+@@ -212,7 +212,7 @@ fn original_observed_cache_retirement_keeps_child_artifacts_on_actual_child_sele
+         assert!(vm.module_procs.is_empty());
+         assert!(
+             observed
+-                .replace_observed_inputs(vm, None, None, true)
++                .replace_observed_inputs_using(vm, None, None, true, &mut |_| Ok(()))
+                 .is_err()
+         );
+     });
+diff --git a/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs b/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs
+index 467332193..9d6bc34c7 100644
+--- a/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs
++++ b/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs
+@@ -18,8 +18,8 @@
+ 
+ //! Actual physical activation and callback controls; no Native frame equivalence.
+ use super::*;
+-use crate::command::{Command, NativeCommand, ok};
+-use crate::interp::{InterpId, ParkedFlow};
++use crate::command::{Command, NativeCommand};
++use crate::interp::{InterpId, ParkedFlow, ok};
+ use crate::value::Value;
+ use std::cell::{Cell, RefCell};
+ use tcl_runtime_api::{Code, Completion};
+@@ -257,9 +257,7 @@ fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_n
+             );
+             assert!(vm.execution_refusal.is_none());
+         } else {
+-            let crate::TclError::Host(_) = reached.unwrap_err() else {
+-                panic!("full original cleanup refusal");
+-            };
++            assert_eq!(reached.unwrap_err(), first(&vm));
+             assert!(vm.execution_refusal.is_some());
+         }
+         assert_eq!(vm.st_of(original_id).unwrap().oo.call_stack.len(), 0);
+@@ -321,7 +319,10 @@ impl NativeCommand for SamePositionObserver {
+         vm.oo.call_stack.push(selected);
+         match reached {
+             Ok(result) => result,
+-            Err(error) => crate::command::completion_from_tcl_error(vm, error),
++            Err(error) => crate::command::completion_from_tcl_error(
++                vm,
++                crate::TclError::from_execution_failure(error),
++            ),
+         }
+     }
+ }
+@@ -338,12 +339,10 @@ fn original_method_cleanup_refuses_a_genuinely_new_same_position_context_without
+         calls: Cell::new(0),
+     });
+     vm.register_command("same_position_observer", Command::Native(observer.clone()));
+-    let crate::TclError::Host(_) = vm
++    let error = vm
+         .try_invoke_command("samePositionObject", &[Value::string("fw")])
+-        .unwrap_err()
+-    else {
+-        panic!("exact born context refusal");
+-    };
++        .unwrap_err();
++    assert_eq!(error, first(&vm));
+     assert_eq!(observer.calls.get(), 2);
+     assert!(vm.execution_refusal.is_some());
+     assert!(vm.oo.call_stack.is_empty());
+@@ -364,7 +363,7 @@ impl NativeCommand for ProcedureObserver {
+         *self.activation.borrow_mut() = Some(Rc::downgrade(&vm.frames.last().unwrap().activation));
+         match self.mode {
+             0 => ok(Value::string("BODY")),
+-            1 => vm.refuse_host_command("first actual OO procedure body"),
++            1 => vm.refuse_host_command("first actual OO procedure body".to_owned()),
+             2 => {
+                 vm.switch_to(self.child);
+                 let namespace = vm.definition_namespace_token("actual_proc_child");
+@@ -428,14 +427,14 @@ fn original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_na
+             );
+             assert!(vm.execution_refusal.is_none());
+         } else {
+-            assert!(matches!(result, Err(crate::TclError::Host(_))));
++            assert_eq!(result.unwrap_err(), first(&vm));
+             assert!(vm.execution_refusal.is_some());
+         }
+         if mode == 2 {
+             assert_eq!(vm.cur, child);
+             assert_eq!(vm.frames.len(), 2);
+-            assert_eq!(vm.activation_depth, 0, "child driver depth remains its own");
+-            assert_eq!(vm.st_of(original).unwrap().activation_depth, 0);
++            assert_eq!(vm.activation_depth, 0, "shared engine driver has unwound");
++            vm.in_interp(original, |vm| assert_eq!(vm.activation_depth, 0));
+             assert_eq!(vm.st_of(original).unwrap().frames.len(), 1);
+             assert_eq!(
+                 vm.st_of(original).unwrap().resolution_stacks.ns_stack.len(),
+diff --git a/rust/tcl-vm/src/value_ops/native_jim_index.rs b/rust/tcl-vm/src/value_ops/native_jim_index.rs
+index 2b1ad3bd9..a9a474325 100644
+--- a/rust/tcl-vm/src/value_ops/native_jim_index.rs
++++ b/rust/tcl-vm/src/value_ops/native_jim_index.rs
+@@ -1072,7 +1072,7 @@ mod tests {
+             -1
+         );
+         let before = original.native_object_snapshot();
+-        vm.refuse_host_command("original Index full first cause");
++        let _ = vm.refuse_host_command("original Index full first cause".to_owned());
+         let first = vm.execution_refusal.clone().unwrap();
+         let error = native_jim_index::original_index(&mut vm, &original).unwrap_err();
+         assert_eq!(error.native_execution_refusal(), Some(&first));
+@@ -1368,7 +1368,7 @@ mod parsed_empty_duplicate_control {
+         // The pinned helper source includes this early duplicate branch. This
+         // direct software constructor control is not one of the16 native rows.
+         let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
+-        let subject = Value::new_native_string_bytes(b"a\0b");
++        let subject = Value::new_native_string_bytes(b"a\0b".as_slice());
+         let duplicate =
+             tcl_cmd_core::string::replace_c_parsed_range(&mut vm, &subject, 1, 0, None, false)
+                 .unwrap();
+diff --git a/rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs b/rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs
+index 3a062c41b..362d75f00 100644
+--- a/rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs
++++ b/rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs
+@@ -54,7 +54,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
+         &args,
+         tcl_dialect::TclVersion::V8_4,
+     )
+-    .unwrap();
++    .unwrap_or_else(|error| panic!("C84 search failed: {:?}", error.message));
+     assert_eq!(searched.native_object_type_name(), "int");
+     assert_eq!(
+         searched.native_scalar_cache(),
+@@ -73,7 +73,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
+         &args,
+         tcl_dialect::TclVersion::V8_4,
+     )
+-    .unwrap();
++    .unwrap_or_else(|error| panic!("C84 search failed: {:?}", error.message));
+     let members = searched
+         .native_object_list_elements(
+             vm.actual_native_invocation_dialect()
+@@ -103,7 +103,7 @@ fn original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_targ
+         let operation = vm.enter_index_operation().unwrap();
+         let mut other = actual();
+         if mode == 1 {
+-            vm.refuse_host_command("original Index result first Host".to_owned());
++            let _ = vm.refuse_host_command("original Index result first Host".to_owned());
+         } else if mode == 2 {
+             let before = vm.runtime_context().clone();
+             let mut changed = before.clone();
+diff --git a/rust/tcl-vm/src/vars/retirement.rs b/rust/tcl-vm/src/vars/retirement.rs
+index fe568b516..dadb71a69 100644
+--- a/rust/tcl-vm/src/vars/retirement.rs
++++ b/rust/tcl-vm/src/vars/retirement.rs
+@@ -431,7 +431,7 @@ impl VarArena {
+ 
+ #[cfg(test)]
+ impl VarArena {
+-    pub(crate) fn cleanup_pin_count(&self, id: VarId) -> Option<usize> {
++    pub(crate) fn cleanup_pin_count(&self, id: VarId) -> Option<u64> {
+         self.cells.get(&id).map(|cell| cell.pins)
+     }
+ }

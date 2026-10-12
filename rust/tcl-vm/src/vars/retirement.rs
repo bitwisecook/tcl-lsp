@@ -431,7 +431,7 @@ impl VarArena {
 
 #[cfg(test)]
 impl VarArena {
-    pub(crate) fn cleanup_pin_count(&self, id: VarId) -> Option<usize> {
+    pub(crate) fn cleanup_pin_count(&self, id: VarId) -> Option<u64> {
         self.cells.get(&id).map(|cell| cell.pins)
     }
 }

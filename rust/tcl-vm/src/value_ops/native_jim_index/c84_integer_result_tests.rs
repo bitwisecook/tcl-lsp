@@ -54,7 +54,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
         &args,
         tcl_dialect::TclVersion::V8_4,
     )
-    .unwrap();
+    .unwrap_or_else(|error| panic!("C84 search failed: {:?}", error.message));
     assert_eq!(searched.native_object_type_name(), "int");
     assert_eq!(
         searched.native_scalar_cache(),
@@ -73,7 +73,7 @@ fn original_c84_search_long_results_preserve_wide_operands_and_true_list_member_
         &args,
         tcl_dialect::TclVersion::V8_4,
     )
-    .unwrap();
+    .unwrap_or_else(|error| panic!("C84 search failed: {:?}", error.message));
     let members = searched
         .native_object_list_elements(
             vm.actual_native_invocation_dialect()
@@ -103,7 +103,7 @@ fn original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_targ
         let operation = vm.enter_index_operation().unwrap();
         let mut other = actual();
         if mode == 1 {
-            vm.refuse_host_command("original Index result first Host".to_owned());
+            let _ = vm.refuse_host_command("original Index result first Host".to_owned());
         } else if mode == 2 {
             let before = vm.runtime_context().clone();
             let mut changed = before.clone();
