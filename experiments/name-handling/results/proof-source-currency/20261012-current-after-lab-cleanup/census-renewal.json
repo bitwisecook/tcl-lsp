@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "question": "Which retained census metadata changed after older F5 lab-detail sanitisation?",
+  "census_path": "docs/design/analysis/name-resolution-proofs/corpus-inventory.json",
+  "cleanup_commit": "8b4c41ad6a272df2534e1ef4e8c27c5f4363345d",
+  "entries_total": 31924,
+  "sha256_fields_renewed": 902,
+  "current_byte_count_fields_renewed": 892,
+  "unaffected_entries_byte_exact": 31022,
+  "authorized_changes": "SHA-256 and current byte-count scalars only. All paths, classifications, candidate flags, reasons, proof IDs and other fields are preserved byte-for-byte.",
+  "cleanup_commit_bytes_verified": 902,
+  "current_hash_and_size_checks_passed": 902,
+  "historical_execution_files_changed": 0,
+  "canonical_manifest_changed": false,
+  "recent_seals_changed": false,
+  "unrelated_implementation_joins_renewed": 0,
+  "existing_implementation_errors_not_renewed": 315,
+  "full_checker_rerun": false,
+  "ready_for_root_checker": true
+}

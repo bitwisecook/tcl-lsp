@@ -1,0 +1,34 @@
+{
+  "question": "Does current canonical source evidence pass after lab cleanup and shared roster/source-input repairs?",
+  "command_argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "scripts/dev/check-name-resolution-proofs.py",
+    "--root",
+    "/workspace/tcl-lsp"
+  ],
+  "started_utc": "2026-10-12T20:10:50.162920+00:00",
+  "finished_utc": "2026-10-12T20:14:52.983820+00:00",
+  "exit_status": 1,
+  "checker_invocations": 1,
+  "raw_log_sha256": "e1fe85467e3d77d5602a19b856d0cec9ae5a38a6c264687c5e4dc3043919a81e",
+  "selected_sources_unchanged": true,
+  "selected_source_files": 4839,
+  "scope": "Rust source/manifests/toolchain and canonical/checker/renderer bytes; no whole-repository or oracle conformance claim. No hash renewal.",
+  "summary": [
+    "naming.proof-records.exact-evidence-and-coverage: evidence digest changed: scripts/dev/update-name-resolution-proof-index.py",
+    "{\"candidate_records\": 7069, \"corpus_files\": 31924, \"pending_candidates\": 0, \"questions\": 2327, \"structural_errors\": 1217, \"unlinked_tests\": 0}"
+  ],
+  "evidence_digest_changed_lines": 315,
+  "checker_summary": {
+    "candidate_records": 7069,
+    "corpus_files": 31924,
+    "pending_candidates": 0,
+    "questions": 2327,
+    "structural_errors": 1217,
+    "unlinked_tests": 0
+  },
+  "error_classes": {
+    "evidence digest changed": 315,
+    "census digest changed": 902
+  }
+}
