@@ -1,6 +1,6 @@
 # Current state
 
-Branch: `work`. Latest published checkpoint at this snapshot: `225be128d`.
+Branch: `work`. Latest published checkpoint at this snapshot: `8b4c41ad6`.
 Inspect git for subsequent commits and uncommitted ownership. This document is
 current coordination material; delete it and its references before merge.
 
@@ -30,7 +30,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Retained binding repair passes1/1 but full filter remains6/3. Trace proves factory request has full input while proc point retains Standalone metadata; native header/formals unreached. Genuine provider input producer and two owner controls pass; full filter remains6/3: direct/alias2 warnings (absent plus erroneous prepared cleanup) vs1; original program0vs2. Packaged regression passes2/2; #2286 open |
 | Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
 | Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
-| Naming proof bindings | Merged checker: 2,327 baseline records plus279 distinct native records; final coverage checker running | Last pre-census-correction checker:315 implementation-digest errors plus902 census errors. Exact902 retained-byte hashes/current sizes corrected; final merged checker running; no blanket implementation renewals |
+| Naming proof bindings | Merged checker: 2,606 records; zero pending/unlinked | Final merged checker:315 implementation-digest errors only; exact902 retained-byte hashes/current sizes corrected without renewing implementation bindings |
 
 Exact raw results and limits:
 
@@ -46,7 +46,8 @@ Exact raw results and limits:
 - [Static advice/lifecycle failures](../../../experiments/name-handling/results/static-name-advice/README.md).
 - [Real Tcltest caller-frame question](../../../experiments/name-handling/tcltest-shared-frame/README.md).
 - [Frozen backing/owner results](../../../experiments/name-handling/results/gate-validation/20261012T161110Z/README.md).
-- [Merged proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/README.md).
+- [Final source proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-f5-finish-admitted/README.md).
+- [Earlier merged proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/README.md).
 - [Reviewed source bindings](evidence-review/); source inspection is not execution.
 
 ## Discovery, appliance answers and cleanup

@@ -1,10 +1,10 @@
 # Name-handling current obligations
 
 Temporary coordination snapshot; remove this file and its links before merge.
-Published checkpoint: `225be128d` on `work`; clock fixes are in `e20c572d6`.
+Published checkpoint: `8b4c41ad6` on `work`; clock fixes are in `e20c572d6`.
 The coordinator owns integration, publication, issue receipts and source freezes.
 Confirm live ownership before shared edits; source inspection is not execution.
-Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. All Cargo leases are released; all source owners are quiescent. Root proof checker measures frozen source/census/canonical inputs. Previous trace owners are byte-exact restored. C8.6 suite captures complete; no runtime build lease. Never reuse interrupted/ENOSPC artefacts.
+Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. All Cargo leases are released; all source owners are quiescent. Final source checker complete:2,606 records,315 implementation-digest errors only; frozen4,840 selected inputs unchanged. Previous trace owners are byte-exact restored. C8.6 suite captures complete; no runtime build lease. Never reuse interrupted/ENOSPC artefacts.
 
 ## Independent authority and acceptance
 
@@ -53,7 +53,7 @@ acceptance. Existing contracts/proofs are evidence to inspect, not completion.
 | Jim engine conformance | Coordinator; VM/runtime agents | Reference HEAD pin `5bac7c99` verified; 339 tests in 12 real Jim suites pass in reference. VM/runtime conformance remains required. |
 | F5 appliance answers | Appliance chat; coordinator | Integrated755f+separately reviewed db995 finish:400 original rows = 93 observed / 244 unreached / 63 unavailable; 30 resealed manifests / 26,091 retained entries verified. 307 investigation references/40 derived variants supplement originalcoverage;279 native canonical records have separate IDs. No new originalexecution; native input substitutions cannot answer originalquestions. TMM/MCPD F5Tcl cannot run Tcltest; native host probes only. Bind exact input/release/channel/reached event. | Returned-bundle lab cleanup published225be128d; broader older evidence cleanup verified (literal/hex/base64/archive residues0,931 descriptors/67 checksums pass); all970 Tcl files and coverage/status fields unchanged; sanitized artifacts resealed separately from historical execution hashes.
 | Backing/owner/full gates | Gate agent; coordinator | Selected-release backing passes 392 commands; backing12/owner21 controls and AI drift pass. Owner gate fails on 165 scope/gate obligations; preserve strict visibility. Full Rust/PR gates remain required; development pushes authorised, merge not authorised. |
-| Implementation proof currency | Proof reviewers; coordinator | Merged checker: 2,327 records, zero pending/unlinked; 315 implementation-digest errors across 154 paths, no other class. Review exact frozen source/invariants/scope before remaining renewals; no blanket digest refresh or altered oracle bytes. |
+| Implementation proof currency | Proof reviewers; coordinator | Final checker:2,606 records, zero pending/unlinked;315 implementation-digest errors across 154 paths, no other class. Review exact frozen source/invariants/scope before remaining renewals; no blanket digest refresh or altered oracle bytes. |
 | Durable docs/entry point and final cleanup | Coordinator | Per-consumer contract verification and repository-wide cleanup incomplete, including pre-existing unchanged material. Five unrelated prose fixes plus five F5-document correction groups complete; remaining search hits are unreviewed candidates. |
 
 ## Exact evidence and retention obligations

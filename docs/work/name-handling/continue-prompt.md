@@ -89,7 +89,7 @@ Current independent checks and outstanding work:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;
   do not fabricate None inputs or claim a pre-existing defect without comparison.
 - Scoped Syntax/LSP proof reviews and renewals are in `evidence-review/`.
-  Merged checker: 2,327 records, zero pending/unlinked; 315 implementation-digest
+  Final checker:2,606 records, zero pending/unlinked;315 implementation-digest
   errors across 154 paths, no other error class. Exact result:
   `experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/`.
   Review exact invariants before renewing remaining bindings; never blanket-rehash

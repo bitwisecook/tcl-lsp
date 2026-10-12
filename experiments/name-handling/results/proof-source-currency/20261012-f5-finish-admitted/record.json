@@ -1,0 +1,28 @@
+{
+  "question": "Does source evidence pass after exact census correction and separately admitted F5 native variants?",
+  "command_argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python",
+    "scripts/dev/check-name-resolution-proofs.py",
+    "--root",
+    "/workspace/tcl-lsp"
+  ],
+  "started_utc": "2026-10-12T20:33:44.736772+00:00",
+  "finished_utc": "2026-10-12T20:38:43.498749+00:00",
+  "exit_status": 1,
+  "checker_invocations": 1,
+  "raw_log_sha256": "f7598452e3a7b19e18cf5c61c32446aa5922fb8f855070e911b21d3675eaf436",
+  "selected_sources_unchanged": true,
+  "selected_source_files": 4840,
+  "scope": "Rust source/manifests/toolchain plus canonical/census/checker/renderer bytes; no oracle conformance or whole-repository identity claim. No implementation binding renewal.",
+  "checker_summary": {
+    "candidate_records": 7069,
+    "corpus_files": 31924,
+    "pending_candidates": 0,
+    "questions": 2606,
+    "structural_errors": 315,
+    "unlinked_tests": 0
+  },
+  "error_classes": {
+    "evidence digest changed": 315
+  }
+}
