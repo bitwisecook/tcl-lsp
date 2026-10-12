@@ -322227,7 +322227,7 @@
         {
           "id": "naming-embedding-original-host-publication-and-fact-transport-carrier-definition",
           "path": "rust/tcl-syntax/src/scalar_getter/carrier.rs",
-          "sha256": "d63aac17962edb5e12f0f97498a72335bb5175366cbff67143f1b9974eb08f67",
+          "sha256": "aaee6a2c4e3f10f8031def4ea4ecdd051d1ddd16945c3d7cbb799843dae28026",
           "role": "implementation",
           "description": "Lossless scalar/storage transport definitions with two canonical comment markers; all non-comment bytes unchanged. No native cache production is asserted."
         },
@@ -322284,7 +322284,7 @@
         {
           "id": "sourceperf-current633-1ecfc7202179",
           "path": "runtime/rust/src/obj.rs",
-          "sha256": "d32a791c4eb4653308c52cc2e5b63d9f74f64e5980d9ba669374adda77c47f4d",
+          "sha256": "f7a0d784baa2ca1c4d625ee02d3885b57780e81a8899b944ec62c9d1a7615b65",
           "role": "implementation",
           "description": "The issued original header and primary publication epoch guard same-slot retirement and incoming adoption. Auxiliary owners retire outside borrows, and a refused adoption leaves incoming ownership with its caller."
         },
@@ -322340,7 +322340,7 @@
         {
           "id": "sourceperf-current633-0b0f0d3b2680",
           "path": "rust/tcl-vm/src/value.rs",
-          "sha256": "cf39cb9e07d0dc05abc73093b19e283d888b993964cd7e06d635640b924391c5",
+          "sha256": "01f147b4eacf0bd59254a82b27df1c4558e8185a5abcc482f6360feb7436e4d7",
           "role": "implementation",
           "description": "Original node-aware List and Dictionary projection, readonly Dictionary cursors and cache mirrors use the existing checked retirement worker. Allocation leases preserve memory without adding Native ownership."
         },
@@ -322742,6 +322742,132 @@
           "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
           "sha256": "9eca604ba2650fe4b0c41e93fd6a8289c2bb36bb7f2d669185dd9a545b9c2e27",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
+        },
+        {
+          "id": "original-scalar-mapping-owner-60f3fd224f8d",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/variable_mapping.rs",
+          "sha256": "9b0c2f7ea52593c5571318be4e2d711282569637c7e08bd2d869e8b355b02d52",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-e8b6903c612f",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "sha256": "0da124c0b5028bfcbe84e77264f33a6a969751c19d5a1679b792a551ef683863",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-c87ed2d53705",
+          "role": "implementation",
+          "path": "runtime/rust/src/engine_abi/value_carriers.rs",
+          "sha256": "e05c29af61676345864f91810e46ad62781743781f51f01aaa27113c13acd31d",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-d661df3de279",
+          "role": "implementation",
+          "path": "runtime/rust/src/engine_abi/value_carriers/c84_wide_tests.rs",
+          "sha256": "d0961da71a1320928632c6a3eaa48460b4da4c2973911e3f8af3d2da09a0cc6f",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-a904bf921481",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_scalar_context.rs",
+          "sha256": "f80b773521d9e93437d62af778bf7ea6573dea538d1fcf070c6f881dd62b1280",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-09353c7626f6",
+          "role": "implementation",
+          "path": "runtime/rust/src/value_ops/native_jim_index.rs",
+          "sha256": "38e39eead6b397f7809ab5f1ef56ab793befe0c9c88fc5acbef3ab5233d61a79",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-366fd691de27",
+          "role": "implementation",
+          "path": "runtime/rust/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "sha256": "0071aeaa912e014be464c88fb81953fed3a3f30fa6995330f4cc226c618c4fc9",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-64601c6e28ea",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/index.rs",
+          "sha256": "e75e6ea292f7ab1001cce7162d06f515c69c9f23c1eb9234633771d10630adb1",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-84a88cf61595",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/lsearch.rs",
+          "sha256": "26fd4cfb3153b1759b07d6e0ae6dd12bb0a171a3a1995bb585fb19757d9cfd88",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-01f9de65a981",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_oo_variable_mapping.rs",
+          "sha256": "e5d68e2a5230796373bce565a513ffb3395fdf3c8d5bd590209395a0b6e9cb06",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-231a92b0dee0",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_oo_variable_mapping/tests.rs",
+          "sha256": "f4bbb0dfdac3bc0d16bf581b772b47f09bbd6bf63bdf939dbeff02604d15260e",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-975008a46cf8",
+          "role": "implementation",
+          "path": "rust/tcl-core-types/src/native_value.rs",
+          "sha256": "f718bafca51b2c7e9b1f1a19e8d388e44d8c7081e5a84dc2a6ade3c65345dd07",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-be67a4ab67ea",
+          "role": "implementation",
+          "path": "rust/tcl-engine-tclvm/src/c84_wide_transport_tests.rs",
+          "sha256": "492a1a2d0f87f579be715e7b42df1b0705bf21966939622a23afcac1d25daf70",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-5c9c18ac052f",
+          "role": "implementation",
+          "path": "rust/tcl-engine-tclvm/src/lib.rs",
+          "sha256": "51b958f949b146507f3d7d1837394046e39a86a1cd587016812721448d34d1bb",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-9e7325894749",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress.rs",
+          "sha256": "4fa354fd687f23cc7bf69c61bb4d229a20db399497232956d0618c4bd4e83db8",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-6a57179b9d57",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress/tests.rs",
+          "sha256": "b8be5288e8ede023b8953970edf114d8e1dd78cb1c16ca23281409322730b0e1",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-67a891b21b16",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+          "sha256": "e11a5b53703f12e1cf69e3eb45043fd5be5c41fe8e288c9535549e32d06769ad",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-scalar-mapping-owner-45c16126ee94",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "sha256": "ae1c5e0c5acf0c2b142ef433693cf750edbd1a167568f6868a03362e3db17d0b",
+          "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
         }
       ],
       "source_anchors": [],
@@ -323285,6 +323411,81 @@
           "path": "runtime/rust/src/typed_value.rs",
           "symbol": "native_scalar_getter_with_stage_check",
           "purpose": "The existing scalar getter kernel accepts optional original caller stages; neutral None shares its prior probe and reached failure behavior."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_oo_variable_mapping.rs",
+          "symbol": "install_original_variable_mapping",
+          "purpose": "One selected mapping coordinator acquires all incoming roles before old-visible variable/fullName retirement, zero setup and sequential canonical first-unique publication; original full cause precedes mandatory unused-role cleanup."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping.rs",
+          "symbol": "Entry::capture",
+          "purpose": "Capture authentic original arguments, target/facet and fixed definition frame before selected List/String effects; allocation-only descriptions supply no Native reference or new lookup authority."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping.rs",
+          "symbol": "install",
+          "purpose": "Adapt actual selected Runtime C86+ declaration mapping to the shared coordinator with matching old-visible cleanup tickets, stored private fullName identity and outside-borrow role retirement."
+        },
+        {
+          "path": "rust/tcl-core-types/src/native_value.rs",
+          "symbol": "NativeScalarCache",
+          "purpose": "Transport explicit Long84, Wide84 and neutral Integer categories as retained data; descriptor tags supply no physical constructor or entered-operation authority."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress.rs",
+          "symbol": "NativeScalarIngress",
+          "purpose": "Retain the actual pre-effect scalar operation and queried ABI through genuine VM import, recursive bridge recovery and owned cleanup; copied dialect data cannot issue Wide authority."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress.rs",
+          "symbol": "Vm::import_original_native_scalar",
+          "purpose": "Check the same authentic ingress and ABI before physical scalar construction, retaining the full first cause before actual temporary cleanup."
+        },
+        {
+          "path": "rust/tcl-engine-tclvm/src/lib.rs",
+          "symbol": "ActualScalarImport",
+          "purpose": "Borrow the actual VM scalar receipt through the existing recursive plain/resident and original-object recovery algorithms; a Host callback cannot issue a refreshed receipt."
+        },
+        {
+          "path": "runtime/rust/src/engine_abi/value_carriers.rs",
+          "symbol": "scalar",
+          "purpose": "Actual Runtime scalar ingress validates its genuine issuer and descriptor before fresh adoption; unqualified C84 Integer and foreign Wide facts remain terminal."
+        },
+        {
+          "path": "runtime/rust/src/obj.rs",
+          "symbol": "adopt_native_scalar_cache",
+          "purpose": "Same scalar adoption kernel preserves exact selected Wide84 versus Long84 descriptors under genuine existing issuer checks; neutral integer construction remains independent."
+        },
+        {
+          "path": "rust/tcl-vm/src/value.rs",
+          "symbol": "Value::from_native_scalar_cache_with_storage_using",
+          "purpose": "Existing cache constructor consumes the supplied actual ingress check for explicit Wide and preserves true fresh/container roles without an added protective reference."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/index.rs",
+          "symbol": "integer_result",
+          "purpose": "The same entered Index operation checks selected fallible integer construction and retains the full first cause before actual Created-result cleanup; the default neutral constructor remains distinct."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/lsearch.rs",
+          "symbol": "result_all",
+          "purpose": "Every reached C-style search index result uses the original operation through final result publication and mandatory existing prefix retirement; no refreshed operation or additional protective reference is issued."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_scalar_context.rs",
+          "symbol": "NativeScalarObjectContext::issue_in_original",
+          "purpose": "The existing physical scalar issuer queries and checks ABI under the actual supplied original argument owner, retaining currency across constructor effects and cleanup."
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_jim_index.rs",
+          "symbol": "NativeIndexOps::index_integer_result",
+          "purpose": "Actual Runtime C84 Index construction validates the original receiver and C-int bound before genuine ABI query, adopts the Long descriptor under that issuer, and returns the fresh unowned result for its real receiver."
+        },
+        {
+          "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+          "symbol": "NativeIndexOps::index_integer_result",
+          "purpose": "Actual VM C84 Index construction borrows the original numeric scope and ABI for the Long recipe; existing Value ownership and cleanup retain first cause without granting authority from copied descriptor data."
         }
       ],
       "tests": [
@@ -327865,6 +328066,132 @@
           "selector": "interp::original_name_residual_tests::original_alias_retained_payload_cannot_revive_a_deleted_target_interpreter",
           "assertion": "A retained real alias payload cannot revive a deleted target interpreter; the same original host boundary retains the dead-target refusal. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.",
           "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/engine_abi/value_carriers/c84_wide_tests.rs",
+          "selector": "engine_abi::value_carriers::c84_wide_tests::selected_c84_wide_import_duplicate_getter_and_string_preserve_the_physical_descriptor",
+          "status": "linked",
+          "assertion": "Genuine C84 scalar ingress and canonical duplication preserve wideInt, no initial String and their actual fresh ownership. The Int probe retains IntWidthOverflow without cache demotion; a later checked String read retains wideInt, while Long84 and neutral integer constructors keep separate descriptors. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/engine_abi/value_carriers/c84_wide_tests.rs",
+          "selector": "engine_abi::value_carriers::c84_wide_tests::selected_c84_scalar_ingress_refuses_unqualified_or_foreign_descriptor_without_guest_publication",
+          "status": "linked",
+          "assertion": "An unqualified Integer at actual C84 ingress and explicit C84 Wide data at foreign C86/Jim ingress refuse before adoption and leave the prior result. Descriptive carrier categories do not supply an engine issuer. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-engine-tclvm/src/c84_wide_transport_tests.rs",
+          "selector": "c84_wide_transport_tests::original_c84_wide_recursive_bridge_retains_actual_ingress_for_plain_and_resident_members",
+          "status": "linked",
+          "assertion": "The actual bridge retains the original scalar ingress through recursive List members and independently resident storage. Copied dialect data alone refuses; exact Wide origin and resident bytes survive transport, and genuine owned containers retire before boundary settlement. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-engine-tclvm/src/c84_wide_transport_tests.rs",
+          "selector": "c84_wide_transport_tests::original_c84_wide_host_reply_uses_pre_callback_receipt_and_finishes_only_the_real_outer_boundary",
+          "status": "linked",
+          "assertion": "Real nested Host callbacks cannot refresh the pre-callback scalar receipt after Host or context refusal. Reply recovery stops, the surrounding owner retains the full first cause through cleanup, and only the genuine outer boundary permits a subsequent operation; original-object List recovery shares the same receipt. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-syntax/src/scalar_getter/carrier.rs",
+          "selector": "scalar_getter::carrier::wide84_transport_tests::explicit_c84_wide_wire_keeps_descriptor_data_distinct_from_integer_and_long",
+          "status": "linked",
+          "assertion": "Wire tag 7 and exact Wide origin round-trip signed boundary values independently of Long and neutral Integer. Syntax retains its Number(Int) equations; absent origin exports neutral data. These codecs provide no physical constructor or entered-operation authority. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress/tests.rs",
+          "selector": "interp::native_scalar_ingress::tests::original_c84_wide_ingress_preserves_descriptor_without_changing_semantic_getter_equations",
+          "status": "linked",
+          "assertion": "A supplied real software ABI permits selected Wide construction with exact V84 origin and no String. Existing semantic Int overflow, duplication and later String equations remain unchanged; Long84 and neutral Integer preserve their separate physical descriptors. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress/tests.rs",
+          "selector": "interp::native_scalar_ingress::tests::original_c84_wide_ingress_requires_actual_receipt_and_unchanged_queried_abi",
+          "status": "linked",
+          "assertion": "Bare copied dialect cannot construct explicit Wide or query an ABI. The genuine ingress retains its queried ABI; a later changed ABI refuses without changing the already constructed original header or resident state. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_scalar_ingress/tests.rs",
+          "selector": "interp::native_scalar_ingress::tests::original_c84_wide_ingress_stops_before_abi_after_actual_host_context_or_descriptor_withdrawal",
+          "status": "linked",
+          "assertion": "Unqualified carrier data, prior Host refusal, Host replacement-and-restoration and descriptor-profile replacement-and-restoration stop before another ABI query. The authentic original receipt retains the full first cause; no copied category or refreshed context supplies authority. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "selector": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_index_integer_result_has_its_actual_long_descriptor_and_receiving_roles",
+          "status": "linked",
+          "assertion": "The same actual C84 Index operation constructs Long results without initial String or a leaked producer reference. Genuine receiving List roles acquire and retire their own references; selected Wide42 operands retain Wide identity while successful single and all-result searches return Long indices. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "selector": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_index_result_refuses_stale_foreign_and_overwidth_before_selected_construction",
+          "status": "linked",
+          "assertion": "Prior Host refusal, restored context, a foreign actual receiver and C-int input overflow stop selected result construction before another ABI query or result publication. The prior result and full original first cause remain. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "selector": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_all_search_retires_reached_integer_prefix_after_provider_callback_refusal",
+          "status": "linked",
+          "assertion": "A real second numeric-environment callback refuses after the first all-search Long result has been allocated. The existing Created prefix retires before transport, leaving actual operand references and prior result intact; callback query order and live-object counts are finite software observations. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "selector": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_search_long_results_preserve_wide_operands_and_true_list_member_roles",
+          "status": "linked",
+          "assertion": "Genuine VM scalar ingress supplies Wide42 while the same selected search operation produces Long indices. Original operands retain Wide/no-String identity, actual returned Value and List member roles retain their independent references, and allocation-only observations add no Native hold. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
+          "selector": "value_ops::native_jim_index::c84_integer_result_tests::original_c84_index_result_keeps_first_cause_without_querying_a_refreshed_target",
+          "status": "linked",
+          "assertion": "The original VM Index operation refuses Host, restored-context, foreign-receiver and overwidth continuation before ABI query or fresh construction. Its full first cause survives and no copied dialect or refreshed target supplies selected constructor authority. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_mapping_retires_old_visible_roles_before_unique_original_keys",
+          "status": "linked",
+          "assertion": "Actual incoming declaration references precede old-visible retirement outside OO storage access; sequential canonical keys preserve first-unique original headers and final counts across the selected C86/C90/C91 software fixtures. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_mapping_first_retirement_refusal_stops_keys_and_cleans_matching_visibility",
+          "status": "linked",
+          "assertion": "Actual old declaration and private fullName roles finish retiring after the first Host, restored-context, facet or role refusal. Later keys and incoming adoption stop, matching visibility tickets settle, and genuine incoming references return to their original counts. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_private_mapping_copy_keeps_both_stored_headers_and_original_storage_identity",
+          "status": "linked",
+          "assertion": "The counted private key keeps embedded zero while its stored fullName follows the original C-string extent. Allocation-only observations add no native reference; actual Class copying acquires and then releases both original and fullName roles without reconstructing their identity. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_mapping_preserves_recursive_roster_until_outer_publication",
+          "status": "linked",
+          "assertion": "A genuine retirement callback may publish an ordinary recursive roster. The outer operation preserves that reached roster until its own final publication, retires displaced roles and settles its matching ticket without treating a world epoch as lookup authority. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_private_link_uses_the_stored_full_name_header_for_its_actual_cache",
+          "status": "linked",
+          "assertion": "Actual private variable linking consumes the already stored fullName header, installs its ParsedVariableName cache on that same header, and preserves the public value and independently owned declaration role. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/variable_mapping/tests.rs",
+          "selector": "cmd_oo::variable_mapping::tests::original_runtime_mapping_requires_current_definition_frame_and_allows_balanced_nested_frame",
+          "status": "linked",
+          "assertion": "An extra active definition frame refuses continuation before keys or adoption; a balanced nested frame permits the restored original frame. Actual old-role retirement and matching ticket cleanup complete in both cases, without a Native frame chronology claim. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_oo_variable_mapping/tests.rs",
+          "selector": "native_oo_variable_mapping::tests::original_mapping_role_drop_observes_all_incoming_and_old_visible_before_hash",
+          "status": "linked",
+          "assertion": "Real Rust role Drop observes all three incoming references while both old records remain visible. The shared coordinator then performs zero-length setup and first-unique sequential keys; all installed roles retire exactly once. These software role counts are independent of Native callback evidence. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_oo_variable_mapping/tests.rs",
+          "selector": "native_oo_variable_mapping::tests::original_mapping_first_role_refusal_stops_hash_and_preserves_mandatory_release",
+          "status": "linked",
+          "assertion": "A real Rust old-role Drop retains the first typed refusal. Both old roles and every unused incoming role still retire, no key or publication runs, and a later call cannot replace the first cause or acquire another role. This links the actual definition only; it supplies no new Native observation or passed assertion."
         }
       ],
       "replay": {
