@@ -149,11 +149,11 @@ fn install_abstract_class(vm: &mut Vm, class_root: OoId) {
             destroyed: false,
         },
     );
-    let key = vm.register_command(recipe.command(), Command::Object(abstract_class));
+    let key = vm.register_command(recipe.canonical_command(), Command::Object(abstract_class));
     vm.oo
         .command_keys
         .insert(abstract_class, CommandSidecarKey::visible(key));
-    vm.declare_registry_object_root(recipe.command());
+    vm.declare_registry_object_root(recipe.canonical_command());
 }
 
 fn install_configurable_support(

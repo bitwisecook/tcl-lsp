@@ -199,7 +199,7 @@ fn original_abstract_command_replacement_keeps_new_binding_separate_from_old_cla
         Code::Ok
     );
     vm.register_command(
-        "::oo::abstract",
+        "oo::abstract",
         Command::Builtin(|_, _| super::super::ok(Value::empty())),
     );
     let after = entry(&mut vm);
@@ -268,4 +268,69 @@ fn original_abstract_metaclass_manufactures_only_through_the_actual_public_maker
         .code,
         Code::Ok
     );
+}
+
+#[test]
+fn original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_marker() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software initializer, public rooted lookup and held entry; no Native output grant.
+    for version in ["tcl9.0", "tcl9.1"] {
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(version));
+        let recipe = tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+            vm.actual_native_invocation_dialect(),
+        )
+        .unwrap();
+        let object = original(&vm).unwrap();
+        let (key, command) = vm
+            .lookup_command_bytes_checked(vm.current_ns_id(), recipe.command().as_bytes())
+            .unwrap()
+            .expect("actual rooted public lookup");
+        assert_eq!(key, recipe.canonical_command());
+        assert!(matches!(command, Command::Object(current) if current == object));
+        assert_eq!(
+            vm.oo.command_keys[&object],
+            CommandSidecarKey::visible(recipe.canonical_command()),
+        );
+        let actual = entry(&mut vm);
+        let selected = binding(&actual).expect("actual canonical entry slot");
+        let current = vm
+            .native_compilation_binding(&key, &Command::Object(object), actual.interpreter)
+            .unwrap();
+        assert_eq!(current.token, selected.token);
+        assert_eq!(
+            current.implementation_generation,
+            selected.implementation_generation
+        );
+        assert!(matches!(
+            &selected.implementation,
+            tcl_runtime_api::native_compilation::NativeCommandImplementation::Registry {
+                identity, compiler_hook: false,
+            } if identity == recipe.canonical_command()
+        ));
+        let class = actual
+            .original_oo_class(selected.token, selected.implementation_generation)
+            .unwrap();
+        assert_eq!(class.object, object.0);
+        assert_eq!(class.bootstrap_role, None);
+        assert!(!actual.commands.iter().any(|row| row.slot.namespace
+            == [":".to_owned(), "oo".to_owned()]
+            && row.slot.simple.as_bytes() == b"abstract"));
+    }
+    let vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl8.6"));
+    assert!(original(&vm).is_none());
+    assert!(
+        vm.lookup_command_bytes_checked(vm.current_ns_id(), b"::oo::abstract")
+            .unwrap()
+            .is_none()
+    );
+    let mut logical = Vm::new();
+    logical.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.1"));
+    assert!(
+        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+            logical.actual_native_invocation_dialect(),
+        )
+        .is_none()
+    );
+    assert!(original(&logical).is_none());
 }
