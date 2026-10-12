@@ -99,7 +99,8 @@ impl SourceInvocationBinding {
 
     /// Original source procedure argv roles under its complete current input.
     /// Registry body/expression roles are absent only for a unanimously selected
-    /// actual source procedure. Unknown or changed dispatch cannot borrow this.
+    /// original source procedure. Logical declarations retain their own sealed
+    /// source purpose; Native argv retains its actual entry and closed lookup.
     pub(crate) fn original_source_procedure_argument_roles<'a>(
         &'a self,
         tokens: &'a CommandTokens,
@@ -107,8 +108,24 @@ impl SourceInvocationBinding {
         registry: &CommandRegistry,
     ) -> Option<OriginalSourceProcedureArgumentRoles<'a>> {
         let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
-        let targets = if metadata.permits_logical_source_names() {
-            self.original_logical_procedure_call_targets(tokens, input)?
+        let logical = metadata.permits_logical_source_names();
+        let targets = if logical {
+            // The sealed declaration keeps raw runtime uncertainty. Join its
+            // complete source targets before using internal allocations solely
+            // for original procedure correspondence, never actual dispatch.
+            let declared =
+                self.original_logical_declaration_call_targets(tokens, input, registry)?;
+            let targets = self.original_logical_procedure_call_targets(tokens, input)?;
+            if declared.len() != targets.len()
+                || declared.iter().zip(&targets).any(|(declared, target)| {
+                    let mut source = target.clone();
+                    source.implementation_allocation = None;
+                    declared != &source
+                })
+            {
+                return None;
+            }
+            targets
         } else {
             let point = self.lookup_state.as_ref()?;
             let entry = point.state.baseline.native_entry.as_deref()?;
@@ -136,9 +153,7 @@ impl SourceInvocationBinding {
         };
         let first = targets.first()?;
         let allocation = first.implementation_allocation.as_ref()?;
-        if self.unknown
-            || self.may_be_absent
-            || self.targets != targets
+        if (!logical && (self.unknown || self.may_be_absent || self.targets != targets))
             || targets.iter().any(|target| {
                 target.kind != super::BindingKind::Proc
                     || target.registry_backed
@@ -3240,6 +3255,122 @@ mod tests {
         assert!(binding.original_source_procedure_argument_roles(
             &tokens, &input, context.commands(),
         ).is_some());
+    }
+
+    #[test]
+    fn original_logical_procedure_argv_keeps_unentered_alias_prefix_and_literal_child() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        // Lexical argv roles retain the real declaration prefix, not a call frame.
+        let context = logical_script_context();
+        let source = "proc café {prefix value} {}; interp alias {} forwarded {} café PREFIX; return DONE; forwarded {[inert CHILD]}";
+        let (analysis, tokens) = logical_original_tokens(source, &context);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        assert!(binding.unknown);
+        assert!(binding.targets.is_empty());
+        let declared = binding
+            .original_logical_declaration_call_targets(&tokens, input, context.commands())
+            .unwrap();
+        assert_eq!(declared.len(), 1);
+        assert_eq!(declared[0].prepended.len(), 1);
+        assert_eq!(declared[0].prepended[0].literal_bytes(), Some(b"PREFIX".as_slice()));
+        assert!(declared[0].implementation_allocation.is_none());
+        assert!(binding
+            .original_source_procedure_argument_roles(&tokens, input, context.commands())
+            .is_some());
+        assert!(crate::word_subst::checked_argument_lifted_calls(
+            &tokens, input.lexer_config(),
+        ).unwrap().is_empty());
+        assert!(binding.declaration_call_layout_advice(&tokens).is_none());
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.proved_handler_target().is_none());
+        assert_ne!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Reached);
+        assert_ne!(binding.runtime_reachability(), super::super::SourceRuntimeReachability::Conditional);
+    }
+
+    #[test]
+    fn original_logical_procedure_argv_refuses_replaced_receipt_vector_and_source_world() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let context = logical_script_context();
+        let source = "proc selected {value} {}; return DONE; selected {LITERAL}";
+        let (analysis, tokens) = logical_original_tokens(source, &context);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.original_source_procedure_argument_roles(
+            &tokens, input, context.commands(),
+        ).is_some());
+        let (_, foreign) = logical_original_tokens(
+            "proc different {value} {}; return DONE; different {LITERAL}", &context,
+        );
+        for axis in 0..4 {
+            let mut changed = tokens.clone();
+            match axis {
+                0 => changed.argv_texts[1] = "CHANGED".into(),
+                1 => changed.source_binding.as_mut().unwrap()
+                    .original_logical_declaration_targets = foreign.source_binding.as_ref()
+                    .unwrap().original_logical_declaration_targets.clone(),
+                2 => changed.source_binding.as_mut().unwrap()
+                    .declaration_layout_observations = foreign.source_binding.as_ref()
+                    .unwrap().declaration_layout_observations.clone(),
+                3 => changed.source_binding.as_mut().unwrap().targets = binding
+                    .original_logical_procedure_call_targets(&tokens, input).unwrap(),
+                _ => unreachable!(),
+            }
+            assert!(changed.source_binding.as_ref().unwrap()
+                .original_source_procedure_argument_roles(&changed, input, context.commands())
+                .is_none(), "axis {axis}");
+        }
+        let (alias_analysis, mut alias_tokens) = logical_original_tokens(
+            "proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded VALUE",
+            &context,
+        );
+        let alias_input = alias_analysis.resolved_input.as_ref().unwrap();
+        let alias_binding = alias_tokens.source_binding.as_ref().unwrap();
+        assert!(alias_binding.original_source_procedure_argument_roles(
+            &alias_tokens, alias_input, context.commands(),
+        ).is_some());
+        alias_tokens.source_binding.as_mut().unwrap().targets[0].prepended[0] =
+            crate::registry_invocation::EffectiveInvocationWord::Literal("CHANGED".into());
+        assert!(alias_tokens.source_binding.as_ref().unwrap()
+            .original_source_procedure_argument_roles(&alias_tokens, alias_input, context.commands())
+            .is_none());
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let changed_input = ResolvedAnalysisInput::new(
+            input.analyser_profile(), input.unit_profile(), input.context_registry(), config,
+        );
+        assert!(binding.original_source_procedure_argument_roles(
+            &tokens, &changed_input, context.commands(),
+        ).is_none());
+        let foreign_registry = tcl_registry::model::ingress::resolve_known_environment("tcl8.4")
+            .unwrap().default_context_registry();
+        assert!(binding.original_source_procedure_argument_roles(
+            &tokens, input, foreign_registry.commands(),
+        ).is_none());
+    }
+
+    #[test]
+    fn original_logical_procedure_argv_cannot_repair_open_or_registry_targets() {
+        // naming.compiler.original-positioned-callee-body-availability
+        // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
+        let context = logical_script_context();
+        for source in [
+            "proc selected {value} {}; unknown; selected VALUE",
+            "proc selected {prefix value} {}; interp alias {} forwarded {} selected [unknown]; forwarded VALUE",
+            "proc selected {value} {}; return DONE; list VALUE",
+        ] {
+            let (analysis, tokens) = logical_original_tokens(source, &context);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.original_source_procedure_argument_roles(
+                &tokens, input, context.commands(),
+            ).is_none(), "{source}");
+            assert!(binding.proved_execution_target().is_none());
+            assert!(binding.proved_handler_target().is_none());
+        }
     }
 
 }

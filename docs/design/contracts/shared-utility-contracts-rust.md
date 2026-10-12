@@ -2844,6 +2844,16 @@ allocation and native formal-binding layout without granting handler metadata,
 dispatch, successful completion or effects. Registry body-layout advice still
 declines replaced non-native targets.
 
+Logical procedure argv roles use `original_source_procedure_argument_roles` with
+its original declaration receipt or independently retained source point. The
+allocation-stripped declaration targets must exactly match the retained original
+procedure correspondence targets, including every captured alias argument.
+Internal source allocations identify that declaration only. An unentered source
+keeps its raw unknown lookup, empty runtime targets and absent handler/frame
+facts. Native argv keeps its actual entry, same compilation world and closed
+runtime target checks. Changed words, input, rows, receipt, alias prefix or unknown
+callback paths decline this lexical role projection.
+
 Reached expression evaluation captures canonical variable read events before
 the retained source inventory joins other invocations. Each synchronous capture
 validates the expression invocation, original source and actual variable frame;
