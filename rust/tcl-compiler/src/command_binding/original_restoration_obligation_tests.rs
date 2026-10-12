@@ -42,7 +42,7 @@ fn native_module(
     (held, input, module)
 }
 
-fn positioned(module: &Module, input: &ResolvedAnalysisInput) -> SourceCommandBindings {
+fn positioned<'a>(module: &'a Module, input: &ResolvedAnalysisInput) -> &'a SourceCommandBindings {
     module.retained_source_bindings.as_ref().unwrap()
         .positioned_for_module(module, input.borrowed_context_registry().commands()).unwrap()
 }
