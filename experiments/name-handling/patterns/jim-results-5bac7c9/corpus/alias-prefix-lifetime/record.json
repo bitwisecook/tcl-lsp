@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/alias-prefix-lifetime/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "081e7222b6325c60339a8ebbdf867a9b089bf55226ba7e263e68029ac8daf02e",
+  "stdout_sha256": "be00a961f9f56fada283de004cc8e76abd3437b19b505885302b83f195f2fa44",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/alias-prefix-lifetime",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"interp\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 2 {interp alias {} ::nh::local {} ::nh::emit {a b}}} -errorcode NONE",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "case_id": "alias-prefix-lifetime",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+  "source_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "setup-failed-question-unreached"
+}

@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-global-1/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "be40c0c18dbc09f90742464ca959263d5b7250ca945c04a024ca8e59e7d8ab5a",
+  "stdout_sha256": "469bdfea273e936592dacaac94301295f8e03ccc11a2f7f9c42078911daa3da0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-global-1",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "global",
+  "question_options": "-code 0 -level 0",
+  "case_id": "wiki-global-1",
+  "suite": "wiki",
+  "description": "global wrapper must execute declaration in caller",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "global",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "returned-value",
+  "question_sha256": "4b67847e3270dad24148e3bca56b2d29f2850fe7e18d3d61e23429ac64cb6d5f"
+}

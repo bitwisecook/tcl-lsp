@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-prefix-deleted-near-miss/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "981f3cb2fbfd38d106dacd49a9b08681c2292bfe3846a369e7142592f13aa53f",
+  "stdout_sha256": "4fc7f3dc3940b27902b196ef572ffddeee68d0656f495bb3d7a06128088d76f3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-prefix-deleted-near-miss",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"oo::class\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "case_id": "oo-prefix-deleted-near-miss",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+  "source_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "setup-failed-question-unreached"
+}

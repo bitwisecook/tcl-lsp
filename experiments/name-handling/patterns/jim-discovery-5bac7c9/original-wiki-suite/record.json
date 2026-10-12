@@ -1,0 +1,15 @@
+{
+  "process_exit_code": 1,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/original-wiki-suite/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "e753a1647c1d61bc0ac0618bc25cf445858c6c97a6e3baaa5266b6b8aebb1dba",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "29eb3be8567e111bfc6a7ea6755e8bc923cacb6f3afccd8527929248ec5ca873",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/original-wiki-suite"
+}

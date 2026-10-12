@@ -23,6 +23,7 @@ current execution must be recorded before calling their gaps resolved.
 | [Continuation prompt](continue-prompt.md) | Complete prompt for a coordinating agent using subagents |
 | [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Real upstream suite outcomes and prioritised live-engine work |
 | [Oracle protocol](../../../experiments/name-handling/README.md) | Durable scripts, measurements, provenance and test promotion |
+| [Wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md) | Maintained real-world patterns, exact experiments and C/Jim/F5 evidence matrix |
 | [BIG-IP handoff](../../../experiments/name-handling/f5/REQUEST.md) | Questions and return format for the chat with appliance access |
 
 ## Lifecycle

@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-2/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "d3437f7b0eeb1efc4b9d5301756c04eb256d8f64cd25aae22ef16641b43c134b",
+  "stdout_sha256": "b385828b0baf7f88b40a3b7202208c950268fbf55447872a1dea445a4ba24813",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-2",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "0",
+  "question_options": "-code 0 -level 0",
+  "case_id": "wiki-upvar-2",
+  "suite": "wiki",
+  "description": "implicit level parsing changes across releases",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "0",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "returned-value",
+  "question_sha256": "d068023b628fdf01b73dcc97ccb8519992f5aadb93b9fb701c98414521cb9373"
+}

@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "2fcde193d8b8384d162c587e54309e48e5906030207deb6670bc4459ebf4db32",
+  "stdout_sha256": "da535965b46cf58f0df601897dfba1332ba734dc470558fd2bed95a85375f040",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper",
+  "setup_code": "0",
+  "setup_result": "outer",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "changed",
+  "question_options": "-code 0 -level 0",
+  "case_id": "frame-wrapper",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+  "source_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

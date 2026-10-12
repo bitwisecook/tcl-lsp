@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "0ee88c78458d2e4b2c726b4f2da80fed88b9c8a96f05ff8a1db64b9ec45ca922",
+  "stdout_sha256": "5f8a26f5fcb92d739ab8b5fe4ff3d1c9da5823728a7026d41e86c761ddb0471f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix",
+  "setup_code": "0",
+  "setup_result": "emit",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "can't read \"::nh::prefix\": no such variable",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+  "case_id": "namespace-captured-prefix",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+  "source_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "raised-error"
+}

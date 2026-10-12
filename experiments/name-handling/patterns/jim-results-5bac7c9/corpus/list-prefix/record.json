@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "a7c39ad003395ecfe32d7befca64704b8bc304ae7fc06c2ff3dada732dbe2134",
+  "stdout_sha256": "fbeba1375a1dbe4152a422f5ea9f38e6e3e143bfcabd017461084a2d7e1061d2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix",
+  "setup_code": "0",
+  "setup_result": "{::nh::two words} {a b}",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "{a b} {c d}",
+  "question_options": "-code 0 -level 0",
+  "case_id": "list-prefix",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+  "source_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

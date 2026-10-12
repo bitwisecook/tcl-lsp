@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "d18f206f55294f1bbbeeb433106d1a49730e5a5c0b2b51fd6490be7ea45bae2e",
+  "stdout_sha256": "8a72b2fc30feef2a425213546e931027c36c502b22fae9eeb2cd03a47d7a7c00",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "can't read \"::nh::observed\": no such variable",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+  "case_id": "tcltest-shared-lifecycle",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+  "source_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "raised-error"
+}

@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "85db44ec1484380a0a1af8cc8aafa028c13b1234030a9ae213330d1a5ae61222",
+  "stdout_sha256": "6c1de69c01e75c28ab5c71218135ba7db6582af588cd568f25d971916d738859",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified",
+  "setup_code": "0",
+  "setup_result": "::nh::emit",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "first",
+  "question_options": "-code 0 -level 0",
+  "case_id": "computed-qualified",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+  "source_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

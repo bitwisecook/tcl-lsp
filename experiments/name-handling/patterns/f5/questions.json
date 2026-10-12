@@ -1,0 +1,3810 @@
+{
+  "schema_version": 1,
+  "scope": "45 portable cases covering 44 canonical questions; five independent appliance-only questions motivated by two pinned public rule-call sites. No case has an accepted exact-input/context F5 answer.",
+  "canonical_owners": [
+    "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+    "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json"
+  ],
+  "contexts": [
+    "tmsh-cli-script",
+    "iapp-implementation",
+    "tmm-RULE_INIT",
+    "tmm-procedure",
+    "tmm-traffic-event",
+    "appliance-stock-tclsh",
+    "icall",
+    "iapp-apl"
+  ],
+  "questions": [
+    {
+      "id": "f5-pattern-alias-prefix-lifetime",
+      "canonical_question_id": "naming.corpus-pattern.alias-prefix-lifetime",
+      "case_id": "alias-prefix-lifetime",
+      "question": "What lookup completion and result does the exact alias-prefix-lifetime reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+        "sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-computed-binding-mutation",
+      "canonical_question_id": "naming.corpus-pattern.computed-binding-mutation",
+      "case_id": "computed-binding-mutation",
+      "question": "What lookup completion and result does the exact computed-binding-mutation reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+        "sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-computed-qualified",
+      "canonical_question_id": "naming.corpus-pattern.computed-qualified",
+      "case_id": "computed-qualified",
+      "question": "What lookup completion and result does the exact computed-qualified reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+        "sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-ensemble-prefix-map",
+      "canonical_question_id": "naming.corpus-pattern.ensemble-prefix-map",
+      "case_id": "ensemble-prefix-map",
+      "question": "What lookup completion and result does the exact ensemble-prefix-map reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+        "sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-factory-body-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.factory-body-near-miss",
+      "case_id": "factory-body-near-miss",
+      "question": "What lookup completion and result does the exact factory-body-near-miss reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+        "sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-finite-factory",
+      "canonical_question_id": "naming.corpus-pattern.finite-factory",
+      "case_id": "finite-factory",
+      "question": "What lookup completion and result does the exact finite-factory reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+        "sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-frame-wrapper",
+      "canonical_question_id": "naming.corpus-pattern.frame-wrapper",
+      "case_id": "frame-wrapper",
+      "question": "What lookup completion and result does the exact frame-wrapper reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+        "sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-frame-wrapper-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.frame-wrapper-near-miss",
+      "case_id": "frame-wrapper-near-miss",
+      "question": "What lookup completion and result does the exact frame-wrapper-near-miss reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+        "sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-keyed-variable-link",
+      "canonical_question_id": "naming.corpus-pattern.keyed-variable-link",
+      "case_id": "keyed-variable-link",
+      "question": "What lookup completion and result does the exact keyed-variable-link reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+        "sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-list-prefix",
+      "canonical_question_id": "naming.corpus-pattern.list-prefix",
+      "case_id": "list-prefix",
+      "question": "What lookup completion and result does the exact list-prefix reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+        "sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-namespace-captured-prefix",
+      "canonical_question_id": "naming.corpus-pattern.namespace-captured-prefix",
+      "case_id": "namespace-captured-prefix",
+      "question": "What lookup completion and result does the exact namespace-captured-prefix reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+        "sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-oo-prefix-deleted-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.oo-prefix-deleted-near-miss",
+      "case_id": "oo-prefix-deleted-near-miss",
+      "question": "What lookup completion and result does the exact oo-prefix-deleted-near-miss reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+        "sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-oo-self-prefix",
+      "canonical_question_id": "naming.corpus-pattern.oo-self-prefix",
+      "case_id": "oo-self-prefix",
+      "question": "What lookup completion and result does the exact oo-self-prefix reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+        "sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-string-prefix-near-miss",
+      "canonical_question_id": "naming.corpus-pattern.string-prefix-near-miss",
+      "case_id": "string-prefix-near-miss",
+      "question": "What lookup completion and result does the exact string-prefix-near-miss reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+        "sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-tcltest-shared-lifecycle",
+      "canonical_question_id": "naming.corpus-pattern.tcltest-shared-lifecycle",
+      "case_id": "tcltest-shared-lifecycle",
+      "question": "What lookup completion and result does the exact tcltest-shared-lifecycle reduction produce after successful setup on each recorded provider?",
+      "source": {
+        "path": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+        "sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+        "kind": "authored-portable-reduction"
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_corpus_naming_patterns/observation-index.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-prefix-1",
+      "canonical_question_id": "naming.wiki.prefix-1",
+      "case_id": "wiki-prefix-1",
+      "question": "Does this retained program establish that list prefix preserves embedded data?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          20,
+          26
+        ],
+        "selected_range_sha256": "98bfa7f8f14a9066e13bbfae4c18401b5f7b79f10b9f8a49c40f46786b33954e",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-prefix-2",
+      "canonical_question_id": "naming.wiki.prefix-2",
+      "case_id": "wiki-prefix-2",
+      "question": "Does this retained program establish that script and list prefix treat newline differently?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          28,
+          35
+        ],
+        "selected_range_sha256": "834ac1166c505c4b2f483abe7499e534286c02252779c566fffec7938e76aabc",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-prefix-3",
+      "canonical_question_id": "naming.wiki.prefix-3",
+      "case_id": "wiki-prefix-3",
+      "question": "Does this retained program establish that builder spelling alone cannot prove list construction?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          37,
+          46
+        ],
+        "selected_range_sha256": "0c1d3cbca8bad806f0a44cf3094f94e2e41f9aefa138d7066e95bc0f33ea70f5",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-1",
+      "canonical_question_id": "naming.wiki.code-1",
+      "case_id": "wiki-code-1",
+      "question": "Does this retained program establish that namespace code captures command lookup namespace?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          48,
+          57
+        ],
+        "selected_range_sha256": "4747eb50352e396c88ab56c0544cc4fc2ceebd04b8b2ffc877dcabe179aafa8e",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-2",
+      "canonical_question_id": "naming.wiki.code-2",
+      "case_id": "wiki-code-2",
+      "question": "Does this retained program establish that captured namespace does not capture a proc local?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          59,
+          67
+        ],
+        "selected_range_sha256": "7a235c9b080865d48b5bb74931520176c3a4ff60ae6032277c763ac133cf545e",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-3",
+      "canonical_question_id": "naming.wiki.code-3",
+      "case_id": "wiki-code-3",
+      "question": "Does this retained program establish that captured command spelling observes replacement?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          69,
+          76
+        ],
+        "selected_range_sha256": "752537491e1d6618abe182a5f1ce9a15357c31ea01774560d01d9b960b2dbbf3",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-4",
+      "canonical_question_id": "naming.wiki.code-4",
+      "case_id": "wiki-code-4",
+      "question": "Does this retained program establish that inscope requires a live namespace?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          78,
+          84
+        ],
+        "selected_range_sha256": "0d3da2d817d70adf67f9b08fd68e0e54c9727bf55daaca872625811958e35fbd",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-5",
+      "canonical_question_id": "naming.wiki.code-5",
+      "case_id": "wiki-code-5",
+      "question": "Does this retained program establish that namespace name may denote a recreated namespace?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          86,
+          93
+        ],
+        "selected_range_sha256": "989d7f32b40c856785d13288a928c9eb0de2817262c6fa1b319f3c8a4244630f",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-6",
+      "canonical_question_id": "naming.wiki.code-6",
+      "case_id": "wiki-code-6",
+      "question": "Do the original nested namespace-code command heads invoke their scoped target through the default unknown handler on each recorded C release?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          95,
+          100
+        ],
+        "selected_range_sha256": "ae20ae94bbfcebd10d253c5c8d5593eeae954747f240978b89e721fcf186c4e5",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-code-7",
+      "canonical_question_id": "naming.wiki.code-6",
+      "case_id": "wiki-code-7",
+      "question": "Do the original nested namespace-code command heads invoke their scoped target through the default unknown handler on each recorded C release?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          102,
+          107
+        ],
+        "selected_range_sha256": "d024673d2d5dd3a2146f1d20251fc614ac671e952ff4e2227493dd41e2973ef0",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-factory-1",
+      "canonical_question_id": "naming.wiki.factory-1",
+      "case_id": "wiki-factory-1",
+      "question": "Does this retained program establish that finite factory substitutes constant body data?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          109,
+          116
+        ],
+        "selected_range_sha256": "24e1d799ad682fa0a163d2dddd9510b9817d1d4c4022dbc09ac425304acba8c7",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-factory-2",
+      "canonical_question_id": "naming.wiki.factory-2",
+      "case_id": "wiki-factory-2",
+      "question": "Does this retained program establish that braced factory body does not capture loop local?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          118,
+          126
+        ],
+        "selected_range_sha256": "713516977b70ed63c25c31983351fd778c72104dd8a83cee8f49688562a069db",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-alias-1",
+      "canonical_question_id": "naming.wiki.alias-1",
+      "case_id": "wiki-alias-1",
+      "question": "Does this retained program establish that alias target name rebinds while import retains command?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          128,
+          137
+        ],
+        "selected_range_sha256": "54e4fdbd494fcdd6b4adaebae0a834a6d37e70b4e4053e986766da9e8152eef9",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-alias-2",
+      "canonical_question_id": "naming.wiki.alias-2",
+      "case_id": "wiki-alias-2",
+      "question": "Does this retained program establish that alias target interpreter owns lookup?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          139,
+          147
+        ],
+        "selected_range_sha256": "3454d32d18bf6f3948b659448ce4d9970efdcb39763c91d7a0691c6ae46d8001",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-rename-1",
+      "canonical_question_id": "naming.wiki.rename-1",
+      "case_id": "wiki-rename-1",
+      "question": "Does this retained program establish that renaming a proc changes its namespace context?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          149,
+          156
+        ],
+        "selected_range_sha256": "a022868f907ccc9197b9b2b65394b6cd45ab6fb649d141de27b5c45ce1d0e815",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-upvar-1",
+      "canonical_question_id": "naming.wiki.upvar-1",
+      "case_id": "wiki-upvar-1",
+      "question": "Does this retained program establish that explicit level supports digit-leading names?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          158,
+          164
+        ],
+        "selected_range_sha256": "0c7260b31f277487f57b4e1d5b8e4ea790a7e718f2acf088eca4baaf3ef32a8e",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-upvar-2",
+      "canonical_question_id": "naming.wiki.upvar-2",
+      "case_id": "wiki-upvar-2",
+      "question": "Does this retained program establish that implicit level parsing changes across releases?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          166,
+          172
+        ],
+        "selected_range_sha256": "9f4f2d1b7e7df95c306b71c96c4f78d3474ffef15fb9e0654de42e2071dce97b",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-upvar-3",
+      "canonical_question_id": "naming.wiki.upvar-3",
+      "case_id": "wiki-upvar-3",
+      "question": "Does this retained program establish that frame-forwarding wrapper links the caller variable?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          174,
+          181
+        ],
+        "selected_range_sha256": "8db7792c1d8e8b377f186238b6d2f4c03f2cdcbf64c7a42c8db2a38ec6ff1c46",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-upvar-4",
+      "canonical_question_id": "naming.wiki.upvar-4",
+      "case_id": "wiki-upvar-4",
+      "question": "Does this retained program establish that naive wrapper creates a link in its own frame?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          183,
+          190
+        ],
+        "selected_range_sha256": "42674ec7bcac3062c5c4e2f3dd5bb0187f32d8537ea0fbc4b49a15b5b2c595c9",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-variable-1",
+      "canonical_question_id": "naming.wiki.variable-1",
+      "case_id": "wiki-variable-1",
+      "question": "Does this retained program establish that variable alternates names and assigned values?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          192,
+          196
+        ],
+        "selected_range_sha256": "ec554656efbdbe8f7b48066810d3ea365fa9f28cbcaf0fb9fa31fb62732f7c07",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-global-1",
+      "canonical_question_id": "naming.wiki.global-1",
+      "case_id": "wiki-global-1",
+      "question": "Does this retained program establish that global wrapper must execute declaration in caller?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          198,
+          205
+        ],
+        "selected_range_sha256": "a1cf73d261b5f79fe0991007bbb1608e99114e6fbf1597b6d32479814a842b7e",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-autoload-1",
+      "canonical_question_id": "naming.wiki.autoload-1",
+      "case_id": "wiki-autoload-1",
+      "question": "Does this retained program establish that a missing command may load from auto_index?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          207,
+          212
+        ],
+        "selected_range_sha256": "6ef819ad7f7ed4b6a7ceb80899b04f9a3381e4b140a625b9ac613834238bf508",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-unknown-1",
+      "canonical_question_id": "naming.wiki.unknown-1",
+      "case_id": "wiki-unknown-1",
+      "question": "Does this retained program establish that unknown can make an absent head executable?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          214,
+          219
+        ],
+        "selected_range_sha256": "7b98978f3a8e113b39beca291f81b55dc568abe4fa5db1c0eae249603ead17bc",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-1",
+      "canonical_question_id": "naming.wiki.oo-1",
+      "case_id": "wiki-oo-1",
+      "question": "Does this retained program establish that namespace code preserves private my method dispatch?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          221,
+          232
+        ],
+        "selected_range_sha256": "b2db139dec305c8c92207990b5c5a6a6ab3e0839fb2e06977863fd8fcde2a50d",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-2",
+      "canonical_question_id": "naming.wiki.oo-2",
+      "case_id": "wiki-oo-2",
+      "question": "Does this retained program establish that object deletion invalidates captured my callback?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          234,
+          242
+        ],
+        "selected_range_sha256": "d3fd9b19d5a4f306420ba3679ea5e24f39e1ba4ab1242c1060d7e3d5303140af",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-3",
+      "canonical_question_id": "naming.wiki.oo-3",
+      "case_id": "wiki-oo-3",
+      "question": "Does this retained program establish that forward target observes command replacement?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          244,
+          253
+        ],
+        "selected_range_sha256": "b1e0208b130f11be8b34263973216639ccacf8e0d93832a1af07834a2afc627d",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-4",
+      "canonical_question_id": "naming.wiki.oo-4",
+      "case_id": "wiki-oo-4",
+      "question": "Does this retained program establish that metaclass methods can define class methods dynamically?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          255,
+          266
+        ],
+        "selected_range_sha256": "e4022a69295f5f111d7fc7bc6f4894bdbed725d41ee16bbb701d53804827dbcb",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-5",
+      "canonical_question_id": "naming.wiki.oo-5",
+      "case_id": "wiki-oo-5",
+      "question": "Does this retained program establish that metaclass can override new to return a non-object?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          268,
+          275
+        ],
+        "selected_range_sha256": "dbec0dca659d0af0dca734f6e0295e02a1c5029ccccdf2fe0c616fd6177a4183",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-6",
+      "canonical_question_id": "naming.wiki.oo-6",
+      "case_id": "wiki-oo-6",
+      "question": "Does this retained program establish that forward my resolves an internal method?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          277,
+          287
+        ],
+        "selected_range_sha256": "126b5ef70e365ae7ab5e06b5f5423d658bc6c7406c9262ae28072f131223b1dc",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "f5-pattern-wiki-oo-7",
+      "canonical_question_id": "naming.wiki.oo-7",
+      "case_id": "wiki-oo-7",
+      "question": "Does this retained program establish that method replacement resets explicit export?",
+      "source": {
+        "path": "experiments/name-handling/patterns/wiki-probes.tcl",
+        "sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+        "lines": [
+          289,
+          297
+        ],
+        "selected_range_sha256": "ee1b3c451d0b7a90bd316cd4367a7f6a18c56bce8c017e9274005e32030eb0f4",
+        "kind": "authored-portable-tcltest-case",
+        "requires": "Matching real tcltest, isolated helper and suite constraints. The selected range alone is not a standalone program."
+      },
+      "canonical_owner": "rust/tcl-registry/tests/data/native_wiki_naming_patterns/observations.json",
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "corpus-f5-rule-path",
+      "canonical_question_id": null,
+      "case_id": null,
+      "question": "For identical procedure tails in isolated rules and partitions, what does call select through absolute partition/rule::proc, relative rule::proc and a bare local proc?",
+      "controls": "Preserve source owner, current partition/rule, attachment, target existence, and missing rule versus missing proc as separate variants.",
+      "source_sites": [
+        {
+          "id": "corpus-f5-partition-call",
+          "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+          "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+          "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+          "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1"
+        },
+        {
+          "id": "corpus-f5-sideband-call",
+          "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+          "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+          "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+          "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52"
+        }
+      ],
+      "materialised_input": null,
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "corpus-f5-computed-target",
+      "canonical_question_id": null,
+      "case_id": null,
+      "question": "Does a variable/list-built call target with exactly the literal-control bytes reach the same rule procedure?",
+      "controls": "Capture literal load rejection independently from computed runtime lookup. Do not replace absent call with a desktop stub.",
+      "source_sites": [
+        {
+          "id": "corpus-f5-partition-call",
+          "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+          "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+          "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+          "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1"
+        },
+        {
+          "id": "corpus-f5-sideband-call",
+          "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+          "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+          "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+          "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52"
+        }
+      ],
+      "materialised_input": null,
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "corpus-f5-prefix-arguments",
+      "canonical_question_id": null,
+      "case_id": null,
+      "question": "How does call pass fixed/list-expanded arguments containing spaces, braces and namespace separators?",
+      "controls": "Keep literal argument, supported list expansion and deliberately space-joined near miss independent. Acceptance is not execution.",
+      "source_sites": [
+        {
+          "id": "corpus-f5-partition-call",
+          "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+          "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+          "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+          "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1"
+        },
+        {
+          "id": "corpus-f5-sideband-call",
+          "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+          "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+          "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+          "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52"
+        }
+      ],
+      "materialised_input": null,
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "corpus-f5-rule-lifetime",
+      "canonical_question_id": null,
+      "case_id": null,
+      "question": "Does binding change at load, attachment, or each invocation when an isolated provider rule is replaced or detached?",
+      "controls": "Retain old/new exact provider and caller inputs, ordered administrative operations, attachment and reached event. Fresh calls and active frames are different questions.",
+      "source_sites": [
+        {
+          "id": "corpus-f5-partition-call",
+          "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+          "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+          "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+          "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1"
+        },
+        {
+          "id": "corpus-f5-sideband-call",
+          "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+          "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+          "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+          "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52"
+        }
+      ],
+      "materialised_input": null,
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    },
+    {
+      "id": "corpus-f5-storage-context",
+      "canonical_question_id": null,
+      "case_id": null,
+      "question": "Which local/static::/qualified cells do rule-procedure calls read or write across caller and provider rules?",
+      "controls": "Distinct sentinels and read/write pairs, TMM/unit/connection IDs, independent connections and explicit lifecycle. Do not assume a C Tcl namespace model.",
+      "source_sites": [
+        {
+          "id": "corpus-f5-partition-call",
+          "source_url": "https://github.com/JuergenMang/f5-irules-json/blob/a8d9e0ffa7f4227f8696523f1551e304025b467a/test-json.irule#L16",
+          "revision": "a8d9e0ffa7f4227f8696523f1551e304025b467a",
+          "file_sha256": "24976c8c6c0a7f32029dd2baa25b8549c0b01c069a3c146146a8cbe315d71ade",
+          "selected_range_sha256": "5b807185d10955bd66d17353abee590c8d5c3109b3ea89454fb3091bdca168b1"
+        },
+        {
+          "id": "corpus-f5-sideband-call",
+          "source_url": "https://github.com/pwhitef5/simple-sideband/blob/95b13e0e323919330cabe1dcbba7bb966173b9cd/simple_sideband.irul#L177",
+          "revision": "95b13e0e323919330cabe1dcbba7bb966173b9cd",
+          "file_sha256": "758aa35acc8e11defb54adec57c1f01d221972b413bf5d17935d520501ccd225",
+          "selected_range_sha256": "6d17b54f829cd2f203372f1cebe744bb909f62d472095ce49a5c4a9dc102be52"
+        }
+      ],
+      "materialised_input": null,
+      "contexts": {
+        "tmsh-cli-script": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-implementation": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-RULE_INIT": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-procedure": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "tmm-traffic-event": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "appliance-stock-tclsh": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "icall": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        },
+        "iapp-apl": {
+          "status": "not-tested",
+          "load": "not-tested",
+          "reached": null,
+          "runtime": "not-tested",
+          "answer_record": null
+        }
+      },
+      "exact_existing_answer": null
+    }
+  ]
+}

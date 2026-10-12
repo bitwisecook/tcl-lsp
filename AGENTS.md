@@ -150,6 +150,11 @@ owner-shaped implementation without updating the contract and its gate.
 [shared-utility-contracts-rust.md](docs/design/contracts/shared-utility-contracts-rust.md).
 For name representations, lookup context and consumer boundaries, read
 [name-handling.md](docs/design/contracts/name-handling.md).
+Maintain the [wild-pattern catalogue](experiments/name-handling/patterns/README.md)
+when discovering a naming idiom or adding oracle evidence. Link actual source
+provenance, positive/adversarial experiment inputs and each oracle's scoped
+result. An unanswered provider or unreached lookup stays explicit; existing
+canonical proof records remain the semantic evidence authority.
 
 ### WASM command parity
 

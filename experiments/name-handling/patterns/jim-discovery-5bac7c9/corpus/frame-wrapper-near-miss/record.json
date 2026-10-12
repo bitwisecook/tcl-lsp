@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "127d842c27de156c499e770fd057659217b2041df5094093ca089eb40081ecd0",
+  "stdout_sha256": "edcbbf55ad40d93aab29ceac9b8750a0c24ef2990c2fd1f911656ddf482489fc",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss",
+  "setup_code": "0",
+  "setup_result": "outer",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "original",
+  "question_options": "-code 0 -level 0",
+  "case_id": "frame-wrapper-near-miss",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+  "source_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

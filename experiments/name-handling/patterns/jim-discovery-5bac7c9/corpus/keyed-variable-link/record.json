@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "ae80cad2f7b30aa46cba2419c3640b58d5c386a354ecac955cf15e76808f77ee",
+  "stdout_sha256": "b4a9ec377afa85678665efd6c669783baf14e9534a55765ecd1c54ac72df25fd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link",
+  "setup_code": "0",
+  "setup_result": "changed",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "changed",
+  "question_options": "-code 0 -level 0",
+  "case_id": "keyed-variable-link",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+  "source_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/ensemble-prefix-map/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "c41919066565ff551d0d1689ac7fa3e576c90fc18d0835432f3562625353bc56",
+  "stdout_sha256": "157ea1f3d78174b9db98978087c6da68ee84e54773efa994113c5b545f257b67",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/ensemble-prefix-map",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"ensemble command ?-automap prefix?\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{namespace ensemble} nshelper.tcl 158 {ensemble nh -automap nh:: -command facade -map {send {::nh::emit {a b}}}} {} {} 3 {{namespace ensemble} create -command facade -map {send {::nh::emit {a b}}}}} -errorcode NONE",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "case_id": "ensemble-prefix-map",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+  "source_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "setup-failed-question-unreached"
+}

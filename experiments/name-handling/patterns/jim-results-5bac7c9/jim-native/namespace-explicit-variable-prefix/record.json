@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/namespace-explicit-variable-prefix/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "ad11a76ca2a121c6858d524013b2caf4325d5be3eba849ef4193b635dbde1eb9",
+  "stdout_sha256": "8e188c510d9a82b581ef666bb12f0205749f8c16e9ae8397be3c52169621e087",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/namespace-explicit-variable-prefix",
+  "setup_code": "0",
+  "setup_result": "emit",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "local {a b} {{c d}}",
+  "question_options": "-code 0 -level 0",
+  "case_id": "namespace-explicit-variable-prefix",
+  "suite": "jim-native",
+  "source": "experiments/name-handling/patterns/jim-probes/namespace-explicit-variable-prefix.tcl",
+  "source_sha256": "293c36c8f41cc13539af690753841c4738df9cc7a2c118f08f190174275e76ba",
+  "adaptation": "separate authored Jim syntax question; does not replace a corpus or Wiki question",
+  "status": "returned-value"
+}

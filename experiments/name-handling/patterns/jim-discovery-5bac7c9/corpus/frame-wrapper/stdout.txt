@@ -1,0 +1,7 @@
+FIELD setup_code 30
+FIELD setup_result 6f75746572
+FIELD setup_options 2d636f64652030202d6c6576656c2030
+FIELD question_code 30
+FIELD question_result 6368616e676564
+FIELD question_options 2d636f64652030202d6c6576656c2030
+JIMTEST {verbose 0 numpass 0 stoponerror 0 template 0 numfail 0 numskip 0 numtests 0 reported 0 failed {} source input.tcl}

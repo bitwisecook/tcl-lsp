@@ -160,6 +160,10 @@ builders, intervening mutation, conditional definitions and cross-file order.
 Retain real-oracle programs and outcomes for semantic claims. Review rejected
 patterns to improve coverage rather than relaxing the proof required for edits
 or optimisations. See [the pattern acceptance matrix](../../../experiments/name-handling/case-catalogue.md#dynamic-pattern-acceptance).
+The [wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
+retains inspected examples, experiment sources and per-oracle evidence. Maintain
+it alongside new naming findings; a source example or another provider's result
+cannot answer an unexecuted semantic question.
 
 Discover and prioritise patterns using the maintained corpus in
 [docs/CORPUS.md](../../CORPUS.md), its authoritative pinned manifest/fetcher,

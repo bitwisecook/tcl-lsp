@@ -114,9 +114,11 @@ near-miss errors.
 These observations establish the reduced Tcl semantics. They do not measure
 current LSP/compiler/runtime consumer conformance. Random object-command IDs
 in setup results are retained raw and are unsuitable as expected values for
-regressions. Latest Jim and BIG-IP have not executed these corpus reductions;
-their status in this capture is explicitly pending. An oracle built for another
-experiment does not establish this corpus lane's results without these inputs.
+regressions. This C capture contains no Jim or BIG-IP answer. The
+[maintained catalogue](README.md) links the separately retained
+[latest Jim observations](jim-results-5bac7c9/README.md), including original
+setup failures and distinct Jim-native controls. Exact-case BIG-IP answers
+remain pending in the [appliance bundle](f5/README.md).
 
 ## Shared-owner acceptance and consumer tests
 

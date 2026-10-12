@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "b3fef6b3943b5ffed9725e7744720934c787384259e512cffbad90eacdf47b5d",
+  "stdout_sha256": "1df2f64e9c3a6c91eee321d11779dfce8c4a6e7a7c78bdf51c5876b342087186",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss",
+  "setup_code": "0",
+  "setup_result": "::nh::two words",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "invalid command name \"::nh::two\"",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+  "case_id": "string-prefix-near-miss",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+  "source_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "capability-rejection"
+}

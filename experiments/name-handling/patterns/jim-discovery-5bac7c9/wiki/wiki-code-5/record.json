@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-5/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "2a6f83f01f9ce2447c3b82a0a3df813803f87467f9e2e955ecf1e3cbbcc666c9",
+  "stdout_sha256": "9f8b5c78359483042c1f46a7aa78fed52f17522bdab4a3a5002cda8b82e11592",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-5",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "can't read \"x\": no such variable",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {set x}} -errorcode NONE",
+  "case_id": "wiki-code-5",
+  "suite": "wiki",
+  "description": "namespace name may denote a recreated namespace",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "recreated",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "raised-error",
+  "question_sha256": "10e0cf7eb6e731a2c6d566c1e03eaa28cef117a46cfff97704aabd0b0e3a2926"
+}

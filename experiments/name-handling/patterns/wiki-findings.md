@@ -62,8 +62,12 @@ Wiki examples themselves or an upstream test-suite file were executed.
 test IDs and skip constraints. TclOO is unavailable in these stock 8.4/8.5
 builds; seven OO cases skip there. The `{*}` case also skips on 8.4. One of the
 mutually exclusive legacy/modern `unknown` cases skips on each release. Skips
-provide no oracle answer. Jim and F5 remain pending for this specific probe set;
-C results establish expectations only for C.
+provide no oracle answer. C results establish expectations only for C.
+[Latest Jim captures](jim-results-5bac7c9/README.md) retain each exact inner
+question in a fresh Jim process and the unchanged C suite's harness refusal;
+these channels are distinct. The [maintained catalogue](README.md) joins those
+outcomes to the C cases. Exact-case F5 answers remain pending in the
+[appliance bundle](f5/README.md).
 
 The retained [discovery run](wiki-results/discovery/provenance.json) contains the
 initial 28-case hypotheses and failures before correction. It established that

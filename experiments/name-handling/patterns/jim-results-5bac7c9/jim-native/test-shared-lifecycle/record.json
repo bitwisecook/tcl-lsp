@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/test-shared-lifecycle/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "e104cfd42bafed4c3f2757ebe6b595f633f6584150501bd2415a79f0c2089a9e",
+  "stdout_sha256": "e1d88183827575cffbb7f0a48ebba88c358288b46f6880fbb84eddabcffdce6e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/test-shared-lifecycle",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "{{a b} {a b}} 0 1 0",
+  "question_options": "-code 0 -level 0",
+  "case_id": "test-shared-lifecycle",
+  "suite": "jim-native",
+  "source": "experiments/name-handling/patterns/jim-probes/test-shared-lifecycle.tcl",
+  "source_sha256": "43e4345b373d12be73d1e14f3a8519e6ab4910bdd71acd8f5a575eebed184fdc",
+  "adaptation": "separate authored Jim syntax question; does not replace a corpus or Wiki question",
+  "status": "returned-value"
+}

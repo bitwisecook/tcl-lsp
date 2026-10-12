@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-2/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "d9133567a688f363e647c158db1211e117a4cc5cdd532f4dd9e02f474c2c2720",
+  "stdout_sha256": "21fad504756a9888bfd26db4c8a7c80fb8a0174cdc620949b9a13afe6556077d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-2",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "1",
+  "question_options": "-code 0 -level 0",
+  "case_id": "wiki-factory-2",
+  "suite": "wiki",
+  "description": "braced factory body does not capture loop local",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "1",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "returned-value",
+  "question_sha256": "0215d5f939847599850e8cb9753db0848246c65d94b3e3ae2310e8b804bfc5e3"
+}

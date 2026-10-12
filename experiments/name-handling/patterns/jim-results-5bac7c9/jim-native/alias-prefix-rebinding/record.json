@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/alias-prefix-rebinding/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "1bc4b3c1f6355ad6fdd268eb8f4a567e6db39c2b25efc4cad1b29349fd333471",
+  "stdout_sha256": "6cb3c0b194f4ef1c338eca76dbd8bd4d38beca436fbd1ac7a9097ce73369ee8e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/alias-prefix-rebinding",
+  "setup_code": "0",
+  "setup_result": "::nh::emit",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "{::nh::emit {a b}} {replacement {a b} {c d}}",
+  "question_options": "-code 0 -level 0",
+  "case_id": "alias-prefix-rebinding",
+  "suite": "jim-native",
+  "source": "experiments/name-handling/patterns/jim-probes/alias-prefix-rebinding.tcl",
+  "source_sha256": "db9a66d479363928e35698c4139dd319266bae21cf1d1f3148bb340b7e8a6b72",
+  "adaptation": "separate authored Jim syntax question; does not replace a corpus or Wiki question",
+  "status": "returned-value"
+}

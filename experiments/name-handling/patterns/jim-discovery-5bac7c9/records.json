@@ -1,0 +1,1307 @@
+[
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/alias-prefix-lifetime/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "081e7222b6325c60339a8ebbdf867a9b089bf55226ba7e263e68029ac8daf02e",
+    "stdout_sha256": "be00a961f9f56fada283de004cc8e76abd3437b19b505885302b83f195f2fa44",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/alias-prefix-lifetime",
+    "setup_code": "1",
+    "setup_result": "wrong # args: should be \"interp\"",
+    "setup_options": "-code 1 -level 0 -errorinfo {{} {} 2 {interp alias {} ::nh::local {} ::nh::emit {a b}}} -errorcode NONE",
+    "question_code": "not-run",
+    "question_result": "",
+    "question_options": "",
+    "case_id": "alias-prefix-lifetime",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/alias-prefix-lifetime.tcl",
+    "source_sha256": "df216bde176a5cffd243686f194b847288989fe5bd9d6ea673ad001b82b8d0e7",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "setup-failed-question-unreached"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "5c5b6897e895bae31c8dec5626144aa2974b4b061431087b2b6d60a9bfa266ef",
+    "stdout_sha256": "d117390e4b3b521a4ee77795b7e13942b90657f019c4d7db036e96d7321caa75",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation",
+    "setup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "replacement",
+    "question_options": "-code 0 -level 0",
+    "case_id": "computed-binding-mutation",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+    "source_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "85db44ec1484380a0a1af8cc8aafa028c13b1234030a9ae213330d1a5ae61222",
+    "stdout_sha256": "6c1de69c01e75c28ab5c71218135ba7db6582af588cd568f25d971916d738859",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-qualified",
+    "setup_code": "0",
+    "setup_result": "::nh::emit",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "first",
+    "question_options": "-code 0 -level 0",
+    "case_id": "computed-qualified",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/computed-qualified.tcl",
+    "source_sha256": "ffc3676bf10f635260cd172a740b2828e5a5bc3d9f7cabeabb0d83474fc18773",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/ensemble-prefix-map/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "c41919066565ff551d0d1689ac7fa3e576c90fc18d0835432f3562625353bc56",
+    "stdout_sha256": "157ea1f3d78174b9db98978087c6da68ee84e54773efa994113c5b545f257b67",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/ensemble-prefix-map",
+    "setup_code": "1",
+    "setup_result": "wrong # args: should be \"ensemble command ?-automap prefix?\"",
+    "setup_options": "-code 1 -level 0 -errorinfo {{namespace ensemble} nshelper.tcl 158 {ensemble nh -automap nh:: -command facade -map {send {::nh::emit {a b}}}} {} {} 3 {{namespace ensemble} create -command facade -map {send {::nh::emit {a b}}}}} -errorcode NONE",
+    "question_code": "not-run",
+    "question_result": "",
+    "question_options": "",
+    "case_id": "ensemble-prefix-map",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/ensemble-prefix-map.tcl",
+    "source_sha256": "98642416ca6f6e1c13016047dbffe38a9484853053d6080717504d21151f86b5",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "setup-failed-question-unreached"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "38984dad3654e5a35b1f8f8a4ee7cbcd7f361095fc95039ff550954e9ce29c63",
+    "stdout_sha256": "a8f24d2e9351db1deebc5c78ad78fe9fdee6c0b33c352d2cc84605e0bc3a22b4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "can't read \"name\": no such variable",
+    "question_options": "-code 1 -level 0 -errorinfo {nh::red {} 2 {} {} {} 1 ::nh::red} -errorcode NONE",
+    "case_id": "factory-body-near-miss",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+    "source_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "raised-error"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "0f4e738bf2d97398f25361583467649d0d3ffea2f6866925c256d4e55bb70f99",
+    "stdout_sha256": "e67f423ff88077d9c4e0fba6a7be3d876c6cca30818b3d76fa59910188f47235",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "red blue",
+    "question_options": "-code 0 -level 0",
+    "case_id": "finite-factory",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+    "source_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "127d842c27de156c499e770fd057659217b2041df5094093ca089eb40081ecd0",
+    "stdout_sha256": "edcbbf55ad40d93aab29ceac9b8750a0c24ef2990c2fd1f911656ddf482489fc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper-near-miss",
+    "setup_code": "0",
+    "setup_result": "outer",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "original",
+    "question_options": "-code 0 -level 0",
+    "case_id": "frame-wrapper-near-miss",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/frame-wrapper-near-miss.tcl",
+    "source_sha256": "c08d6f8d4a0ef7a8593c06a98694d4246fddacc1303d8e2fc42f2f8df6a91737",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "2fcde193d8b8384d162c587e54309e48e5906030207deb6670bc4459ebf4db32",
+    "stdout_sha256": "da535965b46cf58f0df601897dfba1332ba734dc470558fd2bed95a85375f040",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/frame-wrapper",
+    "setup_code": "0",
+    "setup_result": "outer",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "changed",
+    "question_options": "-code 0 -level 0",
+    "case_id": "frame-wrapper",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/frame-wrapper.tcl",
+    "source_sha256": "a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "ae80cad2f7b30aa46cba2419c3640b58d5c386a354ecac955cf15e76808f77ee",
+    "stdout_sha256": "b4a9ec377afa85678665efd6c669783baf14e9534a55765ecd1c54ac72df25fd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/keyed-variable-link",
+    "setup_code": "0",
+    "setup_result": "changed",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "changed",
+    "question_options": "-code 0 -level 0",
+    "case_id": "keyed-variable-link",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/keyed-variable-link.tcl",
+    "source_sha256": "26dbe7907554c64b132864d88ecf57364b4d07b5d7fbdc76476c7e03eca1b2c8",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "a7c39ad003395ecfe32d7befca64704b8bc304ae7fc06c2ff3dada732dbe2134",
+    "stdout_sha256": "fbeba1375a1dbe4152a422f5ea9f38e6e3e143bfcabd017461084a2d7e1061d2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/list-prefix",
+    "setup_code": "0",
+    "setup_result": "{::nh::two words} {a b}",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "{a b} {c d}",
+    "question_options": "-code 0 -level 0",
+    "case_id": "list-prefix",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/list-prefix.tcl",
+    "source_sha256": "0e78dd9a470c668e4d6442da226cd1b69fc3aae94d825dabdaa5941b6b51d0c9",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "returned-value"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "0ee88c78458d2e4b2c726b4f2da80fed88b9c8a96f05ff8a1db64b9ec45ca922",
+    "stdout_sha256": "5f8a26f5fcb92d739ab8b5fe4ff3d1c9da5823728a7026d41e86c761ddb0471f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/namespace-captured-prefix",
+    "setup_code": "0",
+    "setup_result": "emit",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "can't read \"::nh::prefix\": no such variable",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+    "case_id": "namespace-captured-prefix",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/namespace-captured-prefix.tcl",
+    "source_sha256": "1f8466594d1658164afeea1a9924b38c5e1194319bed5cd7a48654b666d01958",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "raised-error"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-prefix-deleted-near-miss/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "981f3cb2fbfd38d106dacd49a9b08681c2292bfe3846a369e7142592f13aa53f",
+    "stdout_sha256": "4fc7f3dc3940b27902b196ef572ffddeee68d0656f495bb3d7a06128088d76f3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-prefix-deleted-near-miss",
+    "setup_code": "1",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+    "question_code": "not-run",
+    "question_result": "",
+    "question_options": "",
+    "case_id": "oo-prefix-deleted-near-miss",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/oo-prefix-deleted-near-miss.tcl",
+    "source_sha256": "8857299e75900aa1b4ced6d746612871ae686eb06c8d81074659cc5964258a54",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "setup-failed-question-unreached"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-self-prefix/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "ea1531f0ca4fa5820e4c196d3b1ff7196f02f1466b39fc05553112b2e509f5f2",
+    "stdout_sha256": "4fc7f3dc3940b27902b196ef572ffddeee68d0656f495bb3d7a06128088d76f3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-self-prefix",
+    "setup_code": "1",
+    "setup_result": "invalid command name \"oo::class\"",
+    "setup_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+    "question_code": "not-run",
+    "question_result": "",
+    "question_options": "",
+    "case_id": "oo-self-prefix",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+    "source_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "setup-failed-question-unreached"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "b3fef6b3943b5ffed9725e7744720934c787384259e512cffbad90eacdf47b5d",
+    "stdout_sha256": "1df2f64e9c3a6c91eee321d11779dfce8c4a6e7a7c78bdf51c5876b342087186",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/string-prefix-near-miss",
+    "setup_code": "0",
+    "setup_result": "::nh::two words",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"::nh::two\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+    "case_id": "string-prefix-near-miss",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/string-prefix-near-miss.tcl",
+    "source_sha256": "0d068108e0d3c22b24b647f7a17d15ab1d1f1420f2653ad3b1609011e4665620",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "capability-rejection"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "d18f206f55294f1bbbeeb433106d1a49730e5a5c0b2b51fd6490be7ea45bae2e",
+    "stdout_sha256": "8a72b2fc30feef2a425213546e931027c36c502b22fae9eeb2cd03a47d7a7c00",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/tcltest-shared-lifecycle",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "can't read \"::nh::observed\": no such variable",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+    "case_id": "tcltest-shared-lifecycle",
+    "suite": "corpus",
+    "source": "experiments/name-handling/patterns/probes/tcltest-shared-lifecycle.tcl",
+    "source_sha256": "4628fa2b9ae6d73d1e485c2767a45b9e7df69cd219454f05cf8f451af0b1aa35",
+    "adaptation": "none; final source line is question, preceding lines are setup",
+    "status": "raised-error"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "3e11f4a00bf2e9c10626880cfb6119ac70337a7b532bb73933e17143a787c062",
+    "stdout_sha256": "0364902d53bf61e5aa9b38fe08a40bcb570469b0b6994ecd071042fd73f37fa4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "{x; error injected} {a b}",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-prefix-1",
+    "suite": "wiki",
+    "description": "list prefix preserves embedded data",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "{x; error injected} {a b}",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "246cbc6bb0a37ae16dc6b29b71a70cdf1b4740de3096f94f48532693fb085a80"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "824ad2b9584de6d6366f569afbf8735796fbbee4f5e30a7c6544792b67b5d917",
+    "stdout_sha256": "833b3854e260c3d7da8e699744cfcf478221a3a4d43824b02802d8aece575127",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "extra script",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-prefix-2",
+    "suite": "wiki",
+    "description": "script and list prefix treat newline differently",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "extra script",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "03fdbfa4e1d6021c2cb12faaf70c6dc2887d8708650a56fef99564c890f99b1a"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-3/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "453d20da3ca5280c2072a76256eeb756d977bd83eb37661769aff8bf558018c3",
+    "stdout_sha256": "33326385997defc90d6683612fced2cb3b9f40e823c50d2ed1ad66ceb42e74b2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-prefix-3",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "actual",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-prefix-3",
+    "suite": "wiki",
+    "description": "builder spelling alone cannot prove list construction",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "actual",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "c36886f547d215e927fe011c3eaab06724421907560da89b6059cdd1c2ef4d07"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "bdb0c7a10c3fd13a62782f73498dff607b7373e9eb6235a5d68d120d56ddfcc7",
+    "stdout_sha256": "25289094e66b4c20b0767547189c1b075cdd7f8a9cc563929a9c5310b48c6eed",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "local fixed {a b}",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-code-1",
+    "suite": "wiki",
+    "description": "namespace code captures command lookup namespace",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "local fixed {a b}",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "ca09948c06919605859337ea73bf174c184f76df9046d59ce2b7c52c28ba6d29"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "cc4d4d257e8a58e174c30aa0dc65a5b38c234982a09ee76dd7afa48eb2047923",
+    "stdout_sha256": "9f8b5c78359483042c1f46a7aa78fed52f17522bdab4a3a5002cda8b82e11592",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "can't read \"x\": no such variable",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {set x}} -errorcode NONE",
+    "case_id": "wiki-code-2",
+    "suite": "wiki",
+    "description": "captured namespace does not capture a proc local",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "namespace",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "raised-error",
+    "question_sha256": "5819fea5ea7582719d5f3de8cb081e868cfec4d808fb3e79a37b1c6a28eb2d17"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-3/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "0f803f63b8ea3e17dda36fc19f73878161162cf031f65c16627a58884e15b8c8",
+    "stdout_sha256": "c1664403eb2b0ffcf619d2556ce826506bed3e6ecc785465f53c147e57e342b6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-3",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "replacement",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-code-3",
+    "suite": "wiki",
+    "description": "captured command spelling observes replacement",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "replacement",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "eced75c68b533480808c21aa24723a1a4a117e0ebefd23e4df1ad6cb8026c28d"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-4/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "e79203aea3b672eaf846dc9b9299752295b44dbc7a8cca4eee177241905b292b",
+    "stdout_sha256": "21fad504756a9888bfd26db4c8a7c80fb8a0174cdc620949b9a13afe6556077d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-4",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "1",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-code-4",
+    "suite": "wiki",
+    "description": "inscope requires a live namespace",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "5b51c5f922afd914b4dbb0b40e841a8d133f37b4098fb82ae83fb65340063ce0"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-5/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "2a6f83f01f9ce2447c3b82a0a3df813803f87467f9e2e955ecf1e3cbbcc666c9",
+    "stdout_sha256": "9f8b5c78359483042c1f46a7aa78fed52f17522bdab4a3a5002cda8b82e11592",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-5",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "can't read \"x\": no such variable",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 1 {set x}} -errorcode NONE",
+    "case_id": "wiki-code-5",
+    "suite": "wiki",
+    "description": "namespace name may denote a recreated namespace",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "recreated",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "raised-error",
+    "question_sha256": "10e0cf7eb6e731a2c6d566c1e03eaa28cef117a46cfff97704aabd0b0e3a2926"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-6/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "fffd1c9801c71ec5fb730c2fd232ec202c31857b72e819dd98b80fd50ce96eac",
+    "stdout_sha256": "dac3217d72a216008fc124687a7e6ed7b47bf56e340ce4aa44fb182fb886fe26",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-6",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"::namespace inscope ::n take\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {eval {{::namespace inscope ::n take} fixed}}} -errorcode NONE",
+    "case_id": "wiki-code-6",
+    "suite": "wiki",
+    "description": "legacy unknown repairs nested namespace code",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "fixed",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "ece6b6f0517dc9b571ba54588ef864164b00eadab990d2d0ea1600899c46b3c1"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-7/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "ad65206cb3130d5ebd126460c08393ca24f2b4e790a1ce7cf9df2336fb70a050",
+    "stdout_sha256": "21fad504756a9888bfd26db4c8a7c80fb8a0174cdc620949b9a13afe6556077d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-7",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "1",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-code-7",
+    "suite": "wiki",
+    "description": "modern unknown rejects nested namespace code",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "cd557297f05653f1bc754aeea6a70e2604022dfd937382fa48fd5851e9f63975"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "24bf60d54ee57e9200a3ce12c1a15989e2a86e007c6724ec3c70a244d8828cdf",
+    "stdout_sha256": "d663d0e1a57c1c7e51df70cfa08ef2426c05e2713272b9a4e657a91e3ba58ebf",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "alpha beta",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-factory-1",
+    "suite": "wiki",
+    "description": "finite factory substitutes constant body data",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "alpha beta",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "6b8873146f43283e06e9940804c98892b5eacbdc9df4078a985390af1bd864e2"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "d9133567a688f363e647c158db1211e117a4cc5cdd532f4dd9e02f474c2c2720",
+    "stdout_sha256": "21fad504756a9888bfd26db4c8a7c80fb8a0174cdc620949b9a13afe6556077d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-factory-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "1",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-factory-2",
+    "suite": "wiki",
+    "description": "braced factory body does not capture loop local",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "0215d5f939847599850e8cb9753db0848246c65d94b3e3ae2310e8b804bfc5e3"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "8e0bb41df97be61e8b5f4146619efd48e14efc93fc55ff083a4b8bb2b7dcff33",
+    "stdout_sha256": "a3bfc2a90f030756d247bf065195be296de57d876a3481e4dbbc6093d1b809f5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "wrong # args: should be \"interp\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 4 {interp alias {} alias {} n::take fixed}} -errorcode NONE",
+    "case_id": "wiki-alias-1",
+    "suite": "wiki",
+    "description": "alias target name rebinds while import retains command",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "{replacement fixed} {old fixed}",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "raised-error",
+    "question_sha256": "849374a76c53907c157ebe6d750e63009525c1400205315f84ccd01abbcbe4fe"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "65c2db0c9e3bdb109fd91e16110e8a8472175222cc1c4936440aa5310131e931",
+    "stdout_sha256": "e88dda6bab90c2d02623ea2693d37ead898cf7df985a4d5bd589fbf0e52ecf52",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "wrong # args: should be \"interp\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {interp create helper}} -errorcode NONE",
+    "case_id": "wiki-alias-2",
+    "suite": "wiki",
+    "description": "alias target interpreter owns lookup",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "helper",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "raised-error",
+    "question_sha256": "dc4610dfc8337e8f8136cf8b71437c4ab2acbe59857d3a5f0a3e534843f573c9"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-rename-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "8ca65cac08016e62da6f5610594f18dcd24a26b52b1c28ac8ee14291dcefb2d9",
+    "stdout_sha256": "23919560191f47aaaa791d6bbafea6d2427b0ae508a122d93e58ea36bb52db04",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-rename-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "two",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-rename-1",
+    "suite": "wiki",
+    "description": "renaming a proc changes its namespace context",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "two",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "968a7fccc427a5af3049a43b74305caa54f3396f427a4180420e264f28af87ae"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "c773fe4edb149a55f4c66dca8bf05eb21a7d4a902fda2e6f2ce4b6cdb1f14ec1",
+    "stdout_sha256": "c2d339bfa8d62187d6e55c2a13c48f540314ab43daa98c4c0a03a10dcefabb06",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "changed",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-upvar-1",
+    "suite": "wiki",
+    "description": "explicit level supports digit-leading names",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "changed",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "8b052b441c08ddf9226a35ab3021b334dc07b3ddf29205065e682bd13bf9ec6d"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "d3437f7b0eeb1efc4b9d5301756c04eb256d8f64cd25aae22ef16641b43c134b",
+    "stdout_sha256": "b385828b0baf7f88b40a3b7202208c950268fbf55447872a1dea445a4ba24813",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "0",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-upvar-2",
+    "suite": "wiki",
+    "description": "implicit level parsing changes across releases",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "0",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "d068023b628fdf01b73dcc97ccb8519992f5aadb93b9fb701c98414521cb9373"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-3/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "ad4498b2fe40f01719dcf4563491847f6f3b2bc7cd57f1bba9ed55d5e7409d92",
+    "stdout_sha256": "c2d339bfa8d62187d6e55c2a13c48f540314ab43daa98c4c0a03a10dcefabb06",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-3",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "changed",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-upvar-3",
+    "suite": "wiki",
+    "description": "frame-forwarding wrapper links the caller variable",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "changed",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "71d774bc2a7951cf3fae1648f48240a912aae7d9658c91b5a0b1c85235d4f39b"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-4/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "5e664e6c8dc0cf291fd9c78084bd7b4d239b941780377a85be682434efce4e8a",
+    "stdout_sha256": "1a49dee36a47eedfd03c09230f8b2d1f013dcbfcf9251e5cd860c337a29c39bd",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-4",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "old",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-upvar-4",
+    "suite": "wiki",
+    "description": "naive wrapper creates a link in its own frame",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "old",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "bacdc48977fab4af10a9eb5835bdd16341bbc28960cd9e574e682484a5d5e070"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-variable-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "f07500371db6ad2023dfff81fcb62fd616437e63fe56d38ab5496d946d06c28a",
+    "stdout_sha256": "664a5574950ec60bbd66e13d268894c720357c36d8d69da3a1ad39d5c2961a9b",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-variable-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "b 0",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-variable-1",
+    "suite": "wiki",
+    "description": "variable alternates names and assigned values",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "b 0",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "d8ed2547c30b0fffaccae75f4d51d80524006fe19080b848ddfab322a472a576"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-global-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "be40c0c18dbc09f90742464ca959263d5b7250ca945c04a024ca8e59e7d8ab5a",
+    "stdout_sha256": "469bdfea273e936592dacaac94301295f8e03ccc11a2f7f9c42078911daa3da0",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-global-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "global",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-global-1",
+    "suite": "wiki",
+    "description": "global wrapper must execute declaration in caller",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "global",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "4b67847e3270dad24148e3bca56b2d29f2850fe7e18d3d61e23429ac64cb6d5f"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-autoload-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "43b2e60d6090325d81d30cdb29e07c7c64b53b907a55a35e2c426af3be9d77df",
+    "stdout_sha256": "71df7983e8b2eb8281fb45733adc52f4296c1a802269bd06bf3dffa8f9739a71",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-autoload-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"::late\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {}} -errorcode NONE",
+    "case_id": "wiki-autoload-1",
+    "suite": "wiki",
+    "description": "a missing command may load from auto_index",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "{} loaded ::late",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "eb18a41fd2779270c24270fe4cc64e4f2bc33fdf54927bdcfa5d2241d98a78a1"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-unknown-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "ddb5b41ebc2ae74b710c676825b1c10d582c0ef22a4f2dc32edbd5c47cabc059",
+    "stdout_sha256": "7d40d6593877884c605acad19fd7f58d4bf58d0c22cbc723fe8bcf208bf77909",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-unknown-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "0",
+    "question_result": "{} {absent fixed}",
+    "question_options": "-code 0 -level 0",
+    "case_id": "wiki-unknown-1",
+    "suite": "wiki",
+    "description": "unknown can make an absent head executable",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "{} {absent fixed}",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "returned-value",
+    "question_sha256": "f97b0ab6db362a7e0035c231d137f688f5af57943c445fb7240590cc97b54586"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-1/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "4973b298417a5b33c997379850de21973fae520a9bba9a1e32a07133f465a51b",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-1",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-1",
+    "suite": "wiki",
+    "description": "namespace code preserves private my method dispatch",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1 fixed",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "e01b9934bdf4d343bc49d895e9cb6faead173e4acd8f7fb67a903aa0bc757f0f"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-2/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "265b8b6f87460e3971e6954c49d4412feda1b8c1d4b43c43ebe1962b23866e7f",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-2",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-2",
+    "suite": "wiki",
+    "description": "object deletion invalidates captured my callback",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "703c6a1bdf134d62eff050a1ac01c6a1b15cecbcd06c3256a17d1ba04a4fde66"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-3/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "8df96d03689d83faba991ca1b0e8a8a015b5e4dec5fe6e4100ee311bb6523458",
+    "stdout_sha256": "5cc6aa6a593a080239f25bc2849fc35bbc8096e210a290bb236d7f5356add234",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-3",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {}} -errorcode NONE",
+    "case_id": "wiki-oo-3",
+    "suite": "wiki",
+    "description": "forward target observes command replacement",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "replacement fixed",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "166f230f5fd3d760a6d6b78fddb0677ef97c374424e62f43f104ac83e4385a6a"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-4/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "c40b1deaf20828e82f11ab155c83545abf1b8f7a01e2c5c037f2ae3635f3416f",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-4",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-4",
+    "suite": "wiki",
+    "description": "metaclass methods can define class methods dynamically",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "generated",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "f5c355189b030891fff379a3d60a79baf4473c1129175dae8d20cf36d2fe56ad"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-5/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "f1231fd6d53602874c8c7b5170fb2d937dacf1408a8931cd0885a213f2d86384",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-5",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-5",
+    "suite": "wiki",
+    "description": "metaclass can override new to return a non-object",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "ordinary 0",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "5e2398ce03349dfdcae5397ae00a19f34eb4fc66ad6c14da09387f1fd843ee38"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-6/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "355794674a1ecc5cc96ccfe3e81b49db2c94d6df48905223827be8b3a473b2ae",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-6",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-6",
+    "suite": "wiki",
+    "description": "forward my resolves an internal method",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "1 internal",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "43e17f48b7ba23e04289a5f157459bb0536c73fd64e885f7f27107293a55c7cb"
+  },
+  {
+    "process_exit_code": 0,
+    "timed_out": false,
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-7/input.tcl"
+    ],
+    "environment": {
+      "LC_ALL": "C"
+    },
+    "input_sha256": "5cb1316ebcfa293980c89a04ad561ab83a2cafec07f9e17e3c10961ae2dc70eb",
+    "stdout_sha256": "71bcfc8f28602a1a994ce502acfa68eab5e3cc3c474680ecffa057e12e82eed4",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-oo-7",
+    "setup_code": "0",
+    "setup_result": "",
+    "setup_options": "-code 0 -level 0",
+    "question_code": "1",
+    "question_result": "invalid command name \"oo::class\"",
+    "question_options": "-code 1 -level 0 -errorinfo {{} {} 2 {}} -errorcode NONE",
+    "case_id": "wiki-oo-7",
+    "suite": "wiki",
+    "description": "method replacement resets explicit export",
+    "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+    "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+    "c_tcl9_expected": "old 1",
+    "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+    "status": "capability-rejection",
+    "question_sha256": "52b77a646bfc6ae12c4c21c9e1328146e40c688fdfed13dff46ccf33ca46d662"
+  }
+]

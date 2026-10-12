@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "5c5b6897e895bae31c8dec5626144aa2974b4b061431087b2b6d60a9bfa266ef",
+  "stdout_sha256": "d117390e4b3b521a4ee77795b7e13942b90657f019c4d7db036e96d7321caa75",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/computed-binding-mutation",
+  "setup_code": "0",
+  "setup_result": "::nh::emit",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "replacement",
+  "question_options": "-code 0 -level 0",
+  "case_id": "computed-binding-mutation",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/computed-binding-mutation.tcl",
+  "source_sha256": "ae795042629d3c183046643d75a55fe312404afee3d085ce1c0e3e6793afe3f2",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

@@ -1,0 +1,185 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Capture original pattern questions on upstream Jim in fresh processes."""
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+HERE = Path(__file__).resolve().parent
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def literal(value):
+    return "[binary format H* " + value.encode().hex() + "]" if value else "{}"
+
+
+def capture(binary, script, dest, timeout, environment):
+    dest.mkdir(parents=True, exist_ok=False)
+    (dest / "input.tcl").write_text(script)
+    with tempfile.TemporaryDirectory(prefix="jim-pattern-") as work:
+        try:
+            result = subprocess.run(
+                [str(binary), str(dest / "input.tcl")], cwd=work,
+                env=environment, capture_output=True, timeout=timeout, check=False,
+            )
+            stdout, stderr, exit_code = result.stdout, result.stderr, result.returncode
+            timed_out = False
+        except subprocess.TimeoutExpired as exc:
+            stdout, stderr, exit_code = exc.stdout or b"", exc.stderr or b"", None
+            timed_out = True
+    (dest / "stdout.txt").write_bytes(stdout)
+    (dest / "stderr.txt").write_bytes(stderr)
+    row = {"process_exit_code": exit_code, "timed_out": timed_out,
+           "command": [str(binary), str(dest / "input.tcl")],
+           "environment": {"LC_ALL": environment["LC_ALL"]},
+           "input_sha256": digest(dest / "input.tcl"),
+           "stdout_sha256": digest(dest / "stdout.txt"),
+           "stderr_sha256": digest(dest / "stderr.txt"),
+           "capture": str(dest.relative_to(ROOT))}
+    for line in stdout.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("FIELD "):
+            _, field, data = line.split(" ", 2)
+            row[field] = bytes.fromhex(data).decode("utf-8", errors="replace") if data != "{}" else ""
+    return row
+
+
+def question_driver(tree, setup, question):
+    return """source __HARNESS__
+set setup __SETUP__
+set question __QUESTION__
+set setup_code [catch $setup setup_result setup_options]
+set question_code not-run
+set question_result {}
+set question_options {}
+if {!$setup_code} {
+    set question_code [catch $question question_result question_options]
+}
+foreach field {setup_code setup_result setup_options question_code question_result question_options} {
+    binary scan [set $field] H* bytes
+    puts [list FIELD $field $bytes]
+}
+puts [list JIMTEST [array get ::testinfo]]
+""".replace("__HARNESS__", literal(str(tree / "tests/testing.tcl"))).replace(
+        "__SETUP__", literal(setup)).replace("__QUESTION__", literal(question))
+
+
+def classify(row):
+    if row["timed_out"]:
+        return "timeout"
+    if "setup_code" not in row:
+        return "driver-failed"
+    if row["setup_code"] != "0":
+        return "setup-failed-question-unreached"
+    if row["question_code"] == "0":
+        return "returned-value"
+    result = row["question_result"]
+    if result == 'invalid command name "oo::class"' or result == 'wrong # args: should be "interp"':
+        return "capability-rejection"
+    return "raised-error"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tree", type=Path, default=ROOT / "tmp/jimtcl-oracle")
+    parser.add_argument("--dest", type=Path, required=True)
+    args = parser.parse_args()
+    tree, dest = args.tree.resolve(), args.dest.resolve()
+    dest.mkdir(parents=True, exist_ok=False)
+    binary = tree / "jimsh"
+    environment = dict(os.environ, LC_ALL="C")
+    for key in ("TCL_LIBRARY", "TCLLIBPATH"):
+        environment.pop(key, None)
+    rows = []
+    for probe in sorted((HERE / "probes").glob("*.tcl")):
+        setup, question = probe.read_text().rstrip().rsplit("\n", 1)
+        row = capture(binary, question_driver(tree, setup, question), dest / "corpus" / probe.stem, 15, environment)
+        row.update(case_id=probe.stem, suite="corpus", source=str(probe.relative_to(ROOT)), source_sha256=digest(probe), adaptation="none; final source line is question, preceding lines are setup")
+        row["status"] = classify(row)
+        (dest / "corpus" / probe.stem / "record.json").write_text(json.dumps(row, indent=2) + "\n")
+        rows.append(row)
+    for probe in sorted((HERE / "jim-probes").glob("*.tcl")):
+        setup, question = probe.read_text().rstrip().rsplit("\n", 1)
+        row = capture(binary, question_driver(tree, setup, question), dest / "jim-native" / probe.stem, 15, environment)
+        row.update(case_id=probe.stem, suite="jim-native", source=str(probe.relative_to(ROOT)), source_sha256=digest(probe),
+                   adaptation="separate authored Jim syntax question; does not replace a corpus or Wiki question")
+        row["status"] = classify(row)
+        (dest / "jim-native" / probe.stem / "record.json").write_text(json.dumps(row, indent=2) + "\n")
+        rows.append(row)
+    c_binary = ROOT / "tmp/tcl9.0.4/unix/tclsh"
+    extraction = """package require tcltest
+rename ::tcltest::test ::tcltest::original_test
+proc ::tcltest::test {id description args} {
+    array set options $args
+    set body $options(-body)
+    if {[llength $body] != 2 || [lindex $body 0] ne "isolated"} {error "unexpected isolation body"}
+    set question [lindex $body 1]
+    foreach value [list $id $description $question $options(-result)] {
+        binary scan $value H* hex
+        puts $hex
+    }
+}
+rename ::tcltest::cleanupTests ::tcltest::original_cleanup
+proc ::tcltest::cleanupTests {} {}
+source __SOURCE__
+""".replace("__SOURCE__", literal(str(HERE / "wiki-probes.tcl")))
+    c_environment = dict(environment, TCL_LIBRARY=str(ROOT / "tmp/tcl9.0.4/library"))
+    extracted = capture(c_binary, extraction, dest / "wiki-extraction", 15, c_environment)
+    lines = (dest / "wiki-extraction/stdout.txt").read_text().splitlines()[1:]
+    if extracted["process_exit_code"] or len(lines) != 120:
+        raise RuntimeError("Wiki extraction failed; inspect retained capture")
+    for index in range(0, len(lines), 4):
+        case_id, description, question, expected = [bytes.fromhex(line).decode() for line in lines[index:index + 4]]
+        row = capture(binary, question_driver(tree, "", question), dest / "wiki" / case_id, 15, environment)
+        row.update(case_id=case_id, suite="wiki", description=description,
+                   source=str((HERE / "wiki-probes.tcl").relative_to(ROOT)), source_sha256=digest(HERE / "wiki-probes.tcl"),
+                   c_tcl9_expected=expected, adaptation="execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed")
+        row["status"] = classify(row)
+        (dest / "wiki" / case_id / "question.tcl").write_text(question + "\n")
+        row["question_sha256"] = digest(dest / "wiki" / case_id / "question.tcl")
+        (dest / "wiki" / case_id / "record.json").write_text(json.dumps(row, indent=2) + "\n")
+        rows.append(row)
+    raw = capture(binary, "source " + literal(str(HERE / "wiki-probes.tcl")) + "\n", dest / "original-wiki-suite", 15, environment)
+    (dest / "original-wiki-suite/record.json").write_text(json.dumps(raw, indent=2) + "\n")
+    (dest / "records.json").write_text(json.dumps(rows, indent=2) + "\n")
+    provenance = {"captured_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tree, text=True).strip(),
+                  "describe": subprocess.check_output(["git", "describe", "--tags", "--always"], cwd=tree, text=True).strip(),
+                  "binary_sha256": digest(binary), "configure_log_sha256": digest(tree / "config.log"),
+                  "harnesses": {name: digest(tree / name) for name in ("tcltest.tcl", "tests/testing.tcl")},
+                  "runner_sha256": digest(Path(__file__)), "case_count": len(rows),
+                  "meaning": "observations of C-authored questions on upstream Jim; no C expected value is asserted as Jim conformance",
+                  "wiki_extractor_binary_sha256": digest(c_binary)}
+    (dest / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+    (dest / "configure-log.txt").write_bytes((tree / "config.log").read_bytes())
+    (dest / "runner-original.txt").write_bytes(Path(__file__).read_bytes())
+    print(json.dumps({suite: {status: sum(row["suite"] == suite and row["status"] == status for row in rows) for status in sorted({row["status"] for row in rows})} for suite in ("corpus", "wiki", "jim-native")}, indent=2))
+
+
+if __name__ == "__main__":
+    main()

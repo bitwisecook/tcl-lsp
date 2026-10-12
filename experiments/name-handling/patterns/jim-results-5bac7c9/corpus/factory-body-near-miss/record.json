@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "38984dad3654e5a35b1f8f8a4ee7cbcd7f361095fc95039ff550954e9ce29c63",
+  "stdout_sha256": "a8f24d2e9351db1deebc5c78ad78fe9fdee6c0b33c352d2cc84605e0bc3a22b4",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/factory-body-near-miss",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "can't read \"name\": no such variable",
+  "question_options": "-code 1 -level 0 -errorinfo {nh::red {} 2 {} {} {} 1 ::nh::red} -errorcode NONE",
+  "case_id": "factory-body-near-miss",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/factory-body-near-miss.tcl",
+  "source_sha256": "a6cab17e3a2ba03a60ba081432b5c149230a68eb35fbd2539c1669eecedb993b",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "raised-error"
+}

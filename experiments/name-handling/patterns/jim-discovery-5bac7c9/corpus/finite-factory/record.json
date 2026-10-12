@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "0f4e738bf2d97398f25361583467649d0d3ffea2f6866925c256d4e55bb70f99",
+  "stdout_sha256": "e67f423ff88077d9c4e0fba6a7be3d876c6cca30818b3d76fa59910188f47235",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/finite-factory",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "red blue",
+  "question_options": "-code 0 -level 0",
+  "case_id": "finite-factory",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/finite-factory.tcl",
+  "source_sha256": "e75e738e510e62153032991e4fd3b4f07b0ade059edf9ed15dfe9cfb715d1597",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "returned-value"
+}

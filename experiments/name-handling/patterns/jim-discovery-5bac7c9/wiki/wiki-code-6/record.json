@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-6/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "fffd1c9801c71ec5fb730c2fd232ec202c31857b72e819dd98b80fd50ce96eac",
+  "stdout_sha256": "dac3217d72a216008fc124687a7e6ed7b47bf56e340ce4aa44fb182fb886fe26",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-code-6",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "invalid command name \"::namespace inscope ::n take\"",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {eval {{::namespace inscope ::n take} fixed}}} -errorcode NONE",
+  "case_id": "wiki-code-6",
+  "suite": "wiki",
+  "description": "legacy unknown repairs nested namespace code",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "fixed",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "capability-rejection",
+  "question_sha256": "ece6b6f0517dc9b571ba54588ef864164b00eadab990d2d0ea1600899c46b3c1"
+}

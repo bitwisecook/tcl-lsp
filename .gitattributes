@@ -9,6 +9,8 @@ experiments/name-handling/patterns/probes/** -whitespace
 experiments/name-handling/patterns/results/** -whitespace
 experiments/name-handling/patterns/wiki-results/** -whitespace
 experiments/name-handling/patterns/wiki-subject-results/** -whitespace
+experiments/name-handling/patterns/jim-results-*/** -whitespace
+experiments/name-handling/patterns/jim-discovery-*/** -whitespace
 rust/tcl-registry/tests/data/native_corpus_naming_patterns/*.txt -whitespace
 rust/tcl-registry/tests/data/native_wiki_naming_patterns/*.txt -whitespace
 scripts/dev/bigip-probes/resolution-2286/evidence/** -whitespace

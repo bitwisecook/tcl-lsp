@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-1/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "c773fe4edb149a55f4c66dca8bf05eb21a7d4a902fda2e6f2ce4b6cdb1f14ec1",
+  "stdout_sha256": "c2d339bfa8d62187d6e55c2a13c48f540314ab43daa98c4c0a03a10dcefabb06",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-upvar-1",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "changed",
+  "question_options": "-code 0 -level 0",
+  "case_id": "wiki-upvar-1",
+  "suite": "wiki",
+  "description": "explicit level supports digit-leading names",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "changed",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "returned-value",
+  "question_sha256": "8b052b441c08ddf9226a35ab3021b334dc07b3ddf29205065e682bd13bf9ec6d"
+}

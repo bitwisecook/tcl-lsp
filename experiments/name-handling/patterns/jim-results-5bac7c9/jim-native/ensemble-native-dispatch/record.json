@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/ensemble-native-dispatch/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "fbea6d8e39becdf23f690d8ab703ec0614b40b903caaa85153634a41b2828f96",
+  "stdout_sha256": "63f706256f59b461e1b3cb59cb75485d1bbc543c07df1e648b4bfd7c7ea70a88",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/jim-native/ensemble-native-dispatch",
+  "setup_code": "0",
+  "setup_result": "nh::send",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "{old {a b} {c d}} {replacement {a b} {c d}}",
+  "question_options": "-code 0 -level 0",
+  "case_id": "ensemble-native-dispatch",
+  "suite": "jim-native",
+  "source": "experiments/name-handling/patterns/jim-probes/ensemble-native-dispatch.tcl",
+  "source_sha256": "b07cd2dc1c94adc22bd7b730e7f98f3e2140f5ad59b74759245e15dc8f58ac97",
+  "adaptation": "separate authored Jim syntax question; does not replace a corpus or Wiki question",
+  "status": "returned-value"
+}

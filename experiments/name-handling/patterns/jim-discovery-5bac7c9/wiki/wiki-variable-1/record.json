@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-variable-1/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "f07500371db6ad2023dfff81fcb62fd616437e63fe56d38ab5496d946d06c28a",
+  "stdout_sha256": "664a5574950ec60bbd66e13d268894c720357c36d8d69da3a1ad39d5c2961a9b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-variable-1",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "0",
+  "question_result": "b 0",
+  "question_options": "-code 0 -level 0",
+  "case_id": "wiki-variable-1",
+  "suite": "wiki",
+  "description": "variable alternates names and assigned values",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "b 0",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "returned-value",
+  "question_sha256": "d8ed2547c30b0fffaccae75f4d51d80524006fe19080b848ddfab322a472a576"
+}

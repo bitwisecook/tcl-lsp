@@ -4,6 +4,10 @@ Use maintained real-world code and the Tcl Wiki to discover familiar naming
 idioms, their variants and counterexamples. Source prevalence determines
 usefulness; real oracle observations establish runtime semantics. Static
 consumer tests establish which conclusions the available evidence permits.
+The [maintained pattern catalogue](patterns/README.md) joins inspected sources,
+executable positive/adversarial questions and C/Jim/F5 results. Keep that index
+current when adding sites or observations; source-only findings and unanswered
+contexts must remain visible.
 
 ## Existing source owners
 

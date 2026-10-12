@@ -14,6 +14,7 @@ Existing command/variable/namespace vectors live in
 | [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
 | [case-catalogue.md](case-catalogue.md) | Exact case IDs, semantic questions and consumer coverage |
 | [pattern-sources.md](pattern-sources.md) | Maintained corpus and Tcl Wiki discovery, provenance and held-out validation |
+| [patterns/README.md](patterns/README.md) | Maintained wild-pattern catalogue: sources, experiments, per-oracle results and unanswered questions |
 | [patterns/corpus-findings.md](patterns/corpus-findings.md) | Pinned corpus sites, reduced observations and bounded recogniser requirements |
 | [patterns/wiki-findings.md](patterns/wiki-findings.md) | Actually read Wiki sources, positive/adversarial probes and existing owner mappings |
 | [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |

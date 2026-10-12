@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-10-12T13:10:53.598201+00:00",
+  "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "describe": "0.84-9-g5bac7c9",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "configure_log_sha256": "3b1aff3d81b63a6b5575fa9844212e1c15ee72d01cbd63322de5140ca162710a",
+  "harnesses": {
+    "tcltest.tcl": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+    "tests/testing.tcl": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3"
+  },
+  "runner_sha256": "4bed8e90f7d2972ec9bc40d97394039a15933bd655546310c7e0bb98fb60d187",
+  "case_count": 45,
+  "meaning": "observations of C-authored questions on upstream Jim; no C expected value is asserted as Jim conformance",
+  "wiki_extractor_binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965"
+}

@@ -1,0 +1,30 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-2/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "65c2db0c9e3bdb109fd91e16110e8a8472175222cc1c4936440aa5310131e931",
+  "stdout_sha256": "e88dda6bab90c2d02623ea2693d37ead898cf7df985a4d5bd589fbf0e52ecf52",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/wiki/wiki-alias-2",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "question_code": "1",
+  "question_result": "wrong # args: should be \"interp\"",
+  "question_options": "-code 1 -level 0 -errorinfo {{} {} 3 {interp create helper}} -errorcode NONE",
+  "case_id": "wiki-alias-2",
+  "suite": "wiki",
+  "description": "alias target interpreter owns lookup",
+  "source": "experiments/name-handling/patterns/wiki-probes.tcl",
+  "source_sha256": "bd322efe1bb54898e620354eec8183210d94d74e5c96358d4c58bf36c12e64a5",
+  "c_tcl9_expected": "helper",
+  "adaptation": "execute exact inner script from isolated body in fresh Jim process; C interp isolation and C tcltest constraints are not imposed",
+  "status": "capability-rejection",
+  "question_sha256": "dc4610dfc8337e8f8136cf8b71437c4ab2acbe59857d3a5f0a3e534843f573c9"
+}

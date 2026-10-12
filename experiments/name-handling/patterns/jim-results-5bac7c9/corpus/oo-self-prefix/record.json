@@ -1,0 +1,27 @@
+{
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-self-prefix/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "input_sha256": "ea1531f0ca4fa5820e4c196d3b1ff7196f02f1466b39fc05553112b2e509f5f2",
+  "stdout_sha256": "4fc7f3dc3940b27902b196ef572ffddeee68d0656f495bb3d7a06128088d76f3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "capture": "experiments/name-handling/patterns/jim-results-5bac7c9/corpus/oo-self-prefix",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"oo::class\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 1 {}} -errorcode NONE",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "case_id": "oo-self-prefix",
+  "suite": "corpus",
+  "source": "experiments/name-handling/patterns/probes/oo-self-prefix.tcl",
+  "source_sha256": "91c7ce474b6ca935c80dc1c387fabf17472386350f90e28a4a6d6015e5881d76",
+  "adaptation": "none; final source line is question, preceding lines are setup",
+  "status": "setup-failed-question-unreached"
+}

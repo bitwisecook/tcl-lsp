@@ -6,7 +6,11 @@ Source coordinates, exact revisions and file/range hashes are in
 partition-qualified rule procedures; commented introductory examples were not
 counted. No BIG-IP input has been accepted or run for this supplement.
 
-Use [the existing appliance request](../f5/REQUEST.md) and answer template.
+The maintained [wild-pattern F5 bundle](f5/README.md) maps these five
+questions and every portable corpus/Wiki case to separate context records in
+[questions.json](f5/questions.json). Use its
+[answer template](f5/answer-template.md), together with
+[the existing appliance request](../f5/REQUEST.md).
 Give these observations stable IDs prefixed `corpus-f5-` and retain exact
 materialised rule definitions, attachments, input, version/build/hotfix,
 context, compile/load results, runtime results and error/return options.
@@ -27,6 +31,7 @@ part of the path is a BIG-IP object and whether namespace operations can
 observe any part of the procedure lookup; do not assume ordinary C Tcl
 namespace behaviour.
 
-Latest Jim is also pending for the portable reductions. Where a feature is
-absent, record that capability absence; do not substitute a mock implementation
-and label its answer as an oracle result.
+[Latest Jim observations](jim-results-5bac7c9/README.md) cover the portable
+reductions, retaining setup failures and different APIs explicitly. A rejected
+input cannot answer a later lookup; a mock implementation supplies no oracle
+result. See the [catalogue](README.md) for provider-specific outcomes.
