@@ -70,7 +70,7 @@
 
 use std::borrow::Cow;
 
-use tcl_lexer::script::{WordSpan, group_commands_bytes};
+use tcl_lexer::script::{group_commands_bytes, WordSpan};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source: `Bare` (`foo`, `$x`, `a[b]c`),
@@ -438,8 +438,8 @@ fn script_parse_error(
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word.
 use tcl_lexer::{
-    EXTRA_AFTER_CLOSE_QUOTE,
     word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
+    EXTRA_AFTER_CLOSE_QUOTE,
 };
 
 /// Whether a `Str` token that **opens a brace** never found its closing `}`
@@ -872,11 +872,9 @@ mod tests {
                     assert!(command.start <= command.end && command.end <= source.len());
                     assert!(super::first_parse_error(&command.words, config).is_none());
                     for word in &command.words {
-                        assert!(
-                            source
-                                .windows(word.raw_source.len())
-                                .any(|bytes| bytes == word.raw_source)
-                        );
+                        assert!(source
+                            .windows(word.raw_source.len())
+                            .any(|bytes| bytes == word.raw_source));
                     }
                 }
             }

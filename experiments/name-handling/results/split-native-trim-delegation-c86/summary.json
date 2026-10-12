@@ -1,0 +1,38 @@
+{
+  "source_owner": "rust/tcl-syntax/src/native_string_trim.rs",
+  "source_ready_sha256": "eac1e368381317a8f819e3ae5f30cbb5110ad1923d5cfecbf992c564cebea99f",
+  "tests": [
+    {
+      "label": "runtime",
+      "exit": 0,
+      "test_count": 1,
+      "original_window_count": 216,
+      "seconds": 74.411,
+      "binary_sha256": {
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9": "919d2aa7848b233675e83cc92f122266014c69c7c59a117566063dd72818df67"
+      },
+      "local_package_source_inventory_count": 14997,
+      "changed_sources": []
+    },
+    {
+      "label": "vm",
+      "exit": 0,
+      "test_count": 1,
+      "original_window_count": 216,
+      "seconds": 144.81,
+      "binary_sha256": {
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df": "d81a5cc5d582bf066d5b4ca6fbc3c925cebef935dcedee1679f7eb7c3a5a0e09"
+      },
+      "local_package_source_inventory_count": 12611,
+      "changed_sources": []
+    }
+  ],
+  "coordination_currency": {
+    "count": 18051,
+    "changed": [],
+    "scope": "Conservative coordinator inventory, not full compiled acceptance."
+  },
+  "metadata_failure": "vm-metadata-failed01.json retained; actual VM target then passed offline",
+  "unexecuted": "No broader checks, no all.tcl rerun, no new trim pair oracle. GetDateFields not implemented.",
+  "lease": "Both caches/source freeze released before parent-owned deferred formatting."
+}

@@ -33,16 +33,11 @@ pub fn default_trim_set(version: TclVersion) -> &'static [u8] {
 }
 
 fn unit(policy: NativeTclUtf, version: TclVersion, bytes: &[u8]) -> Option<TclUtfUnit> {
-    let mut unit = policy.decode_unit(bytes, None)?;
-    if version == TclVersion::V8_6
-        && (0xd800..=0xdbff).contains(&unit.value)
-        && let Some(low) = policy.decode_unit(&bytes[unit.width..], Some(unit.value))
-        && (0xdc00..=0xdfff).contains(&low.value)
-    {
-        unit.value = 0x10000 + ((unit.value - 0xd800) << 10) + (low.value - 0xdc00);
-        unit.width += low.width;
+    if version == TclVersion::V8_6 {
+        policy.decode_c86_ucs4(bytes)
+    } else {
+        policy.decode_unit(bytes, None)
     }
-    Some(unit)
 }
 
 fn contains(

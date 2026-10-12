@@ -1,0 +1,23 @@
+{
+  "owner": "rust/tcl-syntax/src/native_string_trim.rs",
+  "before_sha256": "b0285a5d5dd6e8f5a661c5e50b5852492d6b043261b608bd447449ca383614a7",
+  "old_body_sha256": "332444eb8701e2849522dde9adeb7157304916d0817e2ce08086071be39f5c19",
+  "new_body_sha256": "fd406c75108d4bd59374ecf9485a173b06a6b8a20a4f3c4523f1733601d52fc4",
+  "purpose": "C86 unit branch delegates already-reviewed exact body to central decode_c86_ucs4; other releases decode_unit unchanged; no changed fixtures or producer/split changes.",
+  "tests": [
+    "runtime interp::native_body_artifact::native_string_trim::tests::original_string_trim_matches_all_216_native_header_windows",
+    "VM exec::native_string_trim_tests::original_string_trim_matches_all_216_native_header_windows"
+  ],
+  "after_sha256": "eac1e368381317a8f819e3ae5f30cbb5110ad1923d5cfecbf992c564cebea99f",
+  "unchanged_original7": {
+    "rust/tcl-syntax/src/native_tcl_utf.rs": true,
+    "rust/tcl-syntax/src/value.rs": true,
+    "rust/tcl-cmd-core/src/list.rs": true,
+    "runtime/rust/src/value_ops.rs": true,
+    "runtime/rust/src/cmd_list.rs": true,
+    "runtime/rust/src/parse.rs": true,
+    "runtime/rust/src/interp.rs": true,
+    "rust/tcl-cmd-core/tests/data/native_split_c86/rows.tsv": true,
+    "rust/tcl-cmd-core/tests/data/native_split_c86/README.md": true
+  }
+}

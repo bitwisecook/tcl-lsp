@@ -1,0 +1,17 @@
+{
+  "retained_baseline_path": "experiments/name-handling/results/split-native-implementation-c86/validation-03/standalone-source-before.json.gz",
+  "retained_baseline_sha256": {
+    "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+    "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+    "runtime/rust/Cargo.lock": "9d443380f0a6b037dc316d37435bebb070fad74bd740cd965e58674aaac840e4"
+  },
+  "current_sha256": {
+    "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+    "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+    "runtime/rust/Cargo.lock": "9d443380f0a6b037dc316d37435bebb070fad74bd740cd965e58674aaac840e4"
+  },
+  "changed": [],
+  "scope": "Retained source receipt before authorised trim edit compared with current; this is not invented immediate-before metadata capture. Package inventories separately retain current target package manifests."
+}

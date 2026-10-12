@@ -1,0 +1,7 @@
+fn unit(policy: NativeTclUtf, version: TclVersion, bytes: &[u8]) -> Option<TclUtfUnit> {
+    if version == TclVersion::V8_6 {
+        policy.decode_c86_ucs4(bytes)
+    } else {
+        policy.decode_unit(bytes, None)
+    }
+}

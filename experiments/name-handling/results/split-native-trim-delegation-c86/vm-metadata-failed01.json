@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "cargo",
+    "metadata",
+    "--offline",
+    "--format-version",
+    "1",
+    "--manifest-path",
+    "Cargo.toml"
+  ],
+  "exit": 101,
+  "stderr": "vm-metadata-failed01.stderr.txt",
+  "scope": "Broad workspace metadata requested uncached addr2line0.25.1; VM test not attempted. No network used."
+}

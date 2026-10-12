@@ -66,7 +66,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{Interp, obj_bytes};
+use crate::interp::{obj_bytes, Interp};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -688,10 +688,10 @@ impl RuntimeDictionaryChecks {
     fn new(
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-        + 'static,
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> std::rc::Rc<Self> {
@@ -733,10 +733,10 @@ impl RuntimeAppendObjects {
         self,
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-        + 'static,
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> OriginalRuntimeAppendObjects {
@@ -770,10 +770,10 @@ impl RuntimeDictionaryObjects {
         mut self,
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-            *mut TclObj,
-            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-        + 'static,
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> Self {
@@ -1610,7 +1610,7 @@ impl ValueOps for Interp {
 
     fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
         use tcl_registry::native_array_compilation::{
-            NativeArrayExistenceResult, native_array_existence_result,
+            native_array_existence_result, NativeArrayExistenceResult,
         };
         if self.observed_name_policy_selected() {
             return Ok(self.new_bool(present));
@@ -2152,11 +2152,9 @@ mod tests {
                 NativeStringProtocol::C(version),
             ));
             let mut original = receiver.as_ptr();
-            assert!(
-                interp
-                    .try_list_append_in_place(&mut original, &first.as_ptr())
-                    .unwrap()
-            );
+            assert!(interp
+                .try_list_append_in_place(&mut original, &first.as_ptr())
+                .unwrap());
             assert_eq!(original, receiver.as_ptr());
             crate::list::append_prepared_native_elements(
                 original,
