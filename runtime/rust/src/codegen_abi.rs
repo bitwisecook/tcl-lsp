@@ -1040,7 +1040,7 @@ pub unsafe extern "C" fn tcl_codegen_local_bind(
         crate::interp::Code::Error
     } else {
         match bound {
-            Err(error) => operation.interpreter.report_cmd_error(error.into()),
+            Err(error) => operation.interpreter.report_cmd_error(error),
             Ok(()) => {
                 let stored = operation.interpreter.var_set(name, value.as_ptr());
                 if operation.ensure_current().is_err() {

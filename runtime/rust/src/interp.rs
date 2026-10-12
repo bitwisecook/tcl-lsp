@@ -6143,7 +6143,7 @@ impl Interp {
         &self,
         slot: usize,
         name: &[u8],
-    ) -> Result<(), tcl_syntax::value::ValueError> {
+    ) -> Result<(), tcl_cmd_core::CmdError> {
         self.frames.borrow_mut().bind_compiled_slot(slot, name);
         self.refresh_native_local_name_table()
     }
