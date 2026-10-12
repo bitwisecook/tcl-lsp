@@ -52778,7 +52778,7 @@
           "id": "receiver-compatibility602-7a8fd2e912c99e2a",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/minify.rs",
-          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
+          "sha256": "0cd60dbad54665a9790df9eb97887a03d90ae9b8e336e8237afc5aa79653b35d",
           "description": "Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached."
         },
         {
@@ -52792,7 +52792,7 @@
           "id": "receiver-inlay-constructed-source608",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
-          "sha256": "7968ca5ff95dd27ee3d3b22237ec1dcb2f8c1125a4afcf911564216117f31997",
+          "sha256": "d222ae6621fedb422939ae791a3b00d0e24cbeb9a76579876c1cb3b07b7747a8",
           "description": "Current constructed FunctionUnit/scope one-root projection and actual Logical inlay consumer control. No Native identity, source rewrite, executed assertion or provider outcome is attached."
         }
       ],
@@ -53202,7 +53202,7 @@
           "id": "procedure-candidate-source-16",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/lib.rs",
-          "sha256": "eba20677b3652b80fb4273e1e89aec569d5740cc4d3760fa8d42426988dcab45",
+          "sha256": "6ad16dac695833e45052276f0523986885877dc00634e10e06ff81e2d62d93e5",
           "description": "Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority."
         }
       ],
@@ -779307,7 +779307,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
+          "sha256": "9791cc7d94fa2847c053ad6cf02696be82c95467865e735f7350b67f470df2e8",
           "description": "Current original consumer implementation and fixed assertions. No Rust or native execution receipt."
         }
       ],
@@ -780240,7 +780240,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
-          "sha256": "a5e7236f82d302ef563ff4d2148f1389e5fb46c68c6be45a6e7875e7afeabfc1",
+          "sha256": "d222ae6621fedb422939ae791a3b00d0e24cbeb9a76579876c1cb3b07b7747a8",
           "description": "Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied."
         }
       ],
@@ -780368,7 +780368,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
-          "sha256": "a5e7236f82d302ef563ff4d2148f1389e5fb46c68c6be45a6e7875e7afeabfc1",
+          "sha256": "d222ae6621fedb422939ae791a3b00d0e24cbeb9a76579876c1cb3b07b7747a8",
           "description": "Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied."
         }
       ],
@@ -781009,7 +781009,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
+          "sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
           "description": "Current source selection owner, consumer and fixed authored assertions. No Rust or native execution result is implied."
         },
         {
@@ -781990,7 +781990,7 @@
           "id": "receiver-selected-source598-1e935e75fa5d0b0d",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
+          "sha256": "9791cc7d94fa2847c053ad6cf02696be82c95467865e735f7350b67f470df2e8",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -782200,7 +782200,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
+          "sha256": "9791cc7d94fa2847c053ad6cf02696be82c95467865e735f7350b67f470df2e8",
           "description": "Current original consumer implementation and fixed assertions. No Rust or native execution receipt."
         }
       ],
@@ -782679,7 +782679,7 @@
           "id": "receiver-selected-source598-cb1b017a5778eb18",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
+          "sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -784123,7 +784123,7 @@
           "id": "naming-core-selected-variable-cursor-syntax-hover.rs",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover.rs",
-          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
+          "sha256": "5d82ab10ff65d039c0bc822dde9a1e0749a479cebe926f519cfeb6d6d224479c",
           "description": "Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation."
         },
         {
@@ -823731,7 +823731,7 @@
         {
           "id": "written-geometry-2",
           "path": "rust/tcl-syntax/src/lib.rs",
-          "sha256": "eba20677b3652b80fb4273e1e89aec569d5740cc4d3760fa8d42426988dcab45",
+          "sha256": "6ad16dac695833e45052276f0523986885877dc00634e10e06ff81e2d62d93e5",
           "role": "implementation",
           "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
         },
@@ -891675,7 +891675,7 @@
           "id": "shared-name-boundary-source-12",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/lib.rs",
-          "sha256": "eba20677b3652b80fb4273e1e89aec569d5740cc4d3760fa8d42426988dcab45",
+          "sha256": "6ad16dac695833e45052276f0523986885877dc00634e10e06ff81e2d62d93e5",
           "description": "Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome."
         },
         {
@@ -1025372,7 +1025372,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/minify.rs",
-          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
+          "sha256": "0cd60dbad54665a9790df9eb97887a03d90ae9b8e336e8237afc5aa79653b35d",
           "description": "Current source owner and fixed authored assertions; no native or Rust execution receipt."
         }
       ],
@@ -1025867,7 +1025867,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/minify.rs",
-          "sha256": "493dd5396f3fea806a3e3e85f768e0471ad3ea64b5a63a649cd4b45667d215c9",
+          "sha256": "0cd60dbad54665a9790df9eb97887a03d90ae9b8e336e8237afc5aa79653b35d",
           "description": "Current source owner and fixed authored assertions; no native or Rust execution receipt."
         },
         {
@@ -1102454,7 +1102454,7 @@
           "id": "implementation-0",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
+          "sha256": "9791cc7d94fa2847c053ad6cf02696be82c95467865e735f7350b67f470df2e8",
           "description": "Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied."
         }
       ],
