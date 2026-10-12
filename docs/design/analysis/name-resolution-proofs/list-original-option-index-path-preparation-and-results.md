@@ -118,6 +118,7 @@ Measured C Tcl and Jim objects do not establish a BIG-IP/TMM storage or executio
 - `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Actual selected CLI version output, independently bound by the original receipt.
 - `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json). SHA-256 `718684d7ec677c446ab78d7045d732043a8192e973438d4c610da0bfb0e20b03`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
 - `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `original-core-source-control-95f0d3f9b18a` (implementation): [rust/tcl-cmd-core/src/native_option_index.rs](../../../../rust/tcl-cmd-core/src/native_option_index.rs). SHA-256 `9a9fa1100274956570640a8d14af2fc484009c5c773ca3e01f59b84c8ed76b25`. Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows.
 
 ## Source inspection
 
@@ -6620,7 +6621,8 @@ int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-cmd-core/src/native_option_index.rs](../../../../rust/tcl-cmd-core/src/native_option_index.rs), `NativeOptionIndexLayout::local`: Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows.
+- [rust/tcl-cmd-core/src/native_option_index.rs](../../../../rust/tcl-cmd-core/src/native_option_index.rs), `native_option_index::local_layout_source_controls::local_list_store_bound_and_c9_encoding_edges_follow_pinned_source_arithmetic` (linked): Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows.
 
 A named test is a coverage binding, not a claim that it executed.
 

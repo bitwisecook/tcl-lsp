@@ -322537,7 +322537,7 @@
           "id": "original-switch-owner-ac921ffc4530",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion.rs",
-          "sha256": "e8689981536f0f83bcb94012b005f41fba66022924265d5ee461c5f062388ef1",
+          "sha256": "1d177a26bbc9077528bbb2bff91aa891c0ec8e9d35a2b41347832eb2cce4e3e2",
           "description": "Current original compiled switch and scalar source/software stages. Genuine body/frame/header checks and first-cause transport precede later work; definitions provide no execution or Native chronology."
         },
         {
@@ -322586,7 +322586,7 @@
           "id": "authored-consumer645d-67cdd355c23a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact.rs",
-          "sha256": "214486c743502f12431642b69b1791ebb1ad4df4cff49c1fa0c7898cad234092",
+          "sha256": "fc72998354c7bb160c2493695edd24e16c2c8a0fa9797499f063d4258da2efa7",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         },
         {
@@ -322868,6 +322868,83 @@
           "path": "rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs",
           "sha256": "ae1c5e0c5acf0c2b142ef433693cf750edbd1a167568f6868a03362e3db17d0b",
           "description": "Current selected scalar descriptor transport or declared-variable mapping source owner and finite software controls. Authentic captured operation, actual role retirement and first-cause checks retain their distinct purposes; this source pin supplies no executed assertion or Native callback/reference chronology."
+        },
+        {
+          "id": "original-source-consumer-93ae6fc09464",
+          "role": "implementation",
+          "path": "runtime/rust/src/budget.rs",
+          "sha256": "354f558dcdec88e23dcf3f342fc7df3b124b5f12bd33129584e3c606152862ec",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-69cbb7446c03",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "sha256": "125bb67d89ac77a88941f6f0b6e707be2614fe37c0d2465fb2dd3eebba9f3441",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-4a477da09249",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "sha256": "e85789abb501883498841ce7d565a5a07e47f360891aa53404c38c2bd0fb5b4f",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-d3116c8988cf",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "sha256": "5b739e60656a145c6df6ec9fbc8967c9b26d0f02a0ad41c65ec448b52abaa900",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-20e76c25a7fe",
+          "role": "implementation",
+          "path": "runtime/rust/src/cmd_oo/native_method_cache.rs",
+          "sha256": "aab1548a7200c17f45303ff5f090cc0caf9861964acffa248da42f7abb2c42c8",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-480fa275cf1a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp.rs",
+          "sha256": "4ac46b5c7ba4fa757b8d30762f30247e9cb91fde775308bb9040cffeaf6f8124",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-e160aa9765c2",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next.rs",
+          "sha256": "3d86323dc81b473bf482dcb4581e48bad807a884834313b496017b7ae765f9f5",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-3c15883bf5a6",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next/original_stages_tests.rs",
+          "sha256": "dbb8ae803b04ce022eb803b222ea35bc143114deb568aa770ac36636b742fa7b",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-520fb4baa60a",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_command_names.rs",
+          "sha256": "ecdf63632086548ba789c722e44d6d8c924215bf7e1abbfb6c37ab0e2f121b65",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-source-consumer-7e21daab6901",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/original_limit_tick_cfg_tests.rs",
+          "sha256": "e5b926f93200fd67f839da503ca8603168e64817780f56294250d2b2dbb33eac",
+          "description": "Current compiled and ordinary Next original List/Name/context stages or genuine shared counter/clock limit workers and their finite source/software controls. Actual captured operations and reached cleanup preserve typed first cause; source definitions supply no executed assertions or Native callback/reference grants."
+        },
+        {
+          "id": "original-frame-observation-5ada83a256e2",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_arguments.rs",
+          "sha256": "e0a1f255f1fd9b60510dc6d5db59ca890a076ba2b41f3918732e10f56f1b7f86",
+          "description": "Original argument/frame observations retain actual receiver currency, activation and weak frame birth without native references. The same typed failure owner brackets reached callbacks, backing retirement and mandatory cleanup; source definitions grant no Native or executed-test authority."
         }
       ],
       "source_anchors": [],
@@ -323486,6 +323563,41 @@
           "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
           "symbol": "NativeIndexOps::index_integer_result",
           "purpose": "Actual VM C84 Index construction borrows the original numeric scope and ABI for the Long recipe; existing Value ownership and cleanup retain first cause without granting authority from copied descriptor data."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next.rs",
+          "symbol": "Interp::execute_body_next",
+          "purpose": "Retain the original compiled body operation through operand/List stages, actual source-specific late OO entry and reached stack cleanup."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context.rs",
+          "symbol": "OriginalOoNextContext",
+          "purpose": "Observe the actual late selected frame/chain with weak identity and read mutable payload at its reached worker stage, without a Method/native hold."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo.rs",
+          "symbol": "nextto_cmd_with_original",
+          "purpose": "The same existing class-selection/invocation worker consumes genuine ordinary or compiled C original stages; independent authored None remains separate."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_command_names.rs",
+          "symbol": "Interp::resolve_original_command_at_using",
+          "purpose": "The same Name/String/cache kernel forwards optional selected C stages and retains actual failed-worker cause before checks or cleanup; neutral None remains independent."
+        },
+        {
+          "path": "runtime/rust/src/interp.rs",
+          "symbol": "Interp::limit_check_tick",
+          "purpose": "The same real counter and clock limit poller remains available independently of arithmetic backend configuration."
+        },
+        {
+          "path": "runtime/rust/src/budget.rs",
+          "symbol": "Budget::charge_tick",
+          "purpose": "Original budget counters and deadline polling remain unchanged; backend absence does not replace the genuine worker with a no-op."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_arguments.rs",
+          "symbol": "OriginalArgumentFrame",
+          "purpose": "Observe the actual variable-frame activation and weak birth under the retained original argument currency; the compiled BodyListFrame alias uses the same checker without a new owning role."
         }
       ],
       "tests": [
@@ -328192,6 +328304,90 @@
           "selector": "native_oo_variable_mapping::tests::original_mapping_first_role_refusal_stops_hash_and_preserves_mandatory_release",
           "status": "linked",
           "assertion": "A real Rust old-role Drop retains the first typed refusal. Both old roles and every unused incoming role still retire, no key or publication runs, and a later call cannot replace the first cause or acquire another role. This links the actual definition only; it supplies no new Native observation or passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/interp/original_limit_tick_cfg_tests.rs",
+          "selector": "interp::original_limit_tick_cfg_tests::original_limit_tick_unarmed_stays_query_free_in_each_backend_configuration",
+          "status": "linked",
+          "assertion": "The genuine unarmed limit worker remains available in either arithmetic backend configuration, performs no clock or numeric-environment query and preserves its counter and unexceeded state. This definition tests the same real worker, not an expression/loop availability grant."
+        },
+        {
+          "path": "runtime/rust/src/interp/original_limit_tick_cfg_tests.rs",
+          "selector": "interp::original_limit_tick_cfg_tests::original_limit_tick_retains_real_engine_budget_deadline_and_exceeded_state",
+          "status": "linked",
+          "assertion": "A supplied real software Clock drives the existing 4096-tick budget poll to its exact deadline; exceeded state remains sticky without later clock/numeric queries. This links a real counter/clock algorithm definition, not Native timing or a passed assertion."
+        },
+        {
+          "path": "runtime/rust/src/interp/original_limit_tick_cfg_tests.rs",
+          "selector": "interp::original_limit_tick_cfg_tests::original_limit_tick_keeps_native_time_throttle_separate_from_engine_budget",
+          "status": "linked",
+          "assertion": "The same native interpreter time throttle polls its supplied Clock at the original counter boundary, while engine budget exceeded state remains separate and no numeric environment is acquired. Arithmetic absence introduces no no-op or hidden worker."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_next_head_selects_current_context_only_after_c91_string",
+          "status": "linked",
+          "assertion": "An actual C91 helper head updater changes the same entered chain step before late context selection without replacing the variable frame. The existing Next worker selects that current context only after its single head getter, retaining the original operation."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_next_earlier_compiled_route_does_not_read_the_helper_head",
+          "status": "linked",
+          "assertion": "The actual earlier compiled C helper entry reaches its selected Next chain without querying the supplied head updater; C86/C90 fixed-head source order remains distinct from C91 head-before-context selection."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_nextto_selected_context_withdrawal_stops_command_cache_adoption",
+          "status": "linked",
+          "assertion": "During an actual selected class-name String updater, replacing the original OO context or refusing Host stops before command cache adoption and Guest diagnostics. The original operation retains the exact typed cause and prior result through cleanup."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_next_receipt_observes_the_context_without_holding_method_roles_or_freezing_payload",
+          "status": "linked",
+          "assertion": "The late receipt observes a genuinely entered method frame and exact weak chain identity without increasing its strong role count. Legal same-context mutable index/target payload remains readable; descriptive observations issue no Method or Native reference."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_next_missing_context_reports_only_after_its_selected_head_stage",
+          "status": "linked",
+          "assertion": "The actual compiled helper keeps C86/C90 absent-context fixed-head reporting query-free and C91 reporting after one supplied head getter, with the selected context-required Guest fields and unchanged input reference."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_nextto_cache_retirement_checks_the_selected_context_before_adoption",
+          "status": "linked",
+          "assertion": "A real class-name primary free replaces the already selected context during command-cache preparation. The same original receipt refuses before incoming cache adoption, preserving the full cause, prior result and actual one-reference input retirement."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_ordinary_nextto_uses_its_actual_c_command_head_and_class_stage_order",
+          "status": "linked",
+          "assertion": "Actual ordinary C NextTo entry consumes already evaluated argv and keeps its own C86/C90 present-context no-head versus C91 head-before-context order. Class getter Host/context withdrawal preserves the selected receipt and stops the shared cache/presentation worker."
+        },
+        {
+          "path": "runtime/rust/src/cmd_oo/native_context/original_next_stages_tests.rs",
+          "selector": "cmd_oo::native_context::original_next_stages_tests::original_ordinary_nextto_missing_context_reads_the_diagnostic_head_once",
+          "status": "linked",
+          "assertion": "Ordinary C NextTo reaches the actual diagnostic head once after its source-selected absent context stage, preserves CString reporting and TCL OO CONTEXT_REQUIRED, and grants no later context reselection or Native callback chronology."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_oo_next::original_stages_tests::original_next_concat_retains_first_cause_through_reached_operand_cleanup",
+          "status": "linked",
+          "assertion": "The actual compiled Next concatenation adapter uses the same selected List kernel and original body/frame across primary retirement and consumed target/source cleanup. Genuine Host or replaced-frame refusal precedes result continuation; allocation-only observation does not keep the released source header alive."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_oo_next::original_stages_tests::original_next_operand_error_finishes_earliest_body_cleanup_without_later_getter",
+          "status": "linked",
+          "assertion": "A real reached original List primary free retains the exact first Host while both consumed input roles retire. The same earliest body operation refuses a later original getter, with its actual callback and reference counts confined to software observations."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_oo_next/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_oo_next::original_stages_tests::original_compiled_next_and_nextto_keep_selected_list_and_public_results",
+          "status": "linked",
+          "assertion": "Genuine C86/C90/C91 software command ingress executes original Next/NextTo operand expansion and keeps their public List results. Source availability and declared execution coverage supply no new external Native observation."
         }
       ],
       "replay": {
@@ -577463,6 +577659,13 @@
           "path": "runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout",
           "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
           "description": "Actual linked-library patchlevel and, for C, Tcl_GetVersion fields."
+        },
+        {
+          "id": "original-core-source-control-95f0d3f9b18a",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_option_index.rs",
+          "sha256": "9a9fa1100274956570640a8d14af2fc484009c5c773ca3e01f59b84c8ed76b25",
+          "description": "Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows."
         }
       ],
       "source_anchors": [
@@ -577947,8 +578150,21 @@
           "evidence": "source-window-23"
         }
       ],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "rust/tcl-cmd-core/src/native_option_index.rs",
+          "selector": "native_option_index::local_layout_source_controls::local_list_store_bound_and_c9_encoding_edges_follow_pinned_source_arithmetic",
+          "status": "linked",
+          "assertion": "Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-cmd-core/src/native_option_index.rs",
+          "symbol": "NativeOptionIndexLayout::local",
+          "purpose": "Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows."
+        }
+      ],
       "replay": {
         "command": [],
         "limitations": "Replay the unchanged original counted-object probe for all 32 indices, including the actual C8.4 unsupported Guest cases. Preserve the explicit observer holds and actual containing List roles, counted NUL lengths, same-child aliases, original Integer constructor and repeated options. Provider receipts retain exact compile/link/launch vectors, environment, stream hashes, source pins and image identities. Rebuilt bytes require a separate experiment. No unmeasured callback, private-field or Rust assertion is admitted."
@@ -582535,6 +582751,13 @@
           "path": "runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/execute.stdout",
           "sha256": "d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166",
           "description": "Actual same-static-library patchlevel/version fields."
+        },
+        {
+          "id": "original-core-source-control-b9eb348f6351",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_list_numeric.rs",
+          "sha256": "ccd39f95b42badcd2e179d352a5fe1af3748c7718145c22e7cf85b4769a070c5",
+          "description": "The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion."
         }
       ],
       "source_anchors": [
@@ -583079,8 +583302,21 @@
           "evidence": "source-window-26"
         }
       ],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "rust/tcl-cmd-core/src/native_list_numeric.rs",
+          "selector": "native_list_numeric::bounded_comparison_controls::source_selected_unordered_and_defined_subtraction_boundaries_are_explicit",
+          "status": "linked",
+          "assertion": "The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-cmd-core/src/native_list_numeric.rs",
+          "symbol": "sort_order",
+          "purpose": "The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion."
+        }
+      ],
       "replay": {
         "command": [],
         "limitations": "Replay both unchanged original C probes for all32 indices in fresh processes. Retain absence/presence of explicit Exact independently, genuine String/Wide/Double constructors, children sole List holds, caller argvholds, counted six-byte integer and eight-byte real NUL-tail inputs, no preliminary String getter, and exact snapshot order. Receipt vectors/environment/pins/image/stream identities must be joined; rebuilt images need a separate record. No signed-overflow extreme or native callback experiment is included."

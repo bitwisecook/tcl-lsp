@@ -147,6 +147,7 @@ These C Tcl/Jim measured original objects do not establish a BIG-IP/TMM scalar, 
 - `jim-exact647-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Independent selected CLI patchlevel.
 - `jim-exact647-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/receipt.json). SHA-256 `f8f57a037be70479be1955f250a9b93e1ad2bcfb489ac3ba3b5515d948641807`. Separate actual version driver linked to the identical selected static library/header bytes.
 - `jim-exact647-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_numeric645_647/exact647/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual same-static-library patchlevel/version fields.
+- `original-core-source-control-b9eb348f6351` (implementation): [rust/tcl-cmd-core/src/native_list_numeric.rs](../../../../rust/tcl-cmd-core/src/native_list_numeric.rs). SHA-256 `ccd39f95b42badcd2e179d352a5fe1af3748c7718145c22e7cf85b4769a070c5`. The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion.
 
 ## Source inspection
 
@@ -6702,7 +6703,8 @@ static int Jim_LsearchCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-cmd-core/src/native_list_numeric.rs](../../../../rust/tcl-cmd-core/src/native_list_numeric.rs), `sort_order`: The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion.
+- [rust/tcl-cmd-core/src/native_list_numeric.rs](../../../../rust/tcl-cmd-core/src/native_list_numeric.rs), `native_list_numeric::bounded_comparison_controls::source_selected_unordered_and_defined_subtraction_boundaries_are_explicit` (linked): The same pure numeric comparison kernel keeps source-selected NaN search/sort outcomes separate from checked integer-subtraction definedness. Signed extreme overflow refuses instead of inventing a wrapping native comparator result; this source control provides no extreme Native observation, getter/cache authority or passed assertion.
 
 A named test is a coverage binding, not a claim that it executed.
 
