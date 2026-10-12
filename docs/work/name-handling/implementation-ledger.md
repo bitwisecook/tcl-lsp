@@ -30,6 +30,11 @@ a source audit is not an executed test.
 
 ## Consumer acceptance census
 
+Experiment structure: a bounded review is replacing the native-ensemble
+capture's broad working-tree snapshot presentation with discrete questions,
+exact sources and per-oracle/consumer results. Preserve recorded hashes and
+immutable historical captures; do not substitute current edited source.
+
 Every row requires an actual call-site/owner audit and relevant executed checks.
 Existing contracts and proof records are evidence to inspect, not automatic
 completion marks. Unknowns must remain explicit, with useful bounded assistance

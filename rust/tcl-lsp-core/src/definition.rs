@@ -86,26 +86,10 @@ pub struct ProgramExports<'a> {
     pub oracle: &'a dyn NamespaceExportOracle,
 }
 
-/// Everything a call-site resolution consults **besides the document in front
-/// of it** — the context [`resolve_called_proc`] and its helpers carry.
-///
-/// Two facts, both optional, both meaning "keep the document-only answer" when
-/// absent:
-///
-/// * [`registry`](Self::registry) — the dialect's command registry, the
-///   builtin gate. A caller without one keeps the lenient behaviour; there is
-///   no builtin to protect.
-/// * [`program`](Self::program) — the whole-program export oracle. A caller
-///   without one (a single-document unit test, the `tcl` CLI, a buffer the
-///   workspace has not indexed) falls back to the document-only rule: an
-///   in-document export record decides, and its
-///   absence is read as evidence only where this document holds *some* export
-///   for the namespace.
-///
-/// One context rather than two more parameters at each of the fourteen
-/// [`resolve_called_proc`] call sites, and rather than a global: the facts are
-/// per-request, and a global would make a single-document unit test and a
-/// live server disagree about what "no workspace" means.
+/// Request-local compatibility context for [`resolve_called_proc`].
+/// The optional Registry protects builtin bindings. Without a program export
+/// oracle, in-document export records decide; absence is evidence only when
+/// this document records an export for that namespace.
 #[derive(Clone, Copy, Default)]
 pub struct CallResolution<'a> {
     /// The dialect's command registry, when the caller has one.

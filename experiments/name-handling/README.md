@@ -81,6 +81,20 @@ promotion rules below.
 
 ## Capture protocol
 
+Each experiment answers a named, bounded question. Keep a small question document
+with its stable ID, competing outcomes, exact executable inputs and invocation,
+provider/version/context matrix, observed results and limits. Link separate raw
+stdout/stderr and machine-readable result records; keep setup, reached lookup
+and consumer validation distinct. Related cases may share a runner or provider
+manifest, but each case must be independently findable and interpretable.
+
+Build provenance is supporting evidence, not the experiment. Record commit and
+input/source/binary hashes, and retain only necessary scoped source snapshots
+when uncommitted changes affect the executable. Do not capture unrelated working
+tree changes, generated proof indexes or tracking documents in a monolithic
+patch. Existing broad captures must retain their original provenance and limits;
+splitting a patch does not turn it into discrete experiments.
+
 1. Name the question and stable case ID. Record the exact script bytes or
    script path plus SHA-256, environment/context, interpreter/source revision,
    invocation, locale/encoding and relevant build configuration.
