@@ -1,0 +1,188 @@
+{
+  "mode": "READ-ONLY REVIEW; proposed exact renewal allowlist, not applied",
+  "observed_head": "2d1f5a73bf48d252805cbb3b662601fd990e1721",
+  "reviewed_owner_count": 5,
+  "eligible_owner_count": 2,
+  "allowlisted_join_count": 3,
+  "allowlisted_record_count": 3,
+  "rustfmt_version": "rustfmt 1.9.0-stable (48a229ceae 2026-09-01)",
+  "actual_crate_edition": "2024; tcl-registry inherits workspace.package.edition",
+  "rustfmt_argument_vector": [
+    "rustfmt",
+    "--edition",
+    "2024",
+    "--config",
+    "skip_children=true",
+    "--emit",
+    "stdout"
+  ],
+  "rustfmt_source_delivery": "Exact original/current whole-file bytes on stdin; stdout contains source only, no filename wrapper. No repository source was formatted.",
+  "limits": [
+    "No manifest, proof page, source or Git mutation; no Cargo, full proof audit or execution test run.",
+    "Only these five owner files were compared; runtime owners were not compared.",
+    "A missing snapshot is a bounded first-parent recovery failure, not proof that no Git object exists.",
+    "Preconditions must be checked again before any renewal: exact record/evidence/path oldhash and current source newhash.",
+    "Whole-source formatter equivalence does not supply test execution or native provider answers.",
+    "The profiles.rs join on naming.analysis.constructed-key-consumer-projections is a different owner/evidence entry from the separately corrected/excluded LSP joins."
+  ],
+  "file_reviews": [
+    {
+      "path": "rust/tcl-registry/src/definer.rs",
+      "oldhashes": [
+        "d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593"
+      ],
+      "newhash": "7a68a5b501d95a1bb47814348d383d5882e75d62eb58c3358a5f4c4782a8fb19",
+      "head_blob_oid": "5d5cb3887cdd4209c6aadb962765d09c1e92af48",
+      "source_matches_observed_head": true,
+      "affected_record_ids": [
+        "naming.core.original-member-reference-hazard",
+        "naming.tcloo.original-class-relation-candidates",
+        "naming.tcloo.original-property-accessor-source-advice",
+        "naming.tcloo.original-relation-provider-fold-contract"
+      ],
+      "recovered_revision": "274496be42cb2cd2a3b23b30b9af7109ca25e7b0",
+      "original_blob_oid": "550b2762daa1695f8c03bf3dc1cb78bef36655ff",
+      "exact_original_snapshot_sha256_verified": true,
+      "rustfmt_old_sha256": "d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593",
+      "rustfmt_current_sha256": "7a68a5b501d95a1bb47814348d383d5882e75d62eb58c3358a5f4c4782a8fb19",
+      "rustfmt_outputs_identical": false,
+      "raw_tokens_identical": false,
+      "formatted_tokens_identical": false,
+      "comments_and_literal_contents_identical": true,
+      "decision": "declined",
+      "exact_delta": "Test import changed from tcl_dialect::Family to tcl_dialect::model::Family; not whitespace/comment-only and not automatically equivalent."
+    },
+    {
+      "path": "rust/tcl-registry/src/invocation_words.rs",
+      "oldhashes": [
+        "a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c"
+      ],
+      "newhash": "748de37352a7cf1a9bb7cb983d4dbd5e3858edefaed998264e45a6acf9d6eb05",
+      "head_blob_oid": "420a29e52cd748254393240e081a3e494f6d19fd",
+      "source_matches_observed_head": true,
+      "affected_record_ids": [
+        "naming.analysis.selected-scope-alias-role-metadata",
+        "naming.invocation.execution-policy-canonical-point",
+        "naming.invocation.known-native-byte-values",
+        "naming.optimisation.original-source-purpose"
+      ],
+      "recovered_revision": "274496be42cb2cd2a3b23b30b9af7109ca25e7b0",
+      "original_blob_oid": "c0d4842c66955226d2f2979f4f905376e016b096",
+      "exact_original_snapshot_sha256_verified": true,
+      "rustfmt_old_sha256": "a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c",
+      "rustfmt_current_sha256": "748de37352a7cf1a9bb7cb983d4dbd5e3858edefaed998264e45a6acf9d6eb05",
+      "rustfmt_outputs_identical": false,
+      "raw_tokens_identical": false,
+      "formatted_tokens_identical": false,
+      "comments_and_literal_contents_identical": false,
+      "decision": "declined",
+      "exact_delta": "Added Clock ensemble family, NativeEnsembleBootstrap struct, namespace selection and deferred-member method; substantive semantic delta."
+    },
+    {
+      "path": "rust/tcl-registry/src/native_numeric_error/command.rs",
+      "oldhashes": [
+        "f998662eef67311bb4fa54bdc290766f02d77df8e16fa434ac680b751bf35f40"
+      ],
+      "newhash": "0e539e033db434fd68cc41b76679d9a90efdfa75a09ed68df0ddb75322685cb6",
+      "head_blob_oid": "1317b6deaa36d35dbb9d3baa8abcc86631308a0b",
+      "source_matches_observed_head": true,
+      "affected_record_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport",
+        "naming.numeric.io-debug-public-conversion-and-side-effect-order"
+      ],
+      "decision": "declined",
+      "exact_original_snapshot_sha256_verified": false,
+      "exact_delta": "Exact recorded source hash not recovered in the bounded 500-commit first-parent lookup; no semantic-equivalence claim."
+    },
+    {
+      "path": "rust/tcl-registry/src/native_tcloo_bootstrap.rs",
+      "oldhashes": [
+        "87999e2a77a7de8fe5031658c916214bef97472c0b1545946b6cc3affa864045"
+      ],
+      "newhash": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+      "head_blob_oid": "ae6935005119f998777bddf8992f543fdc19a989",
+      "source_matches_observed_head": true,
+      "affected_record_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport"
+      ],
+      "recovered_revision": "8f6e25e5d1200d6a90e2ba92e07ac3bef4fe8683",
+      "original_blob_oid": "2b6bf809f151b97e72420b2b2111c99e53c18c7d",
+      "exact_original_snapshot_sha256_verified": true,
+      "rustfmt_old_sha256": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+      "rustfmt_current_sha256": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+      "rustfmt_outputs_identical": true,
+      "raw_tokens_identical": false,
+      "formatted_tokens_identical": true,
+      "comments_and_literal_contents_identical": true,
+      "decision": "eligible formatting-only owner",
+      "exact_delta": "Line wrapping plus one optional trailing comma in the five-version array; literal/comment contents unchanged and complete rustfmt outputs identical."
+    },
+    {
+      "path": "rust/tcl-registry/src/profiles.rs",
+      "oldhashes": [
+        "4febb31ed0924e7d09ddea1e6ca6b694bad41df8eb09b560df6bb8b53a3dba7d"
+      ],
+      "newhash": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "head_blob_oid": "dbbb46c79fa73e518638a73974451db867c85e71",
+      "source_matches_observed_head": true,
+      "affected_record_ids": [
+        "naming.analysis.constructed-key-consumer-projections",
+        "naming.core.original-registry-source-hover"
+      ],
+      "recovered_revision": "8f6e25e5d1200d6a90e2ba92e07ac3bef4fe8683",
+      "original_blob_oid": "b7f4911790bb36a298d3ef69776a998541deb9ed",
+      "exact_original_snapshot_sha256_verified": true,
+      "rustfmt_old_sha256": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "rustfmt_current_sha256": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "rustfmt_outputs_identical": true,
+      "raw_tokens_identical": true,
+      "formatted_tokens_identical": true,
+      "comments_and_literal_contents_identical": true,
+      "decision": "eligible formatting-only owner",
+      "exact_delta": "Blank-line removal only; raw token streams identical."
+    }
+  ],
+  "allowlist": [
+    {
+      "record_id": "naming.embedding.original-host-publication-and-fact-transport",
+      "evidence_id": "receiver-current642b-fe8f7372cc95c258",
+      "path": "rust/tcl-registry/src/native_tcloo_bootstrap.rs",
+      "oldhash": "87999e2a77a7de8fe5031658c916214bef97472c0b1545946b6cc3affa864045",
+      "newhash": "92330cadfabb7bf9053d10a18bb2e2ea205adeeef9b71dc7546c2735887dce40",
+      "invariant": "How does the Runtime embedding interface authenticate original command-publication ownership and transport exact callback/completion/scalar facts while retaining scope, generation, descriptor origin, storage and host-refusal boundaries?",
+      "review": "Complete exact original/current source canonicalizes identically with the actual crate edition and rustfmt; comments, literal contents and formatted tokens are unchanged, so this file contributes no changed behavior or assertion meaning."
+    },
+    {
+      "record_id": "naming.analysis.constructed-key-consumer-projections",
+      "evidence_id": "receiver-selected-source598-b4b47bc24979d9a6",
+      "path": "rust/tcl-registry/src/profiles.rs",
+      "oldhash": "4febb31ed0924e7d09ddea1e6ca6b694bad41df8eb09b560df6bb8b53a3dba7d",
+      "newhash": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "invariant": "Which shared projection governs literal diagnostic QName grouping versus constructed class/procedure/inventory holders and tails, and what independent producer/source/metadata guards remain necessary before actual lookup, factory or creation reasoning?",
+      "review": "Complete exact original/current source canonicalizes identically with the actual crate edition and rustfmt; comments, literal contents and formatted tokens are unchanged, so this file contributes no changed behavior or assertion meaning."
+    },
+    {
+      "record_id": "naming.core.original-registry-source-hover",
+      "evidence_id": "receiver-selected-source598-fcc49de305f18e82",
+      "path": "rust/tcl-registry/src/profiles.rs",
+      "oldhash": "4febb31ed0924e7d09ddea1e6ca6b694bad41df8eb09b560df6bb8b53a3dba7d",
+      "newhash": "0125fbf167e89c939a871e6ddf2b26593c736ee9dbdd6141e078f5765dbd9249",
+      "invariant": "How can hover preserve current whole-source owners and exact command or operand positions while distinguishing conditional source documentation from runtime identity?",
+      "review": "Complete exact original/current source canonicalizes identically with the actual crate edition and rustfmt; comments, literal contents and formatted tokens are unchanged, so this file contributes no changed behavior or assertion meaning."
+    }
+  ],
+  "blocked": [
+    {
+      "path": "rust/tcl-registry/src/definer.rs",
+      "reason": "Test import changed from tcl_dialect::Family to tcl_dialect::model::Family; not whitespace/comment-only and not automatically equivalent."
+    },
+    {
+      "path": "rust/tcl-registry/src/invocation_words.rs",
+      "reason": "Added Clock ensemble family, NativeEnsembleBootstrap struct, namespace selection and deferred-member method; substantive semantic delta."
+    },
+    {
+      "path": "rust/tcl-registry/src/native_numeric_error/command.rs",
+      "reason": "Exact recorded source hash not recovered in the bounded 500-commit first-parent lookup; no semantic-equivalence claim."
+    }
+  ]
+}
