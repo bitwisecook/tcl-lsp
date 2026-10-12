@@ -3811,3 +3811,42 @@ Runtime queries its existing scalar issuer under the original argument receipt b
 Compiled Next retains the original `BodyObjectOperation` before operand callbacks through the existing List construction/concatenation/member workers and reached stack cleanup. C9.1 reads its actual head String before selecting the OO context; earlier compiled C routes select after operands without that getter. A late weak context/chain receipt supplies original stages to the same class-name String/cache worker. It adds no Method/native hold, and the existing NextTo worker reads mutable context payload after its class lookup. Typed refusal is retained before cleanup and Guest projection; neutral Name/List entry points keep their existing independent purpose.
 
 Ordinary C NextTo keeps its own entry order after argv evaluation: C8.6/C9.0 select context before the absent-context head diagnostic, and C9.1 reads the head before selection. The same weak selected-context receipt guards the existing class String/cache stages, without reselecting an earlier missing context after its diagnostic getter. Authored entry uses the neutral worker.
+
+
+### Original variable cleanup and transferred storage roles
+
+VM variable cleanup uses `vars::VariableRetirement` as the single storage
+coordinator for the existing binding, static, trace-pin, operation, link, key,
+scalar and array-table releases. The neutral arena wrapper preserves its
+ordinary release phases. `OriginalVariableCleanup` separately captures the real
+interpreter, arena allocation, name world, call-frame birth and namespace
+activation together with the entered operation. Its weak observations acquire
+no native Var, key, value or name reference.
+
+The selected driver extracts each actual owning release before a callback and
+performs that release outside storage access. Subsequent pure retirement uses
+only the original physical arena, including parked same-owner cleanup after the
+first typed refusal. Ordinary getters and later publication stop on refusal;
+mandatory trace, pin, binding and table retirement remains tied to its actual
+owner. A callback's current child and genuine replacement arena or table are
+preserved. Operation and taken-trace epilogues release the captured original
+cell and active-trace position rather than the callback's current arena.
+
+The selected C unset phases are independent of the neutral storage wrapper:
+old search handles retire before undefined publication, the detached scalar
+role retires after its unset trace, array elements release their stored scalar
+role while its header remains visible, and the actual old C91 default roles
+retire after the old members and before the table's key drain. The visible
+scalar ticket transfers the existing stored role once; its temporary header
+view is allocation-only. Genuine Jim flat-table teardown retains its own
+selection and stored-role schedule. Neither this driver nor the neutral arena
+wrapper creates a new Native name, trace, procedure-cache or array-operation
+issuer. The dictionary-container mutation and other neutral storage writers
+retain their independently selected workers; fixed command-slot publication
+and whole interpreter teardown are separate contracts.
+
+The six variable-cleanup controls are software ownership/currentness controls
+with genuine core, observer and storage setup. Physical C/Jim source joins
+bound the selected phases; they provide no matching native callback chronology
+or reference-count assertion outcome. Current source-only bindings do not
+attribute earlier owned-image results to these changed workers.

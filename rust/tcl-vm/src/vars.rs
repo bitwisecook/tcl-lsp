@@ -28,6 +28,9 @@ use tcl_runtime_api::FrameLinkOrigin;
 use crate::interp::VarBinding;
 use crate::value::Value;
 
+mod retirement;
+pub(crate) use retirement::VariableRetirement;
+
 /// A name in the already selected activation, resolved anew on each access.
 /// This does not own the variable currently bound to that name.
 #[derive(Clone)]
@@ -48,14 +51,25 @@ pub(crate) struct JimNameLinkOriginal {
 
 /// A name table owns bindings, while the arena owns the cells they identify.
 /// Removing a binding never makes its `VarId` identify a later variable.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub(crate) struct VarTable {
+    birth: Rc<()>,
     bindings: BTreeMap<NameBytes, VarId>,
     native_keys: BTreeMap<NameBytes, Rc<NativeHashEntryKey>>,
     order: RefCell<tcl_core_types::NativeEntryLedger>,
 }
 
+impl Clone for VarTable {
+    fn clone(&self) -> Self {
+        Self { birth: Rc::new(()), bindings: self.bindings.clone(),
+            native_keys: self.native_keys.clone(), order: self.order.clone() }
+    }
+}
 impl VarTable {
+    pub(crate) fn weak_birth(&self) -> std::rc::Weak<()> { Rc::downgrade(&self.birth) }
+    pub(crate) fn has_original_birth(&self, original: &std::rc::Weak<()>) -> bool {
+        original.ptr_eq(&Rc::downgrade(&self.birth))
+    }
     pub(crate) fn new() -> Self {
         Self::default()
     }
@@ -77,12 +91,14 @@ impl VarTable {
         self.bindings.insert(name, cell)
     }
     pub(crate) fn remove(&mut self, name: impl AsRef<[u8]>) -> Option<VarId> {
-        let old = self.bindings.remove(name.as_ref());
-        if old.is_some() {
-            self.order.get_mut().remove(name.as_ref());
-            self.native_keys.remove(name.as_ref());
-        }
-        old
+        self.take_binding(name).map(RemovedVariableBinding::release_key)
+    }
+    /// Extract the actual old table key role before releasing it outside storage access.
+    pub(crate) fn take_binding(&mut self, name: impl AsRef<[u8]>) -> Option<RemovedVariableBinding> {
+        let id = self.bindings.remove(name.as_ref())?;
+        self.order.get_mut().remove(name.as_ref());
+        let key = self.native_keys.remove(name.as_ref());
+        Some(RemovedVariableBinding { id, key })
     }
     pub(crate) fn retain_original_native_key(&mut self, name: &NameBytes, original: Value) -> bool {
         if !self.bindings.contains_key(name) {
@@ -198,6 +214,8 @@ pub(crate) struct VarCell {
     /// Birth identity owned only by the actual cell, independently of arena IDs.
     jim_birth: Rc<()>,
     state: VarState,
+    /// Once-only transfer of the stored scalar role; the visible header is allocation-only.
+    scalar_retirement: Option<Rc<()>>,
     /// The containing array cell and element key, for Tcl's alias reporting.
     /// This remains on a detached element so an `upvar` alias cannot silently
     /// retarget a later same-name element.
@@ -275,6 +293,8 @@ impl VarCell {
 /// Monotonic arena for every variable cell in one interpreter.
 #[derive(Default)]
 pub(crate) struct VarArena {
+    /// Allocation identity follows the actual arena through whole state moves.
+    birth: Rc<()>,
     hash_recipe: std::cell::Cell<Option<tcl_core_types::NativeHashRecipe>>,
     next: u64,
     cells: HashMap<VarId, VarCell>,
@@ -291,6 +311,14 @@ pub(crate) struct NativeArraySearchHandle<'a> {
 }
 
 impl VarArena {
+    pub(crate) fn weak_birth(&self) -> std::rc::Weak<()> {
+        Rc::downgrade(&self.birth)
+    }
+
+    pub(crate) fn has_original_birth(&self, birth: &std::rc::Weak<()>) -> bool {
+        std::rc::Weak::ptr_eq(birth, &Rc::downgrade(&self.birth))
+    }
+
     pub(crate) fn select_hash_recipe(&self, recipe: Option<tcl_core_types::NativeHashRecipe>) {
         if self.hash_recipe.replace(recipe) == recipe {
             return;
@@ -361,6 +389,7 @@ impl VarArena {
             id,
             VarCell {
                 jim_birth: Rc::new(()),
+                scalar_retirement: None,
                 state,
                 parent,
                 bindings: 0,
@@ -535,13 +564,7 @@ impl VarArena {
 
     /// Hash entry destruction releases its key even if aliases retain the Var.
     pub(crate) fn retire_array_element_key(&mut self, id: VarId) {
-        if let Some(cell) = self.cells.get_mut(&id)
-            && let Some(entry) = cell.native_element_key.take()
-            && entry.destruction_owners.get() == 0
-        {
-            let key = entry.original.borrow_mut().take();
-            drop(key);
-        }
+        let _ = self.drive_retirement(VariableRetirement::retire_key(id));
     }
 
     pub(crate) fn record_native_entry(&mut self, id: VarId, binding: VarBinding) {
@@ -739,18 +762,7 @@ impl VarArena {
     }
 
     pub(crate) fn collect_released_statics(&mut self) {
-        let released = std::mem::take(&mut *self.released_statics.borrow_mut());
-        for id in released {
-            let cell = self
-                .cells
-                .get_mut(&id)
-                .expect("retained static cell exists");
-            cell.static_refs = cell
-                .static_refs
-                .checked_sub(1)
-                .expect("static reference underflow");
-            self.collect(id);
-        }
+        let _ = self.drive_retirement(VariableRetirement::collect_statics());
     }
 
     /// Snapshot the value of a native static initializer, including array contents.
@@ -860,6 +872,7 @@ impl VarArena {
         let old_was_array = matches!(cell.state, VarState::Array(_));
         let new_is_array = matches!(state, VarState::Array(_));
         let old = std::mem::replace(&mut cell.state, state);
+        cell.scalar_retirement = None;
         if old_was_array {
             cell.array_default = None;
         }
@@ -876,25 +889,7 @@ impl VarArena {
                 .checked_add(1)
                 .expect("variable link reference count overflow");
         }
-        match old {
-            VarState::Link(target) => {
-                if let Some(target_cell) = self.cells.get_mut(&target) {
-                    target_cell.link_refs = target_cell
-                        .link_refs
-                        .checked_sub(1)
-                        .expect("variable link reference count underflow");
-                }
-                self.note_native_alias_release(target);
-                self.collect(target);
-            }
-            VarState::Array(elements) => {
-                for element in elements.into_values() {
-                    self.retire_array_element_key(element);
-                    self.unbind(element);
-                }
-            }
-            VarState::Undefined | VarState::Scalar(_) | VarState::NameLink(_) => {}
-        }
+        let _ = self.drive_retirement(VariableRetirement::state(old));
         true
     }
 
@@ -949,18 +944,7 @@ impl VarArena {
     /// trace/link shell cancels the search; a generic state replacement does
     /// not carry that operation-level meaning.
     pub(crate) fn unset_state(&mut self, id: VarId) -> Option<VarState> {
-        let attached_parent = self
-            .element_is_attached(id)
-            .then(|| self.element_parent(id).map(|(parent, _)| parent))
-            .flatten();
-        let old = self.take_state(id)?;
-        if let Some(parent) = attached_parent
-            && let Some(parent_cell) = self.cells.get_mut(&parent)
-        {
-            parent_cell.array_revision = parent_cell.array_revision.wrapping_add(1);
-            parent_cell.array_searches.clear();
-        }
-        Some(old)
+        self.drive_retirement(VariableRetirement::unset(id))
     }
 
     /// Detach a cell's current state without releasing bindings owned by an
@@ -968,14 +952,7 @@ impl VarArena {
     /// bindings one at a time because callbacks can observe and mutate the
     /// remaining old cells.
     pub(crate) fn take_state(&mut self, id: VarId) -> Option<VarState> {
-        let cell = self.cells.get_mut(&id)?;
-        let old = std::mem::replace(&mut cell.state, VarState::Undefined);
-        if matches!(old, VarState::Array(_)) {
-            cell.array_default = None;
-            cell.array_revision = cell.array_revision.wrapping_add(1);
-            cell.array_searches.clear();
-        }
-        Some(old)
+        self.drive_retirement(VariableRetirement::detach(id))
     }
 
     /// Follow link cells to the storage cell Tcl operations observe.
@@ -1005,16 +982,7 @@ impl VarArena {
     }
 
     pub(crate) fn unbind(&mut self, id: VarId) {
-        self.collect_released_statics();
-        let cell = self
-            .cells
-            .get_mut(&id)
-            .expect("binding must refer to a live variable cell");
-        cell.bindings = cell
-            .bindings
-            .checked_sub(1)
-            .expect("variable binding count underflow");
-        self.collect(id);
+        let _ = self.drive_retirement(VariableRetirement::unbind(id));
     }
 
     /// Discard a cell that was allocated but never inserted into a name table.
@@ -1041,15 +1009,7 @@ impl VarArena {
     }
 
     pub(crate) fn unpin(&mut self, id: VarId) {
-        let cell = self
-            .cells
-            .get_mut(&id)
-            .expect("pin must refer to a live variable cell");
-        cell.pins = cell
-            .pins
-            .checked_sub(1)
-            .expect("variable pin count underflow");
-        self.collect(id);
+        let _ = self.drive_retirement(VariableRetirement::unpin(id));
     }
 
     pub(crate) fn retain_operation(&mut self, id: VarId) {
@@ -1064,15 +1024,7 @@ impl VarArena {
     }
 
     pub(crate) fn release_operation(&mut self, id: VarId) {
-        let cell = self
-            .cells
-            .get_mut(&id)
-            .expect("operation reference must refer to a live variable cell");
-        cell.operation_refs = cell
-            .operation_refs
-            .checked_sub(1)
-            .expect("variable operation reference count underflow");
-        self.collect(id);
+        let _ = self.drive_retirement(VariableRetirement::release_operation(id));
     }
 
     pub(crate) fn has_operation_refs(&self, id: VarId) -> bool {
@@ -1088,38 +1040,7 @@ impl VarArena {
     }
 
     fn collect(&mut self, id: VarId) {
-        let collectable = self.cells.get(&id).is_some_and(|cell| {
-            cell.bindings == 0
-                && cell.link_refs == 0
-                && cell.pins == 0
-                && cell.operation_refs == 0
-                && cell.static_refs == 0
-        });
-        if !collectable {
-            return;
-        }
-        let Some(cell) = self.cells.remove(&id) else {
-            return;
-        };
-        match cell.state {
-            VarState::Link(target) => {
-                if let Some(target_cell) = self.cells.get_mut(&target) {
-                    target_cell.link_refs = target_cell
-                        .link_refs
-                        .checked_sub(1)
-                        .expect("variable link reference count underflow");
-                }
-                self.note_native_alias_release(target);
-                self.collect(target);
-            }
-            VarState::Array(elements) => {
-                for element in elements.into_values() {
-                    self.retire_array_element_key(element);
-                    self.unbind(element);
-                }
-            }
-            VarState::Undefined | VarState::Scalar(_) | VarState::NameLink(_) => {}
-        }
+        let _ = self.drive_retirement(VariableRetirement::collect(id));
     }
 }
 
@@ -1397,5 +1318,19 @@ mod native_table_order_tests {
             table.clone().keys().cloned().collect::<Vec<_>>(),
             table.keys().cloned().collect::<Vec<_>>()
         );
+    }
+}
+
+/// The actual removed key capsule, not a cloned Native key reference.
+pub(crate) struct RemovedVariableBinding {
+    id: VarId,
+    key: Option<Rc<NativeHashEntryKey>>,
+}
+impl RemovedVariableBinding {
+    pub(crate) fn id(&self) -> VarId { self.id }
+    pub(crate) fn release_key(self) -> VarId {
+        let Self { id, key } = self;
+        drop(key);
+        id
     }
 }

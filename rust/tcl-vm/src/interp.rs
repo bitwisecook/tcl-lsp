@@ -131,6 +131,7 @@ mod selected_frame;
 use namespace_stack::NamespaceResolutionTail;
 mod variable_container;
 mod variable_trace_outcomes;
+mod variable_cleanup;
 
 pub(crate) use jim_local::OriginalJimLocalCommand;
 use native_procedure_artifacts::{CachedProcedureArtifact, ProcedureCacheKey};
@@ -1809,7 +1810,8 @@ struct ResolvedVar {
 /// The direct name-table slot retained by an array operation reference.
 #[derive(Clone, Debug)]
 enum ArrayOperationBinding {
-    Variable(VarBinding),
+    Variable { binding: VarBinding, table: std::rc::Weak<()>,
+        frame: Option<std::rc::Weak<crate::frame::ActivationIdentity>> },
     Element,
 }
 
@@ -3990,8 +3992,8 @@ impl Vm {
             .first_mut()
             .and_then(|global| global.locals.remove(key));
         if let Some(id) = id {
-            self.purge_variable_cell(id);
-            self.var_arena.unbind(id);
+            let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+            original.purge_binding(self, id);
         }
     }
 
@@ -12970,84 +12972,8 @@ impl Vm {
     /// callbacks before selecting the next cell. A callback-created *different*
     /// variable remains in the table and receives its own teardown pass.
     fn teardown_namespace_variables(&mut self, canonical: impl AsRef<[u8]>, id: NsId) {
-        let canonical = canonical.as_ref();
-        if self.jim_variable_lookup() {
-            let prefix = (!canonical.is_empty()).then(|| {
-                let mut prefix = canonical.to_vec();
-                prefix.extend_from_slice(b"::");
-                prefix
-            });
-            let names: Vec<_> = self
-                .var_table(VarTableOwner::Namespace(ROOT_NS))
-                .into_iter()
-                .flat_map(|table| table.keys())
-                .filter(|name| {
-                    prefix
-                        .as_ref()
-                        .is_none_or(|prefix| name.as_bytes().starts_with(prefix.as_slice()))
-                })
-                .cloned()
-                .collect();
-            for name in names {
-                let mut written = b"::".to_vec();
-                written.extend_from_slice(name.as_bytes());
-                let _ = self.unset_var_bytes(&written);
-            }
-            return;
-        }
-        loop {
-            let mut names: Vec<NameBytes> = self
-                .var_table(VarTableOwner::Namespace(id))
-                .into_iter()
-                .flat_map(|table| table.keys().cloned())
-                .collect();
-            names.sort();
-            let Some(simple) = names.into_iter().next() else {
-                break;
-            };
-            let binding = VarBinding {
-                owner: VarTableOwner::Namespace(id),
-                name: (simple.clone()),
-            };
-            let raw = self
-                .var_table(binding.owner)
-                .and_then(|table| table.get(&simple))
-                .copied();
-            let mut written = b"::".to_vec();
-            if !canonical.is_empty() {
-                written.extend_from_slice(canonical);
-                written.extend_from_slice(b"::");
-            }
-            written.extend_from_slice(simple.as_bytes());
-            if let Some(raw) = raw
-                && !matches!(
-                    self.var_arena.get(raw).map(crate::vars::VarCell::state),
-                    Some(Local::Link(_) | Local::NameLink(_))
-                )
-            {
-                let resolved = ResolvedVar {
-                    binding: binding.clone(),
-                    base_id: self.var_arena.resolve(raw),
-                    id: self.var_arena.resolve(raw),
-                    elem: None,
-                };
-                let _ = self.unset_resolved(&written, &resolved);
-            }
-
-            // An unset callback may have recreated this exact cell and added a
-            // new trace. The dying namespace owns both, and C discards them
-            // without a second callback before continuing its table walk.
-            let recreated = self
-                .var_table_mut(binding.owner)
-                .and_then(|table| table.remove(&simple));
-            if let Some(recreated) = recreated {
-                self.purge_variable_cell(recreated);
-                self.var_arena.unbind(recreated);
-            }
-        }
-        if id != ROOT_NS {
-            self.ns_vars.remove(&id);
-        }
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.namespace(self, canonical.as_ref(), id);
     }
 
     /// Tear down one exact namespace token in Tcl's recursive order. C drains
@@ -15453,6 +15379,10 @@ impl Vm {
             Ok(scope) => scope,
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        if let Err(error) = original.check(self) {
+            return crate::command::completion_from_cmd_error(self, error);
+        }
         let here = FrameId(self.current_level());
         let target = match VarStore::array_target_bytes(self, here, name) {
             Ok(target) => target,
@@ -15460,10 +15390,10 @@ impl Vm {
         };
         if self.observed_name_policy_selected() {
             let result = operation(self, &target);
-            return match scope.check(self) {
+            return match original.check(self).and_then(|_| scope.check(self)) {
                 Ok(()) => result,
                 Err(error) => {
-                    drop(result);
+                    let _ = original.in_original(self, |_| drop(result));
                     crate::command::completion_from_cmd_error(self, error)
                 }
             };
@@ -15486,14 +15416,14 @@ impl Vm {
         };
         if let Some(id) = id {
             if let Some(binding) = protected_binding {
-                self.release_array_operation_binding(&binding, id);
+                self.release_array_operation_binding(&binding, id, &original);
             }
-            self.var_arena.release_operation(id);
+            let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
         }
-        match scope.check(self) {
+        match original.check(self).and_then(|_| scope.check(self)) {
             Ok(()) => result,
             Err(error) => {
-                drop(result);
+                let _ = original.in_original(self, |_| drop(result));
                 crate::command::completion_from_cmd_error(self, error)
             }
         }
@@ -15515,67 +15445,33 @@ impl Vm {
         }
         for (level, frame) in self.frames.iter().enumerate() {
             if let Some((name, _)) = frame.local_bindings().find(|(_, raw)| **raw == id) {
-                return Some(ArrayOperationBinding::Variable(VarBinding {
-                    owner: VarTableOwner::Frame(level),
-                    name: (name.clone()),
-                }));
+                return Some(ArrayOperationBinding::Variable { binding: VarBinding {
+                    owner: VarTableOwner::Frame(level), name: name.clone(),
+                }, table: frame.locals.weak_birth(), frame: Some(Rc::downgrade(&frame.activation)) });
             }
         }
         for (&ns, table) in &self.ns_vars {
             if let Some((name, _)) = table.iter().find(|(_, raw)| **raw == id) {
-                return Some(ArrayOperationBinding::Variable(VarBinding {
-                    owner: VarTableOwner::Namespace(ns),
-                    name: (name.clone()),
-                }));
+                return Some(ArrayOperationBinding::Variable { binding: VarBinding {
+                    owner: VarTableOwner::Namespace(ns), name: name.clone(),
+                }, table: table.weak_birth(), frame: None });
             }
         }
         None
     }
 
-    fn release_array_operation_binding(&mut self, binding: &ArrayOperationBinding, id: VarId) {
-        let ArrayOperationBinding::Variable(binding) = binding else {
-            // If the final trace was removed while this element operation held
-            // the cell, Tcl leaves the undefined hash shell attached. It stays
-            // a candidate for later array searches until an explicit unset or
-            // parent teardown removes it.
-            return;
-        };
-        let discard = self.var_arena.is_final_operation_ref(id)
-            && matches!(
-                self.var_arena.get(id).map(crate::vars::VarCell::state),
-                Some(Local::Undefined)
-            )
-            && !self.var_arena.has_link_refs(id)
-            && !self.variable_observers.script_traces.contains_key(&id);
-        if !discard {
-            return;
-        }
-        let removed = self
-            .var_table_mut(binding.owner)
-            .and_then(|table| {
-                (table.get(&binding.name) == Some(&id)).then(|| table.remove(&binding.name))
-            })
-            .flatten();
-        if let Some(raw) = removed {
-            self.const_vars.remove(&id);
-            self.var_arena.unbind(raw);
-        }
+    fn release_array_operation_binding(&mut self, binding: &ArrayOperationBinding, id: VarId,
+        original: &variable_cleanup::OriginalVariableCleanup,
+    ) {
+        original.release_binding(self, binding, id);
     }
 
     /// Remove one unreferenced undefined element shell when its final trace is
     /// removed outside an operation that retains that element. An operation-
     /// retained shell deliberately survives its eventual release.
     fn discard_undefined_array_shell(&mut self, parent: VarId, key: impl AsRef<[u8]>, id: VarId) {
-        let discard = matches!(
-            self.var_arena.get(id).map(crate::vars::VarCell::state),
-            Some(Local::Undefined)
-        ) && !self.var_arena.has_link_refs(id)
-            && !self.var_arena.has_operation_refs(id)
-            && !self.variable_observers.script_traces.contains_key(&id);
-        if discard && let Some(raw) = self.var_arena.array_discard_if(parent, key, id) {
-            self.const_vars.remove(&id);
-            self.var_arena.unbind(raw);
-        }
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.discard_shell(self, parent, key.as_ref(), id);
     }
 
     fn fire_var_traces_from_cell_bytes(
@@ -15641,15 +15537,15 @@ impl Vm {
         taken: Option<TakenVarTraces>,
         located: Option<VarTraceCell>,
     ) -> VariableTraceOutcome {
-        use native_operation_currency::NativeOperationScope;
-        let scope = NativeOperationScope::enter_native(self)?;
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.check_native(self)?;
         let Some(cell) = located.or_else(|| {
             taken.as_ref().map_or_else(
                 || self.trace_cell_bytes(invocation.name),
                 |taken| Some(taken.cell.clone()),
             )
         }) else {
-            scope.check_native(self)?;
+            original.check_native(self)?;
             return Ok(Ok(()));
         };
         let publication_hold =
@@ -15657,11 +15553,11 @@ impl Vm {
         if publication_hold && let Some(id) = cell.id {
             self.var_arena.retain_operation(id);
             let reached = self.publish_authored_static_write(id);
-            let current = scope.check_native(self);
+            let current = original.check_native(self);
             if current.is_err() || reached.is_err() {
-                self.var_arena.release_operation(id);
+                let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
                 current?;
-                scope.check_native(self)?;
+                original.check_native(self)?;
                 return Ok(reached);
             }
         }
@@ -15670,14 +15566,16 @@ impl Vm {
                 .is_some_and(tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::uses_destroyed_cell_callbacks);
         if cell.id.is_some_and(|id| self.active_traces.contains(&id)) && !taken_unset {
             if publication_hold && let Some(id) = cell.id {
-                self.var_arena.release_operation(id);
+                let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
             }
-            scope.check_native(self)?;
+            original.check_native(self)?;
             return Ok(Ok(()));
         }
         let array_active = cell
             .array_id()
             .is_some_and(|array| self.active_traces.contains(&array));
+        let active_position = self.active_traces.len();
+        let selected = cell.id.and_then(|id| original.cell(self, id));
         if let Some(id) = cell.id {
             if !publication_hold {
                 self.var_arena.retain_operation(id);
@@ -15685,16 +15583,31 @@ impl Vm {
             self.active_traces.push(id);
         }
         let global_error_flags = self.capture_native_global_error_flags();
-        let reached = self.fire_var_traces_inner(invocation, &cell, array_active, taken, &scope);
-        if matches!(reached, Ok(Ok(()))) {
-            self.restore_native_global_error_flags(global_error_flags);
+        let reached = self.fire_var_traces_inner(invocation, &cell, array_active, taken, original.scope());
+        if let Err(first) = &reached {
+            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        }
+        let after_callback = original.check_native(self);
+        if after_callback.is_ok() && matches!(reached, Ok(Ok(()))) {
+            let _ = original.in_original(self, |vm| vm.restore_native_global_error_flags(global_error_flags));
         }
         if let Some(id) = cell.id {
-            let popped = self.active_traces.pop();
-            debug_assert_eq!(popped, Some(id));
-            self.var_arena.release_operation(id);
+            let removed = original.state_mut(self).is_ok_and(|state| {
+                if state.active_traces.get(active_position) == Some(&id) {
+                    state.active_traces.remove(active_position);
+                    true
+                } else { false }
+            });
+            if !removed {
+                let error: tcl_cmd_core::CmdError = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original variable active-trace slot").into();
+                variable_cleanup::retain(self, &error);
+            }
+            if selected.as_ref().is_some_and(|selected| original.has_cell(self, selected)) {
+                let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
+            }
         }
-        let current = scope.check_native(self);
+        let current = original.check_native(self);
         match reached {
             Err(first) => Err(first),
             Ok(guest) => {
@@ -17127,13 +17040,14 @@ impl Vm {
         for (name, raw) in frame.into_local_bindings() {
             let retired = original.in_original(self, |vm| {
                 if vm.var_arena.has_static_refs(raw) {
-                    vm.var_arena.unbind(raw);
+                    let variables = variable_cleanup::OriginalVariableCleanup::enter(vm);
+                    let _ = variables.retire(vm, crate::vars::VariableRetirement::unbind(raw));
                 } else if matches!(
                     vm.var_arena.get(raw).map(crate::vars::VarCell::state),
                     Some(Local::Link(_) | Local::NameLink(_))
                 ) {
-                    vm.purge_variable_cell(raw);
-                    vm.var_arena.unbind(raw);
+                    let variables = variable_cleanup::OriginalVariableCleanup::enter(vm);
+                    variables.purge_binding(vm, raw);
                 } else {
                     vm.destroy_owned_variable(&name, raw, None);
                 }
@@ -18454,8 +18368,8 @@ impl Vm {
             .insert(binding.name.clone(), id);
         self.var_arena.bind(id);
         if let Some(old) = old {
-            self.purge_variable_cell(old);
-            self.var_arena.unbind(old);
+            let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+            original.purge_binding(self, old);
         }
     }
 
@@ -18548,23 +18462,8 @@ impl Vm {
 
     /// A Jim static reference retains the value after its original name is removed.
     fn detach_static_reference(&mut self, resolved: &ResolvedVar) -> Option<bool> {
-        if resolved.elem.is_some() {
-            return None;
-        }
-        if matches!(resolved.binding.owner, VarTableOwner::ProcedureStatics(_)) {
-            return Some(false);
-        }
-        let raw = self
-            .var_table(resolved.binding.owner)?
-            .get(&resolved.binding.name)
-            .copied()?;
-        if !self.var_arena.has_static_refs(raw) {
-            return None;
-        }
-        self.var_table_mut(resolved.binding.owner)?
-            .remove(&resolved.binding.name);
-        self.var_arena.unbind(raw);
-        Some(true)
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.detach_static(self, resolved)
     }
 
     /// Install native Jim static slots from their original member objects.
@@ -19127,49 +19026,12 @@ impl Vm {
         self.unset_resolved_checked(name, resolved).unwrap_or(false)
     }
 
-    fn retire_unset_array_elements(
-        &mut self,
-        name: &[u8],
-        parent: Option<VarId>,
-        elements: VarTable,
-        preserve_definition: bool,
-        table_holds_vars: bool,
+    fn retire_unset_array_elements(&mut self, name: &[u8], parent: Option<VarId>, elements: VarTable,
+        preserve_definition: bool, table_holds_vars: bool,
+        original: &variable_cleanup::OriginalVariableCleanup,
     ) -> Vec<VarId> {
-        let mut retired_bindings = Vec::new();
-        for (element, raw_id) in elements {
-            let Some(id) = self.var_arena.resolve(raw_id) else {
-                self.var_arena.retire_array_element_key(raw_id);
-                self.var_arena.unbind(raw_id);
-                continue;
-            };
-            self.var_arena
-                .invalidate_destroyed_element(id, preserve_definition);
-            let _ = self.var_arena.take_state(id);
-            let cell = VarTraceCell {
-                id: Some(id),
-                array: parent,
-                elem: Some(element.clone()),
-            };
-            let mut spelling = name.to_vec();
-            spelling.push(b'(');
-            spelling.extend_from_slice(element.as_bytes());
-            spelling.push(b')');
-            let _ = self.fire_taken_unset(&spelling, Some(name), cell, false);
-            self.var_arena.finish_destroyed_element_trace(id);
-            // A whole-array destruction retires the old element even when
-            // its callback wrote through an alias. A surviving alias keeps
-            // this identity as a detached, undefined element; it cannot
-            // retarget a later same-name element.
-            let _ = self.var_arena.replace_state(id, Local::Undefined);
-            self.const_vars.remove(&id);
-            self.var_arena.retire_array_element_key(raw_id);
-            if table_holds_vars {
-                retired_bindings.push(raw_id);
-            } else {
-                self.var_arena.unbind(raw_id);
-            }
-        }
-        retired_bindings
+        original.retire_elements(self, name, parent, elements, Some(name),
+            preserve_definition, table_holds_vars, false)
     }
 
     fn unset_resolved_checked(
@@ -19178,14 +19040,17 @@ impl Vm {
         resolved: &ResolvedVar,
     ) -> Result<bool, Completion<Value>> {
         let name = name.as_ref();
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.check(self).map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         if self.dictionary_variable_containers()
             && let Some(key) = &resolved.elem
         {
-            return Ok(resolved
-                .base_id
-                .is_some_and(|id| self.remove_dictionary_element(id, key)));
+            let removed = resolved.base_id.is_some_and(|id| self.remove_dictionary_element(id, key));
+            original.check(self).map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            return Ok(removed);
         }
         if let Some(result) = self.detach_static_reference(resolved) {
+            original.check(self).map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             return Ok(result);
         }
         let native_error_unset = resolved
@@ -19213,59 +19078,74 @@ impl Vm {
         if let Some(id) = receiver {
             self.var_arena.pin(id);
         }
-        let Some((existed, old_state)) = self.detach_variable_state(resolved) else {
+        let Some((existed, old_state)) = self.detach_variable_state(resolved, &original) else {
             if let Some(id) = receiver {
-                self.var_arena.unpin(id);
+                let _ = original.retire(self, crate::vars::VariableRetirement::unpin(id));
             }
-            if let Some(variable) = native_error_unset {
+            if original.check(self).is_ok() && let Some(variable) = native_error_unset {
                 self.install_native_error_variable_trace(variable);
             }
+            original.check(self).map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             return Ok(false);
         };
 
-        let publication_result = self.publish_authored_static_unset(publication);
+        let (old_state, array_default) = old_state.into_parts();
         let key_drain = if let Local::Array(elements) = &old_state {
-            self.var_arena
-                .begin_element_destruction(elements.values().copied());
+            if let Ok(state) = original.state_mut(self) {
+                state.var_arena.begin_element_destruction(elements.values().copied());
+            }
             Some(elements.destruction_key_drain())
         } else {
             None
         };
-        let table_holds_vars = self
-            .native_c_variable_name_protocol()
+        let table_holds_vars = original
+            .c_protocol()
             .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
-        let preserve_definition = self
-            .native_c_variable_name_protocol()
+        let preserve_definition = original
+            .c_protocol()
             .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
+        let publication_result = if original.check(self).is_ok() {
+            self.publish_authored_static_unset(publication)
+        } else { Ok(()) };
         let mut retired_bindings = Vec::new();
         if let Some(cell) = traced_cell {
-            let _ = self.fire_taken_unset(name, None, cell, true);
+            let _ = original.fire_taken(self, name, None, cell, true);
         }
 
         // An array's old element table is detached from the parent before its
         // callback, then visited one cell at a time. Later old elements remain
         // live while an earlier callback runs, and callback-created elements
         // belong to the revived array rather than this destruction pass.
-        if let Local::Array(elements) = old_state {
+        let terminal_old = match old_state {
+            Local::Array(elements) => {
             retired_bindings = self.retire_unset_array_elements(
                 name,
                 resolved.id,
                 elements,
                 preserve_definition,
                 table_holds_vars,
+                &original,
             );
-        }
+            None
+            }
+            state if original.c_protocol().is_some() => {
+                let _ = original.retire(self, crate::vars::VariableRetirement::state(state));
+                None
+            }
+            state => Some(state),
+        };
         for id in retired_bindings {
-            self.var_arena.unbind(id);
+            let _ = original.retire(self, crate::vars::VariableRetirement::unbind(id));
         }
-        drop(key_drain);
-        if native_precision_unset {
+        let _ = original.in_original(self, |_| drop(array_default));
+        let _ = original.in_original(self, |_| drop(key_drain));
+        if native_precision_unset && original.check(self).is_ok() {
             self.install_native_precision_trace_at(name);
         }
         if let Some(id) = receiver {
-            self.var_arena.unpin(id);
+            let _ = original.retire(self, crate::vars::VariableRetirement::unpin(id));
         }
-        if existed && resolved.elem.is_none() && self.uses_native_jim_lookup() {
+        if original.check(self).is_ok() && existed && resolved.elem.is_none() && self.uses_native_jim_lookup() {
             let level = match resolved.binding.owner {
                 VarTableOwner::Frame(level)
                 | VarTableOwner::ProcedureStatics(level)
@@ -19278,9 +19158,11 @@ impl Vm {
                     .set(crate::frame::ActivationIdentity::new().serial);
             }
         }
-        if let Some(variable) = native_error_unset {
+        if original.check(self).is_ok() && let Some(variable) = native_error_unset {
             self.install_native_error_variable_trace(variable);
         }
+        let _ = original.in_original(self, |_| drop(terminal_old));
+        original.check(self).map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         publication_result?;
         Ok(existed)
     }
@@ -19289,118 +19171,25 @@ impl Vm {
     /// detached. The stable cell identity remains available while callbacks
     /// run, but any value or trace recreated through an alias is forcibly
     /// discarded because the owner itself is dying.
-    fn destroy_owned_variable(
-        &mut self,
-        name: impl AsRef<[u8]>,
-        raw_id: VarId,
-        reported_name1: Option<&[u8]>,
-    ) {
-        let name = name.as_ref();
-        if self.var_arena.has_static_refs(raw_id) {
-            self.var_arena.unbind(raw_id);
-            return;
-        }
-        let Some(id) = self.var_arena.resolve(raw_id) else {
-            self.purge_variable_cell(raw_id);
-            self.var_arena.unbind(raw_id);
-            return;
-        };
-        let old_state = self.var_arena.take_state(id).unwrap_or(Local::Undefined);
-        let cell = VarTraceCell {
-            id: Some(id),
-            array: None,
-            elem: None,
-        };
-        let key_drain = if let Local::Array(elements) = &old_state {
-            self.var_arena
-                .begin_element_destruction(elements.values().copied());
-            Some(elements.destruction_key_drain())
-        } else {
-            None
-        };
-        let table_holds_vars = self
-            .native_c_variable_name_protocol()
-            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
-        let preserve_definition = self
-            .native_c_variable_name_protocol()
-            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
-        let mut retired_bindings = Vec::new();
-        let _ = self.fire_taken_unset(name, reported_name1, cell, true);
-
-        if let Local::Array(elements) = old_state {
-            for (element, raw_element) in elements {
-                let Some(element_id) = self.var_arena.resolve(raw_element) else {
-                    self.var_arena.retire_array_element_key(raw_element);
-                    self.var_arena.unbind(raw_element);
-                    continue;
-                };
-                self.var_arena
-                    .invalidate_destroyed_element(element_id, preserve_definition);
-                let _ = self.var_arena.take_state(element_id);
-                let cell = VarTraceCell {
-                    id: Some(element_id),
-                    array: Some(id),
-                    elem: Some(element.clone()),
-                };
-                let mut spelling = name.to_vec();
-                spelling.push(b'(');
-                spelling.extend_from_slice(element.as_bytes());
-                spelling.push(b')');
-                let _ =
-                    self.fire_taken_unset(&spelling, reported_name1.or(Some(name)), cell, false);
-                self.var_arena.finish_destroyed_element_trace(element_id);
-                self.purge_variable_cell(raw_element);
-                self.var_arena.retire_array_element_key(raw_element);
-                if table_holds_vars {
-                    retired_bindings.push(raw_element);
-                } else {
-                    self.var_arena.unbind(raw_element);
-                }
-            }
-        }
-        for id in retired_bindings {
-            self.var_arena.unbind(id);
-        }
-        drop(key_drain);
-        self.purge_variable_cell(raw_id);
-        self.var_arena.unbind(raw_id);
+    fn destroy_owned_variable(&mut self, name: impl AsRef<[u8]>, raw_id: VarId, reported_name1: Option<&[u8]>) {
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.destroy(self, name.as_ref(), raw_id, reported_name1);
     }
 
     /// Discard one cell owned by a dying frame/namespace without firing newly
     /// installed traces. Array children are purged recursively; link cells are
     /// unbound without touching their targets.
     fn purge_variable_cell(&mut self, raw_id: VarId) {
-        if matches!(
-            self.var_arena.get(raw_id).map(crate::vars::VarCell::state),
-            Some(Local::Link(_) | Local::NameLink(_))
-        ) {
-            let _ = self.var_arena.replace_state(raw_id, Local::Undefined);
-            return;
-        }
-        let Some(id) = self.var_arena.resolve(raw_id) else {
-            let _ = self.var_arena.replace_state(raw_id, Local::Undefined);
-            return;
-        };
-        self.drop_var_traces(id);
-        if let Some(Local::Array(elements)) = self.var_arena.take_state(id) {
-            for child in elements.into_values() {
-                self.purge_variable_cell(child);
-                self.var_arena.retire_array_element_key(child);
-                self.var_arena.unbind(child);
-            }
-        }
-        let _ = self.var_arena.replace_state(id, Local::Undefined);
-        self.const_vars.remove(&id);
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.purge(self, raw_id);
     }
 
     /// Remove every callback pinned to one stable variable cell. Lifecycle
     /// paths that intentionally do not execute callbacks still must release
     /// their pin before the final binding is dropped.
     fn drop_var_traces(&mut self, id: VarId) {
-        if self.variable_observers.script_traces.remove(&id).is_some() {
-            self.var_arena.unpin(id);
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
-        }
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.drop_traces(self, id);
     }
 
     /// Retire trace pins below an array before a no-callback storage mutation
@@ -19408,93 +19197,21 @@ impl Vm {
     /// VM owner owns callbacks, so every raw replacement funnels through this
     /// bridge instead of leaving trace-pinned, unreachable element cells.
     fn drop_array_descendant_traces(&mut self, id: VarId) {
-        let children: Vec<VarId> = match self.var_arena.get(id).map(crate::vars::VarCell::state) {
-            Some(Local::Array(elements)) => elements.values().copied().collect(),
-            Some(Local::Undefined | Local::Scalar(_) | Local::Link(_) | Local::NameLink(_))
-            | None => Vec::new(),
-        };
-        for raw in children {
-            if let Some(child) = self.var_arena.resolve(raw) {
-                self.drop_array_descendant_traces(child);
-                self.drop_var_traces(child);
-                self.const_vars.remove(&child);
-            }
-        }
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.drop_descendant_traces(self, id);
     }
 
-    fn detach_variable_state(&mut self, resolved: &ResolvedVar) -> Option<(bool, VarState)> {
-        let id = resolved.id?;
-        let raw = if let Some(key) = &resolved.elem {
-            let base_id = resolved.base_id?;
-            match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
-                Some(Local::Array(elements)) => elements.get(key).copied(),
-                _ => None,
-            }
-        } else {
-            self.raw_variable_binding(&resolved.binding)
-        }?;
-        let raw_is_link = matches!(
-            self.var_arena.get(raw).map(crate::vars::VarCell::state),
-            Some(Local::Link(_) | Local::NameLink(_))
-        );
-        let old = self.var_arena.unset_state(id)?;
-        let existed = matches!(old, Local::Scalar(_) | Local::Array(_));
-        if !matches!(resolved.binding.owner, VarTableOwner::CompiledLocal { .. })
-            && !raw_is_link
-            && !self.var_arena.has_link_refs(id)
-            && !self.var_arena.has_operation_refs(id)
-        {
-            if let Some(key) = &resolved.elem {
-                if let Some(base_id) = resolved.base_id {
-                    let _ = self.var_arena.array_remove(base_id, key);
-                }
-            } else if let Some(table) = self.var_table_mut(resolved.binding.owner) {
-                table.remove(&resolved.binding.name);
-            }
-            self.const_vars.remove(&id);
-            self.var_arena.unbind(raw);
-        }
-        Some((existed, old))
+    fn detach_variable_state(&mut self, resolved: &ResolvedVar,
+        original: &variable_cleanup::OriginalVariableCleanup,
+    ) -> Option<(bool, variable_cleanup::DetachedVariableState)> {
+        original.detach(self, resolved)
     }
 
-    fn fire_taken_unset(
-        &mut self,
-        name: impl AsRef<[u8]>,
-        reported_name1: Option<&[u8]>,
-        cell: VarTraceCell,
-        include_array: bool,
-    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
-        let Some(id) = cell.id else {
-            return Ok(());
-        };
-        let taken = self.variable_observers.script_traces.remove(&id);
-        let has_array_trace = include_array
-            && cell
-                .array_id()
-                .is_some_and(|array| self.variable_observers.script_traces.contains_key(&array));
-        let had_taken = taken.is_some();
-        if !had_taken && !has_array_trace {
-            return Ok(());
-        }
-        if had_taken {
-            self.invalidate_guard_domain(GuardDomain::VariableTrace);
-        }
-        let reached = self.fire_var_traces_from_cell_bytes(
-            name.as_ref(),
-            "unset",
-            reported_name1,
-            Some(TakenVarTraces {
-                cell,
-                entries: taken.unwrap_or_default(),
-                include_array,
-            }),
-            None,
-        );
-        if had_taken {
-            self.var_arena.unpin(id);
-        }
-        let _guest = reached?;
-        Ok(())
+    fn fire_taken_unset(&mut self, name: impl AsRef<[u8]>, reported_name1: Option<&[u8]>, cell: VarTraceCell, include_array: bool)
+        -> Result<(), tcl_runtime_api::NativeExecutionError>
+    {
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        original.fire_taken(self, name.as_ref(), reported_name1, cell, include_array)
     }
 
     /// Unset a single variable by name, the shared core of the `unset` command
@@ -20088,32 +19805,28 @@ impl Vm {
         })
     }
 
-    fn with_variable_operation<R>(
-        &mut self,
-        cell: &VarTraceCell,
-        operation: impl FnOnce(&mut Self) -> R,
+    fn with_variable_operation<R: variable_cleanup::VariableOperationOutcome>(
+        &mut self, cell: &VarTraceCell, operation: impl FnOnce(&mut Self) -> R,
     ) -> R {
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        if let Err(error) = original.check(self) { return R::refused(self, error); }
         let mut retained: Vec<_> = cell.id.into_iter().collect();
-        if let Some(array) = cell.array_id()
-            && self.var_arena.get(array).is_some()
-        {
-            retained.push(array);
-        }
-        let bindings: Vec<_> = retained
-            .iter()
-            .map(|id| self.array_operation_binding(*id))
-            .collect();
-        for &id in &retained {
-            self.var_arena.retain_operation(id);
-        }
+        if let Some(array) = cell.array_id() && self.var_arena.get(array).is_some() { retained.push(array); }
+        let bindings: Vec<_> = retained.iter().map(|id| self.array_operation_binding(*id)).collect();
+        for &id in &retained { self.var_arena.retain_operation(id); }
         let result = operation(self);
+        let _ = original.check(self);
         for (id, binding) in retained.into_iter().zip(bindings) {
-            if let Some(binding) = binding {
-                self.release_array_operation_binding(&binding, id);
-            }
-            self.var_arena.release_operation(id);
+            if let Some(binding) = binding { self.release_array_operation_binding(&binding, id, &original); }
+            let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
         }
-        result
+        match original.check(self) {
+            Ok(()) => result,
+            Err(error) => {
+                let _ = original.in_original(self, |_| drop(result));
+                R::refused(self, error)
+            }
+        }
     }
 
     fn capture_update_cell(
@@ -21144,6 +20857,8 @@ impl Vm {
         key: &[u8],
         reported: Option<&[u8]>,
     ) -> bool {
+        let original = variable_cleanup::OriginalVariableCleanup::enter(self);
+        if original.check(self).is_err() { return false; }
         if self.dictionary_variable_containers() {
             return self.remove_dictionary_element(base_id, key);
         }
@@ -21175,45 +20890,30 @@ impl Vm {
         // own. TclPtrUnsetVarIdx retains the reached Var until CleanupVar
         // after callbacks (C8.6 tclVar.c:2460–2514).
         let existed = self.with_variable_operation(&cell, |vm| {
-            let existed = vm.unbind_array_element(base_id, key, raw, id);
-            // Unset callbacks retain their native ignored-error contract.
-            let _ = vm.publish_authored_static_unset(publication);
-            if traced {
-                let _ = vm.fire_taken_unset(&spelling, reported.or(Some(name)), cell.clone(), true);
-            }
+            let Some((existed, old)) = vm.unbind_array_element(base_id, key, raw, id, &original) else { return false; };
+            let (old, array_default) = old.into_parts();
+            let terminal_old = if original.c_protocol().is_some() { Some(old) } else {
+                let _ = original.retire(vm, crate::vars::VariableRetirement::state(old));
+                None
+            };
+            if original.check(vm).is_ok() { let _ = vm.publish_authored_static_unset(publication); }
+            if traced { let _ = original.fire_taken(vm, &spelling, reported.or(Some(name)), cell.clone(), true); }
+            if let Some(old) = terminal_old { let _ = original.retire(vm, crate::vars::VariableRetirement::state(old)); }
+            let _ = original.in_original(vm, |_| drop(array_default));
             existed
         });
         // A refill, alias or fresh trace keeps this selected member. Cleanup
         // removes only its unchanged undefined table slot after the hold ends.
-        self.discard_undefined_array_shell(base_id, key, id);
+        if original.check(self).is_ok() {
+            self.discard_undefined_array_shell(base_id, key, id);
+        }
         existed
     }
 
-    fn unbind_array_element(
-        &mut self,
-        base_id: VarId,
-        key: impl AsRef<[u8]>,
-        raw: VarId,
-        id: VarId,
-    ) -> bool {
-        let Some(state) = self.var_arena.get(id).map(crate::vars::VarCell::state) else {
-            return false;
-        };
-        let existed = matches!(state, Local::Scalar(_) | Local::Array(_));
-        self.drop_array_descendant_traces(id);
-        let _ = self.var_arena.unset_state(id);
-        if matches!(
-            self.var_arena.get(raw).map(crate::vars::VarCell::state),
-            Some(Local::Link(_) | Local::NameLink(_))
-        ) || self.var_arena.has_link_refs(id)
-            || self.var_arena.has_operation_refs(id)
-        {
-            return existed;
-        }
-        let _ = self.var_arena.array_remove(base_id, key);
-        self.const_vars.remove(&id);
-        self.var_arena.unbind(raw);
-        existed
+    fn unbind_array_element(&mut self, base_id: VarId, key: impl AsRef<[u8]>, raw: VarId, id: VarId,
+        original: &variable_cleanup::OriginalVariableCleanup,
+    ) -> Option<(bool, variable_cleanup::DetachedVariableState)> {
+        original.detach_member(self, base_id, key.as_ref(), raw, id)
     }
 
     fn resolve_array_elem_from(&self, start: usize, name: &str, key: &str) -> Option<ResolvedVar> {
