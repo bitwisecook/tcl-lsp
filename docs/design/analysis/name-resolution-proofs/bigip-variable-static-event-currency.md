@@ -95,6 +95,7 @@ initialization markers are in the continuous LTM capture.
 - `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md). SHA-256 `469555b59e24291fa07e50a5aaf531ff13034270a20d44cdde4ad4b01cb833d8`. Lines 11–11. Actual appliance version attribution for this report; no separately named hotfix inferred.
 - `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/vl-context-events.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/vl-context-events.log). SHA-256 `d160f71ccd3657d7918cd7fde5f3f22aacf069c3f62b5ea83d97733d6639d512`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
 - `source-closure-3` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json). SHA-256 `5d926a45e3efa7916ca5ef8af3800fe9516d5ce5c9af74401854584649fccbbf`. Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
+- `authored-static-policy-regression675` (implementation): [rust/tcl-vm/src/interp/authored_tmm_static.rs](../../../../rust/tcl-vm/src/interp/authored_tmm_static.rs). SHA-256 `9892e4a31acf12daaf58b142f09b5247d517369d09d14b8ffa0439879cf4138c`. Existing explicit authored static publication policy and software regressions reading retained build-specific appliance state responses. This authored source is not BIG-IP implementation source and supplies no new provider execution, scalar-trace chronology, collision or native rule-loader proof.
 
 ## Source inspection
 
@@ -102,7 +103,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 ## Consumer bindings
 
-No implementation binding is claimed by this observation record.
+- [rust/tcl-vm/src/interp/authored_tmm_static.rs](../../../../rust/tcl-vm/src/interp/authored_tmm_static.rs), `Vm::install_irules_static_simulation`: Install the explicit authored RuleInitPublication policy independently of physical Native object provider and source grammar.
+- [rust/tcl-vm/src/interp/authored_tmm_static.rs](../../../../rust/tcl-vm/src/interp/authored_tmm_static.rs), `Vm::publish_authored_static`: Publish only the selected authored initialization context across live enrolled worker namespaces; ordinary executing-worker event mutations remain in their actual worker.
+- [rust/tcl-vm/src/interp/authored_tmm_static.rs](../../../../rust/tcl-vm/src/interp/authored_tmm_static.rs), `Vm::apply_static_publication`: Apply explicit authored initialization publication through existing real worker namespace cells and preserve the policy's existing recipient operation semantics. The retained appliance responses constrain only the named software state regressions.
+- [rust/tcl-vm/src/interp/authored_tmm_static.rs](../../../../rust/tcl-vm/src/interp/authored_tmm_static.rs), `interp::authored_tmm_static::tests::authored_static_policy_matches_mapped_unit_missing_read_before_recreation` (linked): Explicit authored static publication software policy reads twelve stable-tuple per-unit response bodies and the retained target-unit unset response. Four genuine enrolled VM interpreters compare SEED/MARK_UNIT/RECREATED locality and the exact caught missing-read result before recreation. Coverage is limited to these static-cell state and missing-result observations; the recorded RULE_INIT/CLIENT_ACCEPTED scalar trace chronology is separate.
 
 A named test is a coverage binding, not a claim that it executed.
 

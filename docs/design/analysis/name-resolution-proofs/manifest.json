@@ -15265,11 +15265,41 @@
           "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json",
           "sha256": "ff299fa606867041acd7975db9d13cca40e5ba7b6135f8228d22168d5388d725",
           "description": "Inspected measured canonical case aggregate and its explicit unmeasured limits; actual case rows remain in this exact file."
+        },
+        {
+          "id": "authored-static-policy-regression675",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "sha256": "9892e4a31acf12daaf58b142f09b5247d517369d09d14b8ffa0439879cf4138c",
+          "description": "Existing explicit authored static publication policy and software regressions reading retained build-specific appliance state responses. This authored source is not BIG-IP implementation source and supplies no new provider execution, scalar-trace chronology, collision or native rule-loader proof."
         }
       ],
       "source_anchors": [],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "selector": "interp::authored_tmm_static::tests::authored_static_policy_matches_recorded_four_unit_seed_and_target_mutation_states",
+          "status": "linked",
+          "assertion": "Explicit authored RuleInitPublication software policy with four genuine enrolled VM interpreters reads the 512 retained static_group HTTP responses for the four reached TMMs. It compares seed, target-unit write, missing after unset and target-unit recreation states, then checks the policy's explicit reinitialisation against the retained source/report seed. This does not execute BIG-IP or establish native rule-loader, trace, global, CMP or collision behavior."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::install_irules_static_simulation",
+          "purpose": "Install the explicit authored RuleInitPublication policy independently of physical Native object provider and source grammar."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::publish_authored_static",
+          "purpose": "Publish only the selected authored initialization context across live enrolled worker namespaces; ordinary executing-worker event mutations remain in their actual worker."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::apply_static_publication",
+          "purpose": "Apply explicit authored initialization publication through existing real worker namespace cells and preserve the policy's existing recipient operation semantics. The retained appliance responses constrain only the named software state regressions."
+        }
+      ],
       "replay": {
         "command": [],
         "limitations": "The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable."
@@ -15809,11 +15839,41 @@
           "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json",
           "sha256": "5d926a45e3efa7916ca5ef8af3800fe9516d5ce5c9af74401854584649fccbbf",
           "description": "Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct."
+        },
+        {
+          "id": "authored-static-policy-regression675",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "sha256": "9892e4a31acf12daaf58b142f09b5247d517369d09d14b8ffa0439879cf4138c",
+          "description": "Existing explicit authored static publication policy and software regressions reading retained build-specific appliance state responses. This authored source is not BIG-IP implementation source and supplies no new provider execution, scalar-trace chronology, collision or native rule-loader proof."
         }
       ],
       "source_anchors": [],
-      "tests": [],
-      "owners": [],
+      "tests": [
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "selector": "interp::authored_tmm_static::tests::authored_static_policy_matches_mapped_unit_missing_read_before_recreation",
+          "status": "linked",
+          "assertion": "Explicit authored static publication software policy reads twelve stable-tuple per-unit response bodies and the retained target-unit unset response. Four genuine enrolled VM interpreters compare SEED/MARK_UNIT/RECREATED locality and the exact caught missing-read result before recreation. Coverage is limited to these static-cell state and missing-result observations; the recorded RULE_INIT/CLIENT_ACCEPTED scalar trace chronology is separate."
+        }
+      ],
+      "owners": [
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::install_irules_static_simulation",
+          "purpose": "Install the explicit authored RuleInitPublication policy independently of physical Native object provider and source grammar."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::publish_authored_static",
+          "purpose": "Publish only the selected authored initialization context across live enrolled worker namespaces; ordinary executing-worker event mutations remain in their actual worker."
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+          "symbol": "Vm::apply_static_publication",
+          "purpose": "Apply explicit authored initialization publication through existing real worker namespace cells and preserve the policy's existing recipient operation semantics. The retained appliance responses constrain only the named software state regressions."
+        }
+      ],
       "replay": {
         "command": [],
         "limitations": "The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable."
