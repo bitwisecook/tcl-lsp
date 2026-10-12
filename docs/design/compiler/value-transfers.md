@@ -252,6 +252,12 @@ builder emits for `foreach`, `lmap`, and `dict for` projects to its
 declared iteration protocol, and its `container_arg: 0` refers to the
 synthetic layout, never to the source var-list.
 
+The path specialisation reads values from `argument_offset` through the end
+of the same invocation. A selected file member retains its selector at
+operand zero and offset one; a typed source path operation that already
+excludes the selector retains every supplied value at offset zero. Both
+layouts use the same path kernel, cardinality checks and decline rules.
+
 **Three declaration states.** For each specialisation on a spec, a
 subcommand, or a form: *inherited* from the enclosing level, *declared*
 explicitly, or *declined* explicitly — "no evaluator for this form". With

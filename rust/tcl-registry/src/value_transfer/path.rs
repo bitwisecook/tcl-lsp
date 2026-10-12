@@ -42,7 +42,7 @@ use super::inputs::{AnalysisInputs, FactDomain};
 use super::route::{EvalRoute, NativeEvalId};
 
 /// The revision of the registry-owned path routes.
-const REVISION: u64 = 1;
+const REVISION: u64 = 2;
 
 /// A path-name operation of `file`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -140,16 +140,18 @@ impl PathSemantics {
     }
 
     fn evaluate_path(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-        // Operand 0 is the subcommand word.
-        let count = input.invocation().operands.len();
-        let fits = match self.operation {
-            PathOperation::Join => count >= 2,
-            _ => count == 2,
+        let view = input.invocation();
+        let first = view.argument_offset;
+        let count = view.operands.len();
+        let fits = match (self.operation, count.checked_sub(first)) {
+            (PathOperation::Join, Some(arguments)) => arguments >= 1,
+            (_, Some(arguments)) => arguments == 1,
+            (_, None) => false,
         };
         if !fits {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
         }
-        let values = match exact_operands(input, 1..count) {
+        let values = match exact_operands(input, first..count) {
             Ok(values) => values,
             Err(answer) => return answer,
         };
@@ -235,3 +237,6 @@ impl CommandSemantics for PathSemantics {
         self.evaluate_path(input, budget)
     }
 }
+
+#[cfg(test)]
+mod original_argument_coordinates_tests;

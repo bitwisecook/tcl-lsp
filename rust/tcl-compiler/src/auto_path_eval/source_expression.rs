@@ -849,3 +849,6 @@ mod original_path_child_purpose_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod original_path_argument_coordinates_tests;
