@@ -115,6 +115,7 @@
 use tcl_dialect::{TclVersion, Ternary};
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, Token, TokenType};
 use tcl_registry::{ClauseSelection, CommandRegistry, Traits, arg_role::ArgRole};
+use tcl_syntax::naming::{canonical_written_command, unroot_rooted_key};
 
 use super::{walk_command_words_with_config, word_raw, word_unwrap};
 
@@ -278,7 +279,9 @@ pub fn scan(content: &str, registry: &CommandRegistry, visit: &mut dyn FnMut(Rea
 
 /// Walk index content with the loader's complete grammar and original image.
 /// Decoded or computed nested scripts retain advisory conditions, but cannot
-/// manufacture original word provenance.
+/// manufacture original word provenance. This authored index convention maps
+/// written heads through shared colon geometry before selecting Registry data;
+/// it supplies no C/Jim command lookup or loader authority.
 pub fn scan_with_config(
     content: &str,
     registry: &CommandRegistry,
@@ -324,7 +327,8 @@ fn is_package_ifneeded(text: &str, words: &[Vec<Token>], registry: &CommandRegis
     if words.len() < 2 {
         return false;
     }
-    let head = word_raw(text, &words[0]).trim_start_matches("::");
+    let written_head = canonical_written_command(word_raw(text, &words[0]));
+    let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
     let Some(spec) = registry.get(head) else {
         return false;
     };
@@ -441,7 +445,8 @@ impl ScriptWalker<'_, '_> {
                 });
                 continue;
             }
-            let head = word_raw(text, &words[0]).trim_start_matches("::");
+            let written_head = canonical_written_command(word_raw(text, &words[0]));
+            let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
             let Some(spec) = registry.get(head) else {
                 continue;
             };
@@ -695,7 +700,8 @@ fn body_may_terminate(
         .iter()
         .any(|words| {
             words.first().is_some_and(|first| {
-                let head = word_raw(script, first).trim_start_matches("::");
+                let written_head = canonical_written_command(word_raw(script, first));
+                let head = unroot_rooted_key(&written_head).unwrap_or(&written_head);
                 registry
                     .get(head)
                     .is_some_and(|spec| spec.traits.contains(Traits::TERMINATES_BLOCK))
@@ -846,7 +852,8 @@ fn parse_vsatisfies(script: &str, config: LexerConfig) -> Guard {
     if words.len() < 4 {
         return Guard::Unknown;
     }
-    if word_raw(script, &words[0]).trim_start_matches("::") != "package"
+    let written_head = canonical_written_command(word_raw(script, &words[0]));
+    if unroot_rooted_key(&written_head).unwrap_or(&written_head) != "package"
         || word_raw(script, &words[1]) != "vsatisfies"
     {
         return Guard::Unknown;
@@ -883,7 +890,8 @@ fn is_tcl_version_subject(script: &str, word: &[Token], config: LexerConfig) -> 
     if words.len() != 3 {
         return false;
     }
-    word_raw(&inner, &words[0]).trim_start_matches("::") == "package"
+    let written_head = canonical_written_command(word_raw(&inner, &words[0]));
+    unroot_rooted_key(&written_head).unwrap_or(&written_head) == "package"
         && matches!(word_raw(&inner, &words[1]), "provide" | "require")
         // `Tcl` is matched case-sensitively — `tk` and the lowercase `tcl`
         // alias are other packages.

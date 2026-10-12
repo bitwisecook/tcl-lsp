@@ -165,3 +165,18 @@ context through `RegistrySnapshot::semantic_key`. The complete structural store
 identity does not replace current `ContextRegistry` availability or the original
 Logical source and lexer configuration. Matching a profile does not supply that
 store currency or Native source advice.
+
+
+The authored package-index advisory walker maps complete written command heads
+through the shared written-name convention, then removes one root from the
+resulting constructed Registry key. Literal single colons, relative qualifiers,
+trailing empty names and dynamic heads cannot borrow an unrelated stock command.
+Selected Registry control/body roles and symbolic version/termination conditions
+remain required. This convention supplies no C/Jim lookup, package registration,
+loader execution or rewrite permission; original analysis-backed index consumers
+retain their separate source, context, descriptor and entry guards.
+
+Lexical type hints compare already constructed FunctionUnit and analyser scope
+labels through the shared one-root projection. Literal colon components and
+Unicode labels remain intact. Hint emission retains the original complete source,
+configuration, analysis-owned Registry and independent declaration/SSA domain.

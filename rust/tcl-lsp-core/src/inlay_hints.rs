@@ -457,7 +457,7 @@ fn collect_type_hints(
 /// scope names are unqualified (`a`) while a `FunctionUnit`'s name is fully
 /// qualified (`::a`), so strip a single leading `::`.
 fn normalise_fn_name(name: &str) -> String {
-    name.strip_prefix("::").unwrap_or(name).to_owned()
+    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name).to_owned()
 }
 
 /// Recursively emit type hints for every variable definition in `scope`
@@ -3063,5 +3063,60 @@ mod retained_hint_context_tests {
             crate::registry_for_dialect("tcl8.6"),
         );
         assert!(!out.iter().any(|hint| hint.label == "int"), "{out:?}");
+    }
+
+    #[test]
+    fn logical_type_hints_keep_constructed_colon_scopes_and_original_source() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        let source = "namespace eval Ω {\nproc :pair {} {set x 42}\nproc pair {} {set x 3.5}\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let registry = analysis.resolved_registry().unwrap();
+        let hints = inlay_hints(
+            source,
+            analysis.resolved_profile().unwrap(),
+            whole_document_range(source),
+            Some(&analysis),
+            Some(registry),
+            true,
+            false,
+        );
+        let labels = |line| {
+            hints
+                .iter()
+                .filter(|hint| hint.kind == InlayHintKind::Type && hint.position_line == line)
+                .map(|hint| hint.label.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert!(labels(1).contains(&": int"), "{hints:?}");
+        assert!(!labels(1).contains(&": double"), "{hints:?}");
+        assert!(labels(2).contains(&": double"), "{hints:?}");
+        assert!(!labels(2).contains(&": int"), "{hints:?}");
+        let changed = format!("# changed\n{source}");
+        assert!(
+            inlay_hints(
+                &changed,
+                analysis.resolved_profile().unwrap(),
+                whole_document_range(&changed),
+                Some(&analysis),
+                Some(registry),
+                true,
+                false,
+            )
+            .is_empty()
+        );
+        assert!(
+            inlay_hints(
+                source,
+                analysis.resolved_profile().unwrap(),
+                whole_document_range(source),
+                None,
+                Some(registry),
+                true,
+                false,
+            )
+            .is_empty()
+        );
     }
 }
