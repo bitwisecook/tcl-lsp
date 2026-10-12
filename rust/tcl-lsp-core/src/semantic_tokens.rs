@@ -1841,10 +1841,21 @@ fn insert_object_method_overrides(
     // bareword factory, so the same map already carries these — see
     // `object_types::harvest_unit`'s `Statement::Call` arm).
     let mut candidates: Vec<String> = match head_tok.kind {
-        TokenType::Var => object_handle_name(head_text)
-            .and_then(|name| object_classes.get(name))
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default(),
+        TokenType::Var => {
+            let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(ctx.full_source),
+                ctx.config,
+                seg,
+            );
+            original_words
+                .word_exprs
+                .first()
+                .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+                .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)))
+                .and_then(|name| object_classes.get(name))
+                .map(|s| s.iter().cloned().collect())
+                .unwrap_or_default()
+        }
         // The genuine whole receiver word, child source binding and selected
         // family determine conditional candidates. Missing canonical class
         // receipts remain typed unavailable inside the shared receiver path.
@@ -2076,16 +2087,26 @@ fn insert_user_configure_options(
     }
 }
 
-/// The bare handle name of a `$var` command head, matching the keys of an
-/// [`ObjectClassMap`]: strips the leading `$` and any `${…}` braces, so
-/// `$chart` → `chart`, `${chart}` → `chart`, `$arr(k)` → `arr(k)`.  Returns
-/// `None` for a head that is not a plain variable substitution.
-fn object_handle_name(head_text: &str) -> Option<&str> {
+/// Project a complete original variable spelling to its metadata-map name.
+/// Supplied configuration validates the whole reference before decoration is
+/// removed; the caller separately requires a sole substitution in its word.
+/// An absent configuration is the explicit standalone decoration convention.
+fn object_handle_name(head_text: &str, config: Option<tcl_lexer::LexerConfig>) -> Option<&str> {
     if !head_text.starts_with('$') {
         return None;
     }
-    // `var_reference` does not unwrap an unclosed `${x`, preventing a
-    // malformed receiver from resolving to the real handle `x`.
+    if let Some(config) = config {
+        let reference =
+            tcl_lexer::word_parts::whole_var_ref(head_text.as_bytes(), config).ok()??;
+        if reference.next != head_text.len() {
+            return None;
+        }
+        return Some(tcl_syntax::naming::var_reference_for_style(
+            head_text,
+            config.braced_var,
+        ));
+    }
+    // Explicit standalone decoration metadata retains its prior convention.
     Some(tcl_syntax::naming::var_reference(head_text))
 }
 
@@ -2130,10 +2151,16 @@ fn insert_self_method_overrides(
         };
         *written
     } else {
-        let implicit_self = seg
-            .texts
+        let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(ctx.full_source),
+            ctx.config,
+            seg,
+        );
+        let implicit_self = original_words
+            .word_exprs
             .first()
-            .and_then(|text| object_handle_name(text))
+            .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+            .and_then(|(spelling, _)| object_handle_name(spelling, Some(ctx.config)))
             .is_some_and(|name| {
                 matches!(name, "self" | "this")
                     && ctx
@@ -4274,6 +4301,7 @@ fn augment_loop_var_handles(
                 )
             {
                 bind_loop_vars_for_call(
+                    (source, current.config()),
                     command,
                     &words,
                     &context,
@@ -4574,6 +4602,7 @@ fn bind_object_handle(
 /// variable holds the element, and anything else binds every variable in the
 /// group.
 fn bind_loop_vars_for_call(
+    written_source: (&str, tcl_lexer::LexerConfig),
     command: &tcl_compiler::segmenter::SegmentedCommand,
     words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
     context: &tcl_registry::model::ContextRegistry,
@@ -4581,12 +4610,18 @@ fn bind_loop_vars_for_call(
     collections: &ObjectClassMap,
     handles: &mut ObjectClassMap,
 ) {
+    let (source, config) = written_source;
     if command.is_partial {
         return;
     }
     let Some(roles) = words.roles() else {
         return;
     };
+    let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(source),
+        config,
+        command,
+    );
     for &(ordinal, role) in roles {
         if role != tcl_registry::ArgRole::LoopVarList {
             continue;
@@ -4609,10 +4644,11 @@ fn bind_loop_vars_for_call(
         if command.single_token_word.get(*written) != Some(&true) {
             continue;
         }
-        let Some(classes) = command
-            .texts
+        let Some(classes) = original_words
+            .word_exprs
             .get(*written)
-            .and_then(|text| object_handle_name(text))
+            .and_then(tcl_compiler::ir::WordExpr::sole_variable_substitution)
+            .and_then(|(spelling, _)| object_handle_name(spelling, Some(config)))
             .and_then(|name| collections.get(name))
         else {
             continue;
@@ -7763,12 +7799,12 @@ mod tests {
                 .any(|&(l, _, _, k, _)| { l == 2 && k == TokenKind::Method as u32 }),
             "malformed `${{p` must not dispatch to Pin: {toks:?}"
         );
-        assert_eq!(object_handle_name("${x}"), Some("x"));
-        assert_eq!(object_handle_name("$x"), Some("x"));
-        assert_eq!(object_handle_name("$arr(idx)"), Some("arr(idx)"));
-        assert_eq!(object_handle_name("$::a:::b"), Some("::a:::b"));
-        assert_eq!(object_handle_name("$foo:::"), Some("foo:::"));
-        assert_eq!(object_handle_name("${x"), Some("{x"));
+        assert_eq!(object_handle_name("${x}", None), Some("x"));
+        assert_eq!(object_handle_name("$x", None), Some("x"));
+        assert_eq!(object_handle_name("$arr(idx)", None), Some("arr(idx)"));
+        assert_eq!(object_handle_name("$::a:::b", None), Some("::a:::b"));
+        assert_eq!(object_handle_name("$foo:::", None), Some("foo:::"));
+        assert_eq!(object_handle_name("${x", None), Some("{x"));
     }
 
     #[test]
@@ -10534,5 +10570,122 @@ puts $y",
         assert!(tokens(source, &analysis).data.is_empty());
         analysis.resolved_input = None;
         assert!(tokens(source, &analysis).data.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod configured_semantic_receiver_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
+
+    fn analyse(source: &str, config: tcl_lexer::LexerConfig, custom_class: bool) -> AnalysisResult {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut registry = CommandRegistry::build_default();
+        if custom_class {
+            let mut spec = registry.get("itcl::class").unwrap().clone();
+            spec.name = "source_class";
+            spec.required_package = None;
+            registry.insert(spec);
+        }
+        let context = tcl_registry::model::ingress::static_context_for("tcl9.1")
+            .with_command_store(Arc::new(registry));
+        Analyser::new()
+            .with_resolved_input(ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::new(context),
+                config,
+            ))
+            .analyse(source, profile.name)
+    }
+
+    fn method_lines(source: &str, analysis: &AnalysisResult) -> Vec<u32> {
+        let registry = analysis.resolved_registry().unwrap();
+        let unit = crate::original_invocation::source_compilation_unit(source, analysis, registry)
+            .unwrap();
+        super::tests::decode_semantic(&full_with_cu_and_analysis(
+            source,
+            analysis.resolved_profile().unwrap(),
+            registry,
+            Some(&unit),
+            Some(analysis),
+        ))
+        .into_iter()
+        .filter_map(|(line, _, _, kind, _)| (kind == TokenKind::Method as u32).then_some(line))
+        .collect()
+    }
+
+    #[test]
+    fn actual_method_colours_do_not_promote_compound_or_escaped_variable_heads() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = concat!(
+            "oo::class create C {method longMethod {} {}}\n",
+            "set p [C new]\n",
+            "${p} longMethod\n",
+            "${p}suffix longMethod\n",
+            "\\$p longMethod\n",
+            "${p}[set suffix] longMethod\n",
+            "\"$p\" longMethod\n",
+            "set pé [C new]\n",
+            "${pé} longMethod\n",
+            "${pé}suffix longMethod\n",
+        );
+        let current = analyse(source, tcl_lexer::LexerConfig::default(), false);
+        let lines = method_lines(source, &current);
+        assert!(lines.contains(&2), "{lines:?}");
+        assert!(lines.contains(&6), "{lines:?}");
+        assert!(lines.contains(&8), "{lines:?}");
+        for line in [3, 4, 5, 9] {
+            assert!(!lines.contains(&line), "{line}: {lines:?}");
+        }
+    }
+
+    #[test]
+    fn actual_implicit_self_colours_require_the_sole_original_variable_word() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = concat!(
+            "source_class C {\n",
+            "method m {} {}\n",
+            "method run {} {\n",
+            "${this} m\n",
+            "${this}suffix m\n",
+            "\\$this m\n",
+            "}\n",
+            "}\n",
+        );
+        let current = analyse(source, tcl_lexer::LexerConfig::default(), true);
+        let lines = method_lines(source, &current);
+        assert!(lines.contains(&3), "{lines:?}");
+        assert!(!lines.contains(&4), "{lines:?}");
+        assert!(!lines.contains(&5), "{lines:?}");
+    }
+
+    #[test]
+    fn actual_loop_collection_names_follow_the_retained_brace_configuration() {
+        // naming.core.original-inlay-retained-context
+        // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
+        let source = "foreach out ${a{b}c} {}";
+        let collections = ObjectClassMap::from([(
+            "a{b}c".to_owned(),
+            std::collections::HashSet::from(["::Element".to_owned()]),
+        )]);
+        let mut config = tcl_lexer::LexerConfig::default();
+        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let current = analyse(source, config, false);
+        let mut handles = ObjectClassMap::default();
+        augment_loop_var_handles(source, &current, &collections, &mut handles);
+        assert_eq!(handles.get("out"), collections.get("a{b}c"));
+        config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let first_close = analyse(source, config, false);
+        handles.clear();
+        augment_loop_var_handles(source, &first_close, &collections, &mut handles);
+        assert!(!handles.contains_key("out"));
+        let stale = "foreach out ${a{b}c}Suffix {}";
+        handles.clear();
+        augment_loop_var_handles(stale, &current, &collections, &mut handles);
+        assert!(!handles.contains_key("out"));
     }
 }

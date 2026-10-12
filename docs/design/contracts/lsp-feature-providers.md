@@ -211,3 +211,12 @@ Changing that store invalidates settlement even when the dialect label and
 reported declarations match. These projections do not establish a native class,
 loaded package, installed import or callable method; original source and command
 capabilities remain independently guarded.
+
+
+Semantic-token variable receivers select a sole substitution from the complete
+original segmented word and apply the supplied source lexer configuration.
+Compound words, escaped literal heads and expanded operands cannot borrow a
+variable's method or implicit-self metadata. Loop collection operands use the
+same word/configuration owner at their original written argument. Standalone
+decoration formatting remains separate; source syntax supplies no native
+receiver, current method-table, callable or edit capability.
