@@ -1,247 +1,76 @@
-# Continuation prompt
+# Compact continuation prompt
 
-Copy the following prompt into the chat that will implement the remaining work.
-It authorises subagents and keeps one coordinating agent responsible for the
-complete result.
+Continue name-handling centralisation in `bitwisecook/tcl-lsp`, branch `work`,
+started from #2286. Inspect `git status` and current local/remote commits first.
+The user authorises small subagent jobs, regular coherent commits and regular
+**development pushes while gates are red**. All required gates must pass at the
+PR stage. No merge or PR creation is currently requested.
 
----
+Read `AGENTS.md`, `docs/work/name-handling/implementation-ledger.md` and
+`docs/design/contracts/name-handling.md` first. Follow linked contracts and
+exact question evidence as needed; avoid loading every proof page or old log.
+Keep the ledger a compact current snapshot, with exact source/validation paths.
+Git records history. Coordinate shared source ownership and Cargo cache leases.
 
-Continue name-handling centralisation in `bitwisecook/tcl-lsp` on branch `work`.
-Work started from #2286. Deliver a clean, coherent set of central name-handling
-APIs used across the entire codebase: lexer/syntax, registry/declarations,
-analyser, compiler/middle end, every codegen target, both runtimes, LSP and its
-middleware/workspace/hosts, editor integrations, dialects/F5, CLI/tooling/MCP,
-AI sources and generated prompts. Use subagents actively. Finish the complete
-consumer inventory, rather than stopping after a small related fix.
+Finish every consumer in the ledger: source ingestion, registry/dialects,
+analyser/type/flow analysis, all compiler/codegen targets, VM/runtime/middleware,
+LSP/workspace/editing, CLI/tooling/AI/editor integrations, F5/framework surfaces.
+Use shared name/purpose/context/identity owners. Display strings cannot recover
+native slots or recreated objects; do not introduce another name resolver.
+Source advice, Native entered objects, completed worlds and rewrite authority
+have independent manufacturers. Preserve missing/foreign/stale/unknown refusal.
 
-Read `AGENTS.md`, `CONTRIBUTING.md`, the layout/engineering guide and these
-branch documents first:
+Tcl is dynamic: build useful bounded heuristics for well-known naming idioms,
+with explicit conditional applicability and invalidation. Separate candidates
+from proved targets. Renaming, optimisation and edits need independent proof.
+Use `experiments/name-handling/patterns/README.md`, pinned corpus/Wiki sources,
+existing positive/adversarial cases and held-out combinations. Retain exact
+questions, source, results and limitations in small discrete experiment files.
 
-- `docs/design/contracts/name-handling.md`
-- `docs/design/contracts/shared-utility-contracts-rust.md`
-- `docs/design/analysis/name-resolution.md`
-- `docs/design/analysis/name-resolution-c-conformance.md`
-- `docs/design/contracts/command-resolution.md`
-- `docs/design/contracts/naming-consumer-matrix.md`
-- `docs/design/compiler/name-resolution-implementer-guide.md`
-- `docs/design/analysis/name-resolution-proofs/{README,consumer-integrations}.md`
-- `docs/design/contracts/command-binding-and-aliasing.md`
-- `docs/design/contracts/runtime-variable-frame-model.md`
-- `docs/design/contracts/compiled-scope-and-name-lowering.md`
-- `docs/work/name-handling/{current-state,issues,plan,implementation-ledger}.md`
-- `experiments/name-handling/README.md`
-- `experiments/name-handling/results/RESULTS.md`
-- `experiments/name-handling/pattern-sources.md`
-- `experiments/name-handling/patterns/README.md`
-- `experiments/name-handling/patterns/f5/README.md`
-- `experiments/name-handling/f5/REQUEST.md`
+Oracles: actual C Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 matching real `init.tcl`
+and `tcltest.tcl`; latest Jim pinned at `5bac7c99ad65864c87da513e22e2f01703fa4e03`
+with its equivalent real suites. Verify the Jim pin against upstream when needed.
+F5 answers come from the other BIG-IP chat via branch documents. The pushed
+50-question/8-context bundle is `experiments/name-handling/patterns/f5/`; all400
+rows were pending at the last check. General questions are under
+`experiments/name-handling/f5/`. Do not borrow C/Jim or adjacent appliance answers.
 
-The user's `work` instruction overrides the stale AGENTS statement that only
-`rust` is active. Preserve existing work and oracle answers. Inspect branch,
-status and incoming changes before editing. Refresh the source audit and all
-related open/closed issue relationships. Do not interpret an issue marked
-closed as proof that every consumer conforms, or an open issue as proof its
-reproduction is still broken on this branch. The user authorises relevant
-issue updates and evidence-backed closures. Close only after reproducing and
-verifying the whole reported defect; keep pending or unpublished work explicit.
+Current independent checks and outstanding work:
 
-The key contract is parse source/evaluated written names at ingress with the
-selected dialect, retain structured namespace/command/variable identity and
-source spans, resolve through shared policy with actual context, render only at
-output. Different slots can have the same rendered FQN: `a:` / `p` versus
-`a` / `:p`. Never repair that collision with another string canonicaliser.
-Do not parse displays back into identities or prove a target by a simple-name
-fallback. Uncertain static facts must abstain consistently.
+- VM/runtime variable-arity matrices and200 array oracle comparisons pass;
+  populated regex/trace boundaries and remaining original suites stay open.
+- Real8.4 var/proc/rename pass; namespace has10 assertion failures; upvar/interp
+  stop on native refusals. Real8.5 var passes69/17skip/0fail; namespace still red.
+- Selected-release command-backing gate passes392 commands; backing12 and owner21
+  unit tests pass. Owner manifest has165 scope/gate obligations; strict public
+  default was preserved. Results: `experiments/name-handling/results/gate-validation/`.
+- C8.6 clock scalar epoch and registry controls pass. Real init remains refused;
+  mathfunc min/max topology/hooks, seven missing support workers, map/registration
+  order and native compiled-foreach SIGABRT remain open. Exact questions:
+  `experiments/name-handling/clock-bootstrap-epoch/registration-repair/`.
+- Native source namespace advice is being validated. Read its current exact
+  results in `experiments/name-handling/results/c-source-namespace-advice/`:
+  top-level packaged tokens pass; namespaced options improved but nested command
+  roles still failed at the last recorded run. Keep #2287 open until fully green.
+- W210 source-selected lifecycle prototype had6 positive controls pass and3
+  genuine-missing-read controls fail. Recheck after source advice changes.
+  Evidence: `experiments/name-handling/results/static-name-advice/` and
+  `experiments/name-handling/tcltest-shared-frame/`; #2286 remains open.
+- Scoped Syntax/LSP proof reviews and renewals are in `evidence-review/`.
+  The last full gate had348 implementation-digest errors before36 further
+  reviewed renewals. No pending candidates/unlinked tests. Review exact invariants
+  before renewing remaining bindings; never blanket-rehash or alter oracle bytes.
+- Five unrelated F5/editor prose passages were cleaned. Whole-repository docs,
+  comments and generated-copy/link audit remains unfinished. Preserve current
+  semantics/minimal how/why and oracle evidence; remove stale claims, migration
+  diaries, abandoned plans and completed TODOs. Remove this whole temporary work
+  directory and its references before merge. History belongs in git, not the PR.
 
-Commit coherent reviewed batches regularly, including affected contracts,
-experiment indexes and tracking documents. Keep the implementation ledger and
-current-state claims accurate in the same commit. Before pausing or handing off,
-commit accepted work, record any remaining shared-file ownership, and leave exact
-evidence paths, validation outcomes, blockers and ordered next actions. Inspect
-git for the latest checkpoint; do not rely on another chat's memory or an agent
-report alone. The user authorises regular development pushes before green gates; record
-failures explicitly and require all gates at the PR stage. Keep
-coordination documents as a current snapshot, with history in git.
+Environment: `source /tmp/name-env.sh`; root Cargo manifest is `Cargo.toml`.
+Healthy isolated caches: `tmp/name-target-issues`, `tmp/name-target-runtime`.
+Disable incremental/debug info as that environment file specifies. After ENOSPC,
+clean rebuild before trusting results. Keep actual source inventories and binary
+receipts scoped; an inspected definition is not an executed control.
 
-Use current Original/source-binding/native object owners and the existing
-proof index. Logical reporting, original C/Jim and hosted source inputs are
-separate purposes. Do not reintroduce superseded String adapters, manufacture
-a native receipt from source syntax, or bypass a typed host refusal to make a
-test pass. Original source ownership, lookup, entered objects, Normal completion
-and rewrite permissions have independent manufacturers.
-
-Read capture provenance before using counts. Retained older binaries and
-Logical harness runs do not certify native construction on current HEAD.
-Use release-selected actual constructors and matching real startup/test files;
-classify bootstrap/preflight refusals as unreached tests. Preserve input-pinned
-runner bytes separately from maintained, formatable tools. Refresh the ledger
-with source audits and executions labelled separately.
-
-Tcl is a highly dynamic metaprogramming language. Do not make the tool useful
-only for literal declarations and direct calls. Build solid shared heuristics
-for ordinary Tcl naming idioms: constant/list/format-built names and callbacks,
-namespace code/inscope, aliases/imports/ensembles, frame-forwarding wrappers,
-package/autoload/source conventions, finite procedure factories, object-handle
-provenance and supported framework definers. Use the registry, binding model,
-value provenance and shared name/frame owners, with context, effects, budgets
-and invalidation. A dynamic source shape is not automatically unknowable.
-
-Distinguish proved identity, conditional identity with explicit assumptions,
-plausible candidates and unresolved/ambiguous results. Useful heuristics may
-guide completion and explicit candidate navigation; they cannot silently
-authorise rename, reference rewriting, constant folding or direct binding.
-Prove the constructed value and the call-time target separately. Do not infer
-uniqueness from an incomplete index or report a definitely missing variable
-when its frame/effects are unknown. Demur with a recorded reason where proof
-is unavailable, preserving unaffected facts rather than suppressing everything.
-Use the dynamic-pattern acceptance matrix in
-`experiments/name-handling/case-catalogue.md` to test both useful coverage and
-false target selection. This is required completion work, not optional polish.
-
-Investigate those patterns in the maintained corpus and the Tcl Wiki. Read
-`docs/CORPUS.md`, `scripts/perf/MANIFEST.toml`, its verified fetcher and
-`docs/design/analysis/code-importing-examples.md`; reuse their source owners.
-The public `everything` scope covers Tcl/Tk/EDA and iRules projects. Keep pins
-stable, verify actual checkouts and record missing sources. Find concrete sites
-and variants, preserve scope/effects when reducing them, and retain source
-revision/location or Wiki URL/revision/date with every finding. Validate
-runtime claims on real oracles and static conclusions in consumer tests.
-Measure useful coverage, wrong targets, missed provable sites and abstention
-reasons on held-out project families. Do not design heuristics solely around
-invented snippets or treat prevalence as proof. Give the oracle/static-analysis
-lanes ownership of this research and share results through the central contract.
-
-Use and extend existing owner crates, not a second name system. Preserve
-command slots versus live command objects, interpreter domains, frames and
-variable links, imports versus late-bound aliases, mutation ordering,
-namespace path, retained/dead namespace lifetime, generation/cache guards,
-array/literal/empty names, byte values where supported and source span widths.
-Relative-qualified `n::x` is not a frame local solely because it lacks leading
-`::`. Top-level `x` and `::x` may identify the same storage place. Runtime
-arenas and byte namespace trees need state adapters, not flattening to FQNs.
-Command-specific roles and knowledge stay in the registry, including overlays
-and stubs; consumers apply the declared facts generically.
-
-First reproduce #2286's real `tcltest` setup/body/cleanup scope and binding
-problem. Keep both genuine missing-read and false-positive cases. Do not add
-blanket W210 suppression or a command-name special case. Then carry the shared
-identity/context through every consumer listed in the plan, including older
-closed issues' regressions and the unresolved structural identity work in
-#1778. Validate actual direct/AOT/native code paths before claiming all codegen
-uses runtime dispatch.
-
-Coordinate subagents in bounded, non-overlapping lanes:
-
-1. Owner/API and identity lane: written parsing, structured slots/paths,
-   variable places, registry boundary, policy adapters and enforcement.
-2. Static producer/compiler lane: signature scan/analyser, binding facts,
-   scope/alias/summary propagation, SSA/dataflow/optimisers/type inference and
-   #2286 regression. Split producers and middle end once interfaces settle.
-3. Runtime/backend lane: VM and WASM command/namespace/frame stores, lifecycle,
-   traces/imports/aliases/OO/mathfunc, all codegen targets and invalidation.
-4. LSP/middleware/tooling lane: providers, workspace/server settlement,
-   rename/refactors/spans, hosts/editor consumers, CLI/MCP/AI guidance.
-5. Oracle lane: C matrix, latest Jim, retained experiments, expected-vector
-   promotion and prepared BIG-IP questions/returned-answer integration.
-6. Independent review/docs lane: adversarial collision/mutation/context tests,
-   complete consumer reconciliation and present-state documentation scrub.
-
-The coordinator owns shared API edits and integration. Start independent audits
-in parallel, agree interfaces before dependent edits, assign explicit file
-ownership and prevent concurrent edits to shared files. Respect slot limits;
-reuse agents for later lanes. Never share Cargo targets across concurrently
-building worktrees; use `scripts/dev/agent-build-env.sh`. Worktrees may isolate
-lanes, but integrate all accepted changes into `work`. A subagent reports
-findings, tests, remaining consumer rows and evidence paths; its report does
-not by itself establish completion. Independently review each integrated lane.
-
-Maintain a complete per-call-site ledger as described in `plan.md`. Audit every
-workspace crate, `runtime/rust`, all registered backends, scripts/editor/AI
-sources and generator templates. Classify raw colon operations by their input
-representation and purpose; grep counts and existing narrow drift gates are
-not proof of centralisation. A tested restricted feature may be unsupported;
-an unaudited consumer is unfinished.
-
-Oracles are real C Tcl 8.4–9.1, the latest upstream JimTcl, and F5 Tcl measured
-on BIG-IP. C pins come from `rust/tcl-dialect/data/reference-toolchains.tsv`:
-require the complete five-release matrix using shared test support. Set
-`TCL_LSP_REQUIRE_TCLSH=1` for witness-based callers. Current syntax vector
-runners use `available_tclshs()` and skip missing/invalid binaries without
-honouring that variable: add an explicit all-five preflight/assertion or use
-`witness_tclsh` for every `TclVersion::ALL` entry. Determine and record the
-latest Jim revision and
-build configuration rather than treating an old 0.84 claim as current. Preserve
-exact programs, provenance, stdout/stderr bytes, completion/error details and
-capability status. Different releases/dialects/contexts can differ; record
-observed expectations explicitly. Never bless our own implementation by using
-its output as the oracle.
-
-Use C Tcl's upstream `tcltest` cases on each matching real C release, or Jim's
-equivalent upstream suite on the identified Jim build, as oracle evidence
-where useful. Reuse relevant cases before inventing bespoke probes. Retain
-suite revision, file/case IDs, exact definitions, setup/cleanup, dependencies,
-constraints and raw pass/fail/skip transcripts. Skipped cases are not measured
-answers. Use `tcl-test-support::upstream_test_definition` and validated
-source-tree execution for C cases where applicable; preserve Jim's own harness
-and expectations. Running the harness on our implementation validates a
-consumer and does not create an independent oracle. Reduce measured suite
-cases into shared vectors without changing their semantic question.
-
-Keep all experiments and measurements. Use the existing vector renderers and
-BIG-IP probe infrastructure where suitable. Promote deterministic regression
-expectations only from identified real-oracle records; cover owner and each
-consumer plus public LSP/CLI/MCP/compiled outcomes. No oracle available means
-pending/unavailable, not a pass. Manual generated/fuzz campaigns follow AGENTS.
-
-This chat does not have BIG-IP access. Prepare executable probes and exact
-questions in `experiments/name-handling/f5/REQUEST.md`, using its IDs and answer
-protocol. The user will give them to the chat with appliance access. That chat
-returns answer documents/raw transcripts to `work` under
-`experiments/name-handling/f5/answers/`, or for the wild-pattern bundle under
-`experiments/name-handling/patterns/f5/answers/`. Ingest them without overwriting their
-provenance. Appliance tclsh is a control; TMM, CLI script and iApp are separate
-contexts. Distinguish load acceptance from runtime semantics and named-command
-from dynamically constructed lookup. Continue independent work while waiting;
-report the precise unanswered questions instead of inventing F5 behaviour.
-
-Update durable contracts as implementation changes. Then scrub the entire
-codebase's documentation and comments so they describe only current semantics,
-ownership, public preconditions, actual limitations and necessary how/why.
-This is a repository-wide cleanup, including pre-existing material unrelated to
-#2286 or name handling. Do not restrict it to files changed by this work. Remove
-or correct obsolete claims and guidance, abandoned plans, completed TODOs and
-development chaff wherever found, verifying accuracy against current code.
-Comments must be minimal; make the code itself clear and self describing.
-Apply this cleanup to API doc comments and implementation, test and script
-comments too, including templates and generated sources. Repair generator
-owners and regenerate outputs rather than cleaning only generated copies.
-Remove development process/history, milestones, phase diaries, past-bug
-narratives, handoffs and completed TODOs from final shipped docs and comments.
-Retain legal/machine markers and reproducible experimental evidence. Regenerate
-all generated docs, prompts and catalogues from their owners. Resolve the
-specific contradictory claims listed in `current-state.md` using code/oracles.
-
-Before final delivery reconcile every consumer row, related issue reproduction,
-required oracle record, API contract and gate. Run focused deterministic tests
-for each semantic change, `make rust-check`, and `make prep-pr` at the PR stage;
-fix failures and include generated/formatting changes. CI owns deep tiers;
-address its failures when a PR is requested or already exists. Do not run
-unnecessary full-suite loops after appropriate checks pass.
-
-When all obligations are complete, remove `docs/work/name-handling/` and its
-temporary references from the final diff. Cleanup is required before merge:
-remove temporary ledgers, continuation prompts, state documents and process
-narratives anywhere in the tracked tree, including generated copies and links.
-Review mentions of phases, lanes, steps, slices and agents in context, preserving
-real current semantics and user procedures. Retained experiment descriptions
-must explain their question, source, method, observations and limits rather
-than how agents organised implementation. Verify the final tree and branch diff
-after removal; do not defer cleanup to a later PR. Preserve
-`docs/design/contracts/name-handling.md`, accurate existing contracts, retained
-experiments, BIG-IP answer documents and real-oracle conformance tests.
-Development history belongs in git. Any final PR describes the concrete final
-problem/behaviour, material design tradeoffs and validation, never a sequence
-of phases, slices, agents or abandoned approaches. Do not open or merge a PR
-unless requested. Report what actually passed and any exact remaining blocker;
-do not label the programme complete with unexplored consumers or missing oracle
-answers. Persist autonomously through all independent authorised work.
+Resume the first unresolved bounded job from the ledger; record newly executed
+results, source currency, issue state and ownership in the same coherent commit.

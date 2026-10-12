@@ -1,0 +1,12 @@
+{
+  "review": "c-source-authority-review.md",
+  "kind": "static-source-review",
+  "sourcefreeze": "/tmp/c-source-namespace-advice-lifecycle-before.sha256",
+  "sha256": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "3fb97aa3c6b14e68d572ccda28ffc81fc310bb4341a5680e862bff724910ac60",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs": "db0c3d35a4ddb7807c61aec73db08d30b8f42d2f4aa080fb6762bc212bf0c0d3",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs": "29feecc952902f504a0926fd84df5281143038244f8574d19ed403e80186aa7e",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "3ca22ca95f7ac9e4ac835f4e8020287985fc69b70b5c27aaf0d15daa926f37c4",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs": "605a67ee3f1ac0163b9e621cf8de5ba71cd03bfe7e7d5f26bcdfd01dec928373"
+  }
+}
