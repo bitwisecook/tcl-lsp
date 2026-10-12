@@ -1,0 +1,30 @@
+{
+  "question": "Does the native consumer retire parent commands before visiting every child namespace?",
+  "kind": "consumer-check",
+  "unit_binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "record": {
+    "name": "cmd_trace::tests::parent_teardown_reaches_each_child_after_parent_commands",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "--exact",
+      "cmd_trace::tests::parent_teardown_reaches_each_child_after_parent_commands",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 1.864,
+    "stdout": "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stdout",
+    "stderr": "cmd_trace-tests-parent_teardown_reaches_each_child_after_parent_commands.stderr"
+  },
+  "stdout_sha256": "b9e54c463f729ab645daf10e165b8839c5beee52dc6ac51932a78bc150e42d5c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": {
+    "snapshot_base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+    "snapshot_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+    "path": "runtime/rust/src/cmd_trace.rs",
+    "whole_file_sha256": "86eea44bb5d83d6a07f0127b6ce0b405603bb5f42671067fd9f253f49a842f1c",
+    "line_start": 1884,
+    "line_end": 1920,
+    "excerpt_sha256": "306d90343d37a8d71289d04831d5b429bdd4c933ce52d51d03aa498de8426a31"
+  },
+  "providers_executed_by_this_record": []
+}

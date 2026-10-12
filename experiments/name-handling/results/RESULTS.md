@@ -41,9 +41,13 @@ The immutable current runtime binary is
 `/tmp/name-runtime-native-ensemble-fixed`, SHA-256
 `eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f`.
 Its [build receipt](runtime-current-tcl8.5.19/runtime-build-receipt.json) and
-[source patch](runtime-lifecycle-fix/native-ensemble-fix/source.patch) identify
+[archived build provenance](runtime-lifecycle-fix/native-ensemble-fix/build-provenance/README.md) identify
 commit `c49ef6fd5d147edd0cf473070dfaac2834c20dd7` plus captured uncommitted
-changes. Later source edits do not inherit these executable outcomes.
+changes. [Discrete questions](runtime-lifecycle-fix/native-ensemble-fix/README.md)
+pair exact inputs or frozen consumer-test definitions with their scoped results.
+The broad source snapshot was recorded after compilation while agents shared
+source; it does not prove stable compiler inputs. Later source edits do not
+inherit these executable outcomes.
 
 ## Separate frozen subjects
 

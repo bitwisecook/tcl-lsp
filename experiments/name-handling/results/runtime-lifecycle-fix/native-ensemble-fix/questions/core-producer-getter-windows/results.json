@@ -1,0 +1,30 @@
+{
+  "question": "Does the namespace-object consumer match its 100 selected C producer/getter vectors?",
+  "kind": "consumer-check",
+  "unit_binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "record": {
+    "name": "interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "--exact",
+      "interp::native_namespace_names::tests::original_namespace_objects_match_100_native_c_producer_and_getter_windows",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 10.634,
+    "stdout": "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stdout",
+    "stderr": "interp-native_namespace_names-tests-original_namespace_objects_match_100_native_c_producer_and_getter_windows.stderr"
+  },
+  "stdout_sha256": "fce08705e3a65d4a52a8465e52a851057dddf3c2d9ede781f1de1672391edca9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": {
+    "snapshot_base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+    "snapshot_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+    "path": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+    "whole_file_sha256": "34c335fa228f78f30cfa80807eb3dc36d5a668dcbd192894585c62a926ffa2ca",
+    "line_start": 149,
+    "line_end": 322,
+    "excerpt_sha256": "8da371f312db4a036112ed2a4372e6a89ea0d2813d942530aa0ed7ef674425e6"
+  },
+  "providers_executed_by_this_record": []
+}

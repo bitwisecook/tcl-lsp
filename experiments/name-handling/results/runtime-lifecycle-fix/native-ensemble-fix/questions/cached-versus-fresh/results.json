@@ -1,0 +1,114 @@
+{
+  "question": "Can a retained namespace object still reach a child after its parent is unpublished, while a newly constructed value misses?",
+  "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+  "input_archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/cached-fresh-namespace-probe.tcl",
+  "runtime_binary_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "runtime_records": [
+    {
+      "original_record": {
+        "case": "cached-fresh-namespace-probe",
+        "release": "8.5",
+        "patchlevel": "8.5.19",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.5",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.062,
+        "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/cached-fresh-namespace-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/cached-fresh-namespace-probe.stderr"
+      },
+      "stdout_sha256": "f6e613d6c759851d1cc89120a08189647c85a926eff6cfaa6ca21e93d9cd3fad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "cached-fresh-namespace-probe",
+        "release": "8.6",
+        "patchlevel": "8.6.18",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.6",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "exit_code": 2,
+        "timeout": false,
+        "seconds": 1.638,
+        "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/cached-fresh-namespace-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/cached-fresh-namespace-probe.stderr"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "5b860f8f36fdce4b4aea6042e8778d2f69640ad025d59a71c7c2b04b9e6d238c"
+    },
+    {
+      "original_record": {
+        "case": "cached-fresh-namespace-probe",
+        "release": "9.0",
+        "patchlevel": "9.0.4",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.0",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.671,
+        "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/cached-fresh-namespace-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/cached-fresh-namespace-probe.stderr"
+      },
+      "stdout_sha256": "5e5103ff64d34dc39844016c9f7720ebe9d207972e859af1f18bfab9b23a4442",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "cached-fresh-namespace-probe",
+        "release": "9.1",
+        "patchlevel": "9.1.0",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.1",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.398,
+        "input_sha256": "a80d91f9617e22b8141da0252e0f922486d46f16f33c235264c8d4547d995165",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/cached-fresh-namespace-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/cached-fresh-namespace-probe.stderr"
+      },
+      "stdout_sha256": "5e5103ff64d34dc39844016c9f7720ebe9d207972e859af1f18bfab9b23a4442",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "oracle_record_source": null,
+  "oracle_records": [],
+  "providers_not_measured": [
+    "Jim",
+    "F5"
+  ]
+}

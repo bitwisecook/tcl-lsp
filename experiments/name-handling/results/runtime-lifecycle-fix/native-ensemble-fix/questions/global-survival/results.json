@@ -1,0 +1,170 @@
+{
+  "question": "Does the global set command survive mutually entangled child deletion?",
+  "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+  "input_archive_path": "experiments/name-handling/results/runtime-lifecycle-fix/deletion-global-survival-probe.tcl",
+  "runtime_binary_sha256": "eaf091d49143d47282b825ffff53012b799b72acaec1780b6326207728bb180f",
+  "runtime_records": [
+    {
+      "original_record": {
+        "case": "deletion-global-survival-probe",
+        "release": "8.4",
+        "patchlevel": "8.4.20",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.4",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 0.794,
+        "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/deletion-global-survival-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.4.20/deletion-global-survival-probe.stderr"
+      },
+      "stdout_sha256": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "deletion-global-survival-probe",
+        "release": "8.5",
+        "patchlevel": "8.5.19",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.5",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 0.944,
+        "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/deletion-global-survival-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.5.19/deletion-global-survival-probe.stderr"
+      },
+      "stdout_sha256": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "deletion-global-survival-probe",
+        "release": "8.6",
+        "patchlevel": "8.6.18",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "8.6",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "exit_code": 2,
+        "timeout": false,
+        "seconds": 1.881,
+        "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/deletion-global-survival-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/8.6.18/deletion-global-survival-probe.stderr"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "5b860f8f36fdce4b4aea6042e8778d2f69640ad025d59a71c7c2b04b9e6d238c"
+    },
+    {
+      "original_record": {
+        "case": "deletion-global-survival-probe",
+        "release": "9.0",
+        "patchlevel": "9.0.4",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.0",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.618,
+        "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/deletion-global-survival-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.0.4/deletion-global-survival-probe.stderr"
+      },
+      "stdout_sha256": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_record": {
+        "case": "deletion-global-survival-probe",
+        "release": "9.1",
+        "patchlevel": "9.1.0",
+        "command": [
+          "/tmp/name-runtime-native-ensemble-fixed",
+          "--quiet",
+          "--tcl-version",
+          "9.1",
+          "--init"
+        ],
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "exit_code": 0,
+        "timeout": false,
+        "seconds": 1.546,
+        "input_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+        "test_started": false,
+        "test_summary": false,
+        "stdout_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/deletion-global-survival-probe.stdout",
+        "stderr_path": "experiments/name-handling/results/runtime-lifecycle-fix/native-ensemble-fix/9.1.0/deletion-global-survival-probe.stderr"
+      },
+      "stdout_sha256": "af4aee881e2ea9cbf2e06e109a2e2539ab2682cdaa6fa88577c3a9a7100de5f7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "oracle_record_source": "global-survival-oracle-records.json",
+  "oracle_records": [
+    {
+      "patchlevel": "8.4.20",
+      "exit_code": 0,
+      "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+    },
+    {
+      "patchlevel": "8.5.19",
+      "exit_code": 0,
+      "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+    },
+    {
+      "patchlevel": "8.6.18",
+      "exit_code": 0,
+      "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "patchlevel": "9.0.4",
+      "exit_code": 0,
+      "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+    },
+    {
+      "patchlevel": "9.1.0",
+      "exit_code": 0,
+      "script_sha256": "85f036e5d654c3496b92d36f5b479cd7c314b8155418be3533eaf9c103ac0221",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+    }
+  ],
+  "providers_not_measured": [
+    "Jim",
+    "F5"
+  ]
+}

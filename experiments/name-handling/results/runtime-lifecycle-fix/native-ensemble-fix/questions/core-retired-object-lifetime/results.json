@@ -1,0 +1,30 @@
+{
+  "question": "Does a retained namespace token survive retirement without retaining its interpreter?",
+  "kind": "consumer-check",
+  "unit_binary_sha256": "0b307b541a182415c855da5bd80cd3ebb688336ebeb0d09f373c703bd4cda24f",
+  "record": {
+    "name": "interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter",
+    "command": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "--exact",
+      "interp::native_namespace_names::tests::original_namespace_lifetime_survives_retirement_without_owning_the_interpreter",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "seconds": 4.111,
+    "stdout": "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stdout",
+    "stderr": "interp-native_namespace_names-tests-original_namespace_lifetime_survives_retirement_without_owning_the_interpreter.stderr"
+  },
+  "stdout_sha256": "16d88b75490bd270f4a6cce0f7b47b4afe47eb9ae41077bcb485bd614be560cd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": {
+    "snapshot_base_commit": "c49ef6fd5d147edd0cf473070dfaac2834c20dd7",
+    "snapshot_patch_sha256": "b4dda96b169ffd63b15eb03950454d86da2f7972d20d7f1e33b25d37d6c1f4d1",
+    "path": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+    "whole_file_sha256": "34c335fa228f78f30cfa80807eb3dc36d5a668dcbd192894585c62a926ffa2ca",
+    "line_start": 392,
+    "line_end": 437,
+    "excerpt_sha256": "93db488f194f7370443171975b978a958e1de963a162bde66c18d26eb267a2fd"
+  },
+  "providers_executed_by_this_record": []
+}
