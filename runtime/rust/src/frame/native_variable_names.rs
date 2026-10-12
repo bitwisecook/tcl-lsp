@@ -366,6 +366,13 @@ impl FrameStack {
             .native_local_names
             .as_ref()
     }
+    pub(crate) fn take_native_local_name_table(
+        &mut self,
+    ) -> Option<Rc<tcl_runtime_api::native_literal::NativeLocalNameTable<Owned>>> {
+        let index = self.current_frame_index();
+        self.frames[index].native_local_names.take()
+    }
+
     pub(crate) fn install_native_local_name_table(
         &mut self,
         table: Rc<tcl_runtime_api::native_literal::NativeLocalNameTable<Owned>>,

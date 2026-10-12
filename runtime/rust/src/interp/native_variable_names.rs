@@ -13,7 +13,7 @@ use super::{native_arguments::OriginalArguments, Code, Interp};
 #[path = "native_variable_names/native_unset.rs"]
 mod native_unset;
 use crate::obj::{self, Owned, TclObj};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use tcl_runtime_api::native_literal::NativeLocalNameTable;
 use tcl_syntax::{
     native_variable_name::{
@@ -116,7 +116,7 @@ impl Interp {
     }
     /// Share the real procedure's canonical-name header; activation retains
     /// its header, not another reference to each original name object.
-    pub(super) fn refresh_native_local_name_table(&self) -> Result<(), ValueError> {
+    pub(super) fn refresh_native_local_name_table(&self) -> Result<(), tcl_cmd_core::CmdError> {
         let Some(protocol) = self.native_c_variable_name_protocol() else {
             return Ok(());
         };
@@ -130,31 +130,131 @@ impl Interp {
             };
             (Rc::clone(procedure), frames.native_compiled_names())
         };
-        let table = {
-            let mut retained = procedure.native_local_names.borrow_mut();
-            if retained.as_ref().is_none_or(|table| table.layout != layout) {
-                let table = NativeLocalNameTable::create(
-                    &self.native_literal_world,
-                    &layout,
-                    tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
-                    |original| {
-                        self.native_object_string_bytes(original.as_ptr())
-                            .map(|bytes| bytes.to_vec())
-                    },
-                    |bytes| {
-                        super::native_literal_pool::registered_string(
-                            bytes,
-                            self.native_invocation_dialect(),
-                        )
-                    },
-                )?;
-                *retained = Some(NativeProcedureNameTable { layout, table });
+        let arguments = super::native_arguments::OriginalArguments::enter(self, &[])?;
+        let frame = super::native_arguments::OriginalArgumentFrame::capture(self);
+        let before = procedure
+            .native_local_names
+            .borrow()
+            .as_ref()
+            .map(|table| Rc::downgrade(&table.table));
+        let physical = || {
+            frame.check(self, &arguments)?;
+            let current = {
+                let frames = self.frames.borrow();
+                frames
+                    .current_c_procedure()
+                    .is_some_and(|current| Rc::ptr_eq(current, &procedure))
+                    && frames.native_compiled_names() == layout
+            };
+            if !current {
+                return Err(arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable("original procedure local-name layout")
+                        .into(),
+                ));
             }
-            Rc::clone(&retained.as_ref().expect("canonical local table").table)
+            Ok(())
         };
+        let original_slot = || {
+            physical()?;
+            let retained = procedure.native_local_names.borrow();
+            let same = match (&before, retained.as_ref()) {
+                (None, None) => true,
+                (Some(before), Some(current)) => {
+                    Weak::ptr_eq(before, &Rc::downgrade(&current.table))
+                }
+                _ => false,
+            };
+            if !same {
+                return Err(arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable(
+                        "original procedure local-name publication slot",
+                    )
+                    .into(),
+                ));
+            }
+            Ok(())
+        };
+        original_slot()?;
+        let reused = {
+            let retained = procedure.native_local_names.borrow();
+            retained
+                .as_ref()
+                .filter(|table| table.layout == layout)
+                .map(|table| Rc::clone(&table.table))
+        };
+        let table = if let Some(table) = reused {
+            table
+        } else {
+            let strings = tcl_syntax::native_string::NativeStringProtocol::C(protocol.version());
+            let table = NativeLocalNameTable::create_using(
+                &self.native_literal_world,
+                &layout,
+                strings,
+                |value| obj::NativeObjectLifetime::retain(value.as_ptr()),
+                |original, registration| {
+                    self.native_object_string_bytes_using(
+                        original.as_ptr(),
+                        &|| {
+                            registration()?;
+                            original_slot()?;
+                            obj::check_native_liveness(original.as_ptr())
+                                .map_err(|error| arguments.retain_refusal(error.into()))
+                        },
+                        &|error| arguments.retain_refusal(error.into()),
+                    )
+                    .map(|bytes| bytes.to_vec())
+                },
+                |bytes| {
+                    super::native_literal_pool::registered_string(
+                        bytes,
+                        self.native_invocation_dialect(),
+                    )
+                    .map_err(|error| arguments.retain_refusal(error.into()))
+                },
+                &original_slot,
+                &|error| arguments.retain_refusal(error.into()),
+                &|error| arguments.retain_refusal(error),
+            )?;
+            original_slot()?;
+            let incoming = NativeProcedureNameTable {
+                layout: layout.clone(),
+                table: Rc::clone(&table),
+            };
+            let retired = procedure.native_local_names.borrow_mut().take();
+            drop(retired);
+            physical()?;
+            if procedure.native_local_names.borrow().is_some() {
+                return Err(arguments.retain_refusal(
+                    ValueError::CommandProtocolUnavailable(
+                        "replaced original procedure local-name publication slot",
+                    )
+                    .into(),
+                ));
+            }
+            *procedure.native_local_names.borrow_mut() = Some(incoming);
+            table
+        };
+        physical()?;
+        let retired = self.frames.borrow_mut().take_native_local_name_table();
+        drop(retired);
+        physical()?;
+        let selected = procedure
+            .native_local_names
+            .borrow()
+            .as_ref()
+            .is_some_and(|selected| Rc::ptr_eq(&selected.table, &table));
+        if !selected || self.frames.borrow().native_local_name_table().is_some() {
+            return Err(arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable(
+                    "replaced original activation local-name publication slot",
+                )
+                .into(),
+            ));
+        }
         self.frames
             .borrow_mut()
             .install_native_local_name_table(table);
+        physical()?;
         Ok(())
     }
 
@@ -572,9 +672,13 @@ impl Interp {
         let parsed_stage = || {
             actual.check_original_c_name_stage(original_stage)?;
             if let Some(primary) = &parsed_primary {
-                primary.check_for(original, "changed original Parsed variable primary")
-                    .map_err(|error| tcl_cmd_core::CmdError::from_execution_refusal(
-                        actual.clone().refuse_completion_value_access(error)))?;
+                primary
+                    .check_for(original, "changed original Parsed variable primary")
+                    .map_err(|error| {
+                        tcl_cmd_core::CmdError::from_execution_refusal(
+                            actual.clone().refuse_completion_value_access(error),
+                        )
+                    })?;
             }
             Ok(())
         };
@@ -1058,10 +1162,15 @@ impl Interp {
         self.original_c_alias_error_using(message, code, None)
     }
 
-    fn original_c_alias_error_using(&mut self, message: &[u8], code: &[u8],
+    fn original_c_alias_error_using(
+        &mut self,
+        message: &[u8],
+        code: &[u8],
         stage: OriginalCNameStage<'_>,
     ) -> Code {
-        if let Err(error) = self.check_original_c_name_stage(stage) { return self.report_cmd_error_using(error, stage); }
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
@@ -1087,20 +1196,23 @@ impl Interp {
         code: tcl_cmd_core::CmdErrorCodeUpdate,
         stage: OriginalCNameStage<'_>,
     ) -> Code {
-        if let Err(error) = self.check_original_c_name_stage(stage) { return self.report_cmd_error_using(error, stage); }
+        if let Err(error) = self.check_original_c_name_stage(stage) {
+            return self.report_cmd_error_using(error, stage);
+        }
         let protocol = self
             .native_c_variable_name_protocol()
             .expect("actual C alias diagnostic");
-        self.report_cmd_error_using(tcl_cmd_core::CmdError::from_byte_details(
-            tcl_cmd_core::CmdErrorDetails {
+        self.report_cmd_error_using(
+            tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
                 message: message.to_vec(),
                 string_result: protocol.diagnostic_string_protocol(),
                 error_code: code,
                 error_info: None,
                 error_line: None,
                 primitive_getter: None,
-            },
-        ), stage)
+            }),
+            stage,
+        )
     }
 
     fn settle_original_c_local_alias(
@@ -1299,7 +1411,11 @@ impl Interp {
                     stage,
                 ),
             Err(crate::frame::NativeCompiledAliasError::SelfLink) => self
-                .original_c_alias_error_using(b"can't upvar from variable to itself", b"TCL UPVAR SELF", stage),
+                .original_c_alias_error_using(
+                    b"can't upvar from variable to itself",
+                    b"TCL UPVAR SELF",
+                    stage,
+                ),
             Err(error) => {
                 let mut message = b"variable \"".to_vec();
                 message.extend_from_slice(tcl_core_types::c_string_extent(local));
@@ -1318,7 +1434,8 @@ impl Interp {
                         b"TCL UPVAR TRACED"
                     } else {
                         b"TCL UPVAR EXISTS"
-                    }, stage
+                    },
+                    stage,
                 )
             }
         }
@@ -1822,8 +1939,6 @@ impl Interp {
         };
         self.original_c_variable_failure_using(&bytes, purpose, reason, site, stage)
     }
-
-
 
     fn original_c_variable_failure_using(
         &mut self,
@@ -2338,8 +2453,6 @@ impl Interp {
         Ok(captured)
     }
 
-
-
     fn original_c_variable_error_without_operand_using(
         &mut self,
         purpose: NativeVariableNameLookupPurpose,
@@ -2406,8 +2519,6 @@ impl Interp {
         }
         self.original_c_variable_receiver_error_using(input, purpose, error, None, stage)
     }
-
-
 
     fn original_c_variable_trace_error_using(
         &mut self,

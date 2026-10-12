@@ -13,6 +13,127 @@ use tcl_runtime_api::native_command_name::{
 };
 use tcl_syntax::value::ValueError;
 
+/// Actual compiler target/frame observations, with the genuine inherited
+/// currency recorded by SavedExecutionTarget. An authored None remains None.
+pub(super) struct OriginalLiteralOperation<'a> {
+    vm: std::cell::RefCell<&'a mut Vm>,
+    target: super::native_operation_currency::SavedExecutionTarget,
+    frame: (usize, std::rc::Weak<crate::frame::ActivationIdentity>),
+    world: std::rc::Weak<std::cell::RefCell<crate::literal_pool::NativeLiteralWorld>>,
+}
+impl<'a> OriginalLiteralOperation<'a> {
+    pub(super) fn capture(vm: &'a mut Vm) -> Self {
+        let target = super::native_operation_currency::SavedExecutionTarget::capture(vm);
+        let frame = (
+            vm.frames.len(),
+            Rc::downgrade(
+                &vm.frames
+                    .last()
+                    .expect("compiler physical frame")
+                    .activation,
+            ),
+        );
+        let world = Rc::downgrade(&vm.native_literal_world);
+        Self {
+            vm: std::cell::RefCell::new(vm),
+            target,
+            frame,
+            world,
+        }
+    }
+    fn current_cmd(&self) -> Result<(), CmdError> {
+        let mut vm = self.vm.borrow_mut();
+        self.target
+            .check_current(&mut vm)
+            .map_err(CmdError::from_execution_refusal)?;
+        let current = vm.frames.len() == self.frame.0
+            && vm.frames.last().is_some_and(|frame| {
+                std::rc::Weak::ptr_eq(&Rc::downgrade(&frame.activation), &self.frame.1)
+            })
+            && std::rc::Weak::ptr_eq(&Rc::downgrade(&vm.native_literal_world), &self.world);
+        if !current {
+            let first = vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original literal compiler frame or world",
+                ),
+            ));
+            return Err(CmdError::from_execution_refusal(first));
+        }
+        Ok(())
+    }
+    pub(super) fn check(&self) -> Result<(), crate::literal_pool::NativeLiteralUnavailable> {
+        self.current_cmd().map_err(|_| {
+            crate::literal_pool::NativeLiteralUnavailable::unavailable(
+                "original literal compiler operation",
+            )
+        })
+    }
+    pub(super) fn refuse(
+        &self,
+        error: ValueError,
+    ) -> crate::literal_pool::NativeLiteralUnavailable {
+        let error: CmdError = error.into();
+        self.retain(&error);
+        crate::literal_pool::NativeLiteralUnavailable::unavailable(
+            "original literal registration refused",
+        )
+    }
+    fn retain(&self, error: &CmdError) {
+        if let Some(first) = error.native_execution_refusal() {
+            self.vm
+                .borrow_mut()
+                .retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+        }
+    }
+    pub(super) fn string(
+        &self,
+        value: &Value,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        registration: &dyn Fn() -> Result<(), crate::literal_pool::NativeLiteralUnavailable>,
+    ) -> Result<Vec<u8>, crate::literal_pool::NativeLiteralUnavailable> {
+        let reached = value.native_string_bytes_checked_for_value::<CmdError>(
+            protocol,
+            None,
+            &mut |original| {
+                if registration().is_err() {
+                    self.current_cmd()?;
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original literal registration stage",
+                    )
+                    .into());
+                }
+                self.current_cmd()?;
+                original
+                    .original_native_header_currentness()
+                    .map_err(|error| {
+                        let first = self.vm.borrow_mut().retain_tcl_host_failure(
+                            crate::error::TclHostFailure::ValueAccess(error),
+                        );
+                        CmdError::from_execution_refusal(first)
+                    })
+            },
+        );
+        if let Err(error) = &reached {
+            self.retain(error);
+        }
+        self.check()?;
+        reached.map(|bytes| bytes.to_vec()).map_err(|_| {
+            crate::literal_pool::NativeLiteralUnavailable::unavailable(
+                "original literal String getter",
+            )
+        })
+    }
+    pub(super) fn with_vm<T>(
+        &self,
+        work: impl FnOnce(&mut Vm) -> Result<T, crate::literal_pool::NativeLiteralUnavailable>,
+    ) -> Result<T, crate::literal_pool::NativeLiteralUnavailable> {
+        self.check()?;
+        let reached = work(&mut self.vm.borrow_mut());
+        self.check()?;
+        reached
+    }
+}
+
 impl Vm {
     fn native_command_name_reference(&self, namespace: NsId) -> NativeCommandNameReference {
         NativeCommandNameReference {
@@ -409,10 +530,39 @@ impl Vm {
         source_namespace: &NamespacePath,
     ) -> crate::literal_pool::NativeLiteralPoolReceipt {
         use crate::literal_pool::{NativeLiteralPool, NativeLiteralUnavailable as Error};
+        let target = super::native_operation_currency::SavedExecutionTarget::capture(self);
+        let frame = (
+            self.frames.len(),
+            Rc::downgrade(
+                &self
+                    .frames
+                    .last()
+                    .expect("compiler physical frame")
+                    .activation,
+            ),
+        );
         for first_pass in table.discarded_native_passes() {
             let discarded =
                 self.create_native_literal_table_pool(asm, first_pass, source_namespace)?;
             drop(discarded);
+            target
+                .check_current(self)
+                .map_err(|_| Error::unavailable("original literal discarded-pass cleanup"))?;
+            if self.frames.len() != frame.0
+                || !self.frames.last().is_some_and(|current| {
+                    std::rc::Weak::ptr_eq(&Rc::downgrade(&current.activation), &frame.1)
+                })
+            {
+                let error =
+                    ValueError::CommandProtocolUnavailable("original literal discarded-pass frame");
+                let error: CmdError = error.into();
+                if let Some(first) = error.native_execution_refusal() {
+                    self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+                        first.clone(),
+                    ));
+                }
+                return Err(Error::unavailable("original literal discarded-pass frame"));
+            }
         }
         if let Some(planned) = table.compiler_replay_environment() {
             let current = self.capture_native_compiler_pass_environment(None);
@@ -466,23 +616,50 @@ impl Vm {
         };
         let world = Rc::clone(&self.native_literal_world);
         let before = self.native_cache_stamp(namespace);
-        let pool = NativeLiteralPool::create_with_actions(
+        let original = OriginalLiteralOperation::capture(self);
+        original.check()?;
+        let check = || original.check();
+        let string = |value: &Value, protocol, registration: &dyn Fn() -> Result<(), Error>| {
+            original.string(value, protocol, registration)
+        };
+        let refuse = |error| original.refuse(error);
+        let callbacks = crate::literal_pool::OriginalLiteralCallbacks {
+            check: &check,
+            string: &string,
+            refuse: &refuse,
+        };
+        let protocol = original
+            .vm
+            .borrow()
+            .native_scalar_carrier_dialect()
+            .native_string_protocol();
+        let reached = NativeLiteralPool::create_with_actions_using(
             &world,
             table,
-            self.native_scalar_carrier_dialect()
-                .native_string_protocol(),
+            protocol,
             namespace,
             source_namespace,
             context,
-            |effect| match effect {
-                crate::literal_pool::NativeLiteralEffect::PrimeCommandName(receipt, original) => {
-                    self.prime_native_command_literal(receipt, original)
-                }
-                crate::literal_pool::NativeLiteralEffect::PublishSyntax { message, options } => {
-                    self.publish_original_compiler_syntax(message, options)
-                }
+            |effect| {
+                original.with_vm(|vm| match effect {
+                    crate::literal_pool::NativeLiteralEffect::PrimeCommandName(receipt, value) => {
+                        vm.prime_native_command_literal(receipt, value)
+                    }
+                    crate::literal_pool::NativeLiteralEffect::PublishSyntax {
+                        message,
+                        options,
+                    } => vm.publish_original_compiler_syntax(message, options),
+                })
             },
-        )?;
+            Some(&callbacks),
+        );
+        if let Err(first) = original.check() {
+            drop(reached);
+            let _ = original.check();
+            return Err(first);
+        }
+        let pool = reached?;
+        drop(original);
         // The compiler reset invokes real variable traces. Their command,
         // namespace and policy mutations cannot refresh an older CPP receipt.
         if before != self.native_cache_stamp(namespace)
@@ -564,9 +741,12 @@ impl Vm {
             .native_scalar_carrier_dialect()
             .native_string_protocol()
         {
-            self.native_literal_world
-                .borrow()
-                .invalidate_command_literal(protocol, slot.namespace, slot.simple.as_bytes());
+            crate::literal_pool::NativeLiteralWorld::invalidate_command_literal(
+                &self.native_literal_world,
+                protocol,
+                slot.namespace,
+                slot.simple.as_bytes(),
+            );
         }
     }
 }

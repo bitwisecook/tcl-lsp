@@ -23,6 +23,7 @@ struct Registration<V> {
     key: NativeLiteralKey,
     value: V,
     local_arrays: usize,
+    birth: std::rc::Rc<()>,
 }
 
 /// One actual interpreter's global literal owners and local-array registrations.
@@ -33,6 +34,7 @@ pub struct NativeLiteralWorld<V> {
     index: HashMap<NativeLiteralKey, Vec<usize>>,
     free: Vec<usize>,
     observation: NativeLiteralObservationOwner,
+    episode: std::rc::Rc<()>,
 }
 impl<V> Default for NativeLiteralWorld<V> {
     fn default() -> Self {
@@ -41,6 +43,7 @@ impl<V> Default for NativeLiteralWorld<V> {
             index: HashMap::new(),
             free: Vec::new(),
             observation: NativeLiteralObservationOwner::default(),
+            episode: std::rc::Rc::new(()),
         }
     }
 }
@@ -57,25 +60,33 @@ impl<V: Clone> NativeLiteralWorld<V> {
         make: impl FnOnce() -> Result<V, E>,
     ) -> Result<(usize, V), E> {
         self.observation.invalidate();
-        if let Some(entries) = self.index.get(&key) {
-            for &index in entries {
+        if let Some(entries) = self.index.get(&key).cloned() {
+            for index in entries {
                 let entry = self.entries[index]
                     .as_mut()
                     .expect("live global literal index");
                 if spelling(&entry.value)? == key.original {
-                    entry.local_arrays = entry
-                        .local_arrays
-                        .checked_add(1)
+                    let original = self
+                        .acquire_registration(index)
                         .expect("literal registration owners exhausted");
-                    return Ok((index, entry.value.clone()));
+                    return Ok((index, original));
                 }
             }
         }
         let value = make()?;
+        let index = self.insert_registration(key, value.clone());
+        Ok((index, value))
+    }
+    fn advance_episode(&mut self) {
+        self.observation.invalidate();
+        self.episode = std::rc::Rc::new(());
+    }
+    fn insert_registration(&mut self, key: NativeLiteralKey, value: V) -> usize {
         let entry = Some(Registration {
             key: key.clone(),
-            value: value.clone(),
+            value,
             local_arrays: 1,
+            birth: std::rc::Rc::new(()),
         });
         let index = if let Some(index) = self.free.pop() {
             self.entries[index] = entry;
@@ -86,25 +97,141 @@ impl<V: Clone> NativeLiteralWorld<V> {
             index
         };
         self.index.entry(key).or_default().push(index);
-        Ok((index, value))
+        self.advance_episode();
+        index
+    }
+    /// Register through original allocation-only projections with no world borrow
+    /// held by a concrete getter or factory. Projection and native role cloning
+    /// are callback-free; the concrete port supplies its genuine original check.
+    ///
+    /// # Errors
+    /// Refuses a changed original episode/entry or exhausted owner count and
+    /// retains concrete failures before unused original allocations retire.
+    pub fn register_using<P, E>(
+        world: &std::rc::Rc<std::cell::RefCell<Self>>,
+        key: NativeLiteralKey,
+        project: impl Fn(&V) -> P,
+        mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
+        make: impl FnOnce() -> Result<V, E>,
+        check: &impl Fn() -> Result<(), E>,
+        refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+        retain: &impl Fn(E) -> E,
+    ) -> Result<(usize, V), E> {
+        check().map_err(retain)?;
+        let (episode, candidates) = {
+            let owner = world.borrow();
+            owner.observation.invalidate();
+            let candidates: Vec<_> = owner
+                .index
+                .get(&key)
+                .into_iter()
+                .flatten()
+                .map(|&index| {
+                    let entry = owner.entries[index]
+                        .as_ref()
+                        .expect("live original literal entry");
+                    (
+                        index,
+                        std::rc::Rc::clone(&entry.birth),
+                        project(&entry.value),
+                    )
+                })
+                .collect();
+            (std::rc::Rc::clone(&owner.episode), candidates)
+        };
+        let current = || {
+            check()?;
+            if !std::rc::Rc::ptr_eq(&world.borrow().episode, &episode) {
+                return Err(refuse(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "changed original literal registration episode",
+                    ),
+                ));
+            }
+            Ok(())
+        };
+        let mut acquired = None;
+        let reached = (|| {
+            for (index, birth, original) in &candidates {
+                current()?;
+                let bytes = spelling(original, &current);
+                // An intrinsic getter refusal is retained before any original
+                // projection or unadopted factory result can retire.
+                let bytes = bytes.map_err(retain)?;
+                current()?;
+                if bytes == key.original {
+                    let mut owner = world.borrow_mut();
+                    let entry = owner.entries[*index].as_mut().ok_or_else(|| {
+                        refuse(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "retired original literal entry",
+                        ))
+                    })?;
+                    if !std::rc::Rc::ptr_eq(&entry.birth, birth) {
+                        return Err(refuse(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "changed original literal entry birth",
+                            ),
+                        ));
+                    }
+                    let value = owner.acquire_registration(*index).ok_or_else(|| {
+                        refuse(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "literal registration owners exhausted",
+                        ))
+                    })?;
+                    acquired = Some(*index);
+                    return Ok((*index, value));
+                }
+            }
+            current()?;
+            let value = make().map_err(retain)?;
+            if let Err(error) = current() {
+                let first = retain(error);
+                drop(value);
+                let _ = check();
+                return Err(first);
+            }
+            let index = world.borrow_mut().insert_registration(key, value.clone());
+            acquired = Some(index);
+            Ok((index, value))
+        })();
+        let reached = reached.map_err(retain);
+        drop(candidates);
+        let after = check().map_err(retain);
+        match (reached, after) {
+            (Ok(value), Ok(())) => Ok(value),
+            (reached, after) => {
+                let first = match reached {
+                    Err(first) => first,
+                    Ok(value) => {
+                        let first = after.err().expect("original literal post-cleanup refusal");
+                        let retired = acquired.and_then(|index| world.borrow_mut().release(index));
+                        drop(retired);
+                        drop(value);
+                        let _ = check();
+                        return Err(first);
+                    }
+                };
+                let _ = after;
+                Err(first)
+            }
+        }
     }
     /// Acquire an additional local-array lease for this retained registration.
     /// The index must come from the same live world; no key lookup is replayed.
     pub fn acquire_registration(&mut self, index: usize) -> Option<V> {
         self.observation.invalidate();
         let entry = self.entries.get_mut(index)?.as_mut()?;
-        entry.local_arrays = entry
-            .local_arrays
-            .checked_add(1)
-            .expect("literal registration owners exhausted");
-        Some(entry.value.clone())
+        entry.local_arrays = entry.local_arrays.checked_add(1)?;
+        let original = entry.value.clone();
+        self.advance_episode();
+        Some(original)
     }
     /// Release one real local-array registration before its local member owner.
     /// Return the final global owner without dropping it under the world's
     /// mutable borrow: its destructor can release nested literal arrays.
     #[must_use]
     pub fn release(&mut self, index: usize) -> Option<V> {
-        self.observation.invalidate();
+        self.advance_episode();
         let entry = self.entries[index]
             .as_mut()
             .expect("retained global literal registration");
@@ -221,6 +348,62 @@ impl<V: Clone> NativeLocalNameTable<V> {
                 None
             };
             table.names.push(original);
+        }
+        Ok(std::rc::Rc::new(table))
+    }
+    /// Build the same canonical local-name array using checked, allocation-only
+    /// original registration projections outside every owner borrow.
+    ///
+    /// # Errors
+    /// Preserves the first concrete refusal through actual partial-table cleanup.
+    pub fn create_using<P, E>(
+        world: &std::rc::Rc<std::cell::RefCell<NativeLiteralWorld<V>>>,
+        names: &[Option<tcl_core_types::NameBytes>],
+        protocol: NativeStringProtocol,
+        project: impl Fn(&V) -> P,
+        mut spelling: impl FnMut(&P, &dyn Fn() -> Result<(), E>) -> Result<Vec<u8>, E>,
+        mut make: impl FnMut(&[u8]) -> Result<V, E>,
+        check: &impl Fn() -> Result<(), E>,
+        refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+        retain: &impl Fn(E) -> E,
+    ) -> Result<std::rc::Rc<Self>, E> {
+        let mut table = Self {
+            names: Vec::with_capacity(names.len()),
+            registrations: Vec::new(),
+            world: std::rc::Rc::downgrade(world),
+        };
+        let reached = (|| {
+            for name in names {
+                check()?;
+                let original = if let Some(name) = name {
+                    let (registration, value) = NativeLiteralWorld::register_using(
+                        world,
+                        NativeLiteralKey {
+                            protocol,
+                            namespace: None,
+                            original: name.as_bytes().to_vec(),
+                        },
+                        &project,
+                        &mut spelling,
+                        || make(name.as_bytes()),
+                        check,
+                        refuse,
+                        retain,
+                    )?;
+                    table.registrations.push(registration);
+                    Some(value)
+                } else {
+                    None
+                };
+                table.names.push(original);
+            }
+            check()
+        })();
+        if let Err(error) = reached {
+            let first = retain(error);
+            drop(table);
+            let _ = check();
+            return Err(first);
         }
         Ok(std::rc::Rc::new(table))
     }
@@ -571,3 +754,7 @@ mod empty_world_tests {
         assert!(fresh.is_current());
     }
 }
+
+#[cfg(test)]
+#[path = "native_literal/original_registration_tests.rs"]
+mod original_registration_tests;

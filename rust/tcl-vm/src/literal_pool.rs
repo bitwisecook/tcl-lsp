@@ -28,6 +28,24 @@ impl NativeLiteralUnavailable {
     }
 }
 
+/// Descriptive checks supplied by the actual compiler caller. These callbacks
+/// grant no Native entry, formatting capability or literal constructor role.
+pub(crate) struct OriginalLiteralCallbacks<'a> {
+    pub(crate) check: &'a dyn Fn() -> Result<(), NativeLiteralUnavailable>,
+    pub(crate) string: &'a dyn Fn(
+        &Value,
+        NativeStringProtocol,
+        &dyn Fn() -> Result<(), NativeLiteralUnavailable>,
+    ) -> Result<Vec<u8>, NativeLiteralUnavailable>,
+    pub(crate) refuse: &'a dyn Fn(tcl_syntax::value::ValueError) -> NativeLiteralUnavailable,
+}
+
+impl From<tcl_syntax::value::ValueError> for NativeLiteralUnavailable {
+    fn from(_: tcl_syntax::value::ValueError) -> Self {
+        Self("native literal original header is unavailable")
+    }
+}
+
 pub(crate) type NativeLiteralPoolReceipt = Result<Rc<NativeLiteralPool>, NativeLiteralUnavailable>;
 
 /// Reached interpreter effects during chronological compiler array construction.
@@ -63,7 +81,7 @@ impl NativeLiteralWorld {
     }
 
     pub(crate) fn invalidate_command_literal(
-        &self,
+        world: &Rc<RefCell<Self>>,
         protocol: NativeStringProtocol,
         namespace: NsId,
         name: &[u8],
@@ -79,27 +97,54 @@ impl NativeLiteralWorld {
             namespace: Some(namespace),
             original: tcl_core_types::c_string_extent(name).to_vec(),
         };
-        for original in self.shared.borrow().key_values(&key) {
-            original.retire_native_command_name_cache();
+        let shared = Rc::clone(&world.borrow().shared);
+        let originals: Vec<_> = shared
+            .borrow()
+            .key_values(&key)
+            .map(Value::native_lifetime_lease)
+            .collect();
+        for original in originals {
+            if original.value().native_object_is_live() {
+                original.value().retire_native_command_name_cache();
+            }
         }
     }
     fn register(
-        &mut self,
+        world: &Rc<RefCell<Self>>,
         key: GlobalKey,
         protocol: NativeStringProtocol,
+        original: Option<&OriginalLiteralCallbacks<'_>>,
     ) -> Result<(usize, Value), NativeLiteralUnavailable> {
-        let original = key.original.clone();
-        self.shared.borrow_mut().register(
+        let bytes = key.original.clone();
+        let shared = Rc::clone(&world.borrow().shared);
+        let check = || original.map_or(Ok(()), |original| (original.check)());
+        let refuse = |error| {
+            original.map_or_else(
+                || NativeLiteralUnavailable("changed original literal registration"),
+                |original| (original.refuse)(error),
+            )
+        };
+        tcl_runtime_api::native_literal::NativeLiteralWorld::register_using(
+            &shared,
             key,
-            |value| {
-                value
-                    .native_string_bytes(protocol)
-                    .map(|bytes| bytes.to_vec())
-                    .map_err(|_| {
-                        NativeLiteralUnavailable("native literal string updater is unavailable")
-                    })
+            Value::native_lifetime_lease,
+            |header, registration| {
+                if let Some(original) = original {
+                    (original.string)(header.value(), protocol, registration)
+                } else {
+                    header
+                        .value()
+                        .native_string_bytes_checked_for_value(protocol, None, &mut |value| {
+                            registration()?;
+                            value.check_native_header().map_err(&refuse)
+                        })
+                        .map(|bytes| bytes.to_vec())
+                }
             },
-            || new_registered_string(&original, protocol),
+            || new_registered_string_using(&bytes, protocol, &refuse),
+            &check,
+            &refuse,
+            &std::convert::identity,
         )
     }
     fn release(&mut self, index: usize) -> Option<Value> {
@@ -140,9 +185,10 @@ fn command_partition(
 // TclLooksLikeInt accepts the numeric CString prefix, including counted NUL tails;
 // its absolute-value parser excludes LONG_MIN. This is producer initialization,
 // independent of primitive getter acceptance or semantic numeric type hints.
-fn new_registered_string(
+fn new_registered_string_using(
     bytes: &[u8],
     protocol: NativeStringProtocol,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> NativeLiteralUnavailable,
 ) -> Result<Value, NativeLiteralUnavailable> {
     if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
         && let Some(value) = tcl_runtime_api::native_literal::registered_c84_long(
@@ -160,9 +206,7 @@ fn new_registered_string(
                 tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
             )),
         )
-        .map_err(|_| {
-            NativeLiteralUnavailable("native registered integer literal storage is unavailable")
-        });
+        .map_err(refuse);
     }
     Ok(Value::new_native_string_bytes(bytes))
 }
@@ -192,6 +236,7 @@ struct LiteralCreation<'a> {
     namespace: NsId,
     source_namespace: &'a ByteNamespacePath,
     context: Option<&'a NativeLiteralContext>,
+    original: Option<&'a OriginalLiteralCallbacks<'a>>,
 }
 
 impl NativeLiteralPool {
@@ -242,7 +287,8 @@ impl NativeLiteralPool {
         )
     }
 
-    /// Execute original allocation/cache actions under an independently validated context.
+    /// Pure test setup shares the original action/registration worker.
+    #[cfg(test)]
     pub(crate) fn create_with_actions(
         world: &Rc<RefCell<NativeLiteralWorld>>,
         table: &LiteralTable,
@@ -251,6 +297,30 @@ impl NativeLiteralPool {
         source_namespace: &ByteNamespacePath,
         context: Option<&NativeLiteralContext>,
         mut effect: impl FnMut(NativeLiteralEffect<'_>) -> Result<(), NativeLiteralUnavailable>,
+    ) -> Result<Rc<Self>, NativeLiteralUnavailable> {
+        Self::create_with_actions_using(
+            world,
+            table,
+            protocol,
+            namespace,
+            source_namespace,
+            context,
+            &mut effect,
+            None,
+        )
+    }
+
+    /// Execute original chronological actions with the actual caller's saved
+    /// target/frame checks and typed failure retention inside registration.
+    pub(crate) fn create_with_actions_using(
+        world: &Rc<RefCell<NativeLiteralWorld>>,
+        table: &LiteralTable,
+        protocol: Option<NativeStringProtocol>,
+        namespace: NsId,
+        source_namespace: &ByteNamespacePath,
+        context: Option<&NativeLiteralContext>,
+        mut effect: impl FnMut(NativeLiteralEffect<'_>) -> Result<(), NativeLiteralUnavailable>,
+        original: Option<&OriginalLiteralCallbacks<'_>>,
     ) -> Result<Rc<Self>, NativeLiteralUnavailable> {
         let protocol = protocol.ok_or(NativeLiteralUnavailable(
             "native literal constructor issuer is unavailable",
@@ -266,8 +336,12 @@ impl NativeLiteralPool {
             namespace,
             source_namespace,
             context,
+            original,
         };
         for action in table.native_actions() {
+            if let Some(original) = original {
+                (original.check)()?;
+            }
             if let NativeLiteralAction::Register(index) = action {
                 if *index != pool.values.len() {
                     return Err(NativeLiteralUnavailable(
@@ -281,6 +355,9 @@ impl NativeLiteralPool {
                 pool.values.push(RefCell::new(Some(value)));
             } else {
                 pool.apply_literal_action(action, &input, &mut effect)?;
+            }
+            if let Some(original) = original {
+                (original.check)()?;
             }
         }
         let pool = Rc::new(pool);
@@ -446,9 +523,13 @@ impl NativeLiteralPool {
         input: &LiteralCreation<'_>,
     ) -> Result<Value, NativeLiteralUnavailable> {
         Ok(match literal.allocation() {
-            NativeLiteralAllocation::RegisteredData => {
-                self.register(input.world, literal.bytes(), None, self.protocol)?
-            }
+            NativeLiteralAllocation::RegisteredData => self.register(
+                input.world,
+                literal.bytes(),
+                None,
+                self.protocol,
+                input.original,
+            )?,
             NativeLiteralAllocation::RegisteredCommand {
                 namespace: selected,
                 fully_qualified,
@@ -459,7 +540,13 @@ impl NativeLiteralPool {
                     ));
                 }
                 let scope = command_partition(self.protocol, input.namespace, *fully_qualified);
-                self.register(input.world, literal.bytes(), scope, self.protocol)?
+                self.register(
+                    input.world,
+                    literal.bytes(),
+                    scope,
+                    self.protocol,
+                    input.original,
+                )?
             }
             NativeLiteralAllocation::RegisteredNativeCommand {
                 context: selected,
@@ -474,7 +561,13 @@ impl NativeLiteralPool {
                     ));
                 }
                 let scope = command_partition(self.protocol, input.namespace, *fully_qualified);
-                self.register(input.world, literal.bytes(), scope, self.protocol)?
+                self.register(
+                    input.world,
+                    literal.bytes(),
+                    scope,
+                    self.protocol,
+                    input.original,
+                )?
             }
             _ => self.allocate_private_literal(literal, input)?,
         })
@@ -581,7 +674,7 @@ impl NativeLiteralPool {
                     original: literal.bytes().to_vec(),
                 };
                 let (registration, original) =
-                    input.world.borrow_mut().register(key, self.protocol)?;
+                    NativeLiteralWorld::register(input.world, key, self.protocol, input.original)?;
                 let retired = input.world.borrow_mut().release(registration);
                 drop(retired);
                 self.registrations.push(None);
@@ -613,6 +706,7 @@ impl NativeLiteralPool {
         bytes: &[u8],
         namespace: Option<NsId>,
         protocol: NativeStringProtocol,
+        original: Option<&OriginalLiteralCallbacks<'_>>,
     ) -> Result<Value, NativeLiteralUnavailable> {
         // Jim's retained procedure tokens are not C interpreter-global literals.
         if protocol.is_jim084() {
@@ -624,7 +718,7 @@ impl NativeLiteralPool {
             namespace,
             original: bytes.to_vec(),
         };
-        let (index, value) = world.borrow_mut().register(key, protocol)?;
+        let (index, value) = NativeLiteralWorld::register(world, key, protocol, original)?;
         self.registrations.push(Some(index));
         Ok(value)
     }
@@ -1167,23 +1261,50 @@ impl crate::Vm {
 
 pub(crate) type NativeLocalNameTable = tcl_runtime_api::native_literal::NativeLocalNameTable<Value>;
 
+#[cfg(test)]
 pub(crate) fn create_local_names(
     world: &Rc<RefCell<NativeLiteralWorld>>,
     names: &[Option<tcl_core_types::NameBytes>],
     protocol: NativeStringProtocol,
 ) -> Result<Rc<NativeLocalNameTable>, NativeLiteralUnavailable> {
+    create_local_names_using(world, names, protocol, None)
+}
+pub(crate) fn create_local_names_using(
+    world: &Rc<RefCell<NativeLiteralWorld>>,
+    names: &[Option<tcl_core_types::NameBytes>],
+    protocol: NativeStringProtocol,
+    original: Option<&OriginalLiteralCallbacks<'_>>,
+) -> Result<Rc<NativeLocalNameTable>, NativeLiteralUnavailable> {
     let shared = Rc::clone(&world.borrow().shared);
-    NativeLocalNameTable::create(
+    let check = || original.map_or(Ok(()), |original| (original.check)());
+    let refuse = |error| {
+        original.map_or_else(
+            || NativeLiteralUnavailable("changed original canonical local registration"),
+            |original| (original.refuse)(error),
+        )
+    };
+    NativeLocalNameTable::create_using(
         &shared,
         names,
         protocol,
-        |value| {
-            value
-                .native_string_bytes(protocol)
-                .map(|bytes| bytes.to_vec())
-                .map_err(|_| NativeLiteralUnavailable("native canonical local name string updater"))
+        Value::native_lifetime_lease,
+        |header, registration| {
+            if let Some(original) = original {
+                (original.string)(header.value(), protocol, registration)
+            } else {
+                header
+                    .value()
+                    .native_string_bytes_checked_for_value(protocol, None, &mut |value| {
+                        registration()?;
+                        value.check_native_header().map_err(&refuse)
+                    })
+                    .map(|bytes| bytes.to_vec())
+            }
         },
-        |bytes| new_registered_string(bytes, protocol),
+        |bytes| new_registered_string_using(bytes, protocol, &refuse),
+        &check,
+        &refuse,
+        &std::convert::identity,
     )
 }
 
@@ -1398,3 +1519,7 @@ mod source_finalization_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "literal_pool/original_registration_tests.rs"]
+mod original_registration_tests;

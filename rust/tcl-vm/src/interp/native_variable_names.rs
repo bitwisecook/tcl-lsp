@@ -16,6 +16,7 @@ use tcl_syntax::native_variable_name::{
     NativeLocalVariableName, NativeLocalVariableOwner, NativeParsedVariableElement,
     NativeParsedVariableName, NativeVariableNameLookupPurpose,
 };
+use tcl_syntax::value::ValueError;
 
 type CachedOriginalVariableParts = Option<(NativeObjectLifetimeLease, Rc<[u8]>)>;
 
@@ -72,20 +73,108 @@ impl Vm {
                 .native_c_procedure = Some(Rc::clone(procedure));
             return Ok(());
         }
-        if body.native_local_names.borrow().is_none() {
-            let names = crate::literal_pool::create_local_names(
-                &self.native_literal_world,
+        let world = Rc::clone(&self.native_literal_world);
+        let level = self.frames.len() - 1;
+        let original = super::native_command_names::OriginalLiteralOperation::capture(self);
+        let before = body.native_local_names.borrow().as_ref().map(Rc::downgrade);
+        let check = || {
+            original.check()?;
+            let selected = body.native_local_names.borrow();
+            let same = match (&before, selected.as_ref()) {
+                (None, None) => true,
+                (Some(before), Some(current)) => {
+                    std::rc::Weak::ptr_eq(before, &Rc::downgrade(current))
+                }
+                _ => false,
+            };
+            if !same {
+                return Err(original.refuse(ValueError::CommandProtocolUnavailable(
+                    "original compiled local-name publication slot",
+                )));
+            }
+            Ok(())
+        };
+        let string =
+            |value: &Value,
+             protocol,
+             registration: &dyn Fn()
+                -> Result<(), crate::literal_pool::NativeLiteralUnavailable>| {
+                check()?;
+                original.string(value, protocol, &|| {
+                    registration()?;
+                    check()
+                })
+            };
+        let refuse = |error| original.refuse(error);
+        let callbacks = crate::literal_pool::OriginalLiteralCallbacks {
+            check: &check,
+            string: &string,
+            refuse: &refuse,
+        };
+        check().map_err(|_| super::err(""))?;
+        if before.is_none() {
+            let names = crate::literal_pool::create_local_names_using(
+                &world,
                 &body.asm.lvt.native_slot_names(),
                 tcl_syntax::native_string::NativeStringProtocol::C(protocol.version()),
+                Some(&callbacks),
             )
-            .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            *body.native_local_names.borrow_mut() = Some(names);
+            .map_err(|_| super::err(""))?;
+            check().map_err(|_| super::err(""))?;
+            let retired = body.native_local_names.borrow_mut().replace(names);
+            drop(retired);
+            original.check().map_err(|_| super::err(""))?;
         }
         let names = body.native_local_names.borrow().clone();
-        self.frames
-            .last_mut()
-            .expect("actual procedure activation")
-            .native_local_names = names;
+        let selected_names = names.as_ref().map(Rc::downgrade);
+        let retired = original
+            .with_vm(|vm| {
+                Ok(vm
+                    .frames
+                    .get_mut(level)
+                    .expect("same original local-name frame")
+                    .native_local_names
+                    .take())
+            })
+            .map_err(|_| super::err(""))?;
+        drop(retired);
+        original.check().map_err(|_| super::err(""))?;
+        let selected = body.native_local_names.borrow();
+        let same = match (&selected_names, selected.as_ref()) {
+            (Some(before), Some(current)) => std::rc::Weak::ptr_eq(before, &Rc::downgrade(current)),
+            (None, None) => true,
+            _ => false,
+        };
+        drop(selected);
+        if !same {
+            return Err({
+                original.refuse(ValueError::CommandProtocolUnavailable(
+                    "changed original compiled local-name table",
+                ));
+                super::err("")
+            });
+        }
+        original
+            .with_vm(|vm| {
+                if vm.frames[level].native_local_names.is_some() {
+                    let error: tcl_cmd_core::CmdError = ValueError::CommandProtocolUnavailable(
+                        "replaced original frame local-name slot",
+                    )
+                    .into();
+                    if let Some(first) = error.native_execution_refusal() {
+                        vm.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+                            first.clone(),
+                        ));
+                    }
+                    return Err(crate::literal_pool::NativeLiteralUnavailable::unavailable(
+                        "replaced original frame local-name slot",
+                    ));
+                }
+                vm.frames[level].native_local_names = names;
+                Ok(())
+            })
+            .map_err(|_| super::err(""))?;
+
         Ok(())
     }
 
