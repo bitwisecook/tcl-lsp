@@ -72,9 +72,14 @@ The actual selected executable is
 `f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2`.
 The runner sourced `/tmp/name-env.sh` but omitted explicit `CARGO_TARGET_DIR`,
 so Cargo used the default repository target rather than the root-granted issues
-cache. Root was informed; default-target exclusivity is unverified in the
-sealed receipt. No repeated build was performed. Actual source/binary identity
-and fresh artifact results remain retained with that provenance limitation.
+cache. Root confirmed coordinated-team default-target exclusivity during the build:
+root ran no default-target build and Core/Registry/Runtime builds used explicit
+runtime targets under separate leases. External host processes are not
+independently attested. The
+[scoped amendment](../../../experiments/name-handling/results/mcp-static-name-inventory/validation-01-cache-provenance/README.md)
+records that attestation while preserving the original capture/seal unchanged.
+No repeated build was performed; actual source/binary and fresh artifacts remain
+retained.
 
 All 5,307 frozen files in the 39-package conservative MCP scope stayed unchanged
 through build and controls; current clock/Core fixes are included. VM is
@@ -88,15 +93,26 @@ F5 TMM/MCPD test ran. All source/cache leases are released.
 
 ## Remaining obligations
 
-Check default-target exclusivity for the actual 00:33:33–00:37:02 UTC capture
-before treating cache provenance as settled. Root coordinates any required
-follow-up; no repeat build/test is authorised by this snapshot.
-
-The unchanged generator datagroup assertion is now the bounded unresolved
-implementation failure. Trace its actual source-reference owner and closure
-before changing MCP or shared source. Preserve the original fixture/assertions
-and sealed failing logs. A new source edit or build needs a separately scoped
-owner/cache lease and fresh source/binary evidence.
+The unchanged generator datagroup assertion remains unresolved. Read-only
+inspection locates the first loss in `tcl-irules/src/source_object.rs:155`:
+custom class/persist reference selection requires every operand literal, so
+the Dynamic ITEM in `class match [HTTP::uri] equals helper_dg` withdraws the
+known literal reference. MCP merely gathers the returned shared categories.
+The shared structured-reference layout is under Registry ownership review;
+no private consumer helper is approved. The independent review rejects a new
+hardcoded class-match layout in `source_object.rs` because it would multiply
+per-command knowledge. The recommended extension is typed reference metadata
+on the selected Registry subcommand, with projection through `ResolvedInvocation`
+and existing actual option topology; the iRules consumer maps the typed family
+through its existing object-kind table and retains original literal/span guards.
+Dynamic ITEM advice stays conditional, including its uncertain option/data value.
+Actual cardinality, known operator, unknown selection and currentness remain
+separate premises; no accepted argv or native object identity follows.
+No placeholders, label-derived identities, source edits or new tests/builds
+have been introduced by this diagnosis. Existing central controls for dynamic
+ITEM, inert expressions, DTO counterfactuals and currentness were inspected
+but not run. Root will scope edits after the callback probe releases shared
+sources; preserve every original fixture/assertion and sealed failure.
 
 Proposed future finite consumer comparisons remain unexecuted: dynamic
 procedure declarations followed by rename; a literal callback alias before

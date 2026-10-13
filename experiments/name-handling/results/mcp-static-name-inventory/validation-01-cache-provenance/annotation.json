@@ -1,0 +1,18 @@
+{
+  "capture": "../validation-01",
+  "capture_sha256_manifest_sha256": "fb7045955e2586d42c215f9153262a5858440ce28d36b6d97f4ce5fb81a55740",
+  "actual_cargo_target": "/workspace/tcl-lsp/target",
+  "granted_target": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "runner_omitted_explicit_CARGO_TARGET_DIR": true,
+  "coordinated_team_exclusivity": {
+    "attested_by": "root task coordinator",
+    "start_utc": "2026-10-13T00:33:33Z",
+    "end_utc": "2026-10-13T00:36:41Z",
+    "scope": "Root ran no Cargo/default-target build; coordinated Core/Registry/Runtime builds used explicit tmp/name-target-runtime under their leases.",
+    "confirmed": true
+  },
+  "external_host_process_exclusivity_independently_attested": false,
+  "raw_outputs_edited": false,
+  "original_validation_seal_changed": false,
+  "additional_build_or_test_executed": false
+}

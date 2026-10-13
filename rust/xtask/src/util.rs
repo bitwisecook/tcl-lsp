@@ -283,9 +283,7 @@ mod tests {
         assert!(is_internal_or_test_harness_noise("tcl::mathop::eq"));
         assert!(is_internal_or_test_harness_noise("::tcl::mathop::eq"));
         assert!(is_internal_or_test_harness_noise("::tcl::process"));
-        // A DIFFERENT package's namespace that merely ends in "tcl" before its
-        // own "::" must NOT be excluded (issue caught in PR #866 review: a
-        // `.contains("tcl::")` substring check wrongly matched this).
+        // A package namespace ending in "tcl" is not the reserved "tcl::" prefix.
         assert!(!is_internal_or_test_harness_noise("itcl::class"));
         assert!(!is_internal_or_test_harness_noise("itcl::configure"));
     }

@@ -19,10 +19,6 @@
 //! `cargo xtask` — the native task runner for the workspace's build and check
 //! tasks.
 //!
-//! Each subcommand is kept byte-compatible with the `scripts/` tool it
-//! replaces so the Makefile / CI can switch over incrementally, with the
-//! legacy script available as a fallback.
-//!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`
 //! aliases `xtask` to `run --package xtask --`).
 //!
@@ -30,8 +26,7 @@
 //!
 //! - `kcs-index-links` — validate markdown links + KCS/design index coverage
 //!   under `docs/`.
-//! - `version` — print the setuptools-scm / hatch-vcs project version from
-//!   `git describe`.
+//! - `version` — derive the project version from `git describe`.
 //! - `tzdata-bundle` — pack the curated tzdata `TZBL` bundle for the WASM
 //!   runtime.
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
