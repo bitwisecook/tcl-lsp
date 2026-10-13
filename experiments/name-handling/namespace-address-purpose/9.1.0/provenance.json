@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/vm-name-address-empty-input.tcl"
+  ],
+  "input_sha256": "de5b5ee583c39848355513925420e1a316f262f183173feffc7072fba8da49ab",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "exit_code": 0,
+  "subject": "real C; command-level namespace exists/eval, no C API flags or VM measurement",
+  "provider": "C Tcl",
+  "reported_release": "9.1",
+  "reported_patchlevel": "9.1.0",
+  "reported_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+  "source_tag": "core-9-1-0",
+  "upstream_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+  "upstream_integrity_sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "input": "../input.tcl",
+  "original_executed_input_path": "/tmp/vm-name-address-empty-input.tcl",
+  "stdout": "stdout.bin",
+  "stderr": "stderr.bin",
+  "identity_control_command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/identity-input.tcl"
+  ],
+  "identity_control_input_sha256": "7697e4153c85a5db06f444f81a13896ea872197a539aaa331330d5953904280d",
+  "identity_control_exit_code": 0,
+  "measurement_time_utc": "2026-10-13T13:42:05.429651+00:00",
+  "identity_verified_after_measurement": true,
+  "promoted": "not promoted",
+  "scope": "namespace exists/eval on Tcl STRING operands; neither raw C API byte-NUL nor VM/Jim/F5 measurement"
+}

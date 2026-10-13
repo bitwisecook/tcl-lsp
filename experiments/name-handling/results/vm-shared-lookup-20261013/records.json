@@ -1,0 +1,154 @@
+[
+  {
+    "selector": "interp::native_command_resolver_tests::live_lookup_matches_shared_oracle_command_vectors",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_command_resolver_tests::live_lookup_matches_shared_oracle_command_vectors",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T13:59:08.861613+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "33bfc9d41d01d7f394f0eeb0cefe29467d78b2b474f9b1d517032c20d71b1a02",
+    "stderr_sha256": "5419aff74267953c57767056c4f883363da050acfbc173037b0bcc50a9d1c2b4"
+  },
+  {
+    "selector": "interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:31.979315+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "f8b0d334ac6daec873fec71346cabf2154e6ff938f31bd50c2abaafa3081eabc",
+    "stderr_sha256": "f25e80cbe2c0895185c406bd5cc890800045c37d7eb12a334d21100ea9155a1f"
+  },
+  {
+    "selector": "interp::native_name_world::tests::missing_delete_does_not_create_namespace_or_grant_a_fake_slot",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_name_world::tests::missing_delete_does_not_create_namespace_or_grant_a_fake_slot",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:32.200399+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "d9f2a97421f0879d9c3bada589afa8982a8b7ff2cf08045baef3a15b2b3eca1f",
+    "stderr_sha256": "b5762a2a70c069d103c3be30f4bcdbe36f882c0a3296d4b083746d9100d4a0d2"
+  },
+  {
+    "selector": "interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:32.388444+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "a7712c47e606754810141ada1f905e659f38bbff1cef1e39615a4175b7e3ac34",
+    "stderr_sha256": "f1e4aa6363e97441042b6d6401c29a0762c360ccbccd64315d5dc962fe87e772"
+  },
+  {
+    "selector": "interp::native_namespace_names::tests::compiled_native_namespace_context_separates_equal_colon_displays",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_names::tests::compiled_native_namespace_context_separates_equal_colon_displays",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:32.587888+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "9ba6432785aa60940395f1deb535482fd79f00c9c2a6975378c0dfb2dd622366",
+    "stderr_sha256": "b5762a2a70c069d103c3be30f4bcdbe36f882c0a3296d4b083746d9100d4a0d2"
+  },
+  {
+    "selector": "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:36.449396+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "ebc4519da2cb441a67467d3abc8929150eb2d7545700f216884d46340f46341a",
+    "stderr_sha256": "76cab6fab7053417772a5304d16b26205ba7a05743f5c449c5f8ace5e65dfd0b"
+  },
+  {
+    "selector": "interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:42.879796+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "3e548ab83bd71ac9ce5899a6152733d8339cdf5d4fba448abdee626ed02f1061",
+    "stderr_sha256": "b4d14a9881c56ab9c3f2f63f9fe26fa25a62e9a31e31e6db40dbdc235f90fd9d"
+  },
+  {
+    "selector": "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_foreign_interpreter",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_foreign_interpreter",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:01:46.431788+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "704f0ac0ccba49cdefdfb26aa03f7525117fa9b7b0f5a208cbb615ff501bc8fb",
+    "stderr_sha256": "76cab6fab7053417772a5304d16b26205ba7a05743f5c449c5f8ace5e65dfd0b"
+  }
+]

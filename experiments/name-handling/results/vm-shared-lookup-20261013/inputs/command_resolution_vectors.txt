@@ -1,0 +1,138 @@
+# Command-resolution conformance vectors — the shared ground truth for
+# every implementation of Tcl's command-name resolution in this repo.
+#
+# Format (pipe-separated; `-` = empty; `#` starts a comment line):
+#   current-namespace | namespace-path (comma-sep) | defined commands (comma-sep) | call text | expected winner
+#
+# The expected winner is the ::-rooted qualified name the call dispatches
+# to, or `-` when Tcl raises `invalid command name`.  Every row is
+# executable Tcl: `tcl_syntax::naming::conformance::vector_script` renders
+# it as a script whose output is the winner (procs return their own
+# qualified name), and the `command_resolution_conformance` test in
+# tcl-syntax runs that script under every real tclsh the machine has
+# (TCL_LSP_TCLSH84/85/86/90/91, else PATH probes), asserting each release
+# against its own column and skipping loudly for a release with no binary.
+# The same rows drive the pure resolver (`naming::resolve_command_with`,
+# which asserts the newest column), the analyser's post-walk settlement,
+# the bytecode VM's dispatch, and the WASM runtime's namespace tree.
+#
+# The final field is either one winner every modelled release agrees on, or
+# a `RANGE=VALUE;RANGE=VALUE` list giving the winner per release over the
+# ladder 8.4, 8.5, 8.6, 9.0, 9.1 (`9.0+` = 9.0 and later); the entries must
+# cover the whole ladder.  Two sentinels: `-` is `invalid command name`, and
+# `!ERROR` means the *scenario itself* does not exist on that release: the
+# interpreter rejects part of the rendered script (on standard error), so
+# nothing is dispatched.  Two families need it.  `8.4=!ERROR` marks the
+# `namespace path` rows — TIP 181 landed in 8.5 and 8.4's `namespace` has no
+# `path` subcommand.  `8.4-8.5=!ERROR` marks the rows that define a proc
+# whose name starts with `:` inside a non-global namespace: 8.4 and 8.5
+# refuse with `can't create procedure ":" in non-global namespace with name
+# starting with ":"`, and 8.6 lifted the restriction.
+#
+# Pinned live on 8.4.20, 8.5.19, 8.6.14, 9.0.4, and 9.1b0 (2026-08-26): every
+# row below was run against all five interpreters and states each release's own
+# answer.
+#
+# C reference: Tcl_FindCommand, generic/tclNamesp.c (Tcl 9.0.4); the 8.4
+# subcommand table is generic/tclNamesp.c of Tcl 8.4.20.
+#
+# documented-non-conformance
+#   Excluded because the C suite marks the behaviour broken — do not "fix"
+#   our model to match it:
+#   * namespace-56.4 (knownBug, Tcl bug 16fe1b5807): a namespace named `:`
+#     used as an ensemble.  The lone-colon rows below cover what does hold.
+#   * interp-27.5 .. 27.8 (knownBug): `interp alias` targets carrying `::`.
+
+# -- absolute names: one candidate, path never consulted -----------------
+:: | - | ::p | ::p | ::p
+::outer | - | ::p,::outer::p | ::p | ::p
+::outer | ::pathns | ::pathns::p | ::p | 8.4=!ERROR;8.5+=-
+
+# -- bare names: current namespace, then global --------------------------
+:: | - | ::helper | helper | ::helper
+::ns | - | ::ns::helper,::helper | helper | ::ns::helper
+::ns | - | ::helper | helper | ::helper
+::ns | - | - | helper | -
+# no implicit ancestor walk: ::a::helper is NOT reachable from ::a::b
+::a::b | - | ::a::helper | helper | -
+# deep nesting resolves in its own namespace before global
+::modelTestVerTool::gui | - | ::modelTestVerTool::gui::popUp,::popUp | popUp | ::modelTestVerTool::gui::popUp
+::modelTestVerTool::gui | - | ::popUp | popUp | ::popUp
+
+# -- relative-qualified names (embedded ::): same two-step rule ----------
+::outer | - | ::outer::inner::p,::inner::p | inner::p | ::outer::inner::p
+::outer | - | ::inner::p | inner::p | ::inner::p
+# the qualifier namespace existing does NOT commit resolution: only the
+# command existing does (::outer::inner exists via its own proc `other`)
+::outer | - | ::outer::inner::other,::inner::p | inner::p | ::inner::p
+::outer | - | - | inner::p | -
+::a::b | - | ::a::b::c::d::p | c::d::p | ::a::b::c::d::p
+
+# -- namespace path: slots between current and global --------------------
+::c | ::pathns | ::pathns::helper,::helper | helper | 8.4=!ERROR;8.5+=::pathns::helper
+::c | ::pathns | ::c::helper,::pathns::helper,::helper | helper | 8.4=!ERROR;8.5+=::c::helper
+::c | ::pathns | ::helper | helper | 8.4=!ERROR;8.5+=::helper
+# path entries are searched in order
+::c | ::p1,::p2 | ::p1::helper,::p2::helper | helper | 8.4=!ERROR;8.5+=::p1::helper
+::c | ::p1,::p2 | ::p2::helper | helper | 8.4=!ERROR;8.5+=::p2::helper
+# the path applies to relative-qualified names too
+::d | ::pathq | ::pathq::sub::q,::sub::q | sub::q | 8.4=!ERROR;8.5+=::pathq::sub::q
+::d | ::pathq | ::sub::q | sub::q | 8.4=!ERROR;8.5+=::sub::q
+# ... and its qualifier-namespace-exists-but-command-missing case falls
+# through past the path entry to global
+::d | ::pathq | ::pathq::sub::other,::sub::q | sub::q | 8.4=!ERROR;8.5+=::sub::q
+
+# -- relative path entries are current-namespace-relative ONLY: `inner`
+# from ::outer means ::outer::inner, never ::inner (tclsh 8.6.16 / 9.0.4:
+# `namespace path inner` errors `namespace "inner" not found in "::outer"`
+# when ::outer::inner does not exist, even with ::inner present — no
+# global fallback for namespace names, unlike command names)
+::outer | inner | ::outer::inner::helper,::inner::helper | helper | 8.4=!ERROR;8.5+=::outer::inner::helper
+::a | b::c | ::a::b::c::helper | helper | 8.4=!ERROR;8.5+=::a::b::c::helper
+
+# -- ::tcl::mathfunc is reached by this same rule: expr resolves a function
+# f as the relative name `tcl::mathfunc::f` from the *current* namespace,
+# so ::ns::tcl::mathfunc::f shadows ::tcl::mathfunc::f inside ::ns
+# (tclsh-pinned via `namespace eval ::ns {expr {f(1)}}`; the vector pins
+# the equivalent command-call shape)
+::nsa | - | ::nsa::tcl::mathfunc::pinf,::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::nsa::tcl::mathfunc::pinf
+::nsb | - | ::tcl::mathfunc::pinf | tcl::mathfunc::pinf | ::tcl::mathfunc::pinf
+
+# -- issue #934: lone-colon names and written colon runs -----------------
+# Namespace / definition fields are constructed KEYS (a lone `:` segment is
+# a legitimately colon-named entity): ":::" is the proc (or namespace)
+# named ":" at the root, "::" is the empty-string `{}` proc, "::::::" the
+# proc ":" inside the namespace ":".  The written call text follows C's
+# colon-run rule: a run of 2+ colons is one separator (the whole run
+# collapses), a lone `:` is an ordinary character, and an all-colon word
+# names the global `{}` command (tclsh 8.6/9.0-pinned, C 8.4-9.1
+# invariant: TclGetNamespaceForQualName).
+# a bare `:` call reaches the proc named `:`
+:: | - | ::: | : | :::
+::ns | - | ::: | : | :::
+# a written all-colon word is the global {} proc, never the `:` proc
+:: | - | :: | :: | ::
+:: | - | :: | ::: | ::
+:: | - | ::,::: | ::: | ::
+:: | - | ::: | ::: | -
+# trailing separator: the {} proc inside ::x, however many colons written
+:: | - | ::x:: | x:: | ::x::
+:: | - | ::x:: | x::: | ::x::
+:: | - | ::x:: | ::x:: | ::x::
+:: | - | ::x:: | ::x::: | ::x::
+# `a:::` names the {} proc in ::a — never the proc `:` in ::a
+:: | - | ::a::: | a::: | 8.4-8.5=!ERROR;8.6+=-
+:: | - | ::a::,::a::: | a::: | 8.4-8.5=!ERROR;8.6+=::a::
+# a lone interior colon is an ordinary name character
+:: | - | ::a:b | a:b | ::a:b
+::q | - | ::q::a:b,::a:b | a:b | ::q::a:b
+# interior runs collapse: `a:::b` names ::a::b
+:: | - | ::a::b | a:::b | ::a::b
+# inside the namespace named ":", a bare `:` prefers the nested proc...
+::: | - | ::::::,::: | : | 8.4-8.5=!ERROR;8.6+=::::::
+# ...and falls back to the global `:` when the nested one is absent
+::: | - | ::: | : | :::
+# the nested proc has no absolute spelling: an all-colon word of any length
+# is still the global {} command
+:: | - | :::::: | ::::: | 8.4-8.5=!ERROR;8.6+=-
+:: | - | ::,:::::: | ::::: | 8.4-8.5=!ERROR;8.6+=::

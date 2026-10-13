@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:01:36.449396+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "ebc4519da2cb441a67467d3abc8929150eb2d7545700f216884d46340f46341a",
+  "stderr_sha256": "76cab6fab7053417772a5304d16b26205ba7a05743f5c449c5f8ace5e65dfd0b"
+}

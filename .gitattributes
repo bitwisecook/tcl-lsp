@@ -28,3 +28,4 @@ experiments/name-handling/registry-name-adapters/*.stdout -whitespace
 experiments/name-handling/registry-name-adapters/*.stderr -whitespace
 experiments/name-handling/registry-name-adapters/*.log -whitespace
 experiments/name-handling/braced-source-correspondence/probe-crlf.tcl -text -whitespace
+experiments/name-handling/namespace-address-purpose/**/*.bin -text -whitespace

@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:01:31.979315+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "f8b0d334ac6daec873fec71346cabf2154e6ff938f31bd50c2abaafa3081eabc",
+  "stderr_sha256": "f25e80cbe2c0895185c406bd5cc890800045c37d7eb12a334d21100ea9155a1f"
+}

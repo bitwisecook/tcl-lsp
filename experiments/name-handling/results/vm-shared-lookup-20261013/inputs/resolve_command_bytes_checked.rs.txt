@@ -1,0 +1,73 @@
+    pub(crate) fn resolve_command_bytes_checked(
+        &self,
+        cxt: NsId,
+        original: &[u8],
+        filter_public_surface: bool,
+    ) -> Result<Option<String>, NativeCommandLookupUnavailable> {
+        use tcl_syntax::naming::NativeNameContext;
+        if !self.name_world.borrow().is_live() {
+            return Err(NativeCommandLookupUnavailable::Retired);
+        }
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+            .recipe();
+        let path = self.ns_path(cxt);
+        if protocol.is_jim084() {
+            let namespace_object = self
+                .name_world
+                .borrow()
+                .jim_namespace_objects
+                .get(&cxt)
+                .cloned()
+                .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+            let context = NativeNameContext::with_jim_namespace(&path, namespace_object.as_bytes());
+            for simple in protocol
+                .jim_command_lookup_keys(context, original)
+                .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
+            {
+                let slot = CommandSlot {
+                    namespace: ROOT_NS,
+                    simple,
+                };
+                if let Some(key) =
+                    self.command_at_exact_slot_checked(&slot, filter_public_surface)?
+                {
+                    return Ok(Some(key));
+                }
+            }
+            return Ok(None);
+        }
+        let projected = protocol
+            .command_lookup_projection(NativeNameContext::new(&path), original)
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+        let simple = projected.slot().simple.clone();
+        let qualifiers = projected.qualifiers();
+        // Copying path IDs reaches no namespace or callback; the shared iterator
+        // selects which retained tokens lookup actually visits.
+        let paths = self
+            .retained_record_of(cxt)
+            .and_then(|record| record.paths.get(&cxt).cloned())
+            .or_else(|| self.name_world.borrow().ns_paths.get(&cxt).cloned())
+            .unwrap_or_default();
+        let bases = projected
+            .lookup_bases(cxt, &paths)
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+        for base in bases {
+            let base = match base {
+                tcl_syntax::naming::CommandLookupBase::Context(token) => token,
+                tcl_syntax::naming::CommandLookupBase::Root => ROOT_NS,
+            };
+            let Some(namespace) = self.namespace_descendant_token(base, qualifiers) else {
+                continue;
+            };
+            let slot = CommandSlot {
+                namespace,
+                simple: simple.clone(),
+            };
+            if let Some(key) = self.command_at_exact_slot_checked(&slot, filter_public_surface)? {
+                return Ok(Some(key));
+            }
+        }
+        Ok(None)
+    }

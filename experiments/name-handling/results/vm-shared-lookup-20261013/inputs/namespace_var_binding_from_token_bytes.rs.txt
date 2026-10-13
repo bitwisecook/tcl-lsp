@@ -1,0 +1,47 @@
+    fn namespace_var_binding_from_token_bytes(
+        &self,
+        namespace: NsId,
+        original: &[u8],
+    ) -> Option<VarBinding> {
+        if self.observed_names.is_some() {
+            return None;
+        }
+
+        let protocol = self.name_policy_protocol()?.recipe();
+        let projection = protocol.variable_root_input(original);
+        let name = projection.selected();
+        if protocol.is_jim084() {
+            let context = Namespaces::name_bytes(self, namespace);
+            let global = tcl_syntax::naming::jim_global_variable_key_bytes(&context, name);
+            return Some(VarBinding {
+                owner: VarTableOwner::Namespace(ROOT_NS),
+                name: NameBytes::from(global),
+            });
+        }
+        match protocol.variable_root_geometry(tcl_syntax::naming::NativeNameContext::root(), name) {
+            tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) => Some(VarBinding {
+                owner: VarTableOwner::Namespace(namespace),
+                name: simple,
+            }),
+            tcl_syntax::naming::NativeVariableRootGeometry::CNamespace {
+                namespace: qualifiers,
+                simple,
+            } => {
+                let base = if projection.qualification()
+                    == tcl_syntax::naming::NativeNameQualification::Absolute
+                {
+                    ROOT_NS
+                } else {
+                    namespace
+                };
+                Some(VarBinding {
+                    owner: VarTableOwner::Namespace(
+                        self.namespace_descendant_token(base, qualifiers.as_segments())?,
+                    ),
+                    name: simple,
+                })
+            }
+            tcl_syntax::naming::NativeVariableRootGeometry::JimAbsolute(_) => None,
+        }
+    }
+

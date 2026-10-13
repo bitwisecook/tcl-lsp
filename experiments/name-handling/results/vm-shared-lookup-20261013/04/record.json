@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:01:32.388444+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "a7712c47e606754810141ada1f905e659f38bbff1cef1e39615a4175b7e3ac34",
+  "stderr_sha256": "f1e4aa6363e97441042b6d6401c29a0762c360ccbccd64315d5dc962fe87e772"
+}

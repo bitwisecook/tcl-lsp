@@ -1,0 +1,17 @@
+{
+  "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+  "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+  "rust-toolchain.toml": "0ab20c8fa9c7ec3f0663987ba9e84c60e5f8fad77aab1f33dda8a013445a80d0",
+  "rust/tcl-vm/src/interp.rs": "bc5aa7ee38d7983e6b7938fc250fa9e5078cd437c7035a7255bf77d2a2038562",
+  "rust/tcl-vm/src/interp/native_name_world.rs": "1f48458408023106c0e763ded053b57e0eb361aec591da26fbf69dbae83beeff",
+  "rust/tcl-vm/src/interp/native_command_resolver_tests.rs": "9e4b4e1672d864835d78d437305e3146bb267d9d8695d6ecada7391e2aa251bc",
+  "rust/tcl-vm/src/interp/native_namespace_names.rs": "c88beeec6d01294ac771daa7d2c5bca1e46197bb7209b089c3684cc20510fcc8",
+  "rust/tcl-vm/src/interp/native_operation_currency.rs": "144b8f1d984f315dc869e0b5a2f2bad201927b20c9f977aeea2e672ae462905f",
+  "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+  "rust/tcl-syntax/src/naming.rs": "ff4b23d0f40412708daac73540ac175885463125068250c6d49e6d78ab48fa73",
+  "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+  "rust/tcl-syntax/src/naming/native/routing.rs": "6206f6d88982eae4abc3aa10c674a3b6aef0a0de1bc772d1b1551597d5ce43b4",
+  "rust/tcl-syntax/src/naming/variable_geometry.rs": "e212b1cdd450d0fd4caccf9a0345776a5ce6df738dd1b82681efa978d15428e9",
+  "rust/tcl-runtime-api/src/native_compilation.rs": "001192e22d5494fb017c5975b0075bd668fe24b7f46a6cc2341ccd1f418f3841",
+  "rust/tcl-syntax/tests/data/command_resolution_vectors.txt": "f817ad0d63dff84328e1763cac0c9e1cc1291b6e73edb29298adab0b0fe4be1d"
+}

@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1198 filtered out; finished in 0.00s
+

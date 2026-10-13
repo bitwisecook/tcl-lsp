@@ -1,0 +1,48 @@
+    fn qualified_var_binding_from_bytes(
+        &self,
+        name: &[u8],
+        start: usize,
+        qualification: tcl_syntax::naming::NativeNameQualification,
+    ) -> Option<VarBinding> {
+        let absolute = qualification == tcl_syntax::naming::NativeNameQualification::Absolute;
+        let protocol = self.name_policy_protocol()?.recipe();
+        let tcl_syntax::naming::NativeVariableRootGeometry::CNamespace {
+            namespace: qualifiers,
+            simple,
+        } = protocol.variable_root_geometry(tcl_syntax::naming::NativeNameContext::root(), name)
+        else {
+            return None;
+        };
+        let context = if absolute {
+            ROOT_NS
+        } else {
+            self.resolution_stacks
+                .ns_id_stack
+                .get(start)
+                .copied()
+                .unwrap_or(ROOT_NS)
+        };
+        let walk = |token: NsId| self.namespace_descendant_token(token, qualifiers.as_segments());
+        let selected = walk(context);
+        if !absolute
+            && self.ns_var_global_fallback()
+            && selected.is_none_or(|token| {
+                self.var_table(VarTableOwner::Namespace(token))
+                    .is_none_or(|table| !table.contains_key(simple.as_bytes()))
+            })
+            && let Some(token) = walk(ROOT_NS)
+        {
+            let global = VarBinding {
+                owner: VarTableOwner::Namespace(token),
+                name: simple.clone(),
+            };
+            if self.bound_var_id(&global).is_some() {
+                return Some(global);
+            }
+        }
+        Some(VarBinding {
+            owner: VarTableOwner::Namespace(selected?),
+            name: simple,
+        })
+    }
+

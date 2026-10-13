@@ -46,14 +46,17 @@ the public ensemble's argument offset. This experiment establishes no repair or
 acceptance for that classifier.
 
 `constructed-actual.tcl` joins each actual `namespace current` result with the
-simple name of a procedure created and invoked in that namespace. On all six
-shells, `::tcl::mathfunc` plus `:f`, and `::tcl::mathfunc:` plus `f`, produce the
+simple name of a procedure created and invoked in that namespace. On C8.6–9.1
+and Jim, `::tcl::mathfunc` plus `:f`, and `::tcl::mathfunc:` plus `f`, produce the
 same displayed string. C refuses written relookup of that display in this
 fixture; Jim reaches the second namespace's `f`. The shared analytical split
 therefore cannot recover a unique global math-function identity from that
 string. The metadata controls require refusal rather than inventing a private
 inverse. `constructed-display.tcl` is a separate constant-string control; its
 hardcoded identical strings establish no namespace or procedure ownership.
+C8.4 and C8.5 refuse `proc :f` in a non-global namespace in both programs;
+their exit-one captures reach no display comparison or written relookup.
+Those refused extents cannot borrow the later C/Jim collision observation.
 
 The scoped filters passed 129 distinct Registry controls. The first mathfunc
 run passed thirteen and failed the new control's incorrect assumption that an

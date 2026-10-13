@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_command_resolver_tests::live_lookup_matches_shared_oracle_command_vectors",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_command_resolver_tests::live_lookup_matches_shared_oracle_command_vectors",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T13:59:08.861613+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "33bfc9d41d01d7f394f0eeb0cefe29467d78b2b474f9b1d517032c20d71b1a02",
+  "stderr_sha256": "5419aff74267953c57767056c4f883363da050acfbc173037b0bcc50a9d1c2b4"
+}

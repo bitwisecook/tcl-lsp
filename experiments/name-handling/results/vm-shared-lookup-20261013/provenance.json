@@ -1,0 +1,60 @@
+{
+  "git_commit": "136b2d4b3aabbf68ca7c833b0d2c71451b2803ec",
+  "scope": "VM live command lookup, pending table publication and authentic native namespace identity controls; no compiler/source execution or broad VM parity claim",
+  "source_hashes_stable": true,
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "planned_selectors": [
+    "interp::native_command_resolver_tests::live_lookup_matches_shared_oracle_command_vectors",
+    "interp::native_name_world::tests::pending_create_delete_and_tombstone_lookup_share_the_actual_candidates",
+    "interp::native_name_world::tests::missing_delete_does_not_create_namespace_or_grant_a_fake_slot",
+    "interp::native_name_world::tests::retained_context_creates_under_its_token_instead_of_same_named_live_namespace",
+    "interp::native_namespace_names::tests::compiled_native_namespace_context_separates_equal_colon_displays",
+    "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_deleted_and_recreated_token",
+    "interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner",
+    "interp::native_namespace_names::tests::compiled_native_namespace_context_rejects_foreign_interpreter"
+  ],
+  "completed_selectors": 8,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "configuration": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": null,
+    "RUSTFLAGS": null,
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1"
+  },
+  "capture_runner_sha256": "079740eb3fbb37edded9fb3cf1e5261371b67494bc2d824936fda7ec844aefd1",
+  "unexecuted": "VM variable geometry, new namespace-empty adaptation, public-source execution and F5/Jim conformance not established by this capture",
+  "test_binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-fca3c8e51a016987",
+    "sha256": "f6e7ac042bf4bb1c2aa00d67504b521dba9d95248957f7d8fec7e9d7654d6153"
+  },
+  "observed_results": {
+    "exact_tests_passed": 8,
+    "live_lookup_compared": {
+      "8.4": 30,
+      "8.5": 41,
+      "8.6": 46,
+      "9.0": 46,
+      "9.1": 46
+    },
+    "original_setup_boundaries": {
+      "8.4": 16,
+      "8.5": 5,
+      "8.6": 0,
+      "9.0": 0,
+      "9.1": 0
+    },
+    "pending_publication_storage_controls": 3,
+    "authentic_native_namespace_identity_controls": 4
+  },
+  "scoped_input_snapshots": {
+    "inputs/resolve_command_bytes_checked.rs.txt": "5b71a15961361477c5927881693846460a8a0037d143b2f6cc28f559401c3d6a",
+    "inputs/native_command_resolver_tests.rs.txt": "9e4b4e1672d864835d78d437305e3146bb267d9d8695d6ecada7391e2aa251bc",
+    "inputs/namespace_var_binding_from_token_bytes.rs.txt": "f2cdbf9a776ca122ba8795db5e3dc73c78148692f3980cd165af5652abe51ee7",
+    "inputs/qualified_var_binding_from_bytes.rs.txt": "0838967ca93cfb868eed36856026443a171d0035e1574cf464e0269a050e88e7",
+    "inputs/pending_lookup_slot.rs.txt": "1dd141ade20762354dea32f50a20808c3405f0ca37833a62e6a8bdd456a4f8ec",
+    "inputs/command_resolution_vectors.txt": "f817ad0d63dff84328e1763cac0c9e1cc1291b6e73edb29298adab0b0fe4be1d"
+  }
+}

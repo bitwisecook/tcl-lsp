@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_names::tests::replay_namespace_context_preserves_colon_identity_and_retired_owner",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:01:42.879796+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "3e548ab83bd71ac9ce5899a6152733d8339cdf5d4fba448abdee626ed02f1061",
+  "stderr_sha256": "b4d14a9881c56ab9c3f2f63f9fe26fa25a62e9a31e31e6db40dbdc235f90fd9d"
+}

@@ -18284,11 +18284,14 @@ impl Vm {
         qualification: tcl_syntax::naming::NativeNameQualification,
     ) -> Option<VarBinding> {
         let absolute = qualification == tcl_syntax::naming::NativeNameQualification::Absolute;
-        let simple = tcl_syntax::naming::written_command_tail(name);
-        let mut segments: Vec<_> = tcl_syntax::naming::qualifier_segments(name);
-        if !simple.is_empty() {
-            segments.pop();
-        }
+        let protocol = self.name_policy_protocol()?.recipe();
+        let tcl_syntax::naming::NativeVariableRootGeometry::CNamespace {
+            namespace: qualifiers,
+            simple,
+        } = protocol.variable_root_geometry(tcl_syntax::naming::NativeNameContext::root(), name)
+        else {
+            return None;
+        };
         let context = if absolute {
             ROOT_NS
         } else {
@@ -18298,24 +18301,19 @@ impl Vm {
                 .copied()
                 .unwrap_or(ROOT_NS)
         };
-        let walk = |mut token: NsId| {
-            for segment in &segments {
-                token = self.namespace_child_token(token, *segment)?;
-            }
-            Some(token)
-        };
+        let walk = |token: NsId| self.namespace_descendant_token(token, qualifiers.as_segments());
         let selected = walk(context);
         if !absolute
             && self.ns_var_global_fallback()
             && selected.is_none_or(|token| {
                 self.var_table(VarTableOwner::Namespace(token))
-                    .is_none_or(|table| !table.contains_key(simple))
+                    .is_none_or(|table| !table.contains_key(simple.as_bytes()))
             })
             && let Some(token) = walk(ROOT_NS)
         {
             let global = VarBinding {
                 owner: VarTableOwner::Namespace(token),
-                name: NameBytes::from(simple),
+                name: simple.clone(),
             };
             if self.bound_var_id(&global).is_some() {
                 return Some(global);
@@ -18323,7 +18321,7 @@ impl Vm {
         }
         Some(VarBinding {
             owner: VarTableOwner::Namespace(selected?),
-            name: NameBytes::from(simple),
+            name: simple,
         })
     }
 
@@ -18353,29 +18351,31 @@ impl Vm {
                 name: NameBytes::from(global),
             });
         }
-        if projection.qualification() == tcl_syntax::naming::NativeNameQualification::Unqualified {
-            return Some(VarBinding {
+        match protocol.variable_root_geometry(tcl_syntax::naming::NativeNameContext::root(), name) {
+            tcl_syntax::naming::NativeVariableRootGeometry::Local(simple) => Some(VarBinding {
                 owner: VarTableOwner::Namespace(namespace),
-                name: NameBytes::from(name),
-            });
+                name: simple,
+            }),
+            tcl_syntax::naming::NativeVariableRootGeometry::CNamespace {
+                namespace: qualifiers,
+                simple,
+            } => {
+                let base = if projection.qualification()
+                    == tcl_syntax::naming::NativeNameQualification::Absolute
+                {
+                    ROOT_NS
+                } else {
+                    namespace
+                };
+                Some(VarBinding {
+                    owner: VarTableOwner::Namespace(
+                        self.namespace_descendant_token(base, qualifiers.as_segments())?,
+                    ),
+                    name: simple,
+                })
+            }
+            tcl_syntax::naming::NativeVariableRootGeometry::JimAbsolute(_) => None,
         }
-        let simple = tcl_syntax::naming::written_command_tail(name);
-        let mut segments: Vec<_> = tcl_syntax::naming::qualifier_segments(name);
-        if !simple.is_empty() {
-            segments.pop();
-        }
-        let mut owner = if name.starts_with(b"::") {
-            ROOT_NS
-        } else {
-            namespace
-        };
-        for segment in segments {
-            owner = self.namespace_child_token(owner, segment)?;
-        }
-        Some(VarBinding {
-            owner: VarTableOwner::Namespace(owner),
-            name: NameBytes::from(simple),
-        })
     }
 
     fn bound_var_id(&self, binding: &VarBinding) -> Option<VarId> {

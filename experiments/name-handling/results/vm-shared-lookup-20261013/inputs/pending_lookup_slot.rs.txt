@@ -1,0 +1,62 @@
+    fn lookup_slot(
+        &mut self,
+        context: NsId,
+        protocol: NativeNameProtocol,
+        original: &[u8],
+    ) -> Result<Option<CommandSlot>, NativePublicationError> {
+        if protocol.is_jim084() {
+            let keys = protocol
+                .jim_command_lookup_keys(self.namespace_context(context, protocol)?, original)?;
+            return Ok(keys.into_iter().find_map(|simple| {
+                let slot = CommandSlot {
+                    namespace: ROOT_NS,
+                    simple,
+                };
+                self.observed_slot_presence(&slot).then_some(slot)
+            }));
+        }
+        let projected = protocol
+            .command_lookup_projection(self.namespace_context(context, protocol)?, original)?;
+        let paths = self
+            .ns_deferral
+            .owners
+            .get(&context)
+            .and_then(|root| self.ns_deferral.retained.get(root))
+            .and_then(|record| record.paths.get(&context))
+            .or_else(|| self.ns_paths.get(&context))
+            .cloned()
+            .unwrap_or_default();
+        let bases = projected.lookup_bases(context, &paths)?;
+        for base in bases {
+            let base = match base {
+                CommandLookupBase::Context(token) => token,
+                CommandLookupBase::Root => ROOT_NS,
+            };
+            if !self.namespace_available(base) {
+                continue;
+            }
+            let projected = protocol
+                .command_lookup_projection(self.namespace_context(base, protocol)?, original)?;
+            let anchor = match projected.namespace_route() {
+                NativeCommandNamespaceRoute::Root => ROOT_NS,
+                NativeCommandNamespaceRoute::Context => base,
+                NativeCommandNamespaceRoute::ContextParent => {
+                    self.physical_namespace_parent(base).unwrap_or(base)
+                }
+            };
+            let Some(namespace) =
+                self.holder_from_qualifiers(anchor, projected.qualifiers(), false)?
+            else {
+                continue;
+            };
+            let slot = CommandSlot {
+                namespace,
+                simple: projected.into_slot().simple,
+            };
+            if self.observed_slot_presence(&slot) {
+                return Ok(Some(slot));
+            }
+        }
+        Ok(None)
+    }
+
