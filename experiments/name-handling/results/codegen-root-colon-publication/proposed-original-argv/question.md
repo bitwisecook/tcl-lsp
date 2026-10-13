@@ -38,6 +38,7 @@ Artifacts are separate:
 | [wasm-controls.rs](wasm-controls.rs) | Proposed actual compiled-table invocation and strict manifest-loader/signature controls |
 | [abi-layout.json](abi-layout.json) | Source-derived prior/additive fingerprint inputs and values, with no Runtime execution claim |
 | [provenance.json](provenance.json) | Exact source preimage and artifact byte hashes |
+| [apply-order.md](apply-order.md) | Exact source/test ownership, shared preimages and fail-closed application checks |
 | [prepare-implementation.py](prepare-implementation.py), [prepare-test-updates.py](prepare-test-updates.py) | Read source and prepare temporary diffs without applying them; required source shapes are asserted |
 
 The compiler control must prove that the source reaches `DefineProc` under its
@@ -54,3 +55,7 @@ loader control rejects the prior source-table fingerprint and executes the
 current additive signature against the actual Runtime. A Rust callable stub
 control remains explicitly software coverage; it cannot substitute for emitted
 WASM execution. All these proposed controls are unexecuted.
+The additive-ABI replacement control also reuses live original name arguments and
+checks that source-only replacement retires the compiled callable while preserving
+caller-owned objects. Both Runtime and real-link control sources are included in
+the retained test preparation recipe.

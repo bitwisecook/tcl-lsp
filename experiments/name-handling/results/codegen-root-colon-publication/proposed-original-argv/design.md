@@ -122,6 +122,12 @@ unknown reads, replaced definers and missing vectors must keep the correct fallb
 live namespace IDs for root, named, colon and missing holders, caller-owned
 argument objects and completion cleanup. Its `Some(stub_body)` callable is
 explicitly Rust software ABI coverage; it grants no Native provenance.
+The new-import replacement control reuses the original live head/name/formal
+objects: it creates `:audit` with that callable, then defines the same name through
+the additive ABI with `entry=None`. It checks the receiver words, replacement
+result/body/formals, unchanged dispatch count and the caller's retained old body
+and name values. Legacy-import replacement coverage alone cannot establish this
+boundary.
 
 [wasm-controls.rs](wasm-controls.rs) uses the actual linked Runtime/Wasmtime
 harness. The root-colon test requires two installed compiled bodies, two actual
@@ -136,3 +142,6 @@ The shipping WASM contract must describe evaluated original argv and internal ke
 with both legacy imports retained. Source preimages and artifact hashes are in
 [provenance.json](provenance.json); preparation scripts produce temporary diffs
 and never apply them to production files.
+The test preparation recipe includes the retained Runtime and real-link controls
+in their actual test-module/file owners. [apply-order.md](apply-order.md) records
+the complete file set and overlap/preimage checks for applying both reviewed diffs.

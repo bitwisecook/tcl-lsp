@@ -51,13 +51,17 @@
       "sha256": "47e5a5f2bbf156cd83ecc0b3f2ca4fad5155d99cd66a0d4d1af36388a442c2a9",
       "bytes": 7926
     },
+    "apply-order.md": {
+      "sha256": "2631d685e63a1366b9f3d3d9ca2a00bb3def572af7ff50ae2f88c59e653bb2c9",
+      "bytes": 3633
+    },
     "compiler-controls.rs": {
       "sha256": "a40cba54364256c48393968b7e4b8357cd2a3df153a61938b4026d7fc306293d",
       "bytes": 6609
     },
     "design.md": {
-      "sha256": "c3f4f79f0ef0ebb78844e81f60e8336014fac9d89fbfc05a290d6bcd9f7f49d6",
-      "bytes": 8440
+      "sha256": "9f9e64c0e3e1e8982b95676e898e4726cb558b5ab15dcbf0cc13337b94e5bd4d",
+      "bytes": 9097
     },
     "implementation.patch": {
       "sha256": "1528212d2a1ff2cdc550cd24ffc23c1b7bd65e517d43b4d62ccbc1cd9ce10eae",
@@ -68,20 +72,20 @@
       "bytes": 9297
     },
     "prepare-test-updates.py": {
-      "sha256": "19d02e1d82fe641f394c4f933d0ddb80d9dfa674641c340594a505a13ae45b59",
-      "bytes": 10271
+      "sha256": "86da33b8a517e3e4afef00479bd4f18f4954a79da33326aebeee451a5108006c",
+      "bytes": 11189
     },
     "question.md": {
-      "sha256": "7aabb9d5b74e56ffa351fa77e5769e9f43e8276b89a9f5c2193ed420dadb97ee",
-      "bytes": 3949
+      "sha256": "b2861d7bddf8430fa48c95bb8cb9835e21ddc4ef9589deca5a512e1e3b320a7a",
+      "bytes": 4353
     },
     "runtime-controls.rs": {
-      "sha256": "92952709aa20b18249855543f431d6e0c55c93e5a2ad23ac3a78d80bdf1f631a",
-      "bytes": 5846
+      "sha256": "1039f01f7837f0231a38fb16e66697eee65912a5a1ef631a4423b46062812362",
+      "bytes": 9007
     },
     "test-updates.patch": {
-      "sha256": "9f1aae5102bde4b72a7a163eb5efcd79bf96c65f8e788ef4893405d65a10dccb",
-      "bytes": 20414
+      "sha256": "03121a1aea5ceeff4925d6658b3817e323529269a52a181917010ece71bbed00",
+      "bytes": 30446
     },
     "wasm-controls.rs": {
       "sha256": "f02c7cb6445cc2f2c443221ac7eba590619003790897f4bbfd1349ffc28d476f",

@@ -25,19 +25,10 @@
  }
  
  /// Lowering keeps the *first* definition of a name, so only that statement can
-@@ -1246,3 +1246,134 @@
+@@ -1246,3 +1246,96 @@
          );
      }
  }
-+
-+// tcl-lsp — a language server and toolchain for Tcl
-+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
-+//
-+// SPDX-License-Identifier: AGPL-3.0-or-later
-+
-+// Proposed additions to native_lowering/tests.rs AFTER the additive ABI patch.
-+// Uncompiled and unexecuted. The existing helper keeps the actual VM owner alive;
-+// it attests entry registration only, not successful native compilation/execution.
 +
 +fn defined_original_argv(function: &NativeFunction) -> Vec<(&str, &[super::ir::NativeValueId])> {
 +    all_ops(function)
@@ -131,35 +122,6 @@
 +    }
 +}
 +
-+// Additional fixed controls for the same APIs, without changing entry/frame
-+// assumptions to force admission:
-+//
-+// 1. Missing evaluated vector or non-exact effective argv: lower_definition
-+//    returns None; lower_invoke retains its already-built GenericInvoke argv.
-+//    Do not fabricate a NativeCompilationEntry or erase an admission decline.
-+// 2. Shadowed definer:
-+//    rename proc saved_proc
-+//    saved_proc proc args {return SHADOW}
-+//    proc :audit {} {return ORIGINAL}
-+//    -> final command stays generic; no :audit declaration is manufactured.
-+// 3. Runtime named holder: create actual `holder`, enter its NsId, then call
-+//    ProcDefineOriginalArgv with caller-owned objects proc/:audit/{}/body and
-+//    entry=None. Calls to :audit in that actual holder succeed; `audit` and
-+//    root :audit remain absent. Keep objects alive through completion settle.
-+// 4. Runtime live prefix: create actual namespaces `:` and `:ns`; enter each
-+//    live NsId, and define the ordinary literal `audit`. Compare its actual
-+//    holder/report with the existing original per-release publication rows,
-+//    rather than parsing the holder's rendered name into a new namespace.
-+//    Also send `proc missing::audit {} body`: original name validation errors
-+//    before publication; no missing holder is created.
-+// 5. Once-only emitted-WASM control: run the substituted-name source and query
-+//    `list [:audit] $calls`; require `{COUNTED 1}` and absence of plain audit.
-+//    Assert only next_name received DefineProc and that generic leaf emission
-+//    calls the existing argv dispatcher once for the second declaration.
-+// 6. Unknown name: `proc $unknown_name {} {return NEVER}` with the variable
-+//    absent must preserve the original read error, install no procedure, and
-+//    never call the new definition ABI. A known replacement `proc` must stay
-+//    on the ordinary runtime dispatcher even when all operands are literals.
 --- a/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
 +++ b/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
 @@ -867,6 +867,10 @@
@@ -397,6 +359,124 @@
  /// hands each index to the definition. Everything after that is the runtime's
  /// (`run_proc` -> `run_native_body` -> `call_indirect`), and the counter in the
  /// bootstrap is what proves the compiled body — not the source body sitting
+@@ -1514,3 +1514,117 @@
+         );
+     }
+ }
++
++#[test]
++fn root_colon_publication_runs_its_own_compiled_table_entry() {
++    let Some(runtime) = real_link_runtime() else {
++        return;
++    };
++    let source = "proc :audit {a b} {return [expr {$a + $b}]}\n\
++                  proc ordinary {a b} {return [expr {$a - $b}]}\n\
++                  set colon_result [:audit 40 2]\n\
++                  set ordinary_result [ordinary 10 3]\n";
++    // compile_native_bound requires two actual table entries and a call to the
++    // additive definition import. The bootstrap requires two runtime native
++    // procedure dispatches before evaluating this query. Different body results
++    // make binding the colon declaration to the wrong table slot observable.
++    assert_eq!(
++        run_real_native_proc(
++            &runtime,
++            "original_argv_colon_table",
++            source,
++            2,
++            "list $colon_result $ordinary_result [info commands audit] [info args :audit]",
++            2,
++        ),
++        "42 7 {} {a b}",
++    );
++}
++
++#[test]
++fn original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint() {
++    use tcl_runtime_api::ManifestField;
++    let Some(runtime) = real_link_runtime() else {
++        return;
++    };
++    // This is the source-derived fingerprint of the inspected pre-additive
++    // descriptor/layout table, retained with its source hash in abi-layout.json.
++    // It is not a claim of executing an old Runtime binary or old module.
++    const PRIOR_TABLE_FINGERPRINT: u32 = 0x034b_ab19;
++    assert_ne!(
++        tcl_runtime_api::codegen_abi::CODEGEN_ABI_VERSION,
++        PRIOR_TABLE_FINGERPRINT,
++    );
++    let source = "proc :audit {} {return ORIGINAL}\nset answer [:audit]\n";
++    let honest = compile_native_bound(source, 1);
++    assert_eq!(check_manifest(&runtime, &honest), Ok(()));
++    // A genuine newly compiled module with a foreign prior-table manifest is
++    // passed to the actual pre-link identity comparator. Only that manifest
++    // field changes; no fake Runtime identity or widened gate is supplied.
++    let registry = CommandRegistry::build_default();
++    let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
++    let mut foreign = compile_wasm(
++        &unit,
++        &registry,
++        WasmCompileOptions::runtime_linked().native_tier(),
++    );
++    foreign.manifest.as_mut().expect("actual emitter manifest").abi_version =
++        PRIOR_TABLE_FINGERPRINT;
++    assert!(matches!(
++        check_manifest(&runtime, &foreign.to_bytes()),
++        Err(LinkRefusal::Disagrees { field: ManifestField::AbiVersion, .. }),
++    ));
++    // Actual linking and call_indirect execution also validate the new four-i32
++    // import signature; descriptor arithmetic alone cannot establish it.
++    assert_eq!(
++        run_real_native_proc(
++            &runtime,
++            "original_argv_current_manifest",
++            source,
++            1,
++            "list $answer [info commands audit]",
++            1,
++        ),
++        "ORIGINAL {}",
++    );
++}
++
++#[test]
++fn general_original_definition_materialises_its_body_once() {
++    let Some(runtime) = real_link_runtime() else {
++        return;
++    };
++    let source = "set reads 0\n\
++                  proc body_value {} {incr ::reads; return {return MATERIALISED}}\n\
++                  proc p {} [body_value]\n\
++                  set answer [p]\n";
++    assert_eq!(
++        run_real_link_argv(
++            &runtime,
++            "original_argv_materialised_body",
++            source,
++            "list $answer $reads [string equal [info body p] {return MATERIALISED}]",
++        ),
++        "MATERIALISED 1 1",
++    );
++}
++
++#[test]
++fn general_original_definition_keeps_braced_body_text_inert() {
++    let Some(runtime) = real_link_runtime() else {
++        return;
++    };
++    let source = "set reads 0\n\
++                  proc body_value {} {incr ::reads; return UNEXPECTED}\n\
++                  proc p {} {return {[body_value]}}\n\
++                  set answer [p]\n";
++    assert_eq!(
++        run_real_link_argv(
++            &runtime,
++            "original_argv_inert_body",
++            source,
++            "list [string equal $answer {[body_value]}] $reads [string equal [info body p] {return {[body_value]}}]",
++        ),
++        "1 0 1",
++    );
++}
 --- a/rust/tcl-runtime-api/src/codegen_abi.rs
 +++ b/rust/tcl-runtime-api/src/codegen_abi.rs
 @@ -1034,6 +1034,22 @@
@@ -422,3 +502,163 @@
      fn native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter() {
          use CodegenAbiValueType::I32;
  
+--- a/runtime/rust/src/codegen_abi.rs
++++ b/runtime/rust/src/codegen_abi.rs
+@@ -5839,6 +5839,157 @@
+             tcl_runtime_delete_interp(interp);
+         }
+     }
++unsafe fn define_original_words(words: &[*mut TclObj], entry: Option<NativeProcEntry>) -> TclCompletionAbi {
++    let mut out = TclCompletionAbi {
++        code: 777,
++        result: ptr::null_mut(),
++        options: ptr::null_mut(),
++    };
++    // SAFETY: caller-owned live objects and writable local completion storage.
++    let status = unsafe {
++        tcl_codegen_proc_define_original_argv(
++            words.as_ptr(),
++            i32::try_from(words.len()).unwrap(),
++            entry,
++            &mut out,
++        )
++    };
++    assert_eq!(status, TCL_INVOKE_ABI_OK);
++    out
++}
++
++#[test]
++fn original_definition_argv_uses_actual_name_and_current_holder() {
++    leak_free(|| unsafe {
++        for environment in ["tcl8.6", "tcl9.0"] {
++            let mut interp = scalar_interpreter(environment);
++            tcl_runtime_set_current_interp(&mut interp);
++            for holder_name in [b"holder".as_slice(), b":".as_slice(), b":ns".as_slice()] {
++                let holder = interp.namespaces_mut().ensure_namespace(
++                    crate::namespace::GLOBAL,
++                    holder_name,
++                );
++                interp.set_current_ns(holder);
++                let name = if holder_name == b"holder" { b":audit".as_slice() } else { b"audit".as_slice() };
++                let words = [owned_word(b"proc"), owned_word(name), owned_word(b""), owned_word(b"return ORIGINAL")];
++                let mut completion = define_original_words(&words, None);
++                assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
++                tcl_completion_release(&mut completion);
++                // The ABI borrows these objects; they stay live until cleanup.
++                release_words(&words);
++                assert_eq!(interp.eval_str(name), Code::Ok);
++                assert_eq!(interp.result_bytes(), b"ORIGINAL");
++                assert_eq!(interp.current_ns(), holder);
++            }
++            interp.set_current_ns(crate::namespace::GLOBAL);
++            assert_eq!(interp.eval_str(b"info commands :audit"), Code::Ok);
++            assert!(interp.result_bytes().is_empty());
++            assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
++            assert!(interp.result_bytes().is_empty());
++            tcl_runtime_set_current_interp(ptr::null_mut());
++        }
++    });
++}
++
++#[test]
++fn original_definition_argv_does_not_create_a_missing_holder() {
++    leak_free(|| unsafe {
++        for environment in ["tcl8.6", "tcl9.0"] {
++            let mut interp = scalar_interpreter(environment);
++            tcl_runtime_set_current_interp(&mut interp);
++            let words = [owned_word(b"proc"), owned_word(b"missing::audit"), owned_word(b""), owned_word(b"return NEVER")];
++            let mut completion = define_original_words(&words, None);
++            assert_eq!(completion.code, i32::try_from(Code::Error.as_int()).unwrap());
++            tcl_completion_release(&mut completion);
++            release_words(&words);
++            assert_eq!(interp.eval_str(b"namespace exists missing"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"0");
++            tcl_runtime_set_current_interp(ptr::null_mut());
++        }
++    });
++}
++
++#[test]
++fn original_root_name_object_retains_the_installed_software_entry() {
++    // This callable is an existing Rust software ABI stub, not Native evidence.
++    leak_free(|| unsafe {
++        for environment in ["tcl8.6", "tcl9.0"] {
++            let mut interp = scalar_interpreter(environment);
++            tcl_runtime_set_current_interp(&mut interp);
++            stub_argv(&[b"return", b"compiled"]);
++            let words = [owned_word(b"proc"), owned_word(b":audit"), owned_word(b""), owned_word(b"return source")];
++            let before = tcl_codegen_native_proc_dispatches();
++            let mut completion = define_original_words(&words, Some(stub_body));
++            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
++            tcl_completion_release(&mut completion);
++            release_words(&words);
++            assert_eq!(interp.eval_str(b":audit"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"compiled");
++            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
++            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"return source");
++            assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
++            assert!(interp.result_bytes().is_empty());
++            tcl_runtime_set_current_interp(ptr::null_mut());
++        }
++    });
++}
++
++#[test]
++fn original_definition_argv_replacement_retires_its_compiled_entry() {
++    // The existing callable is a Rust software ABI stub, not Native provenance.
++    leak_free(|| unsafe {
++        for environment in ["tcl8.6", "tcl9.0"] {
++            let mut interp = scalar_interpreter(environment);
++            tcl_runtime_set_current_interp(&mut interp);
++            stub_argv(&[b"info", b"level", b"0"]);
++            let original = [
++                owned_word(b"proc"),
++                owned_word(b":audit"),
++                owned_word(b"name"),
++                owned_word(b"return OLD_SOURCE"),
++            ];
++            let before = tcl_codegen_native_proc_dispatches();
++            let mut completion = define_original_words(&original, Some(stub_body));
++            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
++            tcl_completion_release(&mut completion);
++            assert_eq!(interp.eval_str(b":audit first"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b":audit first");
++            assert_eq!(stub_calls(), 1);
++            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
++            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"return OLD_SOURCE");
++
++            // Reuse the live original head/name/formal argument objects. Their
++            // caller-owned references span both borrowed ABI calls; only the
++            // new source body has an additional caller-owned reference.
++            let body = owned_word(b"return [list REPLACED $name [info level 0]]");
++            let replacement = [original[0], original[1], original[2], body];
++            let mut completion = define_original_words(&replacement, None);
++            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
++            tcl_completion_release(&mut completion);
++            assert_eq!(interp.eval_str(b":audit second"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"REPLACED second {:audit second}");
++            assert_eq!(stub_calls(), 1, "replacement must not enter the retired callable");
++            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
++            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"return [list REPLACED $name [info level 0]]");
++            assert_eq!(interp.eval_str(b"info args :audit"), Code::Ok);
++            assert_eq!(interp.result_bytes(), b"name");
++            assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
++            assert!(interp.result_bytes().is_empty());
++            // Replacement retires the procedure's old references, but cannot
++            // consume or mutate either caller's original argument objects.
++            assert_eq!(obj_bytes(original[1]), b":audit");
++            assert_eq!(obj_bytes(original[3]), b"return OLD_SOURCE");
++            assert_eq!(obj_bytes(body), b"return [list REPLACED $name [info level 0]]");
++            release_words(&[body]);
++            release_words(&original);
++            tcl_runtime_set_current_interp(ptr::null_mut());
++        }
++    });
++}
++
+ }
+ 
+ #[cfg(test)]

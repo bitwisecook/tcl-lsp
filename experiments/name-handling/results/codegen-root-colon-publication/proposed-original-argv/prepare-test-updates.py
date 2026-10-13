@@ -13,6 +13,19 @@ def change(path, fn):
  preimages[path]={'sha256':hashlib.sha256(old.encode()).hexdigest(),'bytes':len(old.encode())}
  assert old!=new,path
  changes.extend(difflib.unified_diff(old.splitlines(True),new.splitlines(True),fromfile='a/'+path,tofile='b/'+path))
+def control_source(name):
+ source=Path(__file__).with_name(name).read_text()
+ if name=='compiler-controls.rs':
+  source=source[source.index('fn defined_original_argv'):]
+  source=source.split('// Additional fixed controls for the same APIs',1)[0]
+ elif name=='runtime-controls.rs':
+  source=source[source.index('unsafe fn define_original_words'):]
+  start=source.index('// Additional Runtime obligations before declaring')
+  end=source.index('#[test]\nfn original_root_name_object',start)
+  source=source[:start]+source[end:]
+ else:
+  source=source[source.index('#[test]'):]
+ return source
 def native_tests(s):
  before='''    assert_eq!(
         defines,
@@ -33,7 +46,7 @@ def native_tests(s):
     assert_eq!(original_constant(&function, argv[2]), "name");
     assert_eq!(original_constant(&function, argv[3]), " return hi ");'''
  assert s.count(before)==1
- return s.replace(before,after)+'\n'+Path(__file__).with_name('compiler-controls.rs').read_text()
+ return s.replace(before,after)+'\n'+control_source('compiler-controls.rs')
 change('rust/tcl-compiler/src/native_lowering/tests.rs',native_tests)
 def pipeline(s):
  old='''        assert_eq!(
@@ -167,7 +180,7 @@ def backend_tests(s):
     return s[:start]+replacement+s[end:]
 change('rust/tcl-compiler/src/codegen/wasm/backend.rs',backend_tests)
 
-change('rust/tcl-compiler/tests/wasm_real_link.rs',lambda s:s.replace('CodegenAbiImportId::ProcDefineNative','CodegenAbiImportId::ProcDefineOriginalArgv').replace('`tcl_codegen_proc_define_native`','`tcl_codegen_proc_define_original_argv`'))
+change('rust/tcl-compiler/tests/wasm_real_link.rs',lambda s:s.replace('CodegenAbiImportId::ProcDefineNative','CodegenAbiImportId::ProcDefineOriginalArgv').replace('`tcl_codegen_proc_define_native`','`tcl_codegen_proc_define_original_argv`')+'\n'+control_source('wasm-controls.rs'))
 def api(s):
  before='''    #[test]
     fn native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter()'''
@@ -191,6 +204,12 @@ def api(s):
 '''+before
  return s.replace(before,after)
 change('rust/tcl-runtime-api/src/codegen_abi.rs',api)
+def runtime_controls(s):
+    marker = '\n}\n\n#[cfg(test)]\n#[path = "codegen_abi/original_ingress_tests.rs"]'
+    assert s.count(marker) == 1
+    controls = control_source('runtime-controls.rs')
+    return s.replace(marker, '\n' + controls + marker)
+change('runtime/rust/src/codegen_abi.rs',runtime_controls)
 Path('/tmp/codegen-original-argv-test-updates.patch').write_text(''.join(changes))
 Path('/tmp/codegen-original-argv-test-preimages.json').write_text(json.dumps(preimages,indent=2)+'\n')
 print('Prepared scratch test diff: existing definition assertion, both admission-refusal controls, lazy body import allowance, native counters/real link, descriptor/refusal/fingerprint.')

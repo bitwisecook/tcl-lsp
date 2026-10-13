@@ -114,3 +114,58 @@ fn original_root_name_object_retains_the_installed_software_entry() {
         }
     });
 }
+
+#[test]
+fn original_definition_argv_replacement_retires_its_compiled_entry() {
+    // The existing callable is a Rust software ABI stub, not Native provenance.
+    leak_free(|| unsafe {
+        for environment in ["tcl8.6", "tcl9.0"] {
+            let mut interp = scalar_interpreter(environment);
+            tcl_runtime_set_current_interp(&mut interp);
+            stub_argv(&[b"info", b"level", b"0"]);
+            let original = [
+                owned_word(b"proc"),
+                owned_word(b":audit"),
+                owned_word(b"name"),
+                owned_word(b"return OLD_SOURCE"),
+            ];
+            let before = tcl_codegen_native_proc_dispatches();
+            let mut completion = define_original_words(&original, Some(stub_body));
+            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+            tcl_completion_release(&mut completion);
+            assert_eq!(interp.eval_str(b":audit first"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b":audit first");
+            assert_eq!(stub_calls(), 1);
+            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"return OLD_SOURCE");
+
+            // Reuse the live original head/name/formal argument objects. Their
+            // caller-owned references span both borrowed ABI calls; only the
+            // new source body has an additional caller-owned reference.
+            let body = owned_word(b"return [list REPLACED $name [info level 0]]");
+            let replacement = [original[0], original[1], original[2], body];
+            let mut completion = define_original_words(&replacement, None);
+            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+            tcl_completion_release(&mut completion);
+            assert_eq!(interp.eval_str(b":audit second"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"REPLACED second {:audit second}");
+            assert_eq!(stub_calls(), 1, "replacement must not enter the retired callable");
+            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"return [list REPLACED $name [info level 0]]");
+            assert_eq!(interp.eval_str(b"info args :audit"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"name");
+            assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
+            assert!(interp.result_bytes().is_empty());
+            // Replacement retires the procedure's old references, but cannot
+            // consume or mutate either caller's original argument objects.
+            assert_eq!(obj_bytes(original[1]), b":audit");
+            assert_eq!(obj_bytes(original[3]), b"return OLD_SOURCE");
+            assert_eq!(obj_bytes(body), b"return [list REPLACED $name [info level 0]]");
+            release_words(&[body]);
+            release_words(&original);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        }
+    });
+}
