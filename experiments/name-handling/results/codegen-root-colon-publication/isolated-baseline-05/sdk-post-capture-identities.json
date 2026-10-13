@@ -1,0 +1,26 @@
+{
+  "scope": "Post-capture supplement for configured, read-only exact pinned SDK executables; not before/after tool hashing. Runtime helper source and recorded environment identify actual configured SDK/libtommath paths.",
+  "tools": {
+    "wasi-clang": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/clang-23",
+      "sha256": "061f88b9f4c48f3742434c2513d5038ab7fa4dc27abff5cb13b5eaedcb51d6ea",
+      "exit_code": 0,
+      "stdout": "clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: /workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin\nConfiguration file: /workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/clang.cfg\n",
+      "stderr": ""
+    },
+    "wasi-ar": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/llvm-ar",
+      "sha256": "aff24388a6589b45837cff1b50c7efaa203efa0e5f1e5f679b70b2d8feded9cf",
+      "exit_code": 0,
+      "stdout": "LLVM (http://llvm.org/):\n  LLVM version 23.1.0-wasi-sdk\n  Optimized build.\n",
+      "stderr": ""
+    },
+    "wasi-ld": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/lld",
+      "sha256": "ec1daef61bc84256bf7c4a8491b3ea9abcc7163d9aaf6aa8e8bc6faa18f99043",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "lld is a generic driver.\nInvoke ld.lld (Unix), ld64.lld (macOS), lld-link (Windows), wasm-ld (WebAssembly) instead\n"
+    }
+  }
+}

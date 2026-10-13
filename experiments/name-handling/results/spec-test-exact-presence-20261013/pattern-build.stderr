@@ -1,0 +1,52 @@
+warning: function `string_match` is never used
+  --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:28:8
+   |
+28 | pub fn string_match(pattern: &str, text: &str) -> bool {
+   |        ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `string_match_bytes` is never used
+  --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:36:8
+   |
+36 | pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `is_literal` is never used
+  --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:56:8
+   |
+56 | pub fn is_literal(pattern: &str) -> bool {
+   |        ^^^^^^^^^^
+
+warning: function `is_literal_bytes` is never used
+  --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:66:8
+   |
+66 | pub fn is_literal_bytes(pattern: &[u8]) -> bool {
+   |        ^^^^^^^^^^^^^^^^
+
+warning: function `string_case_match` is never used
+   --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:107:8
+    |
+107 | pub fn string_case_match(pattern: &str, text: &str, nocase: bool) -> bool {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `fold` is never used
+   --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:127:4
+    |
+127 | fn fold(c: char, nocase: bool) -> char {
+    |    ^^^^
+
+warning: function `match_one` is never used
+   --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:145:4
+    |
+145 | fn match_one(p: &[char], pi: usize, sc: char, nocase: bool) -> Option<usize> {
+    |    ^^^^^^^^^
+
+warning: function `do_match` is never used
+   --> /workspace/tcl-lsp/rust/tcl-syntax/src/glob.rs:224:4
+    |
+224 | fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) -> bool {
+    |    ^^^^^^^^
+
+warning: 8 warnings emitted
+

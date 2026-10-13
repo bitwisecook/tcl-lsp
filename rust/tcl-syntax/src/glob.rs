@@ -69,6 +69,21 @@ pub fn is_literal_bytes(pattern: &[u8]) -> bool {
         .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'\\'))
 }
 
+/// Quote glob metacharacters in analytical text without changing other data.
+/// Callers retain the selected native matcher, input extent and namespace
+/// pattern purpose; this text projection grants no lookup identity.
+#[must_use]
+pub fn literal_pattern(text: &str) -> String {
+    let mut pattern = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if matches!(ch, '*' | '?' | '[' | ']' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(ch);
+    }
+    pattern
+}
+
 /// Tcl `string match ?-nocase? pattern text`.
 ///
 /// Two allocation-free fast paths stand in front of [`do_match`], which needs
@@ -265,6 +280,25 @@ fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn literal_pattern_preserves_metacharacters_as_data() {
+        for text in [
+            "",
+            ":literal",
+            "ghost*",
+            "quer?",
+            "a[0]",
+            r"a\b",
+            "é*",
+            "::N::cmd?",
+        ] {
+            let pattern = literal_pattern(text);
+            assert!(string_match(&pattern, text));
+            assert!(!string_match(&pattern, &format!("{text}x")));
+        }
+        assert!(!string_match(&literal_pattern("ghost*"), "ghostOther"));
+    }
 
     #[test]
     fn literals_and_empty() {

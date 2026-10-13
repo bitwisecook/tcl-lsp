@@ -115,6 +115,13 @@ the owned publication namespace; registration presence uses exact command lookup
 The hand-maintained simulation roster remains distinct from environment
 availability and provides no appliance binding or frame authority.
 
+CLI SpecTest presence retains the original written command operand and global
+query context. Its literal command-inventory pattern uses Syntax's
+`glob::literal_pattern`, independently of the autoloader's original input.
+Namespace.which's query purpose cannot certify this presence check across
+providers: Jim can return no query name for an actually callable lone-colon
+command. No pattern result grants Native invocation or allocation identity.
+
 SpecTcl native argument-role hook IDs resolve through
 `CommandRegistry::native_argument_role_hook`. Exact qualified command descriptors
 precede command/member interpretations, even when the selected command lacks

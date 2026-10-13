@@ -1,0 +1,36 @@
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling zeroize v1.9.0
+   Compiling subtle v2.6.1
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.10.1
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling getrandom v0.4.3
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.2
+   Compiling const-oid v0.10.2
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling syn v3.0.6
+   Compiling digest v0.11.3
+   Compiling thiserror v2.0.21
+   Compiling num-integer v0.1.47
+   Compiling tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-dialect)
+error: failed to run custom build command for `tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-dialect)`
+
+Caused by:
+  process didn't exit successfully: `/tmp/name-agent-target-codegen/debug/build/tcl-dialect-df53d3296da3c812/build-script-build` (exit status: 101)
+  --- stdout
+  cargo:rerun-if-changed=data/reference-toolchains.tsv
+
+  --- stderr
+
+  thread 'main' (72239) panicked at rust/tcl-dialect/build.rs:16:49:
+  read Tcl reference-toolchain manifest: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: build failed, waiting for other jobs to finish...

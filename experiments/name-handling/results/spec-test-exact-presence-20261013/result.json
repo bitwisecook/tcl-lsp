@@ -1,0 +1,61 @@
+{
+  "observations": [
+    {
+      "provider": "c84",
+      "sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "rows": 8
+    },
+    {
+      "provider": "c85",
+      "sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "rows": 8
+    },
+    {
+      "provider": "c86",
+      "sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "rows": 8
+    },
+    {
+      "provider": "c90",
+      "sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "rows": 8
+    },
+    {
+      "provider": "c91",
+      "sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "rows": 8
+    },
+    {
+      "provider": "jim",
+      "sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 0,
+      "rows": 8
+    }
+  ],
+  "source_sha256": "1b2a8f9062588168252b24ca515a8716120fef5cf8e72b9f48671e64fefbf576",
+  "glob_source_sha256": "ded99be71b39a9518553f53cb2d641f0a0fb730a5f9ff05e9ba5714eb2f5349c",
+  "projector_command": [
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+    "--edition",
+    "2024",
+    "/tmp/name-spec-presence-patterns.rs",
+    "--extern",
+    "tcl_syntax=/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-64f9cfd4c55a160e.rlib",
+    "-L",
+    "dependency=/workspace/tcl-lsp/tmp/name-target-names/debug/deps",
+    "-o",
+    "/tmp/name-spec-presence-patterns"
+  ],
+  "scope": "48 actual helper query observations; full CLI/pack integration pending"
+}

@@ -51,8 +51,8 @@ the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM 
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is18:03 BST; the next tracking
-checkpoint is18:18 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is18:18 BST; the next tracking
+checkpoint is18:33 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -189,6 +189,17 @@ Root tooling consumers now use the shared simulator mock publication owner and
 exact Tcl table, with authored C5/Jim observations and one pure Rust control.
 Full generator union/regeneration/check and VM harness acceptance are pending.
 SpecTcl native count/layout hook IDs use one Registry metadata resolver; fresh
-Registry/loader controls are pending. CLI SpecTest presence delegates exact
-original global namespace.which lookup and original auto_load input; reporting
+Registry/loader controls are pending. CLI SpecTest presence delegates a shared quoted literal
+global command-inventory pattern and original auto_load input; reporting
 variable filters remain separately audited. Full workspace gates remain red.
+
+[SpecTest actual presence observations](../../../experiments/name-handling/results/spec-test-exact-presence-20261013/README.md)
+pass48 current extracted-helper rows across C5/Jim plus one pure glob control.
+The rejected namespace-query recipe is retained: Jim namespace.which reports
+no name for a lone-colon command that direct invocation can execute. A full
+CLI/package regression is implemented but unexecuted. Codegen isolated04/05
+receipts are retained in the primary checkout;05 passes two strict Runtime-linked
+positives with complete selected-local inputs and explicit post-only SDK inputs.
+Further Runtime publication/TclOO owner validation initially passes29/30; the
+retained/recreated-import failure also reproduces before that migration and
+without the inherited destination hunk. It remains an unresolved naming control.

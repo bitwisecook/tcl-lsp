@@ -1,0 +1,13 @@
+
+SPEC-TEST	missing	:literal	declared, but the package does not define it
+PRESENCE :literal 1
+
+SPEC-TEST	missing	ghost*	declared, but the package does not define it
+PRESENCE ghost* 1
+
+SPEC-TEST	missing	quer?	declared, but the package does not define it
+PRESENCE quer? 1
+PRESENCE present* 0
+PRESENCE ::present* 0
+PRESENCE ::::present* 0
+DIRECT :literal 0 {}

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+    "--edition",
+    "2024",
+    "--test",
+    "rust/tcl-syntax/src/glob.rs",
+    "-o",
+    "/tmp/name-literal-glob-owner-test"
+  ],
+  "source_sha256": "ded99be71b39a9518553f53cb2d641f0a0fb730a5f9ff05e9ba5714eb2f5349c",
+  "binary_sha256": "506c194efd1b699860082d99cd1c5f8efdbca70b65d712f2400940447db5ac98",
+  "executed": 1,
+  "exit_code": 0,
+  "scope": "standalone pure glob owner control, full Syntax/CLI acceptance pending"
+}

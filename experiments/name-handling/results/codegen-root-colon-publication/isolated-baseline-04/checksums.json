@@ -1,0 +1,21 @@
+{
+  "README.md": "e8eb587b0111e1553e1f9549410a0343e2fa38e4983d27e3a55bfae7f807b3cd",
+  "build-04.stderr": "0b8dacf4601cb4dc4d3c9e2b4e367aa8d72e75672a133e07415a68c277959ad1",
+  "build-04.stdout": "fb8629a86d61026f5ccb5b4f86556dde25a6d63ceaec0cb88d10804623d9d3be",
+  "capture.py": "107c753f9edf22d0019214ef4e048ec2453851cfa93d5db75690ec84c21406ac",
+  "compiled-input-coverage.json": "c556ca01e36312242854908e01e1b95dba0b78ea3ab9dce3d7349940b32b9a8b",
+  "inputs-after.json": "7d6cb022a69935a244b8fa0c5d21611e69b451e8f618eecfe2878705f61a2be6",
+  "inputs-before.json": "be7ef35717e9dcbb0d4a317d4f383c9de18c018930e7348b501c140ab9fab7c8",
+  "prerequisite-build-01.jsonl": "506786d84e3c7cda81d7b87539911ee198ab404146ee31ccc6500507aa0c983d",
+  "prerequisite-build-01.stderr": "b0fecb46e9762062f6b79dc825d171a4e2ed4bcd6def9fd22a2f3e248b4113cc",
+  "prerequisite-build-02.jsonl": "e9368b32eb387dcbc9f8d6374751f64e7ed6de5e3b9426c386da486aa0753927",
+  "prerequisite-build-02.stderr": "ec148b2ee41259a511f029302f976a7950f02bae355c3d83b54b88a0a3ccacd7",
+  "prerequisite-build-03.jsonl": "65c036ea2aba14c3bbaea1ccde2ab19813406239328b5958106ba5474549ca52",
+  "prerequisite-build-03.stderr": "dd4448e4774fe383f2e248dd39aa2792c6adf98315e61965f1414686569353e7",
+  "run.py": "2d8e55a090d97dc5d03ac1e06d1a8500c225e882283e7341a4e33ef8a044ff9b",
+  "runtime-metadata.json": "f3bfdcabe2a94f827d4a038e35874f92c66794d63dce8dbdf4c1adbb0bd14dd1",
+  "sparse-input-restoration-01.json": "c301de76911f52397d9807e914633570002a3ab94c78a7dbda2b89e1ef966740",
+  "sparse-input-restoration-02.json": "5a99d7d399b2b307cc0af3f6db92064b5e20599891a90bf4faadcdd99f1ffd16",
+  "validation.json": "ece4cc938e891f19f8a0f69a7d67d566af2977a8dd7e15380b7bdb5bfa661704",
+  "workspace-metadata.json": "0cf1034639a2c4217e6e3060c644ccdd2d3b41069f6ebb517d894564cd8a9b5f"
+}

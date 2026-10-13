@@ -187,9 +187,9 @@ proc ::__spec_test::refused {name count} {
     return [list [expr {$code != 0 && [string match "wrong # args*" $result]}] $call]
 }
 set ::__spec_test::skip 0
-proc ::__spec_test::present {name} {
+proc ::__spec_test::present {name pattern} {
     set ::__spec_test::skip 0
-    if {[uplevel #0 [list namespace which -command $name]] ne ""} return
+    if {[llength [uplevel #0 [list info commands $pattern]]] > 0} return
     if {![catch {uplevel #0 [list auto_load $name]} loaded] && $loaded} return
     set ::__spec_test::skip 1
     ::__spec_test::say missing $name "declared, but the package does not define it"
@@ -376,7 +376,8 @@ pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
     let mut script = PRELUDE.replace("@PACKAGE@", &list_element(package));
     for probe in probes {
         let name = list_element(&probe.name);
-        let _ = writeln!(script, "::__spec_test::present {name}");
+        let pattern = list_element(&tcl_syntax::glob::literal_pattern(&probe.name));
+        let _ = writeln!(script, "::__spec_test::present {name} {pattern}");
         let examples = list_element(
             &probe
                 .examples
@@ -641,8 +642,8 @@ mod tests {
             "a command that declares nothing is asked nothing"
         );
         assert!(
-            script.contains("::__spec_test::present demo::bare\n")
-                && script.contains("::__spec_test::present demo::full\n"),
+            script.contains("::__spec_test::present demo::bare demo::bare\n")
+                && script.contains("::__spec_test::present demo::full demo::full\n"),
             "but the package must define it: {script}"
         );
         // Each command says it is finished with, in order, and the script ends

@@ -1,0 +1,51 @@
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-host-c-abi)
+   Compiling wnaf v0.14.1
+   Compiling tcl-compiler v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-compiler)
+   Compiling zmij v1.0.23
+   Compiling ring v0.17.14
+   Compiling itoa v1.0.18
+   Compiling oid-registry v0.8.1
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling num-bigint v0.4.8
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling crossbeam-utils v0.8.23
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling data-encoding v2.11.1
+   Compiling crossbeam-epoch v0.9.21
+   Compiling lazy_static v1.5.1
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling tcl-host-native v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-host-native)
+   Compiling parking_lot_core v0.9.12
+   Compiling base64 v0.23.1
+   Compiling crossbeam-deque v0.8.8
+   Compiling tcl-vm v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-engine-api)
+   Compiling scopeguard v1.2.0
+   Compiling rayon-core v1.13.0
+   Compiling ipnet v2.12.2
+   Compiling lock_api v0.4.14
+   Compiling parking_lot v0.12.5
+   Compiling tcl-pkg-model v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-pkg-model)
+   Compiling tcl-irules v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-lsp-core)
+   Compiling tcl-userdirs v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-userdirs)
+   Compiling either v1.18.0
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-spectcl v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-spectcl)
+   Compiling rayon v1.12.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-test-support)

@@ -1,0 +1,56 @@
+[
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal.tcl",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "cef932950c0b7984546119144fd564d419a50b4a80912ffdfc6a99095ca4ae66",
+    "bytes": 3555
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-8.4.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "cc746cec400f5a357bd382d4041af4d422aa72480e620df0d1b816fbe1b2929e",
+    "bytes": 2571
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-8.5.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "0ef8ef5ef7ac30bb7ebeba398c33114d4ec3fee8792860379abaec4467607827",
+    "bytes": 2067
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-8.6.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "cef5b34e80a7c296c7b73d7ec35ace8553ffd66c1716d8bebba7dd94f28465d8",
+    "bytes": 2069
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-9.0.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "cef5b34e80a7c296c7b73d7ec35ace8553ffd66c1716d8bebba7dd94f28465d8",
+    "bytes": 2069
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-9.1.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "cef5b34e80a7c296c7b73d7ec35ace8553ffd66c1716d8bebba7dd94f28465d8",
+    "bytes": 2069
+  },
+  {
+    "path": "rust/tcl-syntax/tests/data/body_execution/native-compiler-traversal-jim.txt",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "97a0a8a5900d3830031d0e4d0db82f3fb153e3fb17eddac6ae6d7394c59c221c",
+    "bytes": 2130
+  },
+  {
+    "path": "experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "ebff652d09a1e981e90ced669dd0e181c9d66db749cf9c1681ee16c5801d1983",
+    "bytes": 219
+  },
+  {
+    "path": "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl",
+    "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+    "sha256": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+    "bytes": 342
+  }
+]

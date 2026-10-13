@@ -1,0 +1,114 @@
+{
+  "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "started_utc": "2026-10-13T16:54:04Z",
+  "scope": "Independent isolated base compilation and genuine Runtime-linked general-WASM positives. Initial sparse-input failures and memory interruption are prerequisite results, not accepted test captures. Full local files plus compiled dep-info/external include data, with new generated/third-party inputs separately classified.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/name-agent-target-codegen",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_NET_OFFLINE": "true",
+    "TCL_REQUIRE_WASM_LINK": "1",
+    "XDG_CACHE_HOME": "/tmp/name-agent-wasmtime-codegen-cache",
+    "WASI_SDK_PATH": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk",
+    "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath"
+  },
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+      "exit_code": 0,
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14",
+      "exit_code": 0,
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    },
+    "wasmtime": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasmtime/wasmtime",
+      "sha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635",
+      "exit_code": 0,
+      "stdout": "wasmtime 49.0.2 (3c8a3e79a 2026-10-02)\n",
+      "stderr": ""
+    },
+    "wasm-merge": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/binaryen/bin/wasm-merge",
+      "sha256": "4b55992e09b833bcc6719dbc0540783dfdb05dba319c03eb1059ade20211c957",
+      "exit_code": 0,
+      "stdout": "wasm-merge version 133 (version_133)\n",
+      "stderr": ""
+    }
+  },
+  "tests": [
+    {
+      "argv": [
+        "/tmp/name-agent-target-codegen/debug/deps/wasm_real_link-a3254cb63cc6f600",
+        "general_original_definition_preserves_a_renamed_stock_definer",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 105.46612965799795,
+      "stdout": "test-0.stdout",
+      "stderr": "test-0.stderr",
+      "selector": "general_original_definition_preserves_a_renamed_stock_definer",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/tmp/name-agent-target-codegen/debug/deps/wasm_real_link-a3254cb63cc6f600",
+        "general_original_definition_preserves_a_materialised_name_word",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.36928474099841,
+      "stdout": "test-1.stdout",
+      "stderr": "test-1.stderr",
+      "selector": "general_original_definition_preserves_a_materialised_name_word",
+      "executed_test_count": 1
+    }
+  ],
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--test",
+      "wasm_real_link",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 179.28754715099785,
+    "stdout": "build-05.stdout",
+    "stderr": "build-05.stderr"
+  },
+  "executables": {
+    "wasm_real_link": {
+      "path": "/tmp/name-agent-target-codegen/debug/deps/wasm_real_link-a3254cb63cc6f600",
+      "sha256_before": "8aa2bceb049d7188cf7fd728bc69bd8e175a3517ab9993627d56480072455375",
+      "sha256_after": "8aa2bceb049d7188cf7fd728bc69bd8e175a3517ab9993627d56480072455375"
+    },
+    "tcl_compiler": {
+      "path": "/tmp/name-agent-target-codegen/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+      "sha256_before": "c5c5a16e51a71644edf9e2fa5d5ed6723eda49dbc6ae4d8d14643224cfffe63c",
+      "sha256_after": "c5c5a16e51a71644edf9e2fa5d5ed6723eda49dbc6ae4d8d14643224cfffe63c"
+    }
+  },
+  "reserved_runtime": {
+    "path": "/workspace/name-implementation-worktrees/codegen/target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm",
+    "sha256": "938e13b41f3e27313d3fac194138d409c0be5a47529db544e5828e36865681b3"
+  },
+  "unchanged_preexisting_inputs": true,
+  "changed_preexisting_inputs": {},
+  "finished_utc": "2026-10-13T16:59:06Z"
+}

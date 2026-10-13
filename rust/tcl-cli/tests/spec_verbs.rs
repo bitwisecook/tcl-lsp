@@ -1983,3 +1983,54 @@ impl Described {
         finished(&mut self.import_command(tclsh, "demo", extra))
     }
 }
+
+#[test]
+fn spec_test_presence_keeps_literal_colons_and_wildcards() {
+    let described = Described::new(
+        "spec-test-literal-presence",
+        r"package provide demo 1.0
+proc :literal {} {}
+proc ghostOther {} {}
+proc querX {} {}
+",
+        r"speclib demo 2.0 {
+    command {:literal} {required_package demo}
+    command {ghost*} {required_package demo}
+    command {quer?} {required_package demo}
+}",
+        &["demo"],
+    );
+    let mut interpreters: Vec<PathBuf> = tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .filter_map(tcl_test_support::witness_tclsh)
+        .map(|interpreter| interpreter.path)
+        .collect();
+    let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required Jim oracle"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
+    };
+    if let Some(jim) = jim {
+        interpreters.push(jim.path);
+    }
+    for interpreter in interpreters {
+        let (stdout, stderr, code) = described.run(&interpreter);
+        assert_eq!(code, 1, "{interpreter:?}: {stdout}\n{stderr}");
+        assert!(
+            stdout.contains("ghost*: missing:"),
+            "{interpreter:?}: {stdout}"
+        );
+        assert!(
+            stdout.contains("quer?: missing:"),
+            "{interpreter:?}: {stdout}"
+        );
+        assert!(
+            !stdout.contains(":literal: missing:"),
+            "{interpreter:?}: {stdout}"
+        );
+        assert!(
+            stdout.contains("3 command(s) tested against 'demo', 2 divergence(s)"),
+            "{interpreter:?}: {stdout}"
+        );
+    }
+}
