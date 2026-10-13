@@ -8537,6 +8537,108 @@ mod logical_variable_scope_owner_tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
+    #[test]
+    fn logical_unknown_namespace_retains_body_tables_without_a_coordinate() {
+        let source = "set root ROOT\nnamespace eval $unknown {\n set local OWN\n puts $local\n puts $Target::x\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let (offset, line, character) = cursor(source, "puts $local");
+        let advice = analysis
+            .logical_variable_scope_advice(
+                &tcl_lexer::SourceImage::document(source),
+                analysis.body_lexer_config.unwrap(),
+                offset,
+            )
+            .unwrap();
+        assert!(advice.namespace().is_none());
+        assert!(!advice.is_namespace_frame());
+        assert!(
+            advice
+                .eligible_scopes()
+                .any(|scope| scope.variables.contains_key("local"))
+        );
+        assert_eq!(
+            definition(source, line, character, &analysis)
+                .iter()
+                .map(|range| range.start_line)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        let (_, line, character) = cursor(source, "puts $Target::x");
+        assert!(
+            qualified_variable_cell_at(
+                source,
+                analysis.resolved_profile().unwrap(),
+                &analysis,
+                line,
+                character
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_interpreter_source_body_cannot_borrow_the_parent_root() {
+        for source in [
+            "set x PARENT\ninterp create child\ninterp eval child {puts $x}\n",
+            "set x PARENT\ninterp eval $child {puts $x}\n",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let (offset, line, character) = cursor(source, "puts $x");
+            assert!(
+                analysis
+                    .logical_variable_scope_advice(
+                        &tcl_lexer::SourceImage::document(source),
+                        analysis.body_lexer_config.unwrap(),
+                        offset
+                    )
+                    .is_none()
+            );
+            assert!(definition(source, line, character, &analysis).is_empty());
+        }
+    }
+
+    #[test]
+    fn logical_array_completion_keeps_the_actual_cursor_edit_extent() {
+        for (source, character, expected_end) in [
+            ("set arr(key) 1\nset v $arr(k more stuff\n", 12, 12),
+            ("set arr(key) 1\nset v $arr(k)\n", 12, 13),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let items = crate::completion::completions(
+                source,
+                1,
+                character,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            let candidate = items
+                .iter()
+                .find(|item| item.label == "$arr(key)")
+                .expect("current Logical source array candidate");
+            let edit = candidate.text_edit.as_ref().expect("cursor replacement");
+            assert_eq!((edit.start_char, edit.end_char), (6, expected_end));
+            assert_eq!(edit.new_text, "$arr(key)");
+            let stale = format!("{source} ");
+            assert!(
+                crate::completion::completions(
+                    &stale,
+                    1,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+        }
+    }
+
     const SCOPED: &str = "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n";
 
     fn cursor(source: &str, needle: &str) -> (u32, u32, u32) {

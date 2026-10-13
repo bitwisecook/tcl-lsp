@@ -1,0 +1,24 @@
+{
+  "provider": "c91",
+  "expected_release": "9.1.0",
+  "captured_utc": "2026-10-13T17:43:46.842921+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-snapshot-pattern-oracles-20261013/input.tcl"
+  ],
+  "cwd": "/tmp/name-snapshot-pattern-oracles-20261013",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "e59d5f378904dd361d523ef7f5fd69137ac79661c1e3cd5bd2169cdd0c3108d3",
+  "runner_sha256": "c5005f09cdba5d8f69a09a415d2c8521c30960b51ee817aa3270f672d90ffd68",
+  "exit_code": 0,
+  "stdout_sha256": "b2327ae9dd7694f7bba5634a38b6e8a9c02695561db8a1177503e20ed60c30fc",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

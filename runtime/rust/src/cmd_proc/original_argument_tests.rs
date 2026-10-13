@@ -2,8 +2,8 @@
 //! Original procedure name/body/formal getter order at definition entry.
 use super::*;
 use crate::cmd_namespace::original_argument_tests::{
-    FixtureCleanup, JIM_ORIGINAL, ORIGINALS, compare_events_at, compare_worker, failure, instance,
-    jim_fixture_namespace, lazy, reset, row, text, unhex,
+    compare_events_at, compare_worker, failure, instance, jim_fixture_namespace, lazy, reset, row,
+    text, unhex, FixtureCleanup, JIM_ORIGINAL, ORIGINALS,
 };
 
 #[test]

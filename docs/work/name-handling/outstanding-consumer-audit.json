@@ -1,7 +1,9 @@
 {
-  "head": "d2ae8ba676a3b381be70bde1d59c654b9fc33bb6",
+  "head": "ff2785d4492a59fdc80c01499ff1b9f33c554a3b",
+  "original_snapshot_pattern_probe": "/tmp/name-snapshot-pattern-oracles-20261013/observations.json",
+  "spec_test_snapshot_purpose_audit": "/tmp/spec-test-snapshot-name-purpose-audit.md",
   "final_trace_cleanup_census": "/tmp/name-trace-cleanup-audit.json",
-  "source_write_policy": "read-only checkout; /tmp outputs only; no tests/builds executed; per-site hashes sampled during coordinated parallel edits, not a frozen build closure",
+  "source_write_policy": "read-only checkout; /tmp outputs and parent-authorized bounded original oracle captures only; no Rust tests/builds executed; per-site hashes sampled during coordinated parallel edits, not a frozen build closure",
   "workspace_manifest_sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
   "packages": [
     {
@@ -1413,15 +1415,18 @@
     "lookup_migration": {
       "worktree": "/workspace/name-implementation-worktrees/codegen",
       "source_state": "Existing AOT ProcedureIdentity QName+span and inlining ProcedureDefinitionIdentity payload are proof/reporting/source representations, not globally checked Native selection IDs. Procedure/unit/entry IDs, extra String joins and explorer/diagram schema planned/unapplied pending genuine body/table authority. BPF original source and exact selected descriptor adapters authored, source.rs literal ingress and typed framework/op reverse routes; residual coroutine canonical fallback diagnostic only.",
-      "execution_state": "Two real general-WASM original head/argv positives accepted in isolated-baseline-05; no compiled-entry acceptance. BPF production IR+eBPF library capture building jobs1, new5 tests authored, no accepted outcome yet."
+      "receipt": "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-bpf-source-selection/validation-03/validation.json",
+      "receipt_sha256": "2751e9a89d716e4996b7cabcbd886fbe814d474363bbfb4c4dfc5f438cee88d8",
+      "execution_state": "Two real general-WASM original head/argv positives accepted in isolated-baseline-05; no compiled-entry acceptance. BPF validation-03 real builds IR60/60 plus eBPF codegen28/28 PASS including five naming controls;3,018 selected dep-info inputs unchanged with no unresolved/unbound/post-only. Earlier compile101 and59/60 failures retained. Native one-test gate separately has actual proc/original argv but Execution proofNone and zero Module.procedures; candidate/ID work still unapplied."
     },
     "consumer_audit": {
       "worktree": "/workspace/name-implementation-worktrees/lsp_scope",
       "source_state": "Logical SourceScope+definition/completion/rename sealed; main producer source observed integrated while receipt remains unexecuted; partial-array Syntax::array_variable_completion_prefix+Core sealed; production qualified predicates central Syntax delegates sealed. Legacy hover/declaration helpers cfg(test). Relative qualified_variable_cell_at receiver fix scratch-only separate sixth control. DB class/instance indices Logical reporting with ambiguity; lattice/IR/taint String IDs remain pending.",
-      "execution_state": "SourceScope5 and partial-array controls UNEXECUTED; coordinate amendment sixth UNEXECUTED. Earlier MAIN Compiler4/Core12/DB8/server8 receipts belong to different producer batches.",
+      "execution_state": "SourceScope5 and partial-array controls UNEXECUTED; coordinate amendment sixth UNEXECUTED. Additional source-owner admission scratch amendment (UnknownNamespace retains own tables; private source-interpreter marker/domain refuses foreign root) and two more genuine controls UNEXECUTED, integration pending. C5 isolation probe captured; Jim interp create unsupported retained. Earlier MAIN Compiler4/Core12/DB8/server8 receipts belong to different producer batches.",
       "manifests": [
         "/tmp/lsp-name-source-frame-next/integration-manifest.json",
-        "/tmp/lsp-name-source-frame-next/workspace-coordinate-amendment.json"
+        "/tmp/lsp-name-source-frame-next/workspace-coordinate-amendment.json",
+        "/tmp/lsp-name-source-frame-next/source-owner-admission/admission.patch"
       ]
     },
     "runtime_variables": {
@@ -1436,7 +1441,7 @@
     "issues": {
       "worktree": "/workspace/name-implementation-worktrees/source_flow",
       "source_state": "Five source-read/quoted qualification gates Syntax::is_qualified applied and patch approved; sixth qualification+contains-open-parenthesis literalstore eligibility unchanged pending receiver-purpose audit. Original source correspondence independently repaired; no private escape/list/name decoder added.",
-      "execution_state": "Instrumented35:31 PASS/4 FAIL, full6726 inputs unchanged with2 diagnostic owners restored. Original #2286 absent assertions C5 PASS75.2s and repeated builtinphase PASS99.52s; no full production acceptance. Native alias/formals/currency negatives pass; Native formalloop unknown original record and3 other flow failures remain. No infinite worklist proven; ordered4 timed run360s retains partial originalC90. Three-owner trace queued separately."
+      "execution_state": "Instrumented35:31 PASS/4 FAIL, full6726 inputs unchanged with2 diagnostic owners restored. Original #2286 absent assertions C5 PASS75.2s and repeated builtinphase PASS99.52s; no full production acceptance. Native alias/formals/currency negatives and allC5 formalloop recipe/current-record checks pass. Jim test failure was catalog DialectProfile::find alias unwrap, not missing Native original record; central environment ingress fix pending with assertions unchanged. Other flow failures have valid formal/header contexts but body set/incr and later puts source selectors absent. No infinite worklist proven; ordered4 timed run360s retains partial originalC90. Three-owner trace queued separately."
     }
   },
   "actionable_consumers": [
@@ -1764,8 +1769,8 @@
           {
             "path": "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs",
             "function": "original_ensemble_mapping_holds",
-            "line": 76,
-            "sha256": "946477b77e68c1b0ad18a6b1bbf73afd967fa6814c8bf1b349f4b0187463586a",
+            "line": 123,
+            "sha256": "4a327be5988becb47247f7a5ace31638b33048fdfdb6808a030633650f13e287",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
@@ -2135,34 +2140,34 @@
       "implementation_owner": "lookup_migration",
       "sites": [
         {
-          "path": "rust/bpf-tcl-ir/src/frontend.rs",
-          "function": "decl_kind",
-          "line": 385,
-          "sha256": "af9d67e006726f94972db1b545fcc8c830113bd4c7cc8d1304a9d0427ba211b9"
+          "path": "rust/bpf-tcl-ir/src/source.rs",
+          "function": "source_declaration_kind",
+          "line": 71,
+          "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1"
         },
         {
           "path": "rust/bpf-tcl-ir/src/frontend.rs",
           "function": "is_decl",
-          "line": 397,
-          "sha256": "af9d67e006726f94972db1b545fcc8c830113bd4c7cc8d1304a9d0427ba211b9"
+          "line": 377,
+          "sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9"
         },
         {
-          "path": "rust/bpf-tcl-ir/src/lower.rs",
-          "function": "bpf_op",
-          "line": 224,
-          "sha256": "d9a37a611b6e8b002ccf971dbace7f616b1c81ad561a193803cf49cb9bb2758f"
+          "path": "rust/bpf-tcl-ir/src/source.rs",
+          "function": "source_bpf_operation",
+          "line": 64,
+          "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1"
         },
         {
           "path": "rust/bpf-tcl-ir/src/lower.rs",
           "function": "lower_call",
-          "line": 754,
-          "sha256": "d9a37a611b6e8b002ccf971dbace7f616b1c81ad561a193803cf49cb9bb2758f"
+          "line": 750,
+          "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073"
         },
         {
           "path": "rust/bpf-tcl-ir/src/semantic_bridge.rs",
           "function": "assess_invocation",
           "line": 212,
-          "sha256": "5aeda8dd44645b90536961875b87d152d82a40210642b5aa3cbf48892cfd1f91"
+          "sha256": "9e7dd35811c06227900a11f7b12ea98198b489bd4d75f184ffcf392aea1ca278"
         }
       ],
       "input_purpose": "Sealed BPF DSL command descriptor, original command and optional canonical label",
@@ -2180,44 +2185,44 @@
         1778,
         2423
       ],
-      "status": "isolated-applied; new-capture-building-no-accepted-result",
+      "status": "main-and-isolated-source-applied; isolated-scoped88-controls-accepted",
       "action": "Replace canonical_command.unwrap_or(raw command) semantic descriptor selection with retained typed producer, preserving existing conservative subset refusals.",
       "owner_report_reference": "lookup_migration",
-      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
+      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/codegen",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
         "sites": [
           {
-            "path": "rust/bpf-tcl-ir/src/frontend.rs",
-            "function": "decl_kind",
-            "line": null,
-            "sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9",
-            "same_as_sampled_main": false,
-            "function_removed_or_replaced": true
+            "path": "rust/bpf-tcl-ir/src/source.rs",
+            "function": "source_declaration_kind",
+            "line": 71,
+            "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1",
+            "same_as_sampled_main": true,
+            "function_removed_or_replaced": false
           },
           {
             "path": "rust/bpf-tcl-ir/src/frontend.rs",
             "function": "is_decl",
             "line": 377,
             "sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
-            "path": "rust/bpf-tcl-ir/src/lower.rs",
-            "function": "bpf_op",
-            "line": null,
-            "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073",
-            "same_as_sampled_main": false,
-            "function_removed_or_replaced": true
+            "path": "rust/bpf-tcl-ir/src/source.rs",
+            "function": "source_bpf_operation",
+            "line": 64,
+            "sha256": "cbe63f14d480059ba1c7a2ce8703681af9038e2341f27f9195ee2e301f64cef1",
+            "same_as_sampled_main": true,
+            "function_removed_or_replaced": false
           },
           {
             "path": "rust/bpf-tcl-ir/src/lower.rs",
             "function": "lower_call",
             "line": 750,
             "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
@@ -2225,7 +2230,7 @@
             "function": "assess_invocation",
             "line": 212,
             "sha256": "9e7dd35811c06227900a11f7b12ea98198b489bd4d75f184ffcf392aea1ca278",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           }
         ],
@@ -2239,8 +2244,8 @@
         {
           "path": "rust/bpf-tcl-ir/src/lower.rs",
           "function": "is_unregistered_thread_command",
-          "line": 1141,
-          "sha256": "d9a37a611b6e8b002ccf971dbace7f616b1c81ad561a193803cf49cb9bb2758f"
+          "line": 1148,
+          "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073"
         }
       ],
       "input_purpose": "Source diagnostic hint for unknown Thread package extension name",
@@ -2255,7 +2260,7 @@
       "status": "diagnostic-only-private-classifier-pending-review",
       "action": "trim_start_matches(':') conflates lone-colon spelling; bounded hint may use written extents but keep domain static roster.",
       "owner_report_reference": "lookup_migration",
-      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
+      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/codegen",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -2265,7 +2270,7 @@
             "function": "is_unregistered_thread_command",
             "line": 1148,
             "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           }
         ],
@@ -2603,19 +2608,25 @@
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "lookup_var_in_logical_scope",
           "line": 1881,
-          "sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517"
+          "sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "global_vars_needing_qualification",
           "line": 2366,
-          "sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517"
+          "sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "visible_variable_names",
           "line": 2342,
-          "sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517"
+          "sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "function": "qualified_variable_cell_at",
+          "line": 2031,
+          "sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f"
         }
       ],
       "input_purpose": "Positively Logical source lexical frame/uplevel visibility",
@@ -2635,8 +2646,8 @@
         2260,
         2414
       ],
-      "status": "isolated-sealed-unexecuted; coordinate-amendment-scratch-only",
-      "action": "One reusable source frame policy consumed by definition/completion/rename; preserve separate Original symbol edit path. Relative qualified_variable_cell_at cross-document tier still uses old command namespace at sealed baseline; scratch amendment uses Logical scope and refuses unknown caller. Five sealed controls and sixth amendment control unexecuted.",
+      "status": "main-integrated-source-unexecuted; isolated-coordinate-amendment-was-scratch-only",
+      "action": "One reusable source frame policy consumed by definition/completion/rename; preserve separate Original symbol edit path. Earlier sealed isolated baseline kept old relative qualified_variable_cell_at command namespace. Current main source now delegates this coordinate to logical_variable_scope_advice and refuses unknown relative scope; parent integrated the sixth-control amendment. Five original controls plus sixth amendment control remain unexecuted per latest owner report; source observation does not renew acceptance.",
       "owner_report_reference": "consumer_audit",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -2663,6 +2674,14 @@
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "visible_variable_names",
             "line": 2358,
+            "sha256": "f2085013973f3843eb2d962b48d608fa4ae3a57aca9e44b5082f289ddce24ff0",
+            "same_as_sampled_main": false,
+            "function_removed_or_replaced": false
+          },
+          {
+            "path": "rust/tcl-lsp-core/src/definition.rs",
+            "function": "qualified_variable_cell_at",
+            "line": 2056,
             "sha256": "f2085013973f3843eb2d962b48d608fa4ae3a57aca9e44b5082f289ddce24ff0",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
@@ -2929,7 +2948,7 @@
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "class_declaration_at",
           "line": 2719,
-          "sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517"
+          "sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f"
         },
         {
           "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
@@ -3232,12 +3251,12 @@
         "new actual package :name/wildcard/overroot presence and external same-prefix variable negatives",
         "actual unrelated global __spec_testOther remains visible",
         "literal-colon :errorInfo versus exact global errorInfo",
-        "literal glob namespace prefix versus matching sibling",
+        "measured C literal qualified namespace prefix and distinct full-pattern/Jim behavior",
         "distinct exact report labels without root-trim collision"
       ],
       "related_issues": [],
       "status": "partially-applied-validation-pending",
-      "action": "Presence uses original command operand plus shared literal-pattern projection. Snapshot exclusion ours must not root-trim or broadly hide __spec_testOther/:errorInfo; exact own namespace is already pruned. shown must retain exact reporting labels or selected enumeration root context. SpecTest variables and SpecProbe commands use raw dynamic namespace glob prefixes; use shared glob literal-pattern recipe for data then add member wildcard. Namespace reports supply no recoverable Native token; do not infer lookup identity or namespace owner from rendered text."
+      "action": "See /tmp/spec-test-snapshot-name-purpose-audit.md and /tmp/name-snapshot-pattern-oracles-20261013/observations.json. Presence uses original command operand plus shared literal-pattern projection. Snapshot exclusion ours must not root-trim or broadly hide __spec_testOther/:errorInfo; exact own namespace is already pruned. shown must retain exact reporting labels or selected enumeration context. Original C5 info-vars/commands qualified namespace prefix is literal; whole-prefix escaping was measured wrong and is not a fix. Namespace-children optional fullpattern and Jim queries have independent measured behavior. All6 controlled :errorInfo versus report reuse demonstrates address loss, without granting Native cell identity."
     },
     {
       "id": "runtime-rename-window-slot",
@@ -3303,8 +3322,8 @@
           {
             "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
             "function": "evaluate",
-            "line": 2034,
-            "sha256": "b43d94fd8d5b055f1ddd61744f97d9ba8dbd7ee70eedb225807b53230e184dce",
+            "line": 2061,
+            "sha256": "c12815c0f2d4999593d4844d4883a410034b3925b96c45359a044b75b2aa25be",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
@@ -3441,7 +3460,7 @@
       "status": "measured-role-offset-mismatch; typed-carrier-repair-pending",
       "action": "Make named facts fallback Unknown. If metadata fallback receives an original layout, carry explicit producer provenance rather than treating original_registration_descriptor tuple as universally authentic. Existing actual_ensemble_plan retains worker+operand_from+prerequisite.",
       "owner_report_reference": "oracle_audit",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/registry_vm",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -3450,16 +3469,16 @@
             "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
             "function": "registered_compiler_selection",
             "line": 1265,
-            "sha256": "1779e6ac5c269bc489f25336d442ae8272635b2bf46eee45966888cdfa9a87a0",
-            "same_as_sampled_main": true,
+            "sha256": "d2504ee007556c95598396e4ccfb46bc805a765714fa297806c802809546090f",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
             "function": "original_registration_descriptor",
             "line": 1544,
-            "sha256": "1779e6ac5c269bc489f25336d442ae8272635b2bf46eee45966888cdfa9a87a0",
-            "same_as_sampled_main": true,
+            "sha256": "d2504ee007556c95598396e4ccfb46bc805a765714fa297806c802809546090f",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
@@ -3513,14 +3532,14 @@
         "new actual trap-rebuild literal-colon/empty-component publication and deletion controls",
         "the_extension_host_evaluates_on_a_fresh_instance_each_time",
         "unicode_extension_inventory_refuses_an_opaque_counted_command_name",
-        "new literal-colon/root/empty/glob namespace extension roster controls"
+        "new literal-colon/root/empty namespace extension roster controls; C literal qualifier versus Jim/fullpattern purposes"
       ],
       "related_issues": [
         1778,
         1755
       ],
       "status": "live-shared; replay-and-extension-roster-purpose-review-assigned",
-      "action": "apply and callback define replace original authored registration input with receipt.qualified in Setup/Defined; rebuild creates/deletes through actual owner in a fresh instance. Existing general trap control and live receipt controls do not by themselves certify ambiguous rendered-address replay. No new measured behavior failure claimed. extension_host LIST_COMMANDS trims namespace trailing colons before glob query and all command leading colons before reporting. LoadedExtension.commands is reporting metadata, not admission; preserve exact one-purpose label projection and shared literal glob data recipe, plus existing opaque refusal. CLI SpecProbe has same raw dynamic namespace-prefix concern without root trim.",
+      "action": "apply and callback define replace original authored registration input with receipt.qualified in Setup/Defined; rebuild creates/deletes through actual owner in a fresh instance. Existing general trap control and live receipt controls do not by themselves certify ambiguous rendered-address replay. No new measured behavior failure claimed. extension_host LIST_COMMANDS trims namespace trailing colons before glob query and all command leading colons before reporting. LoadedExtension.commands is reporting metadata, not admission; preserve exact one-purpose label projection and measured original query route, plus existing opaque refusal; C qualified namespace prefixes must not receive full-pattern glob escaping. CLI SpecProbe has same raw dynamic namespace-prefix concern without root trim.",
       "owner_report_reference": "runtime_variables",
       "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
       "isolated_source_snapshot": {
@@ -4112,7 +4131,7 @@
       "function": "class_declaration_at",
       "current_line": 2719,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [
@@ -4126,7 +4145,7 @@
       "function": "command_indirection",
       "current_line": 1566,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4138,7 +4157,7 @@
       "function": "definition_with",
       "current_line": 209,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4150,7 +4169,7 @@
       "function": "ensemble_subcommand_target",
       "current_line": 1637,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4162,7 +4181,7 @@
       "function": "export_verdict_for_slot",
       "current_line": 2980,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4174,7 +4193,7 @@
       "function": "exported_original_slot_at_import",
       "current_line": 3684,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4186,7 +4205,7 @@
       "function": "forced_import_shadows",
       "current_line": 2842,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4198,7 +4217,7 @@
       "function": "forced_import_shadows_call",
       "current_line": 2879,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4210,7 +4229,7 @@
       "function": "import_hop",
       "current_line": 3156,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4222,7 +4241,7 @@
       "function": "indirect_definition_target",
       "current_line": 481,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4234,7 +4253,7 @@
       "function": "indirection_pending_at",
       "current_line": 1608,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4246,7 +4265,7 @@
       "function": "innermost_namespace_at",
       "current_line": 2415,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4258,7 +4277,7 @@
       "function": "instance_method_at_cursor",
       "current_line": 1390,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4270,7 +4289,7 @@
       "function": "itcl_class_proc_at_in_registry",
       "current_line": 2615,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4282,7 +4301,7 @@
       "function": "itcl_self_qualified_candidate",
       "current_line": 2694,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4294,7 +4313,7 @@
       "function": "live_import_over_candidates",
       "current_line": 3181,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4306,7 +4325,7 @@
       "function": "lookup_var_in_scope_chain",
       "current_line": 1866,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4318,7 +4337,7 @@
       "function": "lookup_var_read_at",
       "current_line": 2161,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4330,7 +4349,7 @@
       "function": "namespace_context_at",
       "current_line": 2440,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4342,7 +4361,7 @@
       "function": "namespace_exports_observable",
       "current_line": 3028,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4354,7 +4373,7 @@
       "function": "object_dispatch_mask_at_command",
       "current_line": 920,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4366,7 +4385,7 @@
       "function": "only_route_is_a_dead_import",
       "current_line": 3889,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4378,7 +4397,7 @@
       "function": "original_export_command",
       "current_line": 3041,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4390,7 +4409,7 @@
       "function": "original_internal_dispatch",
       "current_line": 1090,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4402,7 +4421,7 @@
       "function": "original_object_configuration_anchor",
       "current_line": 1044,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4414,7 +4433,7 @@
       "function": "original_self_receiver_head",
       "current_line": 1110,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4426,7 +4445,7 @@
       "function": "original_variable_cursor_retained",
       "current_line": 2079,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4438,7 +4457,7 @@
       "function": "original_variable_occurrence_at",
       "current_line": 2107,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4450,7 +4469,7 @@
       "function": "proc_visible_from_namespace",
       "current_line": 2488,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4462,7 +4481,7 @@
       "function": "proc_visible_via_wildcard_import",
       "current_line": 2808,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4474,7 +4493,7 @@
       "function": "qualified_var_name",
       "current_line": 4147,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4486,11 +4505,13 @@
       "function": "qualified_variable_cell_at",
       "current_line": 2031,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
-      "actionable_ids": [],
-      "status": "semantic-review-required",
+      "actionable_ids": [
+        "lsp-source-frame"
+      ],
+      "status": "bounded-actionable-owner-assigned",
       "scope": "Inherited 330 lexical candidates reconciled with current source identity and bounded actual semantic work; visible delegation alone does not certify caller guards."
     },
     {
@@ -4498,7 +4519,7 @@
       "function": "resolve_called_proc",
       "current_line": 3763,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4510,7 +4531,7 @@
       "function": "resolve_class_target_at",
       "current_line": 4045,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4522,7 +4543,7 @@
       "function": "resolve_proc_target_at",
       "current_line": 3956,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4534,7 +4555,7 @@
       "function": "resolved_command_name",
       "current_line": 2543,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4546,7 +4567,7 @@
       "function": "same_namespace",
       "current_line": 3938,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4558,7 +4579,7 @@
       "function": "slot_events",
       "current_line": 3499,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4570,7 +4591,7 @@
       "function": "substituting_var_at_position",
       "current_line": 2194,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4582,7 +4603,7 @@
       "function": "wildcard_import_source_namespace",
       "current_line": 3105,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "34c68f348a90da0a4bc5f10e296b3e837de260965dced6df032fa6de70714517",
+      "current_sha256": "48a66b7c193f7c2d3085c9fbb75dc0b7946387f9f6fbceb1b8ec480c02d3072f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -7652,7 +7673,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -7672,7 +7693,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -7692,7 +7713,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -7712,7 +7733,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -7992,7 +8013,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/command_descriptor_key.rs",
-          "sha256": "a813cd6be686d087e807d9468b256c5dd16d94bfef83d7093c3537b57adb2379"
+          "sha256": "b209435abf280936ca7c8cbc2beda566fc6200bd799eee6c17a4415a65ca40e7"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -8970,7 +8991,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -8988,7 +9009,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/registry.rs",
-          "sha256": "d83076725a33952dcc81519f1d25951a15bbb39b27c107dfde3cff3d9ef09e27"
+          "sha256": "36f01d0e60ba920f3cec5d65c985b25e06a41c7aaac0f7689941647366a5100b"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -10452,11 +10473,11 @@
       "current_sources": [
         {
           "path": "rust/bpf-tcl-ir/src/frontend.rs",
-          "sha256": "af9d67e006726f94972db1b545fcc8c830113bd4c7cc8d1304a9d0427ba211b9"
+          "sha256": "89405e375c6e89114f489e679fce1227e98af9435273d920b1a46dc7258ceae9"
         },
         {
           "path": "rust/bpf-tcl-ir/src/lower.rs",
-          "sha256": "d9a37a611b6e8b002ccf971dbace7f616b1c81ad561a193803cf49cb9bb2758f"
+          "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -10479,7 +10500,7 @@
       "current_sources": [
         {
           "path": "rust/bpf-tcl-ir/src/lower.rs",
-          "sha256": "d9a37a611b6e8b002ccf971dbace7f616b1c81ad561a193803cf49cb9bb2758f"
+          "sha256": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -12411,6 +12432,6 @@
     "Package entry-boundary classification is not source-wide execution acceptance.",
     "The 330 inherited lexical candidates retain explicit semantic-review obligations except bounded assigned cases; no search-absence completion claim.",
     "Isolated implementation worktrees may advance beyond this main-checkout source snapshot; implementation owner must record its own source receipt.",
-    "No new Native/Jim/F5 oracle results, no new GitHub reads and no proof/census digest renewal."
+    "Only the parent-authorized bounded original C5/Jim snapshot-pattern observations were added. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ]
 }

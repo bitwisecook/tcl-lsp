@@ -1,0 +1,4 @@
+contexts ::a: ::a
+first RIGHT second RIGHT
+display-left ::a:::p display-right ::a:::p
+after-left REPLACED untouched-right REPLACED

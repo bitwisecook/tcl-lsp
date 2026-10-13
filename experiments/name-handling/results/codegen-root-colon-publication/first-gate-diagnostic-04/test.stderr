@@ -1,0 +1,9 @@
+PROC_ENTRY_CONTEXT assumption=PristineRegistryWorld metadata=true
+PROC_ENTRY_GATES block=9 instruction=0 span=Span { start: 0, end: 32 } exact_arguments=true purpose=Some(Execution) target=Some(("proc", true, 0)) resolved=Some(("proc", DispatchDependencies(15))) site=None declaration=None literal_definition=None
+PROC_ENTRY_GATES block=15 instruction=0 span=Span { start: 33, end: 39 } exact_arguments=false purpose=Some(Execution) target=Some((":::audit", false, 0)) resolved=None site=None declaration=None literal_definition=None
+
+thread 'native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand' (105008) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1345:9:
+assertion `left == right` failed: a QName-only or wholly declined control cannot establish the transport
+  left: [GenericInvoke, GenericInvoke]
+ right: [NativeDefinition, GenericInvoke]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

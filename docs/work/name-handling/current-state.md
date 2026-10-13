@@ -51,8 +51,8 @@ the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM 
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is18:36 BST; the next tracking
-checkpoint is18:51 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is18:58 BST; the next tracking
+checkpoint is19:13 BST and the next hourly report19:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -218,3 +218,5 @@ processes contain36 actual passes,4 assertion failures,5 Compiler build-blocked
 selectors and1 zero-test attempt. The corrected VM13 group passes. Registry
 opaqueWhich/named operand layout and C84/Jim query differences remain measured
 repairs; no zero-test process establishes acceptance. Full gates remain pending.
+
+Current consumer integration checkpoint (2026-10-13 17:58 UTC): BPF descriptor consumers are integrated with scoped IR60/codegen28 passes retained. Logical variable scope admission now declines child-interpreter roots and retains unknown-namespace body tables without inventing a namespace coordinate; the additional public controls await the combined Main build. Runtime Which is sealed and awaits the shared version-specific query helpers. Original C5/latest-Jim snapshot-pattern evidence is retained: qualified prefixes have different purposes across queries; neither universal escaping nor qualified report readdressing is valid. The accidentally copied Runtime test executable is removed from repository files; reproducible source, logs and artifact hash remain. Formatting and combined Main LSP/tooling validation are next. All-consumer acceptance and PR gates remain open.

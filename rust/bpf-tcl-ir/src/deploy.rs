@@ -28,8 +28,10 @@
 //! The result is pure metadata hung off [`crate::ir::BpfProgramDecl::attach`]
 //! for a future ELF/loader — codegen ignores it.
 
+use crate::source::source_declaration_kind;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::event_to_prog_type;
@@ -40,8 +42,11 @@ use crate::ir::{AttachSpec, BpfProgramDecl, ProgType};
 ///
 /// # Errors
 /// Bad arity, more than one `attach`, or an unknown attach kind.
-pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError> {
-    Ok(find_attach(top_level)?.map(|(spec, _)| spec))
+pub fn collect_attach(
+    top_level: &Script,
+    registry: &CommandRegistry,
+) -> Result<Option<AttachSpec>, BpfError> {
+    Ok(find_attach(top_level, registry)?.map(|(spec, _)| spec))
 }
 
 /// Resolve a file's `attach` onto the programs it governs: every program whose
@@ -51,8 +56,12 @@ pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError
 /// # Errors
 /// A malformed/duplicate/unknown `attach`, or an `attach` that matches no
 /// program's type (a deployment that could never apply).
-pub fn resolve_attach(top_level: &Script, programs: &mut [BpfProgramDecl]) -> Result<(), BpfError> {
-    let Some((spec, span)) = find_attach(top_level)? else {
+pub fn resolve_attach(
+    top_level: &Script,
+    programs: &mut [BpfProgramDecl],
+    registry: &CommandRegistry,
+) -> Result<(), BpfError> {
+    let Some((spec, span)) = find_attach(top_level, registry)? else {
         return Ok(());
     };
     let want = event_to_prog_type(&spec.kind);
@@ -85,20 +94,18 @@ pub fn attach_prog_type(kind: &str) -> Option<ProgType> {
 
 /// Scan the top level for the single `attach` declaration, returning its parsed
 /// spec and declaration span.
-fn find_attach(top_level: &Script) -> Result<Option<(AttachSpec, Span)>, BpfError> {
+fn find_attach(
+    top_level: &Script,
+    registry: &CommandRegistry,
+) -> Result<Option<(AttachSpec, Span)>, BpfError> {
     let mut found: Option<(AttachSpec, Span)> = None;
     for stmt in &top_level.statements {
-        let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
-        } = stmt
-        else {
+        let Statement::Call { args, span, .. } = stmt else {
             continue;
         };
-        if canonical_command.as_deref().unwrap_or(command.as_str()) != "attach" {
+        if source_declaration_kind(stmt, registry)
+            != Some(tcl_registry::bpf_op::BpfDeclKind::Attach)
+        {
             continue;
         }
         if found.is_some() {

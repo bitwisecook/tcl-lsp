@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-13T17:45:14Z",
+  "scope": "Frozen instrumented binary replay with existing source-phase trace; source scope is linked first-gate-diagnostic-04, not the restored current production tree. No rebuild or producer edit.",
+  "captured_validation_sha256": "f5f3bd7e49a874f8b2ce389f629d8acd709f657e41d6db57d4f568f74d7c736a",
+  "captured_checksums_sha256": "162341a97898dd99735b730fc629591ade87916a8d548d3072220e7313087c12",
+  "binary_path": "/tmp/name-agent-target-codegen/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+  "binary_sha256_before": "14eaae00e77db0b7bced35430ac3c84faf052c7547560a9522a27e4f082f294d",
+  "binary_sha256_after": "14eaae00e77db0b7bced35430ac3c84faf052c7547560a9522a27e4f082f294d",
+  "argv": [
+    "/tmp/name-agent-target-codegen/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "environment_changes": {
+    "TCL_LSP_TRACE_PROC_ENTRY_GATES": "1",
+    "TCL_LSP_TRACE_SOURCE_PHASES": "1"
+  },
+  "exit_code": 101,
+  "seconds": 2.4123149560000456
+}

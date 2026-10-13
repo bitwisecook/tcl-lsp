@@ -1,0 +1,26 @@
+IDENTITY 8.5.19
+ROW library 0 /workspace/tcl-lsp/tmp/tcl8.5.19/library
+ROW vars_original 0 {{::N[0]::x}}
+ROW vars_escaped 0 {}
+ROW vars_sibling 0 ::N0::y
+ROW commands_original 0 {{::N[0]::p}}
+ROW commands_escaped 0 {}
+ROW commands_sibling 0 ::N0::q
+ROW children_original 0 ::N0
+ROW children_escaped 0 {{::N[0]}}
+ROW children_relative_original 0 ::N0
+ROW children_relative_escaped 0 {{::N[0]}}
+ROW bracket_scalar_original 0 BRACKET_VARIABLE
+ROW sibling_scalar_original 0 SIBLING_VARIABLE
+ROW bracket_command_original 0 BRACKET_COMMAND
+ROW sibling_command_original 0 SIBLING_COMMAND
+ROW error_report_names 0 {:::errorInfo ::errorInfo}
+ROW error_unqualified_colon 0 COLON_ERROR_INFO
+ROW error_unqualified_plain 0 PLAIN_ERROR_INFO
+ROW error_rooted_plain 0 PLAIN_ERROR_INFO
+ROW error_rooted_colon_spelling 0 PLAIN_ERROR_INFO
+ROW {reuse_report :::errorInfo} 0 PLAIN_ERROR_INFO
+ROW {trim_filter :::errorInfo} 0 {errorInfo 1}
+ROW {reuse_report ::errorInfo} 0 PLAIN_ERROR_INFO
+ROW {trim_filter ::errorInfo} 0 {errorInfo 1}
+DONE snapshot_pattern_probe

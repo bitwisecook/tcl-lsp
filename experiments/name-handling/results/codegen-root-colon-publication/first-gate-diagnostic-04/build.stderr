@@ -1,0 +1,11 @@
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-sslictcl)
+   Compiling tcl-vm v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 5m 06s

@@ -1,0 +1,23 @@
+{
+  "provider": "jim",
+  "expected_release": "selected latest Jim source checkout",
+  "captured_utc": "2026-10-13T17:44:36.580832+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+  ],
+  "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+  "selected_environment": {},
+  "unset_environment": [
+    "TCL_LIBRARY",
+    "TCLLIBPATH",
+    "LD_LIBRARY_PATH"
+  ],
+  "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+  "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+  "exit_code": 0,
+  "stdout_sha256": "c65b008b59f40418ba2aa10346e5db68477f5fdf52c94b1d833e6f013acef19d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

@@ -1,0 +1,26 @@
+IDENTITY 0.84-9-g5bac7c9
+ROW library 1 {info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version}
+ROW vars_original 1 {invalid command name "0"}
+ROW vars_escaped 0 ::N0::y
+ROW vars_sibling 0 ::N0::y
+ROW commands_original 0 ::N0::q
+ROW commands_escaped 0 {{::N[0]::p}}
+ROW commands_sibling 0 ::N0::q
+ROW children_original 1 {namespace, unknown command "children": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+ROW children_escaped 1 {namespace, unknown command "children": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+ROW children_relative_original 1 {namespace, unknown command "children": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+ROW children_relative_escaped 1 {namespace, unknown command "children": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which}
+ROW bracket_scalar_original 0 BRACKET_VARIABLE
+ROW sibling_scalar_original 0 SIBLING_VARIABLE
+ROW bracket_command_original 0 BRACKET_COMMAND
+ROW sibling_command_original 0 SIBLING_COMMAND
+ROW error_report_names 0 {:::errorInfo ::errorInfo}
+ROW error_unqualified_colon 0 COLON_ERROR_INFO
+ROW error_unqualified_plain 0 PLAIN_ERROR_INFO
+ROW error_rooted_plain 0 PLAIN_ERROR_INFO
+ROW error_rooted_colon_spelling 0 PLAIN_ERROR_INFO
+ROW {reuse_report :::errorInfo} 0 PLAIN_ERROR_INFO
+ROW {trim_filter :::errorInfo} 0 {errorInfo 1}
+ROW {reuse_report ::errorInfo} 0 PLAIN_ERROR_INFO
+ROW {trim_filter ::errorInfo} 0 {errorInfo 1}
+DONE snapshot_pattern_probe

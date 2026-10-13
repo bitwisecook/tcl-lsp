@@ -1,0 +1,7 @@
+# Original definition admission gate
+
+A temporary test-only diagnostic builds and executes the genuine Native-entry root-colon definition control. The original assertion still fails: both calls lower as GenericInvoke. The first tcl8.6 iteration is observed; its failure prevents the later tcl9.0 iteration.
+
+At the actual definition site0..32, original argv correspondence is true, the proved target is Registry-backed proc with no captured prefix, resolution has dispatch dependencies15, and original purpose is Execution. The dispatch-proof site is absent. No Procedure matches that exact declaration span, so literal-definition correspondence is also unavailable. These are separate obligations: runtime-checked current definer selection cannot recover missing original body admission by itself. A missing span match does not alone establish that the entire Procedure map is empty or identify which producer refused.
+
+All 10,221 instrumented pre-captured inputs remain unchanged during the build/test. All3,652 inputs bound to selected local Cargo outputs are covered before/after, without unresolved/unbound/changed/post-only selected inputs. The test file is restored byte-for-byte to preimage SHA638ff74376f959f1f68d3f1e4cfee31b2b9cf62f28adf9622f84a72be6e6ecd5. Exact tools/argv/binary, temporary patch/preimage, raw outputs and restoration identities are retained. This is diagnostic evidence, not a production green or native table acceptance result.

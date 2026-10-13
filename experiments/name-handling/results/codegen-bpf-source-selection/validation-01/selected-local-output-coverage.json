@@ -1,0 +1,11 @@
+{
+  "scope": "Recorded Cargo local package outputs and their bound dep-info. Authored local package trees captured before/after; third-party/generated post-only inputs retained separately. No full external dependency before/after freeze claim.",
+  "output_bindings": [],
+  "dep_info": {},
+  "inputs": {},
+  "covered_before_and_after": {},
+  "post_build_only": {},
+  "changed_or_removed": {},
+  "unbound_outputs": [],
+  "unresolved": []
+}

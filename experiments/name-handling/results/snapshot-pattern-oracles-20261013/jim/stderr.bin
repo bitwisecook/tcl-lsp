@@ -1,0 +1,5 @@
+invalid command name "0"
+Traceback (most recent call last):
+  File "/tmp/name-snapshot-pattern-oracles-20261013/input.tcl", line 9
+    {namespace info} vars {::N[0]::*}
+, in namespace info

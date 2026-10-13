@@ -1,0 +1,14 @@
+   Compiling hybrid-array v0.4.15
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/tcl-compiler)
+   Compiling bpf-tcl-ir v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/bpf-tcl-ir)
+   Compiling bpf-tcl-codegen v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/bpf-tcl-codegen)
+error: could not compile `bpf-tcl-ir` (lib test) due to 2 previous errors

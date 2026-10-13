@@ -44,6 +44,7 @@ use crate::ir::{
     Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapConcurrency, MapDef, MapKind, OobAction,
     ProgType, SlotId, Term, UnOp,
 };
+use crate::source::{source_bpf_operation, source_command_head, source_command_spec};
 use crate::ty::{ByteOrder, Region, Ty, Width};
 use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, parse_whole_with};
 
@@ -220,11 +221,6 @@ impl Lowerer<'_> {
         id
     }
 
-    /// The registry descriptor for a command, if it is a BPF-Tcl command.
-    fn bpf_op(&self, cmd: &str) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
-        self.registry.bpf_op(cmd)
-    }
-
     /// Whether this concrete invocation belongs to Tcl's coroutine family.
     ///
     /// The registry owns family membership and canonical alias resolution;
@@ -243,16 +239,10 @@ impl Lowerer<'_> {
         let func = self.func;
         for block in func.blocks.values() {
             for stmt in &block.statements {
-                if let Statement::Call {
-                    command,
-                    canonical_command,
-                    args,
-                    span,
-                    ..
-                } = stmt
-                {
-                    let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-                    if self.bpf_op(cmd).map(|op| op.kind) == Some(BpfOpKind::MapDeclare) {
+                if let Statement::Call { args, span, .. } = stmt {
+                    if source_bpf_operation(stmt, self.registry).map(|op| op.kind)
+                        == Some(BpfOpKind::MapDeclare)
+                    {
                         self.declare_map(args, *span)?;
                     }
                 }
@@ -646,13 +636,19 @@ impl Lowerer<'_> {
         match stmt {
             Statement::Call {
                 command,
-                canonical_command,
                 args,
                 span,
                 ..
             } => {
-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-                self.lower_call(cmd, args, *span, insts)
+                let head = source_command_head(stmt);
+                self.lower_call(
+                    head.unwrap_or(command),
+                    source_command_spec(stmt, self.registry),
+                    head.is_some(),
+                    args,
+                    *span,
+                    insts,
+                )
             }
             Statement::Barrier {
                 command,
@@ -754,13 +750,24 @@ impl Lowerer<'_> {
     fn lower_call(
         &mut self,
         cmd: &str,
+        command_spec: Option<&tcl_registry::CommandSpec>,
+        literal_head: bool,
         args: &[String],
         span: Span,
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
-        let Some(op) = self.bpf_op(cmd) else {
-            if self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd) {
+        let Some(op) = command_spec.and_then(|spec| spec.bpf_op) else {
+            if literal_head
+                && (self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd))
+            {
                 return Err(concurrency_error(cmd, span));
+            }
+            if command_spec.is_some() {
+                return Err(BpfError::new(
+                    BpfDiag::OutOfSubset,
+                    span,
+                    format!("`{cmd}` has no operation in the closed BPF-Tcl subset"),
+                ));
             }
             return Err(BpfError::new(
                 BpfDiag::UnknownCommand,
@@ -1389,6 +1396,33 @@ mod tests {
                 .expect_err("a complete braced name cannot fall back to another scalar slot");
             assert_eq!(error.code, BpfDiag::UndefinedVar, "{name}: {error:?}");
         }
+    }
+
+    #[test]
+    fn canonical_report_label_cannot_emit_a_different_bpf_operation() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let mut function = Function::new("::handler", "entry");
+        function
+            .blocks
+            .get_mut(&function.entry)
+            .unwrap()
+            .statements
+            .push(Statement::Call {
+                span: Span::new(4, 11),
+                command: "not_bpf".into(),
+                canonical_command: Some("drop".into()),
+                args: vec![],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                foreach_groups: None,
+                tokens: None,
+            });
+        let error = lower_function(&function, ProgType::SocketFilter, registry)
+            .expect_err("a report label cannot replace the actual closed DSL head");
+        assert_eq!(error.code, BpfDiag::UnknownCommand);
+        assert!(error.msg.contains("not_bpf"));
     }
 
     #[test]

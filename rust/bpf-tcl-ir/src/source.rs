@@ -24,6 +24,87 @@ use tcl_compiler::{Module, Script, Statement, parse_expr_for_profile, rebase_scr
 use tcl_lexer::{LexerConfig, Span};
 use tcl_registry::registry::CommandRegistry;
 
+/// The authored head is source syntax; canonical analysis labels cannot replace it.
+pub(crate) fn source_command_head(statement: &Statement) -> Option<&str> {
+    let (command, tokens) = match statement {
+        Statement::Call {
+            command, tokens, ..
+        }
+        | Statement::Barrier {
+            command, tokens, ..
+        } => (command, tokens),
+        _ => return None,
+    };
+    let Some(tokens) = tokens else {
+        return Some(command);
+    };
+    if tokens
+        .expand_word
+        .as_ref()
+        .is_some_and(|words| words.first() == Some(&true))
+    {
+        return None;
+    }
+    match tokens.word_exprs.first()? {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => Some(text),
+        _ => None,
+    }
+}
+
+pub(crate) fn source_command_spec(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    registry.get_for_surface(
+        source_command_head(statement)?,
+        registry.own_surface_query(),
+    )
+}
+
+pub(crate) fn source_bpf_operation(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
+    source_command_spec(statement, registry)?.bpf_op
+}
+
+pub(crate) fn source_declaration_kind(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Option<tcl_registry::bpf_op::BpfDeclKind> {
+    match source_bpf_operation(statement, registry)?.kind {
+        tcl_registry::bpf_op::BpfOpKind::Framework(kind) => Some(kind),
+        _ => None,
+    }
+}
+
+pub(crate) fn synthetic_operation_call(
+    operation: tcl_registry::bpf_op::BpfOpKind,
+    args: Vec<String>,
+    span: Span,
+    registry: &CommandRegistry,
+) -> Result<Statement, crate::diag::BpfError> {
+    let command = registry.bpf_command_for(operation).ok_or_else(|| {
+        crate::diag::BpfError::new(
+            crate::diag::BpfDiag::OutOfSubset,
+            span,
+            format!("Registry has no BPF operation {operation:?}"),
+        )
+    })?;
+    Ok(Statement::Call {
+        span,
+        command: command.to_owned(),
+        canonical_command: None,
+        args,
+        defs: Vec::new(),
+        reads: Vec::new(),
+        reads_own_defs: false,
+        safe_on_uninit: false,
+        tokens: None,
+        foreach_groups: None,
+    })
+}
+
 /// Lower BPF Tcl source under the BPF profile for every top-level and nested
 /// body re-segmentation.
 pub(crate) fn lower_bpf_source(source: &str, registry: &CommandRegistry) -> Module {

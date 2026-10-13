@@ -1,0 +1,80 @@
+{
+  "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "started_utc": "2026-10-13T17:33:56Z",
+  "scope": "Temporary test-only genuine native source gate observation; instrumented source is not a production green result. BPF source changes remain production inputs. No Runtime stub or native-table acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/name-agent-target-codegen",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_NET_OFFLINE": "true"
+  },
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+      "exit_code": 0,
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14",
+      "exit_code": 0,
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    }
+  },
+  "tests": [
+    {
+      "argv": [
+        "/tmp/name-agent-target-codegen/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.9732488410008955,
+      "stdout": "test.stdout",
+      "stderr": "test.stderr",
+      "selector": "native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand",
+      "environment_changes": {
+        "TCL_LSP_TRACE_PROC_ENTRY_GATES": "1"
+      },
+      "executed_test_count": 1
+    }
+  ],
+  "restoration": {
+    "path": "/workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/native_lowering/tests.rs",
+    "preimage_sha256": "638ff74376f959f1f68d3f1e4cfee31b2b9cf62f28adf9622f84a72be6e6ecd5",
+    "instrumented_sha256": "bf4abaa917e166f3e12d3a0b45874ecfb70eee2149a3ce1b3ca1bf44a4f7930c",
+    "restored_sha256": "638ff74376f959f1f68d3f1e4cfee31b2b9cf62f28adf9622f84a72be6e6ecd5",
+    "exact_preimage_restored": true
+  },
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 306.09253823999825,
+    "stdout": "build.stdout",
+    "stderr": "build.stderr"
+  },
+  "executable": {
+    "path": "/tmp/name-agent-target-codegen/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "sha256_before": "14eaae00e77db0b7bced35430ac3c84faf052c7547560a9522a27e4f082f294d",
+    "sha256_after": "14eaae00e77db0b7bced35430ac3c84faf052c7547560a9522a27e4f082f294d"
+  },
+  "unchanged_instrumented_inputs": true,
+  "changed_instrumented_inputs": {},
+  "finished_utc": "2026-10-13T17:39:11Z"
+}

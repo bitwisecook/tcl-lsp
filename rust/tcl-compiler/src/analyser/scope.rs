@@ -212,6 +212,7 @@ fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope
 enum LogicalVariableScopeKind {
     Root,
     Namespace,
+    UnknownNamespace,
     Local,
     UnknownCaller,
 }
@@ -258,7 +259,9 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
         match self.kind {
             LogicalVariableScopeKind::Root => false,
             LogicalVariableScopeKind::Namespace => !self.analysis.ns_var_global_fallback(),
-            LogicalVariableScopeKind::Local | LogicalVariableScopeKind::UnknownCaller => true,
+            LogicalVariableScopeKind::UnknownNamespace
+            | LogicalVariableScopeKind::Local
+            | LogicalVariableScopeKind::UnknownCaller => true,
         }
     }
 
@@ -292,6 +295,19 @@ impl super::types::AnalysisResult {
             scopes.push(child);
             cursor = child;
         }
+        for scope in &scopes {
+            if scope.isolated_interpreter_source_body {
+                return None;
+            }
+            match (
+                &self.global_scope.original_interpreter_source_domain,
+                &scope.original_interpreter_source_domain,
+            ) {
+                (None, None) => {}
+                (Some(root), Some(current)) if std::sync::Arc::ptr_eq(root, current) => {}
+                _ => return None,
+            }
+        }
         let mut eligible = vec![0];
         let mut kind = LogicalVariableScopeKind::Root;
         let mut namespace = Some("::".to_owned());
@@ -311,12 +327,10 @@ impl super::types::AnalysisResult {
                             .naming_scope
                             .as_ref()
                             .and_then(|owner| owner.display())
-                            .or_else(|| {
-                                namespace
-                                    .as_deref()
-                                    .map(|base| crate::naming::qualify(base, &scope.name))
-                            })
                     };
+                    if namespace.is_none() {
+                        kind = LogicalVariableScopeKind::UnknownNamespace;
+                    }
                     if namespace
                         .as_deref()
                         .is_some_and(|name| tcl_syntax::naming::unroot_rooted_key(name) == Some(""))

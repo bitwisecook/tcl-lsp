@@ -1,0 +1,1080 @@
+diff --git a/rust/bpf-tcl-ir/src/capability.rs b/rust/bpf-tcl-ir/src/capability.rs
+index fa4bfe7ed..4955b7bac 100644
+--- a/rust/bpf-tcl-ir/src/capability.rs
++++ b/rust/bpf-tcl-ir/src/capability.rs
+@@ -36,19 +36,17 @@
+ //! - A verb in both `allow` and `deny` is denied (deny wins).
+ 
+ use tcl_compiler::{Script, Statement};
++use tcl_registry::CanonicalCommandDescriptorKey;
+ use tcl_registry::registry::CommandRegistry;
+ 
+ use crate::diag::{BpfDiag, BpfError};
+-
+-/// Whether `cmd`'s registry descriptor marks it gated (packet/map access).
+-fn is_gated(cmd: &str, registry: &CommandRegistry) -> bool {
+-    registry.bpf_op(cmd).is_some_and(|op| op.effects.is_gated())
+-}
++use crate::source::{source_command_spec, source_declaration_kind};
+ 
+ /// Is `cmd` something `allow`/`deny` may name (a gated verb or a verdict)?
+ fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
+     registry
+-        .bpf_op(cmd)
++        .get_for_surface(cmd, registry.own_surface_query())
++        .and_then(|spec| spec.bpf_op)
+         .is_some_and(|op| op.effects.is_gated() || op.effects.is_verdict())
+ }
+ 
+@@ -57,23 +55,22 @@ fn is_governable(cmd: &str, registry: &CommandRegistry) -> bool {
+ pub struct CapabilityPolicy {
+     /// The allowlist of gated verbs, if any `allow` was declared. `None` means
+     /// "no allowlist" (gated verbs are permitted unless denied).
+-    allow: Option<Vec<String>>,
++    allow: Option<Vec<CanonicalCommandDescriptorKey<'static>>>,
+     /// Verbs explicitly denied.
+-    deny: Vec<String>,
++    deny: Vec<CanonicalCommandDescriptorKey<'static>>,
+ }
+ 
+ impl CapabilityPolicy {
+-    /// Does this policy permit `cmd`? `gated` is the verb's registry effect
+-    /// classification (see [`is_gated`]).
++    /// Permit the selected descriptor under its Registry effect classification.
+     #[must_use]
+-    pub fn permits(&self, cmd: &str, gated: bool) -> bool {
+-        if self.deny.iter().any(|d| d == cmd) {
++    pub fn permits(&self, key: CanonicalCommandDescriptorKey<'_>, gated: bool) -> bool {
++        if self.deny.iter().any(|descriptor| *descriptor == key) {
+             return false;
+         }
+         if let Some(allow) = &self.allow
+             && gated
+         {
+-            return allow.iter().any(|a| a == cmd);
++            return allow.iter().any(|descriptor| *descriptor == key);
+         }
+         true
+     }
+@@ -98,7 +95,6 @@ pub fn collect_policy(
+     for stmt in &top_level.statements {
+         let Statement::Call {
+             command,
+-            canonical_command,
+             args,
+             span,
+             ..
+@@ -106,10 +102,10 @@ pub fn collect_policy(
+         else {
+             continue;
+         };
+-        let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+-        let kind = match cmd {
+-            "allow" => true,
+-            "deny" => false,
++        let cmd = command;
++        let kind = match source_declaration_kind(stmt, registry) {
++            Some(tcl_registry::bpf_op::BpfDeclKind::Allow) => true,
++            Some(tcl_registry::bpf_op::BpfDeclKind::Deny) => false,
+             _ => continue,
+         };
+         if args.is_empty() {
+@@ -131,10 +127,14 @@ pub fn collect_policy(
+                     ),
+                 ));
+             }
++            let descriptor = registry
++                .get_for_surface(verb, registry.own_surface_query())
++                .expect("the governable descriptor was selected above")
++                .descriptor_key();
+             if kind {
+-                policy.allow.get_or_insert_with(Vec::new).push(verb.clone());
++                policy.allow.get_or_insert_with(Vec::new).push(descriptor);
+             } else {
+-                policy.deny.push(verb.clone());
++                policy.deny.push(descriptor);
+             }
+         }
+     }
+@@ -175,14 +175,15 @@ fn check_script(
+ ) -> Result<(), BpfError> {
+     for stmt in &script.statements {
+         match stmt {
+-            Statement::Call {
+-                command,
+-                canonical_command,
+-                span,
+-                ..
+-            } => {
+-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+-                if !policy.permits(cmd, is_gated(cmd, registry)) {
++            Statement::Call { span, .. } => {
++                let Some(spec) = source_command_spec(stmt, registry) else {
++                    continue;
++                };
++                let cmd = spec.name;
++                if !policy.permits(
++                    spec.descriptor_key(),
++                    spec.bpf_op.is_some_and(|op| op.effects.is_gated()),
++                ) {
+                     return Err(BpfError::new(
+                         BpfDiag::CapabilityDenied,
+                         *span,
+diff --git a/rust/bpf-tcl-ir/src/deploy.rs b/rust/bpf-tcl-ir/src/deploy.rs
+index c119b615a..90722d2ee 100644
+--- a/rust/bpf-tcl-ir/src/deploy.rs
++++ b/rust/bpf-tcl-ir/src/deploy.rs
+@@ -28,8 +28,10 @@
+ //! The result is pure metadata hung off [`crate::ir::BpfProgramDecl::attach`]
+ //! for a future ELF/loader — codegen ignores it.
+ 
++use crate::source::source_declaration_kind;
+ use tcl_compiler::{Script, Statement};
+ use tcl_lexer::Span;
++use tcl_registry::CommandRegistry;
+ 
+ use crate::diag::{BpfDiag, BpfError};
+ use crate::event::event_to_prog_type;
+@@ -40,8 +42,11 @@ use crate::ir::{AttachSpec, BpfProgramDecl, ProgType};
+ ///
+ /// # Errors
+ /// Bad arity, more than one `attach`, or an unknown attach kind.
+-pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError> {
+-    Ok(find_attach(top_level)?.map(|(spec, _)| spec))
++pub fn collect_attach(
++    top_level: &Script,
++    registry: &CommandRegistry,
++) -> Result<Option<AttachSpec>, BpfError> {
++    Ok(find_attach(top_level, registry)?.map(|(spec, _)| spec))
+ }
+ 
+ /// Resolve a file's `attach` onto the programs it governs: every program whose
+@@ -51,8 +56,12 @@ pub fn collect_attach(top_level: &Script) -> Result<Option<AttachSpec>, BpfError
+ /// # Errors
+ /// A malformed/duplicate/unknown `attach`, or an `attach` that matches no
+ /// program's type (a deployment that could never apply).
+-pub fn resolve_attach(top_level: &Script, programs: &mut [BpfProgramDecl]) -> Result<(), BpfError> {
+-    let Some((spec, span)) = find_attach(top_level)? else {
++pub fn resolve_attach(
++    top_level: &Script,
++    programs: &mut [BpfProgramDecl],
++    registry: &CommandRegistry,
++) -> Result<(), BpfError> {
++    let Some((spec, span)) = find_attach(top_level, registry)? else {
+         return Ok(());
+     };
+     let want = event_to_prog_type(&spec.kind);
+@@ -85,20 +94,18 @@ pub fn attach_prog_type(kind: &str) -> Option<ProgType> {
+ 
+ /// Scan the top level for the single `attach` declaration, returning its parsed
+ /// spec and declaration span.
+-fn find_attach(top_level: &Script) -> Result<Option<(AttachSpec, Span)>, BpfError> {
++fn find_attach(
++    top_level: &Script,
++    registry: &CommandRegistry,
++) -> Result<Option<(AttachSpec, Span)>, BpfError> {
+     let mut found: Option<(AttachSpec, Span)> = None;
+     for stmt in &top_level.statements {
+-        let Statement::Call {
+-            command,
+-            canonical_command,
+-            args,
+-            span,
+-            ..
+-        } = stmt
+-        else {
++        let Statement::Call { args, span, .. } = stmt else {
+             continue;
+         };
+-        if canonical_command.as_deref().unwrap_or(command.as_str()) != "attach" {
++        if source_declaration_kind(stmt, registry)
++            != Some(tcl_registry::bpf_op::BpfDeclKind::Attach)
++        {
+             continue;
+         }
+         if found.is_some() {
+diff --git a/rust/bpf-tcl-ir/src/frontend.rs b/rust/bpf-tcl-ir/src/frontend.rs
+index 5bdde3b64..2193b3223 100644
+--- a/rust/bpf-tcl-ir/src/frontend.rs
++++ b/rust/bpf-tcl-ir/src/frontend.rs
+@@ -30,7 +30,7 @@ use tcl_compiler::ir::CommandTokens;
+ use tcl_compiler::{Script, Statement};
+ use tcl_lexer::Span;
+ use tcl_registry::CommandRegistry;
+-use tcl_registry::bpf_op::{BpfDeclKind, BpfOpKind};
++use tcl_registry::bpf_op::BpfDeclKind;
+ use tcl_registry::model::ingress::static_context_for;
+ 
+ use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
+@@ -40,7 +40,7 @@ use crate::event::{event_to_prog_type, known_event_names};
+ use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
+ use crate::lower::{lower_function_with_config, parse_int};
+ use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
+-use crate::source::lower_bpf_source;
++use crate::source::{lower_bpf_source, source_declaration_kind};
+ use crate::template::{TemplateDef, collect_templates, expand_uses};
+ use crate::unroll::unroll_loops;
+ 
+@@ -69,17 +69,9 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
+ 
+     for stmt in &module.top_level.statements {
+         if let Statement::Call {
+-            command,
+-            canonical_command,
+-            args,
+-            tokens,
+-            span,
+-            ..
++            args, tokens, span, ..
+         } = stmt
+-            && decl_kind(
+-                canonical_command.as_deref().unwrap_or(command.as_str()),
+-                registry,
+-            ) == Some(BpfDeclKind::When)
++            && source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
+         {
+             saw_when = true;
+             programs.push(lower_when_decl(
+@@ -103,11 +95,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
+         for stmt in &module.top_level.statements {
+             let is_when = matches!(
+                 stmt,
+-                Statement::Call { command, canonical_command, .. }
+-                    if decl_kind(
+-                        canonical_command.as_deref().unwrap_or(command.as_str()),
+-                        registry,
+-                    ) == Some(BpfDeclKind::When)
++                Statement::Call { .. }
++                    if source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
+             );
+             if !is_when && !is_decl(stmt, registry) {
+                 let (name, span) = stray_stmt_info(stmt);
+@@ -128,10 +117,10 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
+     if !saw_when {
+         let body = strip_decls(&module.top_level, registry);
+         if !body.statements.is_empty() {
+-            let used = expand_uses(&body, &templates, registry.numbers())?;
++            let used = expand_uses(&body, &templates, registry)?;
+             let unrolled = unroll_loops(&used, registry)?;
+             let expanded = match profile.as_ref() {
+-                Some(p) => expand_fields(&unrolled, p)?,
++                Some(p) => expand_fields(&unrolled, p, registry)?,
+                 None => unrolled,
+             };
+             check_policy(&expanded, &policy, registry)?;
+@@ -153,7 +142,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
+     }
+ 
+     // Hang the (optional) deployment target off each program it governs.
+-    resolve_attach(&module.top_level, &mut programs)?;
++    resolve_attach(&module.top_level, &mut programs, registry)?;
+ 
+     // Deterministic order: ascending priority (lower = runs first, F5-style),
+     // then event name as a tiebreaker.
+@@ -281,11 +270,11 @@ fn lower_when_decl(
+         .map_or(0, |sp| sp.start() + 1);
+ 
+     let body_module = lower_bpf_source(body_text, registry);
+-    let used = expand_uses(&body_module.top_level, templates, registry.numbers())
++    let used = expand_uses(&body_module.top_level, templates, registry)
+         .map_err(|e| e.offset(source_base))?;
+     let unrolled = unroll_loops(&used, registry).map_err(|e| e.offset(source_base))?;
+     let expanded = match profile {
+-        Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
++        Some(p) => expand_fields(&unrolled, p, registry).map_err(|e| e.offset(source_base))?,
+         None => unrolled,
+     };
+     check_policy(&expanded, policy, registry).map_err(|e| e.offset(source_base))?;
+@@ -380,34 +369,17 @@ fn stray_stmt_info(stmt: &Statement) -> (String, Span) {
+     }
+ }
+ 
+-/// The framework-declaration kind of a command name, from its registry
+-/// descriptor.
+-fn decl_kind(cmd: &str, registry: &CommandRegistry) -> Option<BpfDeclKind> {
+-    match registry.bpf_op(cmd).map(|op| op.kind) {
+-        Some(BpfOpKind::Framework(decl)) => Some(decl),
+-        _ => None,
+-    }
+-}
+-
+ /// Whether a top-level statement is a consumed framework declaration.
+ /// Deliberately excluded: `field` (only meaningful inside a `profile` body,
+ /// so a top-level one is a stray that lowering rejects), `use` (an expansion
+ /// site, spliced in place by `expand_uses`, not a stripped declaration), and
+ /// `when` (handled separately).
+ fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
+-    let Statement::Call {
+-        command,
+-        canonical_command,
+-        ..
+-    } = stmt
+-    else {
++    let Statement::Call { .. } = stmt else {
+         return false;
+     };
+     matches!(
+-        decl_kind(
+-            canonical_command.as_deref().unwrap_or(command.as_str()),
+-            registry,
+-        ),
++        source_declaration_kind(stmt, registry),
+         Some(
+             BpfDeclKind::Profile
+                 | BpfDeclKind::Template
+@@ -430,6 +402,48 @@ mod tests {
+     /// intentionally profile-less. The front end must instead obtain
+     /// the cached, profile-stamped registry so every downstream registry fact
+     /// describes BPF's exact Tcl 9.0 embedding.
++    #[test]
++    fn rooted_framework_heads_use_selected_registry_descriptors() {
++        let module = compile_module(
++            "::template verdict {} {::drop}\n::when SOCKET_FILTER {::use verdict}\n",
++        )
++        .expect("root-qualified source heads select the same closed DSL descriptors");
++        assert_eq!(module.programs.len(), 1);
++        assert!(
++            module.programs[0]
++                .program
++                .blocks
++                .iter()
++                .any(|block| { matches!(block.term, Term::Return { .. }) })
++        );
++    }
++
++    #[test]
++    fn rooted_policy_operand_cannot_bypass_selected_descriptor() {
++        for source in ["deny ::drop\n::drop\n", "::deny drop\n::drop\n"] {
++            let error = compile_module(source).expect_err("selected drop descriptor is denied");
++            assert_eq!(error.code, BpfDiag::CapabilityDenied, "{source}: {error:?}");
++        }
++    }
++
++    #[test]
++    fn canonical_report_label_cannot_strip_an_unselected_declaration() {
++        let registry = bpf_registry();
++        let mut module = lower_bpf_source("not_bpf SOCKET_FILTER {drop}\n", registry);
++        let Statement::Call {
++            canonical_command, ..
++        } = &mut module.top_level.statements[0]
++        else {
++            panic!("unknown original head remains a call");
++        };
++        *canonical_command = Some("when".into());
++        assert_eq!(
++            source_declaration_kind(&module.top_level.statements[0], registry),
++            None
++        );
++        assert_eq!(strip_decls(&module.top_level, registry).statements.len(), 1);
++    }
++
+     #[test]
+     fn bpf_frontend_uses_the_profile_stamped_tcl90_registry() {
+         let registry = bpf_registry();
+diff --git a/rust/bpf-tcl-ir/src/lower.rs b/rust/bpf-tcl-ir/src/lower.rs
+index f529ad700..39f69a340 100644
+--- a/rust/bpf-tcl-ir/src/lower.rs
++++ b/rust/bpf-tcl-ir/src/lower.rs
+@@ -44,6 +44,7 @@ use crate::ir::{
+     Block, BlockId, BpfProgram, CmpOp, Inst, IntBinOp, MapConcurrency, MapDef, MapKind, OobAction,
+     ProgType, SlotId, Term, UnOp,
+ };
++use crate::source::{source_bpf_operation, source_command_head, source_command_spec};
+ use crate::ty::{ByteOrder, Region, Ty, Width};
+ use tcl_syntax::number::{Number, NumberSyntax, ParseFlags, parse_whole_with};
+ 
+@@ -220,11 +221,6 @@ impl Lowerer<'_> {
+         id
+     }
+ 
+-    /// The registry descriptor for a command, if it is a BPF-Tcl command.
+-    fn bpf_op(&self, cmd: &str) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
+-        self.registry.bpf_op(cmd)
+-    }
+-
+     /// Whether this concrete invocation belongs to Tcl's coroutine family.
+     ///
+     /// The registry owns family membership and canonical alias resolution;
+@@ -243,16 +239,10 @@ impl Lowerer<'_> {
+         let func = self.func;
+         for block in func.blocks.values() {
+             for stmt in &block.statements {
+-                if let Statement::Call {
+-                    command,
+-                    canonical_command,
+-                    args,
+-                    span,
+-                    ..
+-                } = stmt
+-                {
+-                    let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+-                    if self.bpf_op(cmd).map(|op| op.kind) == Some(BpfOpKind::MapDeclare) {
++                if let Statement::Call { args, span, .. } = stmt {
++                    if source_bpf_operation(stmt, self.registry).map(|op| op.kind)
++                        == Some(BpfOpKind::MapDeclare)
++                    {
+                         self.declare_map(args, *span)?;
+                     }
+                 }
+@@ -646,13 +636,19 @@ impl Lowerer<'_> {
+         match stmt {
+             Statement::Call {
+                 command,
+-                canonical_command,
+                 args,
+                 span,
+                 ..
+             } => {
+-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+-                self.lower_call(cmd, args, *span, insts)
++                let head = source_command_head(stmt);
++                self.lower_call(
++                    head.unwrap_or(command),
++                    source_command_spec(stmt, self.registry),
++                    head.is_some(),
++                    args,
++                    *span,
++                    insts,
++                )
+             }
+             Statement::Barrier {
+                 command,
+@@ -754,14 +750,25 @@ impl Lowerer<'_> {
+     fn lower_call(
+         &mut self,
+         cmd: &str,
++        command_spec: Option<&tcl_registry::CommandSpec>,
++        literal_head: bool,
+         args: &[String],
+         span: Span,
+         insts: &mut Vec<Inst>,
+     ) -> Result<Option<Term>, BpfError> {
+-        let Some(op) = self.bpf_op(cmd) else {
+-            if self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd) {
++        let Some(op) = command_spec.and_then(|spec| spec.bpf_op) else {
++            if literal_head
++                && (self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd))
++            {
+                 return Err(concurrency_error(cmd, span));
+             }
++            if command_spec.is_some() {
++                return Err(BpfError::new(
++                    BpfDiag::OutOfSubset,
++                    span,
++                    format!("`{cmd}` has no operation in the closed BPF-Tcl subset"),
++                ));
++            }
+             return Err(BpfError::new(
+                 BpfDiag::UnknownCommand,
+                 span,
+@@ -1391,6 +1398,33 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn canonical_report_label_cannot_emit_a_different_bpf_operation() {
++        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
++        let mut function = Function::new("::handler", "entry");
++        function
++            .blocks
++            .get_mut(&function.entry)
++            .unwrap()
++            .statements
++            .push(Statement::Call {
++                span: Span::new(4, 11),
++                command: "not_bpf".into(),
++                canonical_command: Some("drop".into()),
++                args: vec![],
++                defs: vec![],
++                reads: vec![],
++                reads_own_defs: false,
++                safe_on_uninit: false,
++                foreach_groups: None,
++                tokens: None,
++            });
++        let error = lower_function(&function, ProgType::SocketFilter, registry)
++            .expect_err("a report label cannot replace the actual closed DSL head");
++        assert_eq!(error.code, BpfDiag::UnknownCommand);
++        assert!(error.msg.contains("not_bpf"));
++    }
++
+     #[test]
+     fn coroutine_barrier_uses_registry_identity_for_specific_diagnostic() {
+         let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+diff --git a/rust/bpf-tcl-ir/src/profile.rs b/rust/bpf-tcl-ir/src/profile.rs
+index 7b06457b4..39d8702fa 100644
+--- a/rust/bpf-tcl-ir/src/profile.rs
++++ b/rust/bpf-tcl-ir/src/profile.rs
+@@ -47,7 +47,9 @@ use tcl_registry::registry::CommandRegistry;
+ 
+ use crate::diag::{BpfDiag, BpfError};
+ use crate::lower::parse_int;
+-use crate::source::lower_bpf_source;
++use crate::source::{
++    lower_bpf_source, source_command_head, source_declaration_kind, synthetic_operation_call,
++};
+ use crate::ty::ByteOrder;
+ 
+ /// A named header field at a fixed packet offset.
+@@ -142,14 +144,9 @@ pub fn collect_profile(
+ ) -> Result<Option<BpfProfileSpec>, BpfError> {
+     let mut found: Option<BpfProfileSpec> = None;
+     for stmt in &top_level.statements {
+-        if let Statement::Call {
+-            command,
+-            canonical_command,
+-            args,
+-            span,
+-            ..
+-        } = stmt
+-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "profile"
++        if let Statement::Call { args, span, .. } = stmt
++            && source_declaration_kind(stmt, registry)
++                == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
+         {
+             if found.is_some() {
+                 return Err(BpfError::new(
+@@ -202,7 +199,6 @@ fn parse_user_profile(
+     for stmt in &module.top_level.statements {
+         let Statement::Call {
+             command,
+-            canonical_command,
+             args,
+             span,
+             ..
+@@ -216,8 +212,9 @@ fn parse_user_profile(
+                 "only `field` declarations are allowed inside a `profile` body",
+             ));
+         };
+-        let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+-        if cmd != "field" {
++        let cmd = source_command_head(stmt).unwrap_or(command);
++        if source_declaration_kind(stmt, registry) != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
++        {
+             return Err(BpfError::new(
+                 BpfDiag::BadProfile,
+                 *span,
+@@ -278,12 +275,24 @@ fn parse_width(s: &str, numbers: tcl_syntax::number::NumberSyntax) -> Option<u8>
+ ///
+ /// # Errors
+ /// A field command with the wrong arity.
+-pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script, BpfError> {
++pub fn expand_fields(
++    script: &Script,
++    profile: &BpfProfileSpec,
++    registry: &CommandRegistry,
++) -> Result<Script, BpfError> {
+     let mut needs_pkt = false;
+-    let body = expand_script(script, profile, &mut needs_pkt)?;
++    let body = expand_script(script, profile, registry, &mut needs_pkt)?;
+     let mut stmts = body.statements;
+     if needs_pkt {
+-        stmts.insert(0, synth_call("setbuf", &["__pkt", "ctx"], Span::empty(0)));
++        stmts.insert(
++            0,
++            synthetic_operation_call(
++                tcl_registry::bpf_op::BpfOpKind::BindPacket,
++                vec!["__pkt".into(), "ctx".into()],
++                Span::empty(0),
++                registry,
++            )?,
++        );
+     }
+     Ok(Script::from_statements(stmts))
+ }
+@@ -291,19 +300,17 @@ pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script
+ fn expand_script(
+     script: &Script,
+     profile: &BpfProfileSpec,
++    registry: &CommandRegistry,
+     needs_pkt: &mut bool,
+ ) -> Result<Script, BpfError> {
+     let mut out = Vec::with_capacity(script.statements.len());
+     for stmt in &script.statements {
+         match stmt {
+-            Statement::Call {
+-                command,
+-                canonical_command,
+-                args,
+-                span,
+-                ..
+-            } => {
+-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
++            Statement::Call { args, span, .. } => {
++                let Some(cmd) = source_command_head(stmt) else {
++                    out.push(stmt.clone());
++                    continue;
++                };
+                 if let Some(f) = profile.field(cmd) {
+                     if args.len() != 1 {
+                         return Err(BpfError::new(
+@@ -313,21 +320,24 @@ fn expand_script(
+                         ));
+                     }
+                     *needs_pkt = true;
+-                    let load = match f.width_bits {
+-                        8 => "load8",
+-                        16 => "load16",
+-                        _ => "load32",
+-                    };
+                     let order = match f.order {
+                         ByteOrder::Big => "be",
+                         ByteOrder::Little => "le",
+                         ByteOrder::Native => "native",
+                     };
+-                    out.push(synth_call(
+-                        load,
+-                        &[&args[0], "__pkt", &f.offset.to_string(), order],
++                    out.push(synthetic_operation_call(
++                        tcl_registry::bpf_op::BpfOpKind::PacketLoad {
++                            width_bits: f.width_bits,
++                        },
++                        vec![
++                            args[0].clone(),
++                            "__pkt".into(),
++                            f.offset.to_string(),
++                            order.into(),
++                        ],
+                         *span,
+-                    ));
++                        registry,
++                    )?);
+                 } else {
+                     out.push(stmt.clone());
+                 }
+@@ -345,14 +355,14 @@ fn expand_script(
+                             condition: c.condition.clone(),
+                             condition_span: c.condition_span,
+                             condition_base: c.condition_base,
+-                            body: expand_script(&c.body, profile, needs_pkt)?,
++                            body: expand_script(&c.body, profile, registry, needs_pkt)?,
+                             body_span: c.body_span,
+                         })
+                     })
+                     .collect::<Result<Vec<_>, BpfError>>()?;
+                 let else_body = else_body
+                     .as_ref()
+-                    .map(|b| expand_script(b, profile, needs_pkt))
++                    .map(|b| expand_script(b, profile, registry, needs_pkt))
+                     .transpose()?;
+                 out.push(Statement::If {
+                     span: *span,
+@@ -366,19 +376,3 @@ fn expand_script(
+     }
+     Ok(Script::from_statements(out))
+ }
+-
+-/// Build a synthetic IR `Call` (used to splice expanded commands).
+-fn synth_call(cmd: &str, args: &[&str], span: Span) -> Statement {
+-    Statement::Call {
+-        span,
+-        command: cmd.to_owned(),
+-        canonical_command: None,
+-        args: args.iter().map(|s| (*s).to_owned()).collect(),
+-        defs: Vec::new(),
+-        reads: Vec::new(),
+-        reads_own_defs: false,
+-        safe_on_uninit: false,
+-        tokens: None,
+-        foreach_groups: None,
+-    }
+-}
+diff --git a/rust/bpf-tcl-ir/src/semantic_bridge.rs b/rust/bpf-tcl-ir/src/semantic_bridge.rs
+index c5212c739..ecba4a509 100644
+--- a/rust/bpf-tcl-ir/src/semantic_bridge.rs
++++ b/rust/bpf-tcl-ir/src/semantic_bridge.rs
+@@ -225,7 +225,9 @@ impl EbpfSemanticBridge {
+                 });
+             }
+         };
+-        let descriptor = registry.bpf_op(&facts.canonical_command).copied();
++        let descriptor = registry
++            .bpf_op_for_descriptor(facts.descriptor_key())
++            .copied();
+         let Some(descriptor) = descriptor else {
+             return Err(EbpfInvocationDecline {
+                 index,
+@@ -526,6 +528,22 @@ mod tests {
+         SemanticContext::for_environment("bpf")
+     }
+ 
++    #[test]
++    fn selected_bpf_descriptor_cannot_borrow_a_written_root_fallback() {
++        let registry = bpf_registry();
++        let mut separately_selected = registry.get_exact("drop").unwrap().clone();
++        separately_selected.name = "::drop";
++        let key = separately_selected.descriptor_key();
++        assert_eq!(key.label(), "::drop");
++        assert!(registry.bpf_op("::drop").is_some());
++        assert!(registry.bpf_op_for_descriptor(key).is_none());
++        assert!(
++            registry
++                .bpf_op_for_descriptor(registry.get_exact("drop").unwrap().descriptor_key())
++                .is_some()
++        );
++    }
++
+     #[test]
+     fn bpf_descriptor_alone_never_seals_a_generic_tcl_invocation() {
+         let registry = bpf_registry();
+diff --git a/rust/bpf-tcl-ir/src/source.rs b/rust/bpf-tcl-ir/src/source.rs
+index 954700127..06954ec5b 100644
+--- a/rust/bpf-tcl-ir/src/source.rs
++++ b/rust/bpf-tcl-ir/src/source.rs
+@@ -24,6 +24,87 @@ use tcl_compiler::{Module, Script, Statement, parse_expr_for_profile, rebase_scr
+ use tcl_lexer::{LexerConfig, Span};
+ use tcl_registry::registry::CommandRegistry;
+ 
++/// The authored head is source syntax; canonical analysis labels cannot replace it.
++pub(crate) fn source_command_head(statement: &Statement) -> Option<&str> {
++    let (command, tokens) = match statement {
++        Statement::Call {
++            command, tokens, ..
++        }
++        | Statement::Barrier {
++            command, tokens, ..
++        } => (command, tokens),
++        _ => return None,
++    };
++    let Some(tokens) = tokens else {
++        return Some(command);
++    };
++    if tokens
++        .expand_word
++        .as_ref()
++        .is_some_and(|words| words.first() == Some(&true))
++    {
++        return None;
++    }
++    match tokens.word_exprs.first()? {
++        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => Some(text),
++        _ => None,
++    }
++}
++
++pub(crate) fn source_command_spec(
++    statement: &Statement,
++    registry: &CommandRegistry,
++) -> Option<&'static tcl_registry::CommandSpec> {
++    registry.get_for_surface(
++        source_command_head(statement)?,
++        registry.own_surface_query(),
++    )
++}
++
++pub(crate) fn source_bpf_operation(
++    statement: &Statement,
++    registry: &CommandRegistry,
++) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
++    source_command_spec(statement, registry)?.bpf_op
++}
++
++pub(crate) fn source_declaration_kind(
++    statement: &Statement,
++    registry: &CommandRegistry,
++) -> Option<tcl_registry::bpf_op::BpfDeclKind> {
++    match source_bpf_operation(statement, registry)?.kind {
++        tcl_registry::bpf_op::BpfOpKind::Framework(kind) => Some(kind),
++        _ => None,
++    }
++}
++
++pub(crate) fn synthetic_operation_call(
++    operation: tcl_registry::bpf_op::BpfOpKind,
++    args: Vec<String>,
++    span: Span,
++    registry: &CommandRegistry,
++) -> Result<Statement, crate::diag::BpfError> {
++    let command = registry.bpf_command_for(operation).ok_or_else(|| {
++        crate::diag::BpfError::new(
++            crate::diag::BpfDiag::OutOfSubset,
++            span,
++            format!("Registry has no BPF operation {operation:?}"),
++        )
++    })?;
++    Ok(Statement::Call {
++        span,
++        command: command.to_owned(),
++        canonical_command: None,
++        args,
++        defs: Vec::new(),
++        reads: Vec::new(),
++        reads_own_defs: false,
++        safe_on_uninit: false,
++        tokens: None,
++        foreach_groups: None,
++    })
++}
++
+ /// Lower BPF Tcl source under the BPF profile for every top-level and nested
+ /// body re-segmentation.
+ pub(crate) fn lower_bpf_source(source: &str, registry: &CommandRegistry) -> Module {
+diff --git a/rust/bpf-tcl-ir/src/template.rs b/rust/bpf-tcl-ir/src/template.rs
+index 99abb9292..fd8890fcd 100644
+--- a/rust/bpf-tcl-ir/src/template.rs
++++ b/rust/bpf-tcl-ir/src/template.rs
+@@ -37,7 +37,7 @@ use tcl_syntax::number::NumberSyntax;
+ 
+ use crate::diag::{BpfDiag, BpfError};
+ use crate::lower::parse_int;
+-use crate::source::lower_bpf_source;
++use crate::source::{lower_bpf_source, source_declaration_kind, synthetic_operation_call};
+ 
+ /// The deepest a `use` may nest (one template using another), a guard against
+ /// mutually-recursive templates expanding forever.
+@@ -65,14 +65,9 @@ pub fn collect_templates(
+ ) -> Result<Vec<TemplateDef>, BpfError> {
+     let mut out: Vec<TemplateDef> = Vec::new();
+     for stmt in &top_level.statements {
+-        if let Statement::Call {
+-            command,
+-            canonical_command,
+-            args,
+-            span,
+-            ..
+-        } = stmt
+-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "template"
++        if let Statement::Call { args, span, .. } = stmt
++            && source_declaration_kind(stmt, registry)
++                == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
+         {
+             let def = parse_template(args, *span, registry)?;
+             if out.iter().any(|t| t.name == def.name) {
+@@ -119,28 +114,25 @@ fn parse_template(
+ pub fn expand_uses(
+     script: &Script,
+     templates: &[TemplateDef],
+-    numbers: NumberSyntax,
++    registry: &CommandRegistry,
+ ) -> Result<Script, BpfError> {
+-    expand_script(script, templates, numbers, 0)
++    expand_script(script, templates, registry, 0)
+ }
+ 
+ fn expand_script(
+     script: &Script,
+     templates: &[TemplateDef],
+-    numbers: NumberSyntax,
++    registry: &CommandRegistry,
+     depth: usize,
+ ) -> Result<Script, BpfError> {
+     let mut out = Vec::with_capacity(script.statements.len());
+     for stmt in &script.statements {
+         match stmt {
+-            Statement::Call {
+-                command,
+-                canonical_command,
+-                args,
+-                span,
+-                ..
+-            } if canonical_command.as_deref().unwrap_or(command.as_str()) == "use" => {
+-                expand_use(args, *span, templates, numbers, depth, &mut out)?;
++            Statement::Call { args, span, .. }
++                if source_declaration_kind(stmt, registry)
++                    == Some(tcl_registry::bpf_op::BpfDeclKind::Use) =>
++            {
++                expand_use(args, *span, templates, registry, depth, &mut out)?;
+             }
+             Statement::If {
+                 span,
+@@ -154,7 +146,7 @@ fn expand_script(
+                     else_body.as_ref(),
+                     *else_span,
+                     templates,
+-                    numbers,
++                    registry,
+                     depth,
+                 )?);
+             }
+@@ -170,7 +162,7 @@ fn expand_if(
+     else_body: Option<&Script>,
+     else_span: Option<Span>,
+     templates: &[TemplateDef],
+-    numbers: NumberSyntax,
++    registry: &CommandRegistry,
+     depth: usize,
+ ) -> Result<Statement, BpfError> {
+     let clauses = clauses
+@@ -180,13 +172,13 @@ fn expand_if(
+                 condition: c.condition.clone(),
+                 condition_span: c.condition_span,
+                 condition_base: c.condition_base,
+-                body: expand_script(&c.body, templates, numbers, depth)?,
++                body: expand_script(&c.body, templates, registry, depth)?,
+                 body_span: c.body_span,
+             })
+         })
+         .collect::<Result<Vec<_>, BpfError>>()?;
+     let else_body = else_body
+-        .map(|b| expand_script(b, templates, numbers, depth))
++        .map(|b| expand_script(b, templates, registry, depth))
+         .transpose()?;
+     Ok(Statement::If {
+         span,
+@@ -200,7 +192,7 @@ fn expand_use(
+     args: &[String],
+     span: Span,
+     templates: &[TemplateDef],
+-    numbers: NumberSyntax,
++    registry: &CommandRegistry,
+     depth: usize,
+     out: &mut Vec<Statement>,
+ ) -> Result<(), BpfError> {
+@@ -226,7 +218,7 @@ fn expand_use(
+         )
+     })?;
+ 
+-    let pairs = parse_bindings(bindings, span, numbers)?;
++    let pairs = parse_bindings(bindings, span, registry.numbers())?;
+     // Every declared parameter must be bound; bind it via a synthetic `setint`.
+     for p in &tmpl.params {
+         let (_, val) = pairs.iter().find(|(k, _)| k == p).ok_or_else(|| {
+@@ -236,7 +228,12 @@ fn expand_use(
+                 format!("template `{name}` is missing a binding for `{p}`"),
+             )
+         })?;
+-        out.push(synth_setint(p, *val, span));
++        out.push(synthetic_operation_call(
++            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
++            vec![p.to_owned(), (*val).to_string()],
++            span,
++            registry,
++        )?);
+     }
+     // Reject bindings that don't name a parameter.
+     if let Some((k, _)) = pairs.iter().find(|(k, _)| !tmpl.params.contains(k)) {
+@@ -248,7 +245,7 @@ fn expand_use(
+     }
+ 
+     // Splice the body, expanding any nested `use` one level deeper.
+-    let expanded = expand_script(&tmpl.body, templates, numbers, depth + 1)?;
++    let expanded = expand_script(&tmpl.body, templates, registry, depth + 1)?;
+     out.extend(expanded.statements);
+     Ok(())
+ }
+@@ -280,19 +277,3 @@ fn parse_bindings(
+     }
+     Ok(pairs)
+ }
+-
+-/// Build a synthetic `setint VAR <n>` IR call (a parameter binding).
+-fn synth_setint(var: &str, n: i64, span: Span) -> Statement {
+-    Statement::Call {
+-        span,
+-        command: "setint".to_owned(),
+-        canonical_command: None,
+-        args: vec![var.to_owned(), n.to_string()],
+-        defs: Vec::new(),
+-        reads: Vec::new(),
+-        reads_own_defs: false,
+-        safe_on_uninit: false,
+-        tokens: None,
+-        foreach_groups: None,
+-    }
+-}
+diff --git a/rust/bpf-tcl-ir/src/unroll.rs b/rust/bpf-tcl-ir/src/unroll.rs
+index 5ef1dd993..9dd399fdf 100644
+--- a/rust/bpf-tcl-ir/src/unroll.rs
++++ b/rust/bpf-tcl-ir/src/unroll.rs
+@@ -33,7 +33,7 @@ use tcl_syntax::number::NumberSyntax;
+ 
+ use crate::diag::{BpfDiag, BpfError};
+ use crate::lower::parse_int;
+-use crate::source::lower_bpf_source;
++use crate::source::{lower_bpf_source, source_bpf_operation, synthetic_operation_call};
+ 
+ /// Maximum iterations a single `loop` may unroll to.
+ const MAX_UNROLL: i64 = 64;
+@@ -46,14 +46,9 @@ const MAX_UNROLL: i64 = 64;
+ pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Script, BpfError> {
+     let mut out = Vec::with_capacity(script.statements.len());
+     for stmt in &script.statements {
+-        if let Statement::Call {
+-            command,
+-            canonical_command,
+-            args,
+-            span,
+-            ..
+-        } = stmt
+-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "loop"
++        if let Statement::Call { args, span, .. } = stmt
++            && source_bpf_operation(stmt, registry).map(|op| op.kind)
++                == Some(tcl_registry::bpf_op::BpfOpKind::LoopMacro)
+         {
+             expand_loop(args, *span, registry, &mut out)?;
+         } else {
+@@ -99,28 +94,17 @@ fn expand_loop(
+     let body = unroll_loops(&body_module.top_level, registry)?;
+ 
+     for k in 0..count {
+-        out.push(synth_setint(var, k, span));
++        out.push(synthetic_operation_call(
++            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
++            vec![var.to_owned(), (k).to_string()],
++            span,
++            registry,
++        )?);
+         out.extend(body.statements.iter().cloned());
+     }
+     Ok(())
+ }
+ 
+-/// Build a synthetic `setint VAR <k>` IR call (the loop-variable binding).
+-fn synth_setint(var: &str, k: i64, span: Span) -> Statement {
+-    Statement::Call {
+-        span,
+-        command: "setint".to_owned(),
+-        canonical_command: None,
+-        args: vec![var.to_owned(), k.to_string()],
+-        defs: Vec::new(),
+-        reads: Vec::new(),
+-        reads_own_defs: false,
+-        safe_on_uninit: false,
+-        tokens: None,
+-        foreach_groups: None,
+-    }
+-}
+-
+ fn parse_count(s: &str, numbers: NumberSyntax) -> Option<i64> {
+     let v = parse_int(s, numbers)?;
+     (v >= 0).then_some(v)
+diff --git a/rust/tcl-registry/src/command_descriptor_key.rs b/rust/tcl-registry/src/command_descriptor_key.rs
+index f98d9200e..46a721c0b 100644
+--- a/rust/tcl-registry/src/command_descriptor_key.rs
++++ b/rust/tcl-registry/src/command_descriptor_key.rs
+@@ -20,6 +20,14 @@ impl<'a> CanonicalCommandDescriptorKey<'a> {
+     }
+ }
+ 
++impl crate::CommandSpec {
++    /// Exact descriptor label; no written-name or runtime binding authority.
++    #[must_use]
++    pub const fn descriptor_key(&self) -> CanonicalCommandDescriptorKey<'static> {
++        CanonicalCommandDescriptorKey::from_registry_label(self.name)
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/rust/tcl-registry/src/registry.rs b/rust/tcl-registry/src/registry.rs
+index 88438d06b..7d1997a4e 100644
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -2655,6 +2655,16 @@ impl CommandRegistry {
+         self.get(name).and_then(|s| s.bpf_op)
+     }
+ 
++    /// BPF metadata for an independently selected exact descriptor label.
++    /// This performs no written-name lookup and grants no runtime binding.
++    #[must_use]
++    pub fn bpf_op_for_descriptor(
++        &self,
++        key: crate::CanonicalCommandDescriptorKey<'_>,
++    ) -> Option<&'static crate::bpf_op::BpfOpSpec> {
++        self.get_exact(key.label()).and_then(|spec| spec.bpf_op)
++    }
++
+     /// Validated condition/body positions for a closed BPF language command.
+     /// The frontend must separately retain literal original words and reject
+     /// expansions. This syntax projection provides no Tcl execution evidence.

@@ -32,4 +32,6 @@ targets. The dedicated outstanding audit routes new gaps; root integrates
 reviewed patches and owns tooling/AI migrations. Sparse fixture omissions and
 failed builds are retained separately from fresh acceptance. The17:20 BST
 tracking checkpoint was delayed during disk recovery; this17:32 checkpoint
-records current obligations, The18:36 BST update records integrated Runtime variables, passing DB8/server8 and routed outstanding consumer gaps; the next update is due18:51 BST.
+records current obligations, The18:58 BST update records integrated Runtime variables, passing DB8/server8 and routed outstanding consumer gaps; the next update is due19:13 BST.
+
+Current: integrated BPF shared descriptor consumers (88 scoped passes); integrated SourceScope admission controls pending combined validation. Query, procedure identity, publication/replay and snapshot consumers remain active implementations. Build binary removed from retained publication experiment; source/log/hash retained. Next tracking checkpoint 18:13 UTC.

@@ -33,6 +33,9 @@ alternative. Procedure/method source bodies retain local tables. Absolute zero
 uplevel selects root source tables, relative zero retains the source caller's
 frame, and an unknown caller cannot donate enclosing local/namespace/root
 lookup tables. A nested declared body selects its own source boundary.
+A missing namespace coordinate preserves the body's source table without a
+root fallback or a guessed qualifier. Embedded interpreter bodies cannot
+borrow the document root and decline this source selector.
 Independent root completion candidates require rooted insertion when the
 selected source scope cannot use their bare names. This source view supplies
 no entered activation, completed alias, current contents or Native capability.

@@ -1,0 +1,33 @@
+
+running 28 tests
+test ebpf::btf::tests::btf_encodes_type_and_str_lengths_consistently ... ok
+test ebpf::btf::tests::btf_header_is_well_formed ... ok
+test ebpf::btf::tests::empty_maps_produce_no_btf ... ok
+test ebpf::elf::tests::func_symbol_describes_the_program ... ok
+test ebpf::elf::tests::header_is_em_bpf_rel_elf64_le ... ok
+test ebpf::elf::tests::kernel_map_free_object_uses_the_compact_layout ... ok
+test ebpf::elf::tests::kernel_map_object_has_maps_btf_and_reloc_sections ... ok
+test ebpf::elf::tests::rbpf_maps_need_a_kernel_target ... ok
+test ebpf::elf::tests::section_count_and_shstrndx_consistent ... ok
+test ebpf::elf::tests::socket_filter_section_is_named_socket ... ok
+test ebpf::elf::tests::xdp_program_section_is_named_xdp ... ok
+test ebpf::emit::tests::accept_all_ends_in_exit ... ok
+test ebpf::emit::tests::division_uses_signed_ops ... ok
+test ebpf::emit::tests::drop_is_mov0_exit ... ok
+test ebpf::emit::tests::kernel_map_lookup_emits_pseudo_fd_and_helper_call ... ok
+test ebpf::emit::tests::kernel_map_update_emits_update_helper ... ok
+test ebpf::emit::tests::kernel_packet_load_has_dominating_bounds_proof ... ok
+test ebpf::emit::tests::kernel_socket_reads_sk_buff_context_fields ... ok
+test ebpf::emit::tests::kernel_target_rejects_wrong_program_type ... ok
+test ebpf::emit::tests::kernel_xdp_reads_xdp_md_context_fields ... ok
+test ebpf::emit::tests::kernel_xdp_verdict_only_has_no_context_prologue ... ok
+test ebpf::emit::tests::port_filter_has_branches ... ok
+test ebpf::verifier::tests::a_missing_relocation_is_flagged ... ok
+test ebpf::verifier::tests::a_packet_load_without_a_proof_is_flagged ... ok
+test ebpf::verifier::tests::map_program_verifies_with_relocations ... ok
+test ebpf::verifier::tests::socket_packet_read_verifies ... ok
+test ebpf::verifier::tests::verdict_only_xdp_verifies ... ok
+test ebpf::verifier::tests::xdp_packet_read_verifies ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.30s
+

@@ -4197,6 +4197,7 @@ impl Analyser {
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
             child.body_span = Some(body_tok.span);
+            child.isolated_interpreter_source_body = true;
             child.original_interpreter_source_domain = visibility
                 .as_ref()
                 .map(|snapshot| snapshot.reporting_domain(domain.clone()));

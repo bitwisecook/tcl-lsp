@@ -1,0 +1,6 @@
+
+thread 'frontend::tests::plain_set_is_rejected' (103290) panicked at rust/bpf-tcl-ir/src/frontend.rs:601:9:
+assertion `left == right` failed
+  left: UnknownCommand
+ right: OutOfSubset
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

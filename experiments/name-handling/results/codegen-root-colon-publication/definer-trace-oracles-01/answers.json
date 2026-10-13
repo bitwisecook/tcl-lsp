@@ -1,0 +1,108 @@
+{
+  "utc": "2026-10-13T17:38:52Z",
+  "scope": "Direct actual enter-trace mutation, definer selection and absence of publication. No compiler, native-entry, Tcltest or F5 acceptance. Jim latest upstream freshness is not reverified by this capture.",
+  "runs": [
+    {
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "stdout": "8.4.20.stdout",
+      "stderr": "8.4.20.stderr",
+      "latest_upstream_verified": null
+    },
+    {
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "stdout": "8.5.19.stdout",
+      "stderr": "8.5.19.stderr",
+      "latest_upstream_verified": null
+    },
+    {
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "stdout": "8.6.18.stdout",
+      "stderr": "8.6.18.stderr",
+      "latest_upstream_verified": null
+    },
+    {
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "binary_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "stdout": "9.0.4.stdout",
+      "stderr": "9.0.4.stderr",
+      "latest_upstream_verified": null
+    },
+    {
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "binary_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "stdout": "9.1.0.stdout",
+      "stderr": "9.1.0.stderr",
+      "latest_upstream_verified": null
+    },
+    {
+      "version": "jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-root-colon-publication/definer-trace-oracles-01/enter-trace-replaces-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "input_sha256": "223872b073a51b8caa7895f8dd086b92d0f2c5656b452bf0210578c9356c2ab5",
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 1,
+      "stdout": "jim.stdout",
+      "stderr": "jim.stderr",
+      "latest_upstream_verified": false
+    }
+  ]
+}

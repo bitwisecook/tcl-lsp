@@ -1,0 +1,145 @@
+[
+  {
+    "provider": "c84",
+    "expected_release": "8.4.20",
+    "captured_utc": "2026-10-13T17:44:36.038482+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "88e3069a5037b151a959652427d2305e13a0e5cdc26314a5cdc2869c5f7912c8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c85",
+    "expected_release": "8.5.19",
+    "captured_utc": "2026-10-13T17:44:36.164545+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "d1521e5393dd104c0c20c88c595429b7c060715d93b05fc5feac3c29c0348d63",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c86",
+    "expected_release": "8.6.18",
+    "captured_utc": "2026-10-13T17:44:36.279203+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "c0192ae795749b9fd3feba5d617e3cc22821356c723df24753d8ace588f03f65",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c90",
+    "expected_release": "9.0.4",
+    "captured_utc": "2026-10-13T17:44:36.415552+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "01e428a286ffb5ca7e36f154bc5c8638fa9fd4a2d6d84ca39f796e6300a8927a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c91",
+    "expected_release": "9.1.0",
+    "captured_utc": "2026-10-13T17:44:36.545661+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "b2327ae9dd7694f7bba5634a38b6e8a9c02695561db8a1177503e20ed60c30fc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "jim",
+    "expected_release": "selected latest Jim source checkout",
+    "captured_utc": "2026-10-13T17:44:36.580832+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-snapshot-pattern-oracles-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-snapshot-pattern-oracles-20261013/continued",
+    "selected_environment": {},
+    "unset_environment": [
+      "TCL_LIBRARY",
+      "TCLLIBPATH",
+      "LD_LIBRARY_PATH"
+    ],
+    "input_sha256": "bff2069e961e55ec4fc2c8cd53b4d56cc9c579c7d3d0c3333eb30b5723decd8c",
+    "runner_sha256": "316ce3ca8c9b5c568bb5649cf50f4987949a1d99d3128992323903236f4a47c2",
+    "exit_code": 0,
+    "stdout_sha256": "c65b008b59f40418ba2aa10346e5db68477f5fdf52c94b1d833e6f013acef19d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable benign namespace query and controlled scalar report-address reuse; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  }
+]

@@ -225,7 +225,9 @@ impl EbpfSemanticBridge {
                 });
             }
         };
-        let descriptor = registry.bpf_op(&facts.canonical_command).copied();
+        let descriptor = registry
+            .bpf_op_for_descriptor(facts.descriptor_key())
+            .copied();
         let Some(descriptor) = descriptor else {
             return Err(EbpfInvocationDecline {
                 index,
@@ -524,6 +526,22 @@ mod tests {
 
     fn bpf_context() -> SemanticContext {
         SemanticContext::for_environment("bpf")
+    }
+
+    #[test]
+    fn selected_bpf_descriptor_cannot_borrow_a_written_root_fallback() {
+        let registry = bpf_registry();
+        let mut separately_selected = registry.get_exact("drop").unwrap().clone();
+        separately_selected.name = "::drop";
+        let key = separately_selected.descriptor_key();
+        assert_eq!(key.label(), "::drop");
+        assert!(registry.bpf_op("::drop").is_some());
+        assert!(registry.bpf_op_for_descriptor(key).is_none());
+        assert!(
+            registry
+                .bpf_op_for_descriptor(registry.get_exact("drop").unwrap().descriptor_key())
+                .is_some()
+        );
     }
 
     #[test]

@@ -1,0 +1,15 @@
+{
+  "README.md": "431e2e54f7ad745ca80616bb1dff2b8c39e42d29690d333e3a19255251eafe06",
+  "build.stderr": "e03e5dca7c939d8f671b939b6767103e4c8d965e69b25e40c661a2f5bdb7b612",
+  "build.stdout": "1c2fb7aea97273c8372f459c6f21cd0fe664d2410bdcbb98fb240a0258aa5d79",
+  "capture.py": "b69a57f7bc9d8d499b7756910ecb1bedc9ce16060f1cb4e8ea72dbc5520b26f0",
+  "inputs-after.json": "7eebaa725ef9218b12f7cbf18bfe3ce31dcbc8f278fa297e4fd7b345a081617c",
+  "inputs-before.json": "7eebaa725ef9218b12f7cbf18bfe3ce31dcbc8f278fa297e4fd7b345a081617c",
+  "run.py": "72a496c25bd598bf4902b2e031b1865233a1c832dafb5f428e781aa8a599d858",
+  "runtime-metadata.json": "f3bfdcabe2a94f827d4a038e35874f92c66794d63dce8dbdf4c1adbb0bd14dd1",
+  "selected-local-output-coverage.json": "0700d6fac708ae61882b27af348f391d5579c40d6fd23e9e16c0b6bb3e480420",
+  "selected-output-audit.py": "97c83099729bb1ba1c191ab35597caaa99cec95f833c40d4b803251d7ee9eac3",
+  "source.patch": "0e3d9eadd39f75a0566b1ec4461bea5468eb4be8fb540fc2f87ccc54245e48cf",
+  "validation.json": "ece7f8ab49ee238600ad1d8370cc50fdf66f6f92032125ddad800f550c1479ba",
+  "workspace-metadata.json": "0cf1034639a2c4217e6e3060c644ccdd2d3b41069f6ebb517d894564cd8a9b5f"
+}

@@ -1,0 +1,76 @@
+--- a/rust/tcl-compiler/src/native_lowering/tests.rs
++++ b/rust/tcl-compiler/src/native_lowering/tests.rs
+@@ -188,6 +188,73 @@
+             unit.top_level.source_lexer_config(),
+         )
+     });
++    if std::env::var_os("TCL_LSP_TRACE_PROC_ENTRY_GATES").is_some() {
++        let metadata =
++            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
++        let proof = crate::dispatch_proof::analyse_original_dispatch_stability(
++            function,
++            facts.dispatch_entry_assumption(),
++            registry,
++            metadata,
++        );
++        eprintln!(
++            "PROC_ENTRY_CONTEXT assumption={:?} metadata={}",
++            facts.dispatch_entry_assumption(),
++            metadata.is_some()
++        );
++        for (block_index, block) in function.blocks.iter().enumerate() {
++            for (position, instruction) in block.instructions.iter().enumerate() {
++                let crate::executable_ir::ExecutableInstruction::Invoke(invoke) = instruction
++                else {
++                    continue;
++                };
++                let target = invoke
++                    .source_binding
++                    .as_ref()
++                    .and_then(|binding| binding.proved_execution_target());
++                let purpose = invoke.source_binding.as_ref().and_then(|binding| {
++                    let (_, mut tokens) = binding.original_recorded_command()?;
++                    tokens.source_binding = Some(binding.clone());
++                    binding.original_invocation_source_purpose(&tokens, metadata?, registry)
++                });
++                let resolved = match &invoke.resolution {
++                    crate::executable_ir::InvocationResolution::Resolved(facts) => Some((
++                        facts.canonical_command.as_str(),
++                        facts.dispatch_dependencies,
++                    )),
++                    _ => None,
++                };
++                let site = proof.site(
++                    u32::try_from(block_index).unwrap(),
++                    u32::try_from(position).unwrap(),
++                );
++                let declaration = module
++                    .procedures
++                    .values()
++                    .find(|procedure| procedure.span == invoke.source.span);
++                let literal_definition = declaration.and_then(|procedure| {
++                    Some(
++                        crate::native_lowering::lower::definition_words_are_written_out(
++                            &invoke.original_words,
++                            &procedure.params_raw,
++                            procedure.body_source.as_deref()?,
++                        ),
++                    )
++                });
++                eprintln!(
++                    "PROC_ENTRY_GATES block={block_index} instruction={position} span={:?} exact_arguments={} purpose={purpose:?} target={:?} resolved={resolved:?} site={site:?} declaration={:?} literal_definition={literal_definition:?}",
++                    invoke.source.span,
++                    invoke.registry_specialisation_arguments_exact(),
++                    target.map(|target| (
++                        target.command.as_str(),
++                        target.registry_backed,
++                        target.prepended.len()
++                    )),
++                    declaration.map(|procedure| procedure.qualified_name.as_str()),
++                );
++            }
++        }
++    }
+     let hints = BTreeMap::new();
+     lower_function(&LoweringInput {
+         registry,

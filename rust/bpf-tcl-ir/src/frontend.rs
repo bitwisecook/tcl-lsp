@@ -30,7 +30,7 @@ use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::bpf_op::{BpfDeclKind, BpfOpKind};
+use tcl_registry::bpf_op::BpfDeclKind;
 use tcl_registry::model::ingress::static_context_for;
 
 use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
@@ -40,7 +40,7 @@ use crate::event::{event_to_prog_type, known_event_names};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
 use crate::lower::{lower_function_with_config, parse_int};
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
-use crate::source::lower_bpf_source;
+use crate::source::{lower_bpf_source, source_declaration_kind};
 use crate::template::{TemplateDef, collect_templates, expand_uses};
 use crate::unroll::unroll_loops;
 
@@ -69,17 +69,9 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
 
     for stmt in &module.top_level.statements {
         if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            tokens,
-            span,
-            ..
+            args, tokens, span, ..
         } = stmt
-            && decl_kind(
-                canonical_command.as_deref().unwrap_or(command.as_str()),
-                registry,
-            ) == Some(BpfDeclKind::When)
+            && source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
         {
             saw_when = true;
             programs.push(lower_when_decl(
@@ -103,11 +95,8 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
         for stmt in &module.top_level.statements {
             let is_when = matches!(
                 stmt,
-                Statement::Call { command, canonical_command, .. }
-                    if decl_kind(
-                        canonical_command.as_deref().unwrap_or(command.as_str()),
-                        registry,
-                    ) == Some(BpfDeclKind::When)
+                Statement::Call { .. }
+                    if source_declaration_kind(stmt, registry) == Some(BpfDeclKind::When)
             );
             if !is_when && !is_decl(stmt, registry) {
                 let (name, span) = stray_stmt_info(stmt);
@@ -128,10 +117,10 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     if !saw_when {
         let body = strip_decls(&module.top_level, registry);
         if !body.statements.is_empty() {
-            let used = expand_uses(&body, &templates, registry.numbers())?;
+            let used = expand_uses(&body, &templates, registry)?;
             let unrolled = unroll_loops(&used, registry)?;
             let expanded = match profile.as_ref() {
-                Some(p) => expand_fields(&unrolled, p)?,
+                Some(p) => expand_fields(&unrolled, p, registry)?,
                 None => unrolled,
             };
             check_policy(&expanded, &policy, registry)?;
@@ -153,7 +142,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
     }
 
     // Hang the (optional) deployment target off each program it governs.
-    resolve_attach(&module.top_level, &mut programs)?;
+    resolve_attach(&module.top_level, &mut programs, registry)?;
 
     // Deterministic order: ascending priority (lower = runs first, F5-style),
     // then event name as a tiebreaker.
@@ -281,11 +270,11 @@ fn lower_when_decl(
         .map_or(0, |sp| sp.start() + 1);
 
     let body_module = lower_bpf_source(body_text, registry);
-    let used = expand_uses(&body_module.top_level, templates, registry.numbers())
+    let used = expand_uses(&body_module.top_level, templates, registry)
         .map_err(|e| e.offset(source_base))?;
     let unrolled = unroll_loops(&used, registry).map_err(|e| e.offset(source_base))?;
     let expanded = match profile {
-        Some(p) => expand_fields(&unrolled, p).map_err(|e| e.offset(source_base))?,
+        Some(p) => expand_fields(&unrolled, p, registry).map_err(|e| e.offset(source_base))?,
         None => unrolled,
     };
     check_policy(&expanded, policy, registry).map_err(|e| e.offset(source_base))?;
@@ -380,34 +369,17 @@ fn stray_stmt_info(stmt: &Statement) -> (String, Span) {
     }
 }
 
-/// The framework-declaration kind of a command name, from its registry
-/// descriptor.
-fn decl_kind(cmd: &str, registry: &CommandRegistry) -> Option<BpfDeclKind> {
-    match registry.bpf_op(cmd).map(|op| op.kind) {
-        Some(BpfOpKind::Framework(decl)) => Some(decl),
-        _ => None,
-    }
-}
-
 /// Whether a top-level statement is a consumed framework declaration.
 /// Deliberately excluded: `field` (only meaningful inside a `profile` body,
 /// so a top-level one is a stray that lowering rejects), `use` (an expansion
 /// site, spliced in place by `expand_uses`, not a stripped declaration), and
 /// `when` (handled separately).
 fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
-    let Statement::Call {
-        command,
-        canonical_command,
-        ..
-    } = stmt
-    else {
+    let Statement::Call { .. } = stmt else {
         return false;
     };
     matches!(
-        decl_kind(
-            canonical_command.as_deref().unwrap_or(command.as_str()),
-            registry,
-        ),
+        source_declaration_kind(stmt, registry),
         Some(
             BpfDeclKind::Profile
                 | BpfDeclKind::Template
@@ -430,6 +402,48 @@ mod tests {
     /// intentionally profile-less. The front end must instead obtain
     /// the cached, profile-stamped registry so every downstream registry fact
     /// describes BPF's exact Tcl 9.0 embedding.
+    #[test]
+    fn rooted_framework_heads_use_selected_registry_descriptors() {
+        let module = compile_module(
+            "::template verdict {} {::drop}\n::when SOCKET_FILTER {::use verdict}\n",
+        )
+        .expect("root-qualified source heads select the same closed DSL descriptors");
+        assert_eq!(module.programs.len(), 1);
+        assert!(
+            module.programs[0]
+                .program
+                .blocks
+                .iter()
+                .any(|block| { matches!(block.term, Term::Return { .. }) })
+        );
+    }
+
+    #[test]
+    fn rooted_policy_operand_cannot_bypass_selected_descriptor() {
+        for source in ["deny ::drop\n::drop\n", "::deny drop\n::drop\n"] {
+            let error = compile_module(source).expect_err("selected drop descriptor is denied");
+            assert_eq!(error.code, BpfDiag::CapabilityDenied, "{source}: {error:?}");
+        }
+    }
+
+    #[test]
+    fn canonical_report_label_cannot_strip_an_unselected_declaration() {
+        let registry = bpf_registry();
+        let mut module = lower_bpf_source("not_bpf SOCKET_FILTER {drop}\n", registry);
+        let Statement::Call {
+            canonical_command, ..
+        } = &mut module.top_level.statements[0]
+        else {
+            panic!("unknown original head remains a call");
+        };
+        *canonical_command = Some("when".into());
+        assert_eq!(
+            source_declaration_kind(&module.top_level.statements[0], registry),
+            None
+        );
+        assert_eq!(strip_decls(&module.top_level, registry).statements.len(), 1);
+    }
+
     #[test]
     fn bpf_frontend_uses_the_profile_stamped_tcl90_registry() {
         let registry = bpf_registry();

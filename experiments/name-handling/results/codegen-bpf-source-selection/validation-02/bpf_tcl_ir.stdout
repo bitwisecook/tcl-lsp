@@ -1,0 +1,70 @@
+
+running 60 tests
+test compose::tests::a_leading_terminal_short_circuits ... ok
+test compose::tests::all_continue_falls_through_to_default ... ok
+test compose::tests::continuation_sentinel_classifies_as_continue ... ok
+test compose::tests::first_terminal_wins_and_stops_the_chain ... ok
+test compose::tests::real_verdicts_classify_as_terminal ... ok
+test frontend::tests::accept_all_compiles_to_one_program ... ok
+test frontend::tests::bpf_conditional_does_not_admit_dynamic_words_or_tcl_replacement ... ok
+test frontend::tests::bpf_conditional_syntax_preserves_nested_static_branches ... ok
+test frontend::tests::bpf_frontend_uses_the_profile_stamped_tcl90_registry ... ok
+test frontend::tests::bpf_source_numbers_ignore_an_ambient_tcl85_runtime ... ok
+test frontend::tests::bpf_structured_bodies_ignore_an_ambient_tcl85_runtime ... ok
+test frontend::tests::canonical_report_label_cannot_strip_an_unselected_declaration ... ok
+test frontend::tests::declarations_alongside_when_are_still_accepted ... ok
+test frontend::tests::drop_all_raw_dsl ... ok
+test frontend::tests::every_registered_bpf_command_has_a_descriptor ... ok
+test frontend::tests::every_registry_described_event_now_compiles ... ok
+test frontend::tests::every_registry_event_is_handled_by_its_schema ... ok
+test frontend::tests::next_is_a_valid_handler_outcome ... ok
+test frontend::tests::plain_set_is_rejected ... FAILED
+test frontend::tests::port_filter_compiles ... ok
+test frontend::tests::rooted_framework_heads_use_selected_registry_descriptors ... ok
+test frontend::tests::rooted_policy_operand_cannot_bypass_selected_descriptor ... ok
+test frontend::tests::stray_top_level_statement_after_when_is_rejected ... ok
+test frontend::tests::two_handlers_sharing_a_priority_are_ambiguous ... ok
+test frontend::tests::two_handlers_with_distinct_priorities_compose ... ok
+test frontend::tests::unknown_event_is_rejected ... ok
+test loader::tests::detach_never_removes_a_foreign_pin ... ok
+test loader::tests::empty_module_cannot_load ... ok
+test loader::tests::full_lifecycle_load_attach_detach_leaks_nothing ... ok
+test loader::tests::out_of_order_steps_are_rejected ... ok
+test loader::tests::partial_attach_failure_rolls_back_links_and_stays_loaded ... ok
+test loader::tests::partial_load_failure_rolls_back_every_program ... ok
+test loader::tests::pin_paths_are_unique_and_ownership_labelled ... ok
+test loader::tests::refuses_to_attach_over_a_foreign_pin ... ok
+test loader::tests::test_run_rejects_unsupported_program_types ... ok
+test loader::tests::test_run_returns_a_value_for_supported_types ... ok
+test lower::tests::an_older_target_reads_the_same_numerals_differently ... ok
+test lower::tests::canonical_report_label_cannot_emit_a_different_bpf_operation ... ok
+test lower::tests::coroutine_barrier_uses_registry_identity_for_specific_diagnostic ... ok
+test lower::tests::every_binop_variant_matches_the_documented_v1_subset_exactly ... ok
+test lower::tests::every_unaryop_variant_matches_the_documented_v1_subset_exactly ... ok
+test lower::tests::expression_braced_scalar_names_preserve_literal_dollar_and_namespace_bytes ... ok
+test lower::tests::expression_variable_references_do_not_borrow_an_array_roots_scalar_slot ... ok
+test lower::tests::integer_literals_follow_the_target_dialects_number_grammar ... ok
+test lower::tests::observed_native_completion_is_not_synthesised_as_a_bpf_verdict ... ok
+test lower::tests::out_of_subset_binop_in_a_real_program_is_rejected_not_panicked ... ok
+test ringbuf::tests::bad_magic_and_version_are_rejected ... ok
+test ringbuf::tests::header_round_trips_and_validates ... ok
+test ringbuf::tests::json_and_text_render_named_fields ... ok
+test ringbuf::tests::network_order_field_is_big_endian_on_the_wire ... ok
+test ringbuf::tests::oversized_record_is_dropped_not_truncated ... ok
+test ringbuf::tests::payload_size_mismatch_is_detected ... ok
+test ringbuf::tests::record_round_trips_field_values_in_declared_order ... ok
+test ringbuf::tests::ring_buffer_counts_drops_under_back_pressure ... ok
+test semantic_bridge::tests::any_common_tcl_world_access_prevents_sealing ... ok
+test semantic_bridge::tests::available_zero_invocation_function_cannot_be_sealed ... ok
+test semantic_bridge::tests::bpf_descriptor_alone_never_seals_a_generic_tcl_invocation ... ok
+test semantic_bridge::tests::non_bpf_lowered_statement_retains_a_typed_shape_decline ... ok
+test semantic_bridge::tests::selected_bpf_descriptor_cannot_borrow_a_written_root_fallback ... ok
+test semantic_bridge::tests::target_contract_is_keyed_by_descriptor_semantics_not_invoke ... ok
+
+failures:
+
+failures:
+    frontend::tests::plain_set_is_rejected
+
+test result: FAILED. 59 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.91s
+

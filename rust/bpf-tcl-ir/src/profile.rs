@@ -47,7 +47,9 @@ use tcl_registry::registry::CommandRegistry;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+use crate::source::{
+    lower_bpf_source, source_command_head, source_declaration_kind, synthetic_operation_call,
+};
 use crate::ty::ByteOrder;
 
 /// A named header field at a fixed packet offset.
@@ -142,14 +144,9 @@ pub fn collect_profile(
 ) -> Result<Option<BpfProfileSpec>, BpfError> {
     let mut found: Option<BpfProfileSpec> = None;
     for stmt in &top_level.statements {
-        if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
-        } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "profile"
+        if let Statement::Call { args, span, .. } = stmt
+            && source_declaration_kind(stmt, registry)
+                == Some(tcl_registry::bpf_op::BpfDeclKind::Profile)
         {
             if found.is_some() {
                 return Err(BpfError::new(
@@ -202,7 +199,6 @@ fn parse_user_profile(
     for stmt in &module.top_level.statements {
         let Statement::Call {
             command,
-            canonical_command,
             args,
             span,
             ..
@@ -216,8 +212,9 @@ fn parse_user_profile(
                 "only `field` declarations are allowed inside a `profile` body",
             ));
         };
-        let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
-        if cmd != "field" {
+        let cmd = source_command_head(stmt).unwrap_or(command);
+        if source_declaration_kind(stmt, registry) != Some(tcl_registry::bpf_op::BpfDeclKind::Field)
+        {
             return Err(BpfError::new(
                 BpfDiag::BadProfile,
                 *span,
@@ -278,12 +275,24 @@ fn parse_width(s: &str, numbers: tcl_syntax::number::NumberSyntax) -> Option<u8>
 ///
 /// # Errors
 /// A field command with the wrong arity.
-pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script, BpfError> {
+pub fn expand_fields(
+    script: &Script,
+    profile: &BpfProfileSpec,
+    registry: &CommandRegistry,
+) -> Result<Script, BpfError> {
     let mut needs_pkt = false;
-    let body = expand_script(script, profile, &mut needs_pkt)?;
+    let body = expand_script(script, profile, registry, &mut needs_pkt)?;
     let mut stmts = body.statements;
     if needs_pkt {
-        stmts.insert(0, synth_call("setbuf", &["__pkt", "ctx"], Span::empty(0)));
+        stmts.insert(
+            0,
+            synthetic_operation_call(
+                tcl_registry::bpf_op::BpfOpKind::BindPacket,
+                vec!["__pkt".into(), "ctx".into()],
+                Span::empty(0),
+                registry,
+            )?,
+        );
     }
     Ok(Script::from_statements(stmts))
 }
@@ -291,19 +300,17 @@ pub fn expand_fields(script: &Script, profile: &BpfProfileSpec) -> Result<Script
 fn expand_script(
     script: &Script,
     profile: &BpfProfileSpec,
+    registry: &CommandRegistry,
     needs_pkt: &mut bool,
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
         match stmt {
-            Statement::Call {
-                command,
-                canonical_command,
-                args,
-                span,
-                ..
-            } => {
-                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+            Statement::Call { args, span, .. } => {
+                let Some(cmd) = source_command_head(stmt) else {
+                    out.push(stmt.clone());
+                    continue;
+                };
                 if let Some(f) = profile.field(cmd) {
                     if args.len() != 1 {
                         return Err(BpfError::new(
@@ -313,21 +320,24 @@ fn expand_script(
                         ));
                     }
                     *needs_pkt = true;
-                    let load = match f.width_bits {
-                        8 => "load8",
-                        16 => "load16",
-                        _ => "load32",
-                    };
                     let order = match f.order {
                         ByteOrder::Big => "be",
                         ByteOrder::Little => "le",
                         ByteOrder::Native => "native",
                     };
-                    out.push(synth_call(
-                        load,
-                        &[&args[0], "__pkt", &f.offset.to_string(), order],
+                    out.push(synthetic_operation_call(
+                        tcl_registry::bpf_op::BpfOpKind::PacketLoad {
+                            width_bits: f.width_bits,
+                        },
+                        vec![
+                            args[0].clone(),
+                            "__pkt".into(),
+                            f.offset.to_string(),
+                            order.into(),
+                        ],
                         *span,
-                    ));
+                        registry,
+                    )?);
                 } else {
                     out.push(stmt.clone());
                 }
@@ -345,14 +355,14 @@ fn expand_script(
                             condition: c.condition.clone(),
                             condition_span: c.condition_span,
                             condition_base: c.condition_base,
-                            body: expand_script(&c.body, profile, needs_pkt)?,
+                            body: expand_script(&c.body, profile, registry, needs_pkt)?,
                             body_span: c.body_span,
                         })
                     })
                     .collect::<Result<Vec<_>, BpfError>>()?;
                 let else_body = else_body
                     .as_ref()
-                    .map(|b| expand_script(b, profile, needs_pkt))
+                    .map(|b| expand_script(b, profile, registry, needs_pkt))
                     .transpose()?;
                 out.push(Statement::If {
                     span: *span,
@@ -365,20 +375,4 @@ fn expand_script(
         }
     }
     Ok(Script::from_statements(out))
-}
-
-/// Build a synthetic IR `Call` (used to splice expanded commands).
-fn synth_call(cmd: &str, args: &[&str], span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: cmd.to_owned(),
-        canonical_command: None,
-        args: args.iter().map(|s| (*s).to_owned()).collect(),
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
-    }
 }

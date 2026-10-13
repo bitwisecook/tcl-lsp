@@ -1,0 +1,2 @@
+IDENTITY 0.84-9-g5bac7c9
+ROW library 1 {info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version}

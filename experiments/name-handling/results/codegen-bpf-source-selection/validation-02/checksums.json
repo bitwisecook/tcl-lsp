@@ -1,0 +1,20 @@
+{
+  "README.md": "55aad79ad6194966bc495dd7668da9a096a8c57f5a58658ccef310fee9406ebe",
+  "artifacts.json": "cde8af8a721b67b616a55063dc085f6d4652bef90398c6965337d83ace2098b9",
+  "bpf_tcl_codegen.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "bpf_tcl_codegen.stdout": "5824f9fbdd233297b173ea538e5225f684750fe92f97182f49eb1d06716b1503",
+  "bpf_tcl_ir.stderr": "31c4994cd14e89b5c16186bb2f8975b89f80299ca3c88d8e2a4eed7b204a765e",
+  "bpf_tcl_ir.stdout": "6e3548c0508291b69bb88860a9a6e4c2e4a0987d5059414efe5dcec88af67b23",
+  "build.stderr": "5115e2d67d0f46ea4c99aea398ce23de049460f7f2d700509518ce4e505770fe",
+  "build.stdout": "4f1cbc5170ccfbdcd8aad7db5c8c4e3a839a9ba1bf5bee27dc192e9fbf8826af",
+  "capture.py": "b69a57f7bc9d8d499b7756910ecb1bedc9ce16060f1cb4e8ea72dbc5520b26f0",
+  "inputs-after.json": "570e5dc20e5be437e6b32e15c4d37b47b86dbed654cace879d45cbd6da025580",
+  "inputs-before.json": "570e5dc20e5be437e6b32e15c4d37b47b86dbed654cace879d45cbd6da025580",
+  "run.py": "bf7d76e03b17d320e47d073fcb338a13ec4c617ce1e0c2e6fbb703743a9ee1f8",
+  "runtime-metadata.json": "f3bfdcabe2a94f827d4a038e35874f92c66794d63dce8dbdf4c1adbb0bd14dd1",
+  "selected-local-output-coverage.json": "d72eb9ead6a7b5c9579b669db0833e9ce4f8613b4b49350543e8d296ad86e9bb",
+  "selected-output-audit.py": "97c83099729bb1ba1c191ab35597caaa99cec95f833c40d4b803251d7ee9eac3",
+  "source.patch": "ec065507f05aa9e920b597f80a86730b3a82d1aa40b603a8a8323f612719d4ce",
+  "validation.json": "8caa13a10fc3bfea69a1ccb4d169e30a4ea26f5d60e95ed80d3fc8bb9c6499c0",
+  "workspace-metadata.json": "0cf1034639a2c4217e6e3060c644ccdd2d3b41069f6ebb517d894564cd8a9b5f"
+}

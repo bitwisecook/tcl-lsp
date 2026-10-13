@@ -220,12 +220,13 @@ mod tests {
         };
         *text = "q".into();
         tokens.argv_texts[1] = "q".into();
-        assert!(realm
-            .source_bindings_ref()
-            .original_procedure_read_declaration(&tokens, context.commands(), input)
-            .is_none());
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .is_none()
+        );
     }
-
 
     #[test]
     fn provider_surface_requires_selection_loading_and_an_unchanged_handler() {

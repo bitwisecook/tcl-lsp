@@ -37,7 +37,7 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+use crate::source::{lower_bpf_source, source_declaration_kind, synthetic_operation_call};
 
 /// The deepest a `use` may nest (one template using another), a guard against
 /// mutually-recursive templates expanding forever.
@@ -65,14 +65,9 @@ pub fn collect_templates(
 ) -> Result<Vec<TemplateDef>, BpfError> {
     let mut out: Vec<TemplateDef> = Vec::new();
     for stmt in &top_level.statements {
-        if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
-        } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "template"
+        if let Statement::Call { args, span, .. } = stmt
+            && source_declaration_kind(stmt, registry)
+                == Some(tcl_registry::bpf_op::BpfDeclKind::Template)
         {
             let def = parse_template(args, *span, registry)?;
             if out.iter().any(|t| t.name == def.name) {
@@ -119,28 +114,25 @@ fn parse_template(
 pub fn expand_uses(
     script: &Script,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
 ) -> Result<Script, BpfError> {
-    expand_script(script, templates, numbers, 0)
+    expand_script(script, templates, registry, 0)
 }
 
 fn expand_script(
     script: &Script,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
 ) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
         match stmt {
-            Statement::Call {
-                command,
-                canonical_command,
-                args,
-                span,
-                ..
-            } if canonical_command.as_deref().unwrap_or(command.as_str()) == "use" => {
-                expand_use(args, *span, templates, numbers, depth, &mut out)?;
+            Statement::Call { args, span, .. }
+                if source_declaration_kind(stmt, registry)
+                    == Some(tcl_registry::bpf_op::BpfDeclKind::Use) =>
+            {
+                expand_use(args, *span, templates, registry, depth, &mut out)?;
             }
             Statement::If {
                 span,
@@ -154,7 +146,7 @@ fn expand_script(
                     else_body.as_ref(),
                     *else_span,
                     templates,
-                    numbers,
+                    registry,
                     depth,
                 )?);
             }
@@ -170,7 +162,7 @@ fn expand_if(
     else_body: Option<&Script>,
     else_span: Option<Span>,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
 ) -> Result<Statement, BpfError> {
     let clauses = clauses
@@ -180,13 +172,13 @@ fn expand_if(
                 condition: c.condition.clone(),
                 condition_span: c.condition_span,
                 condition_base: c.condition_base,
-                body: expand_script(&c.body, templates, numbers, depth)?,
+                body: expand_script(&c.body, templates, registry, depth)?,
                 body_span: c.body_span,
             })
         })
         .collect::<Result<Vec<_>, BpfError>>()?;
     let else_body = else_body
-        .map(|b| expand_script(b, templates, numbers, depth))
+        .map(|b| expand_script(b, templates, registry, depth))
         .transpose()?;
     Ok(Statement::If {
         span,
@@ -200,7 +192,7 @@ fn expand_use(
     args: &[String],
     span: Span,
     templates: &[TemplateDef],
-    numbers: NumberSyntax,
+    registry: &CommandRegistry,
     depth: usize,
     out: &mut Vec<Statement>,
 ) -> Result<(), BpfError> {
@@ -226,7 +218,7 @@ fn expand_use(
         )
     })?;
 
-    let pairs = parse_bindings(bindings, span, numbers)?;
+    let pairs = parse_bindings(bindings, span, registry.numbers())?;
     // Every declared parameter must be bound; bind it via a synthetic `setint`.
     for p in &tmpl.params {
         let (_, val) = pairs.iter().find(|(k, _)| k == p).ok_or_else(|| {
@@ -236,7 +228,12 @@ fn expand_use(
                 format!("template `{name}` is missing a binding for `{p}`"),
             )
         })?;
-        out.push(synth_setint(p, *val, span));
+        out.push(synthetic_operation_call(
+            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
+            vec![p.to_owned(), (*val).to_string()],
+            span,
+            registry,
+        )?);
     }
     // Reject bindings that don't name a parameter.
     if let Some((k, _)) = pairs.iter().find(|(k, _)| !tmpl.params.contains(k)) {
@@ -248,7 +245,7 @@ fn expand_use(
     }
 
     // Splice the body, expanding any nested `use` one level deeper.
-    let expanded = expand_script(&tmpl.body, templates, numbers, depth + 1)?;
+    let expanded = expand_script(&tmpl.body, templates, registry, depth + 1)?;
     out.extend(expanded.statements);
     Ok(())
 }
@@ -279,20 +276,4 @@ fn parse_bindings(
         pairs.push((k.to_owned(), n));
     }
     Ok(pairs)
-}
-
-/// Build a synthetic `setint VAR <n>` IR call (a parameter binding).
-fn synth_setint(var: &str, n: i64, span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: "setint".to_owned(),
-        canonical_command: None,
-        args: vec![var.to_owned(), n.to_string()],
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
-    }
 }

@@ -2143,6 +2143,8 @@ pub struct Scope {
     /// geometry remains separate from parent-file reporting identity.
     pub original_interpreter_source_domain:
         Option<std::sync::Arc<super::OriginalInterpreterSourceDomain>>,
+    /// An independently walked interpreter script has its own source root.
+    pub(super) isolated_interpreter_source_body: bool,
     /// Retained authored namespace geometry; supplies no actual activation or token.
     pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
     /// Scope kind (global, namespace, proc).
@@ -2238,6 +2240,7 @@ impl Scope {
         Self {
             kind,
             original_interpreter_source_domain: None,
+            isolated_interpreter_source_body: false,
             naming_scope: None,
             original_member_context: None,
             original_receiver_body_declaration: None,

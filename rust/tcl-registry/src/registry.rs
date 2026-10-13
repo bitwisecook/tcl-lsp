@@ -2655,6 +2655,16 @@ impl CommandRegistry {
         self.get(name).and_then(|s| s.bpf_op)
     }
 
+    /// BPF metadata for an independently selected exact descriptor label.
+    /// This performs no written-name lookup and grants no runtime binding.
+    #[must_use]
+    pub fn bpf_op_for_descriptor(
+        &self,
+        key: crate::CanonicalCommandDescriptorKey<'_>,
+    ) -> Option<&'static crate::bpf_op::BpfOpSpec> {
+        self.get_exact(key.label()).and_then(|spec| spec.bpf_op)
+    }
+
     /// Validated condition/body positions for a closed BPF language command.
     /// The frontend must separately retain literal original words and reject
     /// expansions. This syntax projection provides no Tcl execution evidence.

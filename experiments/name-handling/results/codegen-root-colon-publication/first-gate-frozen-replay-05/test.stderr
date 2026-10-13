@@ -1,0 +1,227 @@
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=initial us=35
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=initial us=1
+LOWER_SOURCE_PHASE bytes=40 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=40 phase=configured ms=0 statements=0 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=40 stage=initial ms=55 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=40 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=40 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=40 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=53 us=77
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=1 us=3
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=1 us=1643
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=3 us=192
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=3 us=66
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=2 us=280
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=3 us=150
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=4 us=1668
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=3 us=887
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=2 us=569
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=3 us=13804
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=2 us=21
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=3 us=18624
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=13
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=30 us=954
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=9 us=760
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=40 stage=walk ms=87 points=5 layouts=3
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=40 stage=walk retained_owners=1 requests=30 captures=9 reuses=21 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=40 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=40 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=command-key scope=cumulative-inclusive calls=89 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=slot-paths scope=cumulative-inclusive calls=34 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=namespace scope=cumulative-inclusive calls=4 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=metadata-advice scope=cumulative-inclusive calls=4 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=lookup-key scope=cumulative-inclusive calls=51 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=baseline scope=cumulative-inclusive calls=2 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=40 stage=walk calls=2 ms=0
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=1
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=1 bytes=15 offset=16 outcomes=0 layouts=3
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=branch scope=thread-cumulative-inclusive calls=53 us=77
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=snapshot scope=thread-cumulative-inclusive calls=1 us=3
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight scope=thread-cumulative-inclusive calls=1 us=1643
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=layout scope=thread-cumulative-inclusive calls=3 us=192
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body scope=thread-cumulative-inclusive calls=3 us=66
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=receiver-body scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-segmentation scope=thread-cumulative-inclusive calls=2 us=280
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-word-tokens scope=thread-cumulative-inclusive calls=3 us=150
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=compiler-selection scope=thread-cumulative-inclusive calls=4 us=1668
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-arguments scope=thread-cumulative-inclusive calls=3 us=887
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=native-invocation-preparation scope=thread-cumulative-inclusive calls=2 us=569
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=point-capture scope=thread-cumulative-inclusive calls=3 us=13804
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=continuation-capture scope=thread-cumulative-inclusive calls=2 us=21
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=selected-command scope=thread-cumulative-inclusive calls=3 us=18624
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=13
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-publication scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-memo scope=thread-cumulative-inclusive calls=30 us=954
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-capture scope=thread-cumulative-inclusive calls=9 us=760
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=1 outcomes=0 layouts=3
+SOURCE_DEFERRED_PHASE stage=called ms=7 roots=1 outcomes=0 layouts=3
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=2 layouts=3
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=1 visits=0 pending=0 layouts=3
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=3 layouts=3
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=11 visits=0 pending=0 layouts=3
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=11 visits=0 pending=0 layouts=3
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=13 visits=0 pending=0 layouts=3
+SOURCE_DEFERRED_PHASE stage=layouts ms=20 roots=1 outcomes=0 layouts=3
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=71 us=103
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=1 us=212
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=2 us=7
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=2 us=4180
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=4 us=238
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=5 us=110
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=1 us=6491
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=3 us=313
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=9 us=323
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=6 us=3394
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=4 us=928
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=3 us=801
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=4 us=14312
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=2 us=21
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=4 us=20377
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=2 us=14
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=3 us=3
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=52 us=1065
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=9 us=760
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=40 stage=deferred ms=108 points=5 layouts=3
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=40 stage=deferred retained_owners=1 requests=52 captures=9 reuses=43 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=40 stage=deferred requests=3 builds=1 reuses=2 scanned_rows=889 scanned_alternatives=889
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=40 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=command-key scope=cumulative-inclusive calls=155 ms=1 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=slot-paths scope=cumulative-inclusive calls=61 ms=1 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=namespace scope=cumulative-inclusive calls=4 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=5 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=lookup-key scope=cumulative-inclusive calls=90 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=baseline scope=cumulative-inclusive calls=2 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=40 stage=deferred calls=2 ms=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=71 us=103
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=1 us=212
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=2 us=7
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=2 us=4180
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=4 us=238
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=5 us=110
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=2 us=2
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=1 us=6491
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=3 us=313
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=9 us=323
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=6 us=3394
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=4 us=928
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=3 us=801
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=4 us=14312
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=2 us=21
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=4 us=20377
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=2 us=14
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=3 us=3
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=52 us=1065
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=9 us=760
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=40 stage=complete ms=108 points=5 layouts=3
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=40 stage=complete retained_owners=1 requests=52 captures=9 reuses=43 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=40 stage=complete requests=3 builds=1 reuses=2 scanned_rows=889 scanned_alternatives=889
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=40 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=command-key scope=cumulative-inclusive calls=155 ms=1 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=slot-paths scope=cumulative-inclusive calls=61 ms=1 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=namespace scope=cumulative-inclusive calls=4 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=metadata-advice scope=cumulative-inclusive calls=5 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=lookup-key scope=cumulative-inclusive calls=90 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=baseline scope=cumulative-inclusive calls=2 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=40 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=binding-analysis ms=108 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=segmented ms=0 commands=2 statements=0
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=commands ms=9 commands=2 statements=2
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=admission ms=9 commands=2 statements=2
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=source ms=11 commands=2 statements=2
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=script ms=120 commands=0 statements=2
+LOWER_SCRIPT_PHASE bytes=40 depth=1 phase=restore ms=120 commands=0 statements=2
+LOWER_SOURCE_PHASE bytes=40 phase=lowered ms=120 statements=2 procedures=0
+SOURCE_BODY_PROJECTION requests=1 captures=1 points=5 reads=0
+LOWER_ORIGINAL_BODY_PHASE bytes=15 base=16 phase=selected-projection scope=body-inclusive ms=0
+LOWER_ORIGINAL_BODY_PHASE bytes=15 base=16 phase=math-inventory scope=body-inclusive ms=1
+LOWER_ORIGINAL_BODY_PHASE bytes=15 base=16 phase=expression-inventory scope=body-inclusive ms=1
+LOWER_SCRIPT_PHASE bytes=15 depth=1 phase=segmented ms=0 commands=1 statements=0
+LOWER_SCRIPT_PHASE bytes=15 depth=1 phase=commands ms=6 commands=1 statements=1
+LOWER_SCRIPT_PHASE bytes=15 depth=1 phase=admission ms=6 commands=1 statements=1
+LOWER_SCRIPT_PHASE bytes=15 depth=1 phase=source ms=8 commands=1 statements=1
+LOWER_ORIGINAL_BODY_PHASE bytes=15 base=16 phase=lowered scope=body-inclusive ms=9
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=lowered us=204254
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=factories us=204298
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=inline-uplevel us=204309
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=prepared us=300934
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=cfg-built us=323541
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=40 procedures=0 stage=enriched us=323792
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=lower-and-cfg us=323946
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=module-context us=327513
+SOURCE_INVOCATION_PROJECT site=16 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=0 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=33 ms=0 targets=1 unknown=false
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=unit-scope us=374019
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=module-facts us=381551
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=procedure-transfers us=381602
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=top-level-lattice us=408769
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=procedure-lattices us=408812
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=method-and-body-lattices us=413388
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=40 procedures=0 stage=connection-scope us=413424
+COMPILER_FUNCTION_PHASE_TOTALS pipeline=unit final=true functions=2 blocks=4 statements=4 prepare_us=179 ssa_us=17330 def_use_us=26 dynamic_names_us=550 sccp_us=6563 existence_us=63 types_us=931 rendered_us=35 instance_classes_us=4979 taint_us=181
+PROC_ENTRY_CONTEXT assumption=PristineRegistryWorld metadata=true
+PROC_ENTRY_GATES block=9 instruction=0 span=Span { start: 0, end: 32 } exact_arguments=true purpose=Some(Execution) target=Some(("proc", true, 0)) resolved=Some(("proc", DispatchDependencies(15))) site=None declaration=None literal_definition=None
+PROC_ENTRY_GATES block=15 instruction=0 span=Span { start: 33, end: 39 } exact_arguments=false purpose=Some(Execution) target=Some((":::audit", false, 0)) resolved=None site=None declaration=None literal_definition=None
+
+thread 'native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand' (106171) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1345:9:
+assertion `left == right` failed: a QName-only or wholly declined control cannot establish the transport
+  left: [GenericInvoke, GenericInvoke]
+ right: [NativeDefinition, GenericInvoke]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

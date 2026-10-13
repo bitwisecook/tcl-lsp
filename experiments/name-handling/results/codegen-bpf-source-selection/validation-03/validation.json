@@ -1,0 +1,88 @@
+{
+  "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "started_utc": "2026-10-13T17:32:44Z",
+  "scope": "Production BPF source/descriptor consumers, typed IR and eBPF lib tests. No temporary instrumentation, Runtime/WASM/native-entry or C/Jim/F5 execution.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/name-agent-target-codegen",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_NET_OFFLINE": "true"
+  },
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+      "exit_code": 0,
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14",
+      "exit_code": 0,
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    }
+  },
+  "tests": [
+    {
+      "argv": [
+        "/tmp/name-agent-target-codegen/debug/deps/bpf_tcl_codegen-1aceb0f469322569",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 4.7498698130002595,
+      "stdout": "bpf_tcl_codegen.stdout",
+      "stderr": "bpf_tcl_codegen.stderr",
+      "executed_test_count": 28
+    },
+    {
+      "argv": [
+        "/tmp/name-agent-target-codegen/debug/deps/bpf_tcl_ir-8d4bc751fca19d8a",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 11.25996632800161,
+      "stdout": "bpf_tcl_ir.stdout",
+      "stderr": "bpf_tcl_ir.stderr",
+      "executed_test_count": 60
+    }
+  ],
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "bpf-tcl-codegen",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 4.053066442000272,
+    "stdout": "build.stdout",
+    "stderr": "build.stderr"
+  },
+  "executables": {
+    "bpf_tcl_codegen": {
+      "path": "/tmp/name-agent-target-codegen/debug/deps/bpf_tcl_codegen-1aceb0f469322569",
+      "sha256_before": "795d7ac6c79389afd665ae7df465427a231df15ae05efb95bb9feffb0100d621",
+      "sha256_after": "795d7ac6c79389afd665ae7df465427a231df15ae05efb95bb9feffb0100d621"
+    },
+    "bpf_tcl_ir": {
+      "path": "/tmp/name-agent-target-codegen/debug/deps/bpf_tcl_ir-8d4bc751fca19d8a",
+      "sha256_before": "ecfaf8a284c749b048750fd5a8c32d2f792061d53dc8385355c6329c4c0afa4b",
+      "sha256_after": "ecfaf8a284c749b048750fd5a8c32d2f792061d53dc8385355c6329c4c0afa4b"
+    }
+  },
+  "unchanged_preexisting_inputs": true,
+  "changed_preexisting_inputs": {},
+  "finished_utc": "2026-10-13T17:33:11Z"
+}

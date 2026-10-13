@@ -1,0 +1,11 @@
+
+running 1 test
+test native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand ... FAILED
+
+failures:
+
+failures:
+    native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9573 filtered out; finished in 2.14s
+

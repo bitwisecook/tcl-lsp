@@ -52,7 +52,7 @@
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
 use tcl_dialect::model::SpecSurface;
-use tcl_dialect::model::{surface_admits, SurfaceQuery};
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
 /// Native interpreter storage written while presenting an error completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1600,8 +1600,8 @@ impl NativeBootstrapProtocol {
         purpose: NativeBootstrapPurpose,
         default_library: bool,
     ) -> Option<Vec<NativeBootstrapVariable>> {
-        use tcl_syntax::naming::NativeNameProtocol as N;
         use NativeBootstrapVariable as V;
+        use tcl_syntax::naming::NativeNameProtocol as N;
         if purpose == NativeBootstrapPurpose::MainArguments {
             return match self.names {
                 N::C(_) => Some(vec![V::Argv0, V::Argc, V::Argv, V::Interactive]),
@@ -1716,14 +1716,17 @@ mod native_bootstrap_tests {
         )
         .native_bootstrap_protocol()
         .unwrap();
-        assert!(jim
-            .allocations(NativeBootstrapPurpose::MainArguments, false)
-            .is_none());
-        assert!(crate::InvocationDialect::of_profile(
-            tcl_dialect::DialectProfile::find("f5-irules").unwrap()
-        )
-        .native_bootstrap_protocol()
-        .is_none());
+        assert!(
+            jim.allocations(NativeBootstrapPurpose::MainArguments, false)
+                .is_none()
+        );
+        assert!(
+            crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find("f5-irules").unwrap()
+            )
+            .native_bootstrap_protocol()
+            .is_none()
+        );
     }
 }
 
@@ -1776,9 +1779,11 @@ mod native_error_variable_tests {
         }
         for name in ["jim", "f5-irules"] {
             let profile = crate::model::resolve_environment(name).unit_profile();
-            assert!(crate::InvocationDialect::of_profile(profile)
-                .native_error_variable_protocol()
-                .is_none());
+            assert!(
+                crate::InvocationDialect::of_profile(profile)
+                    .native_error_variable_protocol()
+                    .is_none()
+            );
         }
     }
 }

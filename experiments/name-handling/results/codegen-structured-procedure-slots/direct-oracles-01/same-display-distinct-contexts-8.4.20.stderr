@@ -1,0 +1,7 @@
+can't create procedure ":p" in non-global namespace with name starting with ":"
+    while executing
+"proc :p {} {return RIGHT}"
+    (in namespace eval "::a" script line 1)
+    invoked from within
+"namespace eval a {proc :p {} {return RIGHT}}"
+    (file "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-structured-procedure-slots/direct-oracles-01/same-display-d" line 2)

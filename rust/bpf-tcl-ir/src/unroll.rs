@@ -33,7 +33,7 @@ use tcl_syntax::number::NumberSyntax;
 
 use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
-use crate::source::lower_bpf_source;
+use crate::source::{lower_bpf_source, source_bpf_operation, synthetic_operation_call};
 
 /// Maximum iterations a single `loop` may unroll to.
 const MAX_UNROLL: i64 = 64;
@@ -46,14 +46,9 @@ const MAX_UNROLL: i64 = 64;
 pub fn unroll_loops(script: &Script, registry: &CommandRegistry) -> Result<Script, BpfError> {
     let mut out = Vec::with_capacity(script.statements.len());
     for stmt in &script.statements {
-        if let Statement::Call {
-            command,
-            canonical_command,
-            args,
-            span,
-            ..
-        } = stmt
-            && canonical_command.as_deref().unwrap_or(command.as_str()) == "loop"
+        if let Statement::Call { args, span, .. } = stmt
+            && source_bpf_operation(stmt, registry).map(|op| op.kind)
+                == Some(tcl_registry::bpf_op::BpfOpKind::LoopMacro)
         {
             expand_loop(args, *span, registry, &mut out)?;
         } else {
@@ -99,26 +94,15 @@ fn expand_loop(
     let body = unroll_loops(&body_module.top_level, registry)?;
 
     for k in 0..count {
-        out.push(synth_setint(var, k, span));
+        out.push(synthetic_operation_call(
+            tcl_registry::bpf_op::BpfOpKind::ScalarSet(tcl_registry::bpf_op::BpfScalarWidth::I64),
+            vec![var.to_owned(), (k).to_string()],
+            span,
+            registry,
+        )?);
         out.extend(body.statements.iter().cloned());
     }
     Ok(())
-}
-
-/// Build a synthetic `setint VAR <k>` IR call (the loop-variable binding).
-fn synth_setint(var: &str, k: i64, span: Span) -> Statement {
-    Statement::Call {
-        span,
-        command: "setint".to_owned(),
-        canonical_command: None,
-        args: vec![var.to_owned(), k.to_string()],
-        defs: Vec::new(),
-        reads: Vec::new(),
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: None,
-        foreach_groups: None,
-    }
 }
 
 fn parse_count(s: &str, numbers: NumberSyntax) -> Option<i64> {

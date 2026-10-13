@@ -1153,11 +1153,11 @@ mod get_date_fields_tests {
         assert!(!obj::has_string_rep(result));
         let members = interp.list_elements(&result).unwrap();
         assert_eq!(members.len(), 3);
-        for (member, expected) in members.into_iter().zip([
-            b"%a %b %d %H:%M:%S %Z %Y".as_slice(),
-            b"C",
-            b":GMT",
-        ]) {
+        for (member, expected) in
+            members
+                .into_iter()
+                .zip([b"%a %b %d %H:%M:%S %Z %Y".as_slice(), b"C", b":GMT"])
+        {
             assert!(obj::check_native_liveness(member).is_ok());
             assert_eq!(unsafe { (*member).ref_count }, 1);
             assert_eq!(obj::bytes_of(member), expected);

@@ -1,0 +1,3 @@
+   Compiling bpf-tcl-ir v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/bpf-tcl-ir)
+   Compiling bpf-tcl-codegen v0.1.0 (/workspace/name-implementation-worktrees/codegen/rust/bpf-tcl-codegen)
+    Finished `test` profile [unoptimized] target(s) in 4.18s
