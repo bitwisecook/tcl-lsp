@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "before_sha256": "1793033c98db698bded5c987d127e3a076abf8d08f5e1bb9fa580f1757d7634e",
+      "after_sha256": "1d38076383c55fa0b95bb6ef7bc99bce4ab8752eae71f230c375ad7012921e25"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "before_sha256": "702c663b7818644c73528c8ec6b5adb2e254c04bf581574960a52d63e95c5dff",
+      "after_sha256": "e46a3ae3308761f0e85437dbabf0b5c30b2317562d8eb86f973a8bc410dbb2f8"
+    }
+  ],
+  "patch_sha256": "e3cf3e3e59b7c4aba72c89a4b86cb59f7e4068b1d5e583563f2a884723d98d13",
+  "validation": "scratch only; parsed; uncompiled; seven original oracle cases measured on C8.6/9.0/9.1; C8.4/8.5/Jim explicitly TclOO unsupported",
+  "guard": "exact original retained body/declaration/formals selects one original declaring provider; current class roster and actual publication byte slot; source report separate from checked root operand; current Module input/ownership mandatory; no MethodDef.class_name join"
+}

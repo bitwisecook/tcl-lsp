@@ -1,0 +1,8 @@
+version 9.0.4
+qualified ::N::C
+renamed ::N::Moved
+qualified-status 0 {}
+leading-status 1 {:::C does not refer to an object}
+leading-class-remains 0
+entered-status 1 {::N:::C does not refer to an object}
+entered-class-remains 0

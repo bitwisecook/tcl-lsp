@@ -1,0 +1,62 @@
+[
+  {
+    "provider": "TCL_LSP_TCLSH84",
+    "exit": 0,
+    "files": 106,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "99e6b333e729ad0e893dfc4522e43c1c9608fbf57429c7517a2f7c8a7c6731ca",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.4.20\nunsupported TclOO\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH85",
+    "exit": 0,
+    "files": 830,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "70d6d37b76970c5517c5d2fa20ae56f17de41b0038177c77f21fc4d280184b1d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.5.19\nunsupported TclOO\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH86",
+    "exit": 0,
+    "files": 837,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "b3b0d67168eac07a5b064fbdbf4423aca828ccc8c251e2b8de1ed105729fac13",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.6.18\nqualified ::N::C\nrenamed ::N::Moved\nqualified-status 0 {}\nleading-status 1 {:::C does not refer to an object}\nleading-class-remains 0\nentered-status 1 {::N:::C does not refer to an object}\nentered-class-remains 0\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH90",
+    "exit": 0,
+    "files": 845,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "d1e86a1df16930ff453ebe79e97ad7f43cb892e8350088c6fa6b4e74b99e2655",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.0.4\nqualified ::N::C\nrenamed ::N::Moved\nqualified-status 0 {}\nleading-status 1 {:::C does not refer to an object}\nleading-class-remains 0\nentered-status 1 {::N:::C does not refer to an object}\nentered-class-remains 0\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH91",
+    "exit": 0,
+    "files": 846,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "b8e98778b56d94889e3dbae670314413104e789db66995cddac56c445ef4d833",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.1.0\nqualified ::N::C\nrenamed ::N::Moved\nqualified-status 0 {}\nleading-status 1 {:::C does not refer to an object}\nleading-class-remains 0\nentered-status 1 {::N:::C does not refer to an object}\nentered-class-remains 0\n"
+  },
+  {
+    "provider": "TCL_LSP_JIMSH",
+    "exit": 0,
+    "files": 8,
+    "drift": false,
+    "input_sha256": "1cd9ab9d1ef2e491b0586ca7513e732cccd3f1a0198e2747c95ec5c0ee93e46a",
+    "stdout_sha256": "f3930492c0df359b94f371289367623c9cc7951f0aeed6752bb9e6f460d31169",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 0.84-9-g5bac7c9\nunsupported TclOO\n"
+  }
+]

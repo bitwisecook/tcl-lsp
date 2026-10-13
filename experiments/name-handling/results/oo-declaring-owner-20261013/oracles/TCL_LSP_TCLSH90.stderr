@@ -1,0 +1,10 @@
+::N:::C does not refer to an object
+    while executing
+"oo::class create C {method m {} {::oo::Helpers::self class}}"
+    (in namespace eval "::N:" script line 2)
+    invoked from within
+"namespace eval ::N: {
+    oo::class create C {method m {} {::oo::Helpers::self class}}
+    set receiver [C new]
+    puts [list colonNamespace [$receiv..."
+    (file "/tmp/name-method-typed-owners-20261013/oo-frame-followon/oracles/declaring-class-name.tcl" line 18)

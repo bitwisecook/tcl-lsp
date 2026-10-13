@@ -1,0 +1,41 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:05:08.929444+00:00",
+  "finished_utc": "2026-10-13T23:06:55.100924+00:00",
+  "exit_code": 101,
+  "seconds": 106.17147118700086,
+  "source_paths": 34651,
+  "changed_sources": {},
+  "errors": [
+    "error[E0308]: mismatched types\n   --> rust/tcl-lsp-core/src/graphs.rs:677:30\n    |\n677 |         interproc.procedures[*left]\n    |                              ^^^^^ expected `&ProcedureId`, found `ProcedureId`\n    |\nhelp: consider removing deref here\n    |\n677 -         interproc.procedures[*left]\n677 +         interproc.procedures[left]\n    |\n\n",
+    "error[E0308]: mismatched types\n   --> rust/tcl-lsp-core/src/graphs.rs:679:40\n    |\n679 |             .cmp(&interproc.procedures[*right].qualified_name)\n    |                                        ^^^^^^ expected `&ProcedureId`, found `ProcedureId`\n    |\nhelp: consider removing deref here\n    |\n679 -             .cmp(&interproc.procedures[*right].qualified_name)\n679 +             .cmp(&interproc.procedures[right].qualified_name)\n    |\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

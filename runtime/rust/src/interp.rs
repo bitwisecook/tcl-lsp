@@ -3053,7 +3053,8 @@ impl Interp {
         self.registry_builtin_names
             .borrow_mut()
             .insert(generation, fqn.clone());
-        self.record_scripted_helper_registration(&fqn, generation);
+        self.remember_stock_registration(generation);
+        self.record_scripted_helper_registration(generation);
         Some(generation)
     }
 
@@ -3075,7 +3076,8 @@ impl Interp {
         self.registry_builtin_names
             .borrow_mut()
             .insert(publication.generation, fqn.clone());
-        self.record_scripted_helper_registration(&fqn, publication.generation);
+        self.remember_stock_registration(publication.generation);
+        self.record_scripted_helper_registration(publication.generation);
         Some(publication)
     }
 

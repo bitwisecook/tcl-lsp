@@ -1,0 +1,8 @@
+version 8.6.18
+collision 0 {::A::B ::A}
+colonNamespace 1 {::N:::C does not refer to an object}
+oneColon 1 {:::C does not refer to an object}
+inheritance 0 ::Parent
+moved 0 ::Moved
+ownObject 1 {method not defined by a class}
+constructor 0 ::Constructor

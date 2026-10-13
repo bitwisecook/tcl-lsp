@@ -1,0 +1,46 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/cmd_array.rs",
+      "before_sha256": "d052fedd75941459dbf509193c6731086abb423765d3e7dd9b364095ee7fbf20",
+      "after_sha256": "6ce2c713659553bd769781638c0e049b7d4d9811b70715e29ddb7894566c6c3a"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_binary.rs",
+      "before_sha256": "7e7352fbf058eef531e20dd17d4b6b3128e9fc81a738a688ad9f7eec799df45e",
+      "after_sha256": "c9c589bbce793cf8153f1fdfa1b90adf7eff81ba6e4224c2dfbf94bc1e37a42f"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_dict.rs",
+      "before_sha256": "79eb38886631959599f5441d6e5ab0546a3d44c5831ebf94de890710a5b02842",
+      "after_sha256": "da1be8ee56268d1b7ada25e01d45c8668bfc18e998326823d7184f29e4de154c"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_file.rs",
+      "before_sha256": "31e33f5ea1c758bd880855f75e6cbf037b5151fa9ee48f85480fe52270b728fb",
+      "after_sha256": "046dc5f5ae8d997645c43a258a6ab8596bfcf67b8c012c97a9fdc2c72e77f248"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_info.rs",
+      "before_sha256": "b085a0025980e6715e1108103eb4814e3848532c75e4b29fa0999ea6d3066d69",
+      "after_sha256": "c875992d13a2c2018363b059ab24f87ca61c500419b5932fa45d47a0308ce6bd"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace.rs",
+      "before_sha256": "c25d498bf307971e9c365294a6bfea6aef1899f0672ffd7de5dcc4d336e10866",
+      "after_sha256": "2bb5256f50d8f4573491acb01de9585ad04a546b6f1a798dc2f5df9c4eb8c861"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_string.rs",
+      "before_sha256": "35e41b7a75b4de5f07720640bd92e4594c19dd12075fb25945b82a1482413c34",
+      "after_sha256": "2f02e5475e48bb8261ee82e343bbc9df5599c91d3c5f73a0339f6ece2af0f8dd"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "before_sha256": "ecaead0871d473cf345335103b71c6099be16f7c357ad2b44c487f259db49368",
+      "after_sha256": "f4614076b8364888a7ab75c8d918ed0954bc6ae5a1577f21da87ac0c7305a7fe"
+    }
+  ],
+  "scope": "exact one-root-marker construction delegates; no trim semantics edits",
+  "status": "scratch unapplied/uncompiled"
+}

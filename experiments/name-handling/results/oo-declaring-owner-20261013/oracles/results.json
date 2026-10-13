@@ -1,0 +1,68 @@
+[
+  {
+    "provider": "TCL_LSP_TCLSH84",
+    "exit": 0,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 106,
+    "drift": false,
+    "stdout_sha256": "99e6b333e729ad0e893dfc4522e43c1c9608fbf57429c7517a2f7c8a7c6731ca",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.4.20\nunsupported TclOO\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH85",
+    "exit": 0,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 830,
+    "drift": false,
+    "stdout_sha256": "70d6d37b76970c5517c5d2fa20ae56f17de41b0038177c77f21fc4d280184b1d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.5.19\nunsupported TclOO\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH86",
+    "exit": 1,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 837,
+    "drift": false,
+    "stdout_sha256": "df19cd2e110e0d8396147c7891b1f31bebeb0f0b60cccc950ad1ede1e9247ef4",
+    "stderr_sha256": "01bcd6fbcd0588e961e2534e28ab0fd2caf1d71e1692a2292243f6268fdf3131",
+    "stdout": "version 8.6.18\ncollision ::A::B ::A\n",
+    "stderr": "::N:::C does not refer to an object\n    while executing\n\"oo::class create C {method m {} {::oo::Helpers::self class}}\"\n    (in namespace eval \"::N:\" script line 2)\n    invoked from within\n\"namespace eval ::N: {\n    oo::class create C {method m {} {::oo::Helpers::self class}}\n    set receiver [C new]\n    puts [list colonNamespace [$receiv...\"\n    (file \"/tmp/name-method-typed-owners-20261013/oo-frame-followon/oracles/declaring-class-name.tcl\" line 18)\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH90",
+    "exit": 1,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 845,
+    "drift": false,
+    "stdout_sha256": "7e2a38dfe627038723fe4c94caacf30d54611610c414b4c1443ea2c4194d064e",
+    "stderr_sha256": "01bcd6fbcd0588e961e2534e28ab0fd2caf1d71e1692a2292243f6268fdf3131",
+    "stdout": "version 9.0.4\ncollision ::A::B ::A\n",
+    "stderr": "::N:::C does not refer to an object\n    while executing\n\"oo::class create C {method m {} {::oo::Helpers::self class}}\"\n    (in namespace eval \"::N:\" script line 2)\n    invoked from within\n\"namespace eval ::N: {\n    oo::class create C {method m {} {::oo::Helpers::self class}}\n    set receiver [C new]\n    puts [list colonNamespace [$receiv...\"\n    (file \"/tmp/name-method-typed-owners-20261013/oo-frame-followon/oracles/declaring-class-name.tcl\" line 18)\n"
+  },
+  {
+    "provider": "TCL_LSP_TCLSH91",
+    "exit": 1,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 846,
+    "drift": false,
+    "stdout_sha256": "e4199994a6fb8c978a6e48b5c204f8193ef9571f4fc339c27c0ef168bde71a80",
+    "stderr_sha256": "01bcd6fbcd0588e961e2534e28ab0fd2caf1d71e1692a2292243f6268fdf3131",
+    "stdout": "version 9.1.0\ncollision ::A::B ::A\n",
+    "stderr": "::N:::C does not refer to an object\n    while executing\n\"oo::class create C {method m {} {::oo::Helpers::self class}}\"\n    (in namespace eval \"::N:\" script line 2)\n    invoked from within\n\"namespace eval ::N: {\n    oo::class create C {method m {} {::oo::Helpers::self class}}\n    set receiver [C new]\n    puts [list colonNamespace [$receiv...\"\n    (file \"/tmp/name-method-typed-owners-20261013/oo-frame-followon/oracles/declaring-class-name.tcl\" line 18)\n"
+  },
+  {
+    "provider": "TCL_LSP_JIMSH",
+    "exit": 0,
+    "input_sha256": "ef426e24f3ff6c247de57cc753b4f3fed0c682b2039e0a8516246bb5ba3968ab",
+    "files": 8,
+    "drift": false,
+    "stdout_sha256": "f3930492c0df359b94f371289367623c9cc7951f0aeed6752bb9e6f460d31169",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 0.84-9-g5bac7c9\nunsupported TclOO\n",
+    "stderr": ""
+  }
+]

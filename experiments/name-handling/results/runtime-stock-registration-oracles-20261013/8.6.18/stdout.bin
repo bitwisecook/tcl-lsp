@@ -1,0 +1,11 @@
+IDENTITY 8.6.18
+OBSERVATION private-presence 0 ::tcl::namespace::which {}
+OBSERVATION configured-holder 0 ::tcl::namespace {}
+OBSERVATION private-original 0 ::list {}
+OBSERVATION relative-map 0 {} {}
+OBSERVATION relative-map-other-caller 1 {unknown or ambiguous subcommand "eval": must be which} {TCL LOOKUP SUBCOMMAND eval}
+OBSERVATION original-relocation 0 {} {}
+OBSERVATION retained-direct 0 ::list {}
+OBSERVATION original-slot-replacement 0 {} {}
+OBSERVATION public-after-replacement 1 {unknown or ambiguous subcommand "current": must be which} {TCL LOOKUP SUBCOMMAND current}
+OBSERVATION retained-after-replacement 0 ::list {}

@@ -1,0 +1,81 @@
+--- a/rust/tcl-compiler/src/object_types.rs
++++ b/rust/tcl-compiler/src/object_types.rs
+@@ -216,7 +216,7 @@
+ /// | [`Self::by_scope`] | `(owner, name)` | all versions are unioned | scoped assistance |
+ /// | [`Self::proven_reads`] | source substitution | exact SSA contents at the read | edits, references, rename, refusal gates |
+ /// | [`Self::collections`] | bare name | cross-scope union (deliberate — the cross-method bridge) | highlighting, collection dispatch |
+-/// | [`Self::returns_object`] | proc qname | none (one return type per proc) | factory-call typing |
++/// | [`Self::returns_object`] | retained body ID | candidate class, no allocation proof | result reporting |
+ /// | [`Self::global_object_cells`] | `::`-qualified name | all versions and documents may disagree | labelled cross-document assistance |
+ #[derive(Debug, Clone, Default, PartialEq)]
+ pub struct ObjectHandleFacts {
+@@ -255,10 +255,9 @@
+     /// [`object_collection_classes`] verbatim: `List`/`Dict` variable → the
+     /// classes of its elements.
+     pub collections: HashMap<String, HashSet<String>>,
+-    /// Procedure qualified name → the class of the object it returns.  The
+-    /// factory-proc fact the VTA fixpoint computes internally, exported so a
+-    /// cross-document index can seed on it.
+-    pub returns_object: HashMap<String, String>,
++    /// Inferred object class candidate for each retained body.
++    /// Duplicate reports retain separate rows; this supplies no object allocation.
++    pub returns_object: HashMap<ProcedureId, String>,
+     /// Normal result types at their actual implementation source, independently
+     /// of class names, object allocations and method dispatch authority.
+     normal_procedure_results: crate::type_infer::NormalProcedureResultTypes,
+@@ -576,17 +575,7 @@
+     if mode == FactMode::Full {
+         facts.owner_spans = owners.spans;
+         (facts.proven_reads, facts.physical_type_reads) = proven_object_reads(cu, registry);
+-        facts.returns_object = returning_procs(cu)
+-            .into_iter()
+-            .filter_map(|(id, value)| {
+-                let procedure = cu.ir_module.procedures.get(&id)?;
+-                cu.ir_module
+-                    .procedures
+-                    .unique_display(&procedure.qualified_name)
+-                    .filter(|(unique, _)| **unique == id)
+-                    .map(|_| (procedure.qualified_name.clone(), value))
+-            })
+-            .collect();
++        facts.returns_object = returning_procs(cu);
+         retain_normal_procedure_result_types(cu, registry, &mut facts);
+         facts.collections = object_collection_classes(cu);
+         facts.global_object_cells = facts
+@@ -2352,7 +2341,7 @@
+                     .map(|(name, unit)| (name, &unit.return_type))
+                     .collect::<Vec<_>>()
+             );
+-            assert!(!facts.returns_object.contains_key("::make"));
++            assert!(!facts.returns_object.contains_key(unit.ir_module.procedures.unique_display("::make").unwrap().0));
+             assert!(facts.proven_reads.is_empty());
+         }
+     }
+@@ -2883,20 +2872,23 @@
+                 expected,
+                 "the retained factory implementation selects the advisory flow: {facts:?}"
+             );
+-            assert!(!facts.returns_object.contains_key("::make"));
++            assert!(!facts.returns_object.contains_key(unit.ir_module.procedures.unique_display("::make").unwrap().0));
+         }
+     }
+ 
+     #[test]
+     fn owner_attribution_return_edge_binds_in_the_assigning_unit() {
+-        let (_r, facts) = facts_for(
++        let registry = CommandRegistry::build_default();
++        let unit = CompilationUnit::build_for(
+             "oo::class create Pin { method cfg {args} {} }\n\
+              proc make {} { set p [Pin new]\n return $p }\n\
+              proc use {} { set q [make]\n $q cfg }\n",
+-        );
++            &registry, false,
++        );
++        let facts = object_handle_facts(&unit, &registry);
+         assert_eq!(scoped(&facts, "::use", "q"), vec!["::Pin".to_owned()]);
+         assert_eq!(
+-            facts.returns_object.get("::make").map(String::as_str),
++            facts.returns_object.get(unit.ir_module.procedures.unique_display("::make").unwrap().0).map(String::as_str),
+             Some("::Pin"),
+             "the factory-proc return fact must be exported; got {:?}",
+             facts.returns_object

@@ -670,13 +670,11 @@ fn call_graph_for_input(
         .analyse(source, input.analyser_profile().name);
     let line_index = LineIndex::new(source);
 
-    // Proc qnames in sorted order (iterates the summary dict, which is
-    // keyed and surfaced in sorted qualified-name order).
     let mut proc_names: Vec<ProcedureId> = interproc.procedures.keys().copied().collect();
     proc_names.sort_by(|left, right| {
-        interproc.procedures[*left]
+        interproc.procedures[left]
             .qualified_name
-            .cmp(&interproc.procedures[*right].qualified_name)
+            .cmp(&interproc.procedures[right].qualified_name)
             .then(left.cmp(right))
     });
     let proc_set: std::collections::HashSet<ProcedureId> = proc_names.iter().copied().collect();

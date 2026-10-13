@@ -1,0 +1,68 @@
+[
+  {
+    "provider": "TCL_LSP_TCLSH84",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 106,
+    "drift": false,
+    "stdout_sha256": "99e6b333e729ad0e893dfc4522e43c1c9608fbf57429c7517a2f7c8a7c6731ca",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.4.20\nunsupported TclOO\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH85",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 830,
+    "drift": false,
+    "stdout_sha256": "70d6d37b76970c5517c5d2fa20ae56f17de41b0038177c77f21fc4d280184b1d",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.5.19\nunsupported TclOO\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH86",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 837,
+    "drift": false,
+    "stdout_sha256": "c6fc57bee14efa6217e351f17c088c08bfff6176637a40da765d7c729cad7e12",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.6.18\ncollision 0 {::A::B ::A}\ncolonNamespace 1 {::N:::C does not refer to an object}\noneColon 1 {:::C does not refer to an object}\ninheritance 0 ::Parent\nmoved 0 ::Moved\nownObject 1 {method not defined by a class}\nconstructor 0 ::Constructor\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH90",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 845,
+    "drift": false,
+    "stdout_sha256": "6b14a3115fdcb4c4545be79b319f42446fdf3be075dfbbd9b99971df925fcaf2",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.0.4\ncollision 0 {::A::B ::A}\ncolonNamespace 1 {::N:::C does not refer to an object}\noneColon 1 {:::C does not refer to an object}\ninheritance 0 ::Parent\nmoved 0 ::Moved\nownObject 1 {method not defined by a class}\nconstructor 0 ::Constructor\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH91",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 846,
+    "drift": false,
+    "stdout_sha256": "61271f3909d82e5803e2b9fec51d2810a9f2feee34478ea1a9ab1560b627224e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.1.0\ncollision 0 {::A::B ::A}\ncolonNamespace 1 {::N:::C does not refer to an object}\noneColon 1 {:::C does not refer to an object}\ninheritance 0 ::Parent\nmoved 0 ::Moved\nownObject 1 {method not defined by a class}\nconstructor 0 ::Constructor\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_JIMSH",
+    "exit": 0,
+    "input_sha256": "ad5267a6f8ef2a61731e477e05113266b879cf96991910d7053171e705f0fe00",
+    "files": 8,
+    "drift": false,
+    "stdout_sha256": "f3930492c0df359b94f371289367623c9cc7951f0aeed6752bb9e6f460d31169",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 0.84-9-g5bac7c9\nunsupported TclOO\n",
+    "stderr": ""
+  }
+]

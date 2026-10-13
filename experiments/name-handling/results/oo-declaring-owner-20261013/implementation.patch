@@ -1,0 +1,168 @@
+--- a/rust/tcl-compiler/src/command_binding/source_command_world.rs
++++ b/rust/tcl-compiler/src/command_binding/source_command_world.rs
+@@ -1133,6 +1133,61 @@
+             entries: Arc::clone(&definition.receiver_method_entries),
+             factory: definition.original_factory.as_ref()?.recipe(),
+         })
++    }
++
++    /// Actual declaring provider selected by one original retained body.
++    /// The output report and independently addressable source operand are distinct.
++    pub(crate) fn defining_class_name_for_body(
++        &self,
++        method: &crate::ir::MethodDef,
++    ) -> Option<(String, String)> {
++        let source = method.body.executed_source.as_deref()?;
++        let matches = |declaration: &super::CommandAllocationSite,
++                       body: &super::ExecutedScriptSource,
++                       formals: &[(String, Option<String>)]| {
++            method.span.is_some_and(|span| span.start() == declaration.offset)
++                && source == body
++                && method.params.iter().map(String::as_str)
++                    .eq(formals.iter().map(|(name, _)| name.as_str()))
++        };
++        let mut providers = self.state.class_definitions.iter().filter(|(identity, definition)| {
++            match method.kind {
++                crate::ir::MethodKind::Method => definition.receiver_method_entries.values().any(|entry| {
++                    entry.receiver() == super::SourceMethodReceiver::Instance
++                        && !entry.is_native_class_delegate()
++                        && entry.declaring_class().and_then(|provider| provider.identity.as_ref()) == Some(*identity)
++                        && matches(entry.declaration(), entry.body(), entry.formals())
++                }),
++                crate::ir::MethodKind::Constructor => {
++                    definition.constructor_provider.as_ref().and_then(|provider| provider.identity.as_ref()) == Some(*identity)
++                        && definition.constructor_entry.as_deref().is_some_and(|entry| matches(entry.declaration(), entry.body(), entry.formals()))
++                }
++                crate::ir::MethodKind::Destructor => {
++                    definition.destructor_provider.as_ref().and_then(|provider| provider.identity.as_ref()) == Some(*identity)
++                        && definition.destructor_entry.as_deref().is_some_and(|entry| matches(entry.declaration(), entry.body(), entry.formals()))
++                }
++                crate::ir::MethodKind::ClassMethod => false,
++            }
++        });
++        let (identity, _) = providers.next()?;
++        if providers.next().is_some() { return None; }
++        let allocation = identity.allocation.as_ref()?;
++        let mut publications = self.declarations().filter(|publication| {
++            publication.kind() == OriginalCommandPublicationKind::Object
++                && publication.definition().is_some_and(|definition| {
++                    definition.kind() == super::SourceCommandDefinitionKind::Class
++                        && definition.allocation() == allocation
++                })
++        });
++        let publication = publications.next()?;
++        if publications.next().is_some() { return None; }
++        let roster = self.class_instance_method_roster(publication.definition()?)?;
++        if roster.target.identity.as_ref() != Some(identity) { return None; }
++        let source_operand = tcl_syntax::naming::native_command_source_spelling(
++            publication.policy().recipe(), publication.slot(),
++        )?;
++        let report = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(publication.slot())).ok()?;
++        Some((report, source_operand))
+     }
+ 
+     /// Match this completed world's source publications against an authentic
+--- a/rust/tcl-compiler/src/optimiser/propagation.rs
++++ b/rust/tcl-compiler/src/optimiser/propagation.rs
+@@ -1110,71 +1110,23 @@
+     ranges.iter().any(|&(s, e)| start < e && s < end)
+ }
+ 
+-/// The statically-proven facts about the `TclOO` method frame a body runs in
+-///
+-/// Built once per method body by [`oo_frame_for`], which is where every
+-/// abstention lives; by the time an `OoFrame` exists, each field is a value
+-/// real `tclsh` would produce for every reachable invocation of that body.
++/// Original declaring-class report, separate from method display metadata.
+ #[derive(Debug, Clone)]
+ struct OoFrame {
+-    /// The fully-qualified class that defines this implementation — the value
+-    /// of [`tcl_registry::OoContextFact::DefiningClass`].
+     defining_class: String,
+ }
+ 
+-/// `method`'s provable frame facts, or `None` to abstain.
+-///
+-/// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
+-/// bug, a missed fold only a lost optimisation. Four gates, each pinned to
+-/// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
+-///
+-/// * **A frame chosen at run time.** A body naming any command relatively —
+-///   bare `my`, bare `puts` — runs where a receiver-local command can shadow
+-///   that head, so nothing derived inside it is trustworthy, the frame
+-///   constant included. That fact is scoped to such frames
+-///   (`ModuleCommandMutations::has_runtime_selected_frames`) rather than
+-///   distrusting every name in the module.
+-///
+-/// * **Class-object implementations.** `self class` *raises* ("method not
+-///   defined by a class") inside an `oo::objdefine` instance method and inside
+-///   a `self method`, and inside a `classmethod` it answers the internal
+-///   `::oo::ObjN:: oo ::delegate` class (tclsh 9.0.4) — either way there is
+-///   no statically-knowable value to fold to. `oo::objdefine` never reaches here at all (the
+-///   lowering's OO extraction only recognises the `oo::class`-family and
+-///   `oo::define` definers), so the live gate is [`MethodKind::ClassMethod`].
+-/// * **A class the source doesn't name.** The lowering already declines a
+-///   dynamic class word, leaving an empty name; nothing to answer with.
+-/// * **A renamed class command.** `rename ::R ::R2` makes `self class` answer
+-///   `::R2` from bodies written under `::R` — the same rename-captures-identity
+-///   rule `indirection.rs` applies. [`trusts_proc_binding`] is the
+-///   whole-module, flow-insensitive query for "this name was never moved onto
+-///   or vacated", which is exactly the property needed: a rename buried in a
+-///   proc body still fires before some later method call.
+-///
+-/// [`trusts_proc_binding`]: crate::command_binding::ModuleCommandMutations::trusts_proc_binding
+ fn oo_frame_for(
+     method: &crate::ir::MethodDef,
+     mutations: &crate::command_binding::ModuleCommandMutations,
++    world: &crate::command_binding::OriginalCompletedCommandWorld,
+ ) -> Option<OoFrame> {
+-    use crate::ir::MethodKind;
+-    // A method body that names any command relatively runs where a
+-    // receiver-local command can shadow that head, so no fact derived inside
+-    // it is trustworthy — including a frame constant that reads no variable.
+-    if mutations.has_runtime_selected_frames() {
++    if mutations.has_runtime_selected_frames() || method.kind == crate::ir::MethodKind::ClassMethod {
+         return None;
+     }
+-    if method.kind == MethodKind::ClassMethod {
+-        return None;
+-    }
+-    if method.class_name.is_empty() {
+-        return None;
+-    }
+-    if !mutations.trusts_proc_binding(&method.class_name) {
+-        return None;
+-    }
+-    Some(OoFrame {
+-        defining_class: method.class_name.clone(),
+-    })
++    let (defining_class, original_operand) = world.defining_class_name_for_body(method)?;
++    if !mutations.trusts_proc_binding(&original_operand) { return None; }
++    Some(OoFrame { defining_class })
+ }
+ 
+ /// The method-local constants a method body may propagate, or an empty map
+@@ -1292,9 +1244,11 @@
+ /// comes from [`oo_method_constants`], which models which names are object
+ /// state.
+ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+-    if ctx.registry.is_none() {
+-        return;
+-    }
++    let Some(registry) = ctx.registry else { return; };
++    let Some(bindings) = cu.ir_module.retained_source_bindings.as_deref()
++        .filter(|bindings| bindings.matches_module(&cu.ir_module, registry))
++    else { return; };
++    let Some(world) = bindings.original_completed_command_world() else { return; };
+     // The PER-METHOD dispatch barrier: a method is barred
+     // only when its dispatches can actually reach a caller-frame-reaching
+     // (or unreadable) method — see `super::method_barrier`. The registry is
+@@ -1312,7 +1266,7 @@
+         let Some(method) = cu.ir_module.methods.get(qname) else {
+             continue;
+         };
+-        let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
++        let Some(frame) = oo_frame_for(method, &ctx.command_mutations, &world) else {
+             continue;
+         };
+         let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(*qname));

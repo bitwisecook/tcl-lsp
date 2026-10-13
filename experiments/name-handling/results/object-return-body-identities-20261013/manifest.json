@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-compiler/src/object_types.rs",
+  "before_sha256": "6f3b91e12f4239ae858956f82225b7b6544328c0d1375b68e1e55f3e962a0a45",
+  "after_sha256": "15d1079e6cd4ef1fc2d58900da3d55909fedfca08520817759f0158ea7df1e59",
+  "patch_sha256": "f5be2bdcd611674dd4f3387937d7af3be02cabfcec8c6ed50f8ed551e265350f",
+  "validation": "scratch only; parsed; uncompiled/unexecuted",
+  "purpose": "every object result report retains its actual body ID; no display inverse; existing assertions use actual fixture IDs"
+}

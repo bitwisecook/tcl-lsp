@@ -17,6 +17,8 @@ Temporary current coordination snapshot on `work`; remove before PR. Root owns G
 | Proof/gates | Noallconsumer/fullgreenacceptance; strictchecker1739errors retained. | Narrowsemanticproofreview/currency, ownerresolution/drift, formatting/generatedchecks, rust-check/prep-pr/editorSDK. |
 | Documentation/comments | Current ownercontracts and temporarycoordination exist. | Whole-repository current-code cleanup, minimalhow/why, removeprocess/history/temporaryreferences beforePR; retain legal/experiments. |
 
-Checkpoint23:03UTC; nexttracking23:09UTC, hourlyreport23:11UTC. Heavy leaseVMdiagnostic; RootMain integration proceeds independently with frozen isolated inputs. Current source/compiled closures and original failed assertions remain explicit; no fake Native receipts, report inversion, weakened assertions, bulk proof renewal or scrubbed-material restoration.
+Checkpoint23:09UTC; nexttracking23:24UTC, hourlyreport23:11UTC. Heavy leaseRootMainAPIretry03; RootMain integration proceeds independently with frozen isolated inputs. Current source/compiled closures and original failed assertions remain explicit; no fake Native receipts, report inversion, weakened assertions, bulk proof renewal or scrubbed-material restoration.
 
 [Current state](current-state.md), [consumer inventory](consumer-inventory.md), [issue map](issues.md) and durable owner contracts define scope and evidence.
+
+Integrated consumer follow-ons: OO actual declaring provider; object-return body IDs; VM shared constructed keys; Runtime stock helper/compiler path joins. Combined API02 reports two repaired Core graph indexing errors; API03 is active. VM real alias/Origin diagnostic failures remain explicit and pending admission migration; no conformance promotion.

@@ -1110,71 +1110,26 @@ fn ranges_overlap(ranges: &[(u32, u32)], start: u32, end: u32) -> bool {
     ranges.iter().any(|&(s, e)| start < e && s < end)
 }
 
-/// The statically-proven facts about the `TclOO` method frame a body runs in
-///
-/// Built once per method body by [`oo_frame_for`], which is where every
-/// abstention lives; by the time an `OoFrame` exists, each field is a value
-/// real `tclsh` would produce for every reachable invocation of that body.
+/// Original declaring-class report, separate from method display metadata.
 #[derive(Debug, Clone)]
 struct OoFrame {
-    /// The fully-qualified class that defines this implementation — the value
-    /// of [`tcl_registry::OoContextFact::DefiningClass`].
     defining_class: String,
 }
 
-/// `method`'s provable frame facts, or `None` to abstain.
-///
-/// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
-/// bug, a missed fold only a lost optimisation. Four gates, each pinned to
-/// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
-///
-/// * **A frame chosen at run time.** A body naming any command relatively —
-///   bare `my`, bare `puts` — runs where a receiver-local command can shadow
-///   that head, so nothing derived inside it is trustworthy, the frame
-///   constant included. That fact is scoped to such frames
-///   (`ModuleCommandMutations::has_runtime_selected_frames`) rather than
-///   distrusting every name in the module.
-///
-/// * **Class-object implementations.** `self class` *raises* ("method not
-///   defined by a class") inside an `oo::objdefine` instance method and inside
-///   a `self method`, and inside a `classmethod` it answers the internal
-///   `::oo::ObjN:: oo ::delegate` class (tclsh 9.0.4) — either way there is
-///   no statically-knowable value to fold to. `oo::objdefine` never reaches here at all (the
-///   lowering's OO extraction only recognises the `oo::class`-family and
-///   `oo::define` definers), so the live gate is [`MethodKind::ClassMethod`].
-/// * **A class the source doesn't name.** The lowering already declines a
-///   dynamic class word, leaving an empty name; nothing to answer with.
-/// * **A renamed class command.** `rename ::R ::R2` makes `self class` answer
-///   `::R2` from bodies written under `::R` — the same rename-captures-identity
-///   rule `indirection.rs` applies. [`trusts_proc_binding`] is the
-///   whole-module, flow-insensitive query for "this name was never moved onto
-///   or vacated", which is exactly the property needed: a rename buried in a
-///   proc body still fires before some later method call.
-///
-/// [`trusts_proc_binding`]: crate::command_binding::ModuleCommandMutations::trusts_proc_binding
 fn oo_frame_for(
     method: &crate::ir::MethodDef,
     mutations: &crate::command_binding::ModuleCommandMutations,
+    world: &crate::command_binding::OriginalCompletedCommandWorld,
 ) -> Option<OoFrame> {
-    use crate::ir::MethodKind;
-    // A method body that names any command relatively runs where a
-    // receiver-local command can shadow that head, so no fact derived inside
-    // it is trustworthy — including a frame constant that reads no variable.
-    if mutations.has_runtime_selected_frames() {
+    if mutations.has_runtime_selected_frames() || method.kind == crate::ir::MethodKind::ClassMethod
+    {
         return None;
     }
-    if method.kind == MethodKind::ClassMethod {
+    let (defining_class, original_operand) = world.defining_class_name_for_body(method)?;
+    if !mutations.trusts_proc_binding(&original_operand) {
         return None;
     }
-    if method.class_name.is_empty() {
-        return None;
-    }
-    if !mutations.trusts_proc_binding(&method.class_name) {
-        return None;
-    }
-    Some(OoFrame {
-        defining_class: method.class_name.clone(),
-    })
+    Some(OoFrame { defining_class })
 }
 
 /// The method-local constants a method body may propagate, or an empty map
@@ -1292,9 +1247,20 @@ fn oo_method_constants(
 /// comes from [`oo_method_constants`], which models which names are object
 /// state.
 fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    if ctx.registry.is_none() {
+    let Some(registry) = ctx.registry else {
         return;
-    }
+    };
+    let Some(bindings) = cu
+        .ir_module
+        .retained_source_bindings
+        .as_deref()
+        .filter(|bindings| bindings.matches_module(&cu.ir_module, registry))
+    else {
+        return;
+    };
+    let Some(world) = bindings.original_completed_command_world() else {
+        return;
+    };
     // The PER-METHOD dispatch barrier: a method is barred
     // only when its dispatches can actually reach a caller-frame-reaching
     // (or unreadable) method — see `super::method_barrier`. The registry is
@@ -1312,7 +1278,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(method) = cu.ir_module.methods.get(qname) else {
             continue;
         };
-        let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
+        let Some(frame) = oo_frame_for(method, &ctx.command_mutations, &world) else {
             continue;
         };
         let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(*qname));

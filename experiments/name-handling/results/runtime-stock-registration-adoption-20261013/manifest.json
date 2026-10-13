@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/interp/native_body_artifact.rs",
+      "before_sha256": "275a0d76f3ab00f5438a1727d4dbbd059f833bbeaa1828350f916ce1d4fb5760",
+      "after_sha256": "747f8424a727a4b0a0c535a33f06b65120fb5c88d7573611650c2d8278bf58e1",
+      "main_before_sha256": "275a0d76f3ab00f5438a1727d4dbbd059f833bbeaa1828350f916ce1d4fb5760"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_compilation.rs",
+      "before_sha256": "a6a2863425472d72361cf1f806b8e5e53df338701acc9f77fa9b3fbd53db6d64",
+      "after_sha256": "0f3b1533af9ea9dbaa99bc397535409efedcba6ae632e5edd4559da5a6554c29",
+      "main_before_sha256": "a6a2863425472d72361cf1f806b8e5e53df338701acc9f77fa9b3fbd53db6d64"
+    },
+    {
+      "path": "runtime/rust/src/interp/stock_ensembles.rs",
+      "before_sha256": "215804c26e0320bf0988d0b3b36facf1f8a2fe65f5f75bf3f7d6cd94266ab5c0",
+      "after_sha256": "1c7761d68c757f0e20d970be4a4e9c7d9982fa86f3dd55206e99ba44f5627c40",
+      "main_before_sha256": "215804c26e0320bf0988d0b3b36facf1f8a2fe65f5f75bf3f7d6cd94266ab5c0"
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "before_sha256": "94f665bb231462ba1abd0489505bffa5451e30964de4ca2d43151aa68fda4dcd",
+      "after_sha256": "e9ec8dc45fe6b90fb74e8b01b04a7989b010227c12c262e92649a281c05bdf49",
+      "main_before_sha256": "94f665bb231462ba1abd0489505bffa5451e30964de4ca2d43151aa68fda4dcd"
+    }
+  ],
+  "patch_sha256": "7361a45a9250c54285f0b8477b85fca0b424d6aeb21b9b83adf03791937e3c60",
+  "main_apply_check": 0,
+  "main_apply_stderr": "",
+  "validation": "Rustfmt passed; no Cargo or Rust execution; original C5 ten-row oracle captures stable"
+}

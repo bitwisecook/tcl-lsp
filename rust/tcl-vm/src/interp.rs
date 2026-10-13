@@ -545,9 +545,9 @@ fn root_hash_order() -> HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrde
 /// the all-colon disambiguation differs between the rooted and unrooted
 /// grammars.
 pub(crate) fn key_holder_and_tail_unrooted(key: &str) -> (String, String) {
-    let rooted = format!("::{key}");
+    let rooted = tcl_syntax::naming::root_unrooted_key(key);
     let (holder, tail) = tcl_syntax::naming::key_holder_and_tail(&rooted);
-    let holder = holder.strip_prefix("::").unwrap_or(holder);
+    let holder = tcl_syntax::naming::unroot_rooted_key(holder).unwrap_or(holder);
     (holder.to_string(), tail.to_string())
 }
 
@@ -4085,7 +4085,7 @@ impl Vm {
     }
 
     fn unset_global_raw(&mut self, name: &str) {
-        let key = name.strip_prefix("::").unwrap_or(name);
+        let key = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         let id = self
             .frames
             .first_mut()
@@ -4499,7 +4499,7 @@ impl Vm {
         // Builtin registrations pass plain literals, bare (`set`) or rooted
         // (`::tcl::array::exists`) — never colon-tree keys — so a single root
         // strip converts to the canonical unrooted key form exactly.
-        let canonical = name.strip_prefix("::").unwrap_or(name);
+        let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         let (holder, _) = key_holder_and_tail_unrooted(canonical);
         if !holder.is_empty() {
             // Internal qualified commands live in real Tcl namespaces too.
@@ -4514,7 +4514,7 @@ impl Vm {
     /// Engine bootstrap alone can identify an actual stock implementation.
     pub(crate) fn register_stock_builtin(&mut self, name: &str, f: BuiltinFn) {
         self.register(name, f);
-        let canonical = name.strip_prefix("::").unwrap_or(name);
+        let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         if tcl_registry::mathfunc::is_in_mathfunc_namespace(canonical) {
             if self.fixed_math.handlers.contains_key(canonical) {
                 self.note_native_compiler_cache_mutation(
@@ -4718,7 +4718,7 @@ impl Vm {
     /// admitted over it ([`Self::command_binding_matches`]), so the handler
     /// answers.
     pub fn register_guarded_builtin(&mut self, name: &str, f: BuiltinFn, identity: GuardIdentity) {
-        let canonical = name.strip_prefix("::").unwrap_or(name);
+        let canonical = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         self.register(canonical, f);
         self.builtin_identities.remove(canonical);
         if let Some(generation) = self.visible_command_generation(canonical) {
@@ -4742,9 +4742,9 @@ impl Vm {
                 })
             })
             .collect();
-        if let Some(generation) =
-            self.visible_command_generation(spec.name.strip_prefix("::").unwrap_or(spec.name))
-        {
+        if let Some(generation) = self.visible_command_generation(
+            tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name),
+        ) {
             self.attest(generation, None, identities);
         }
     }
@@ -4799,7 +4799,7 @@ impl Vm {
             if identities.is_empty() {
                 continue;
             }
-            let key = spec.name.strip_prefix("::").unwrap_or(spec.name);
+            let key = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
             if !matches!(self.commands.get(key), Some(Command::Builtin(_)))
                 || self
                     .builtin_identity_for_key(key)
@@ -4910,7 +4910,7 @@ impl Vm {
                         continue;
                     };
                     if self.builtin_identity_for_key(&target_key).as_deref()
-                        != Some(target.strip_prefix("::").unwrap_or(target))
+                        != Some(tcl_syntax::naming::unroot_rooted_key(target).unwrap_or(target))
                     {
                         continue;
                     }
@@ -8367,7 +8367,7 @@ impl Vm {
         &self,
         binding: &tcl_runtime_api::ProcedureBindingIdentity,
     ) -> bool {
-        let Some(target_key) = binding.name.strip_prefix("::") else {
+        let Some(target_key) = tcl_syntax::naming::unroot_rooted_key(&binding.name) else {
             return false;
         };
         let Some(resolved_key) = self.resolve_compiled_binding_name(

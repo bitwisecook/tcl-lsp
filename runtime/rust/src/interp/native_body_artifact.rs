@@ -938,11 +938,10 @@ impl Builder<'_> {
             .implementation_prerequisites(dialect)
             .filter(|_| selected_prerequisite.is_none())
         {
-            if !self.interp.native_implementation_path_holds(
-                target_generation,
-                identity.as_bytes(),
-                &path,
-            ) {
+            if !self
+                .interp
+                .native_implementation_path_holds(target_generation, &path)
+            {
                 return Ok(Some(Operation::Invoke));
             }
         }

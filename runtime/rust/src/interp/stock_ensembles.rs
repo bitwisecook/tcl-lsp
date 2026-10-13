@@ -56,13 +56,44 @@ impl Drop for HandlerUsageScope {
     }
 }
 
+#[derive(Clone)]
+pub(super) struct StockRegistrationSlot {
+    namespace: crate::namespace::NsId,
+    simple: tcl_core_types::NameBytes,
+    slot: tcl_core_types::NativeByteCommandSlot,
+}
+
+impl StockRegistrationSlot {
+    fn capture(interpreter: &Interp, generation: u64) -> Option<Self> {
+        let world = interpreter.namespaces();
+        let (namespace, simple) = world.native_command_slot_at_node(generation)?;
+        let path = world.native_context_path(namespace)?;
+        Some(Self {
+            namespace,
+            simple: tcl_core_types::NameBytes::from(simple.clone()),
+            slot: tcl_core_types::NativeByteCommandSlot {
+                namespace: path,
+                simple: tcl_core_types::NameBytes::from(simple),
+            },
+        })
+    }
+    fn same_physical_slot(&self, other: &Self) -> bool {
+        self.namespace == other.namespace && self.simple == other.simple
+    }
+}
+
+struct ScriptedHelperRegistration {
+    declared: StockRegistrationSlot,
+    generation: u64,
+}
+
 struct InstalledFamily {
     public: &'static [u8],
     generation: u64,
     config: Option<EnsembleConfig>,
     compiler: BuiltinFn,
     scripted: bool,
-    scripted_helpers: Vec<(Vec<u8>, u64)>,
+    scripted_helpers: Vec<ScriptedHelperRegistration>,
     members: Vec<(Vec<u8>, u64)>,
     namespaces: Vec<(Vec<u8>, crate::namespace::NsId)>,
     nested: Vec<(Vec<u8>, u64, EnsembleConfig, BuiltinFn)>,
@@ -242,10 +273,7 @@ impl Interp {
             generation
         };
         installed.generation = generation;
-        self.native_compilation
-            .borrow_mut()
-            .stock
-            .insert(installed.generation, public.to_vec());
+        self.record_stock_compiler_registration(installed.generation, public);
         let publication = OriginalStockSlots::capture(self, [generation]);
         if !self.publish_stock_family(family, installed, &scope, publication.as_ref())
             || !self.require_stock_publication(publication.as_ref())
@@ -294,9 +322,11 @@ impl Interp {
                     // These helpers belong to the scripted distribution; no
                     // C primitive compiler identity is donated to them.
                     self.native_compilation.borrow_mut().stock.remove(&token);
-                    installed
-                        .scripted_helpers
-                        .push((name.as_bytes().to_vec(), token));
+                    let declared = StockRegistrationSlot::capture(self, token)?;
+                    installed.scripted_helpers.push(ScriptedHelperRegistration {
+                        declared,
+                        generation: token,
+                    });
                 }
             }
             let body = crate::obj::Owned::fresh(super::new_string(ingress.body.as_bytes()));
@@ -387,10 +417,7 @@ impl Interp {
             return None;
         }
         let generation = publication.generation;
-        self.native_compilation
-            .borrow_mut()
-            .stock
-            .insert(generation, name.to_vec());
+        self.record_stock_compiler_registration(generation, name);
         installed.members.push((name.to_vec(), generation));
         Some(generation)
     }
@@ -460,10 +487,7 @@ impl Interp {
                 return;
             };
             installed.members.remove(index);
-            self.native_compilation
-                .borrow_mut()
-                .stock
-                .insert(generation, name.to_vec());
+            self.record_stock_compiler_registration(generation, name);
             installed.members.push((name.to_vec(), generation));
             installed
                 .nested
@@ -669,8 +693,17 @@ impl Interp {
                 if installed.generation != root || !self.stock_ensemble_config_matches(installed) {
                     continue;
                 }
-                for (_, generation) in installed.members.iter().chain(&installed.scripted_helpers) {
-                    let generation = *generation;
+                for generation in installed
+                    .members
+                    .iter()
+                    .map(|(_, generation)| *generation)
+                    .chain(
+                        installed
+                            .scripted_helpers
+                            .iter()
+                            .map(|helper| helper.generation),
+                    )
+                {
                     if self
                         .namespaces()
                         .native_command_slot_at_node(generation)
@@ -724,24 +757,74 @@ impl Interp {
                     && installed
                         .scripted_helpers
                         .iter()
-                        .any(|(_, token)| *token == generation)
+                        .any(|helper| helper.generation == generation)
             })
     }
 
     /// Runtime registration replaces an actual declared compound slot; retain
     /// its new allocation's admission without giving it a stock compiler ID.
-    pub(super) fn record_scripted_helper_registration(&self, name: &[u8], generation: u64) {
-        let normalise = |word: &[u8]| word.strip_prefix(b"::").unwrap_or(word).to_vec();
+    pub(super) fn record_scripted_helper_registration(&self, generation: u64) {
+        let Some(current) = StockRegistrationSlot::capture(self, generation) else {
+            return;
+        };
         for installed in self.stock_ensembles.borrow_mut().families.values_mut() {
             if installed.scripted
                 && installed
                     .scripted_helpers
                     .iter()
-                    .any(|(slot, _)| normalise(slot) == normalise(name))
+                    .any(|helper| helper.declared.same_physical_slot(&current))
             {
-                installed.scripted_helpers.push((name.to_vec(), generation));
+                installed.scripted_helpers.push(ScriptedHelperRegistration {
+                    declared: current.clone(),
+                    generation,
+                });
             }
         }
+    }
+
+    pub(super) fn remember_stock_registration(&self, generation: u64) -> bool {
+        let Some(current) = StockRegistrationSlot::capture(self, generation) else {
+            return false;
+        };
+        self.native_compilation
+            .borrow_mut()
+            .stock_registrations
+            .entry(generation)
+            .or_insert(current);
+        true
+    }
+
+    pub(super) fn record_stock_compiler_registration(
+        &self,
+        generation: u64,
+        identity: &[u8],
+    ) -> bool {
+        if !self.remember_stock_registration(generation) {
+            return false;
+        }
+        self.native_compilation
+            .borrow_mut()
+            .stock
+            .insert(generation, identity.to_vec());
+        true
+    }
+
+    fn stock_registration_matches(&self, generation: u64, authored: &[u8]) -> bool {
+        let Some(protocol) = self.name_policy_protocol() else {
+            return false;
+        };
+        let Ok(slot) = protocol
+            .recipe()
+            .command_lookup_slot(tcl_syntax::naming::NativeNameContext::root(), authored)
+        else {
+            return false;
+        };
+        let state = self.native_compilation.borrow();
+        state.stock.contains_key(&generation)
+            && state
+                .stock_registrations
+                .get(&generation)
+                .is_some_and(|registered| registered.slot == slot)
     }
 
     /// Original stock root identity follows its allocation, including a rename.
@@ -986,23 +1069,29 @@ impl Interp {
     pub(super) fn native_implementation_path_holds(
         &self,
         generation: u64,
-        identity: &[u8],
         path: &[tcl_registry::native_compilation::NativeCompilerImplementationLookup],
     ) -> bool {
-        let normalise = |name: &[u8]| name.strip_prefix(b"::").unwrap_or(name).to_vec();
+        if !matches!(
+            self.command_by_generation(generation),
+            super::CommandGenerationLookup::Found { .. }
+        ) {
+            return false;
+        }
         if path
             .last()
-            .is_some_and(|edge| normalise(identity) == normalise(edge.slot.as_bytes()))
+            .is_some_and(|edge| self.stock_registration_matches(generation, edge.slot.as_bytes()))
         {
             return true;
         }
         let mut current = generation;
         for (index, edge) in path.iter().enumerate() {
-            if index == 0 && normalise(identity) != normalise(edge.ensemble.as_bytes()) {
-                let Some(token) = self.resolve_cmd_token(edge.ensemble.as_bytes()) else {
+            if index == 0 && !self.stock_registration_matches(current, edge.ensemble.as_bytes()) {
+                let Ok(Some(binding)) =
+                    self.native_compilation_binding_at(GLOBAL, edge.ensemble.as_bytes())
+                else {
                     return false;
                 };
-                current = token;
+                current = binding.token;
             }
             let super::CommandGenerationLookup::Found {
                 command: Command::Ensemble(ensemble),
@@ -1012,31 +1101,35 @@ impl Interp {
                 return false;
             };
             let config = ensemble.config();
-            if !config.parameters.is_empty()
-                || !config.unknown.is_empty()
-                || !config.map.as_ref().is_some_and(|map| {
-                    map.iter().any(|(member, prefix)| {
-                        member == edge.member.as_bytes()
-                            && prefix.len() == 1
-                            && normalise(&prefix[0]) == normalise(edge.slot.as_bytes())
-                    })
-                })
-            {
+            if !config.parameters.is_empty() || !config.unknown.is_empty() {
                 return false;
             }
-            let Some(token) = self.resolve_cmd_token(edge.slot.as_bytes()) else {
+            let Some(prefix) = config.map.as_ref().and_then(|map| {
+                map.iter()
+                    .find(|(member, _)| member == edge.member.as_bytes())
+                    .map(|(_, prefix)| prefix)
+            }) else {
                 return false;
             };
-            if !self
-                .native_compilation
-                .borrow()
-                .stock
-                .get(&token)
-                .is_some_and(|name| normalise(name) == normalise(edge.slot.as_bytes()))
+            if prefix.len() != 1 {
+                return false;
+            }
+            let Ok(Some(mapped)) = self.native_compilation_binding_at(config.ns, &prefix[0]) else {
+                return false;
+            };
+            let Ok(Some(required)) =
+                self.native_compilation_binding_at(GLOBAL, edge.slot.as_bytes())
+            else {
+                return false;
+            };
+            if mapped.token != required.token
+                || mapped.namespace_token != required.namespace_token
+                || mapped.implementation_generation != required.implementation_generation
+                || !self.stock_registration_matches(required.token, edge.slot.as_bytes())
             {
                 return false;
             }
-            current = token;
+            current = required.token;
         }
         true
     }

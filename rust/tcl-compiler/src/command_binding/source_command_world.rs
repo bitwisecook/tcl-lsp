@@ -1135,6 +1135,98 @@ impl OriginalCompletedCommandWorld {
         })
     }
 
+    /// Actual declaring provider selected by one original retained body.
+    /// The output report and independently addressable source operand are distinct.
+    pub(crate) fn defining_class_name_for_body(
+        &self,
+        method: &crate::ir::MethodDef,
+    ) -> Option<(String, String)> {
+        let source = method.body.executed_source.as_deref()?;
+        let matches = |declaration: &super::CommandAllocationSite,
+                       body: &super::ExecutedScriptSource,
+                       formals: &[(String, Option<String>)]| {
+            method
+                .span
+                .is_some_and(|span| span.start() == declaration.offset)
+                && source == body
+                && method
+                    .params
+                    .iter()
+                    .map(String::as_str)
+                    .eq(formals.iter().map(|(name, _)| name.as_str()))
+        };
+        let mut providers = self
+            .state
+            .class_definitions
+            .iter()
+            .filter(|(identity, definition)| match method.kind {
+                crate::ir::MethodKind::Method => {
+                    definition.receiver_method_entries.values().any(|entry| {
+                        entry.receiver() == super::SourceMethodReceiver::Instance
+                            && !entry.is_native_class_delegate()
+                            && entry
+                                .declaring_class()
+                                .and_then(|provider| provider.identity.as_ref())
+                                == Some(*identity)
+                            && matches(entry.declaration(), entry.body(), entry.formals())
+                    })
+                }
+                crate::ir::MethodKind::Constructor => {
+                    definition
+                        .constructor_provider
+                        .as_ref()
+                        .and_then(|provider| provider.identity.as_ref())
+                        == Some(*identity)
+                        && definition
+                            .constructor_entry
+                            .as_deref()
+                            .is_some_and(|entry| {
+                                matches(entry.declaration(), entry.body(), entry.formals())
+                            })
+                }
+                crate::ir::MethodKind::Destructor => {
+                    definition
+                        .destructor_provider
+                        .as_ref()
+                        .and_then(|provider| provider.identity.as_ref())
+                        == Some(*identity)
+                        && definition.destructor_entry.as_deref().is_some_and(|entry| {
+                            matches(entry.declaration(), entry.body(), entry.formals())
+                        })
+                }
+                crate::ir::MethodKind::ClassMethod => false,
+            });
+        let (identity, _) = providers.next()?;
+        if providers.next().is_some() {
+            return None;
+        }
+        let allocation = identity.allocation.as_ref()?;
+        let mut publications = self.declarations().filter(|publication| {
+            publication.kind() == OriginalCommandPublicationKind::Object
+                && publication.definition().is_some_and(|definition| {
+                    definition.kind() == super::SourceCommandDefinitionKind::Class
+                        && definition.allocation() == allocation
+                })
+        });
+        let publication = publications.next()?;
+        if publications.next().is_some() {
+            return None;
+        }
+        let roster = self.class_instance_method_roster(publication.definition()?)?;
+        if roster.target.identity.as_ref() != Some(identity) {
+            return None;
+        }
+        let source_operand = tcl_syntax::naming::native_command_source_spelling(
+            publication.policy().recipe(),
+            publication.slot(),
+        )?;
+        let report = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(
+            publication.slot(),
+        ))
+        .ok()?;
+        Some((report, source_operand))
+    }
+
     /// Match this completed world's source publications against an authentic
     /// lookup point. Independent source worlds can contribute declarations;
     /// the same shared rank owner and alternative-consensus guard apply.

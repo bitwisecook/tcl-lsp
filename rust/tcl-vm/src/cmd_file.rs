@@ -64,7 +64,9 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
     }
     for &(member, _) in FILE_MEMBERS {
         let target = format!("::tcl::file::{member}");
-        if vm.stock_native_identity(&target).as_deref() == target.strip_prefix("::") {
+        if vm.stock_native_identity(&target).as_deref()
+            == tcl_syntax::naming::unroot_rooted_key(&target)
+        {
             vm.remove_registered_command(target.trim_start_matches("::"));
         }
     }

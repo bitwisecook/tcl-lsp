@@ -32,6 +32,7 @@ pub(super) struct SelectedInvocation {
 pub(super) struct CompilationState {
     /// Only engine installation, before host registration, seals these tokens.
     pub(super) stock: HashMap<u64, Vec<u8>>,
+    pub(super) stock_registrations: HashMap<u64, super::stock_ensembles::StockRegistrationSlot>,
     fixed_math: Option<tcl_runtime_api::native_compilation::NativeMathFunctionTable>,
     execution: CompilationExecution,
     admission_error: Option<NativeCompilationAdmissionError>,
@@ -285,10 +286,9 @@ impl Interp {
     }
 
     pub(super) fn seal_native_compiler_tokens(&self) {
-        self.native_compilation
-            .borrow_mut()
-            .stock
-            .extend(self.registry_builtin_names.borrow().clone());
+        for (generation, identity) in self.registry_builtin_names.borrow().clone() {
+            self.record_stock_compiler_registration(generation, &identity);
+        }
         self.seal_native_compiler_attachments();
         self.refresh_native_math_function_table();
     }
@@ -525,9 +525,9 @@ impl Interp {
                 })
         };
         let prerequisites = spec.implementation_prerequisites(self.native_invocation_dialect());
-        let replaced_worker = prerequisites.as_ref().is_some_and(|path| {
-            !self.native_implementation_path_holds(generation, identity.as_bytes(), path)
-        });
+        let replaced_worker = prerequisites
+            .as_ref()
+            .is_some_and(|path| !self.native_implementation_path_holds(generation, path));
         let selection = if observed || replaced_worker {
             Selection::Generic
         } else {

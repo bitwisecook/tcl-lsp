@@ -34,7 +34,7 @@ The bounded audit covers63 package boundaries,330 attributed LSP candidates and3
 
 ## Cadence and references
 
-Tracking checkpoint:23:03 UTC on13 October2026; next23:09 UTC, hourly report23:11 UTC. Development checkpoints include reviewed migrations while combined validation remains red or unexecuted. Earlier missed cadence is retained in git history. No all-consumer or PR-ready acceptance is claimed.
+Tracking checkpoint:23:09 UTC on13 October2026; next23:24 UTC, hourly report23:11 UTC. Development checkpoints include reviewed migrations while combined validation remains red or unexecuted. Earlier missed cadence is retained in git history. No all-consumer or PR-ready acceptance is claimed.
 
 Original source-built C8.4.20,8.5.19,8.6.18,9.0.4,9.1.0 and matching original libraries are provisioned. Latest checked Jim is5bac7c99ad65864c87da513e22e2f01703fa4e03, reporting0.84-9-g5bac7c9. Rediscover latest before new observations. If using Tcltest, use the version's original init.tcl/tcltest.tcl, including authentic zipfs channels where applicable. Source `/tmp/name-env.sh`; lease one distinct Cargo target, jobs1/test-debug0. Sealed experiments and hashes remain; executable build products stay outside Git.
 
@@ -47,3 +47,5 @@ Preserve the [security scrub](../../../experiments/name-handling/results/securit
 ## Merge readiness
 
 After every consumer is finished, audit all authored/generated documentation and comments, including untouched code/tests/scripts/templates. Keep minimal current how/why, clear self-describing code, legal attribution, experiments and oracle-based tests. Remove stale claims, completed TODOs, abandoned plans, process/history narratives, this temporary directory/references and the work-specific AGENTS push exception. Format/regenerate and make all required gates green before creating a merge-ready PR. No merge is authorised.
+
+Current integration: the first combined Main API check stops at two graph ID-borrowing errors with stable authored sources; both are repaired and retry03 is active. OO declaring-provider folds, object-return ID reports, eight VM constructed-key adapters and the two Runtime stock registration joins are integrated; conformance remains unexecuted. VM diagnostic03 builds and proves actual modern Origin setup is blocked by the reached ListInsert recipe. Five alias-record diagnostic selectors execute: C84 reaches26 rows but two unrelated errorCode rows differ; modernC85–91 stops after13 correct rows at actual Alias invocation admission. Original assertions and all failed attempts are retained.

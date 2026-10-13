@@ -1,0 +1,11 @@
+IDENTITY 8.5.19
+OBSERVATION private-presence 0 {} {}
+OBSERVATION configured-holder 1 {"namespace" is not an ensemble command} {TCL LOOKUP ENSEMBLE namespace}
+OBSERVATION private-original 1 {invalid command name "::tcl::namespace::which"} NONE
+OBSERVATION relative-map 1 {"namespace" is not an ensemble command} {TCL LOOKUP ENSEMBLE namespace}
+OBSERVATION relative-map-other-caller 0 ::list {}
+OBSERVATION original-relocation 1 {can't rename "::tcl::namespace::which": command doesn't exist} NONE
+OBSERVATION retained-direct 1 {invalid command name "::retainedWorker"} NONE
+OBSERVATION original-slot-replacement 1 {can't create procedure "::tcl::namespace::which": unknown namespace} NONE
+OBSERVATION public-after-replacement 0 ::list {}
+OBSERVATION retained-after-replacement 1 {invalid command name "::retainedWorker"} NONE
