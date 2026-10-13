@@ -10,6 +10,40 @@ A mismatch is retained on the actual receiver as a structured `NativeExecutionEr
 
 The software controls in `interp::native_arguments::original_receiver_tests` cover same-receiver clones, distinct receivers with equal contexts, distinct headers with equal spelling, unchanged native argument reference counts, retained result identity, and an existing first Host cause. These controls test the implementation contract. They do not claim native C/Jim callback or foreign-interpreter behaviour. The native evidence boundaries are documented in [the original Host publication proof](../analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md).
 
+## Compiled procedure definitions
+
+[`NativeOp::DefineProc`](../../../rust/tcl-compiler/src/native_lowering/ir.rs)
+retains already evaluated argv objects separately from its internal compiled-body
+key. [`tcl_codegen_proc_define_original_argv`](../../../runtime/rust/src/codegen_abi.rs)
+borrows that vector, retaining the caller's references through activation,
+original procedure handling and checked completion capture. It accepts a
+separately proven optional compiled entry; that entry supplies no name,
+namespace, original argument or native execution authority.
+
+The direct ABI caller must independently prove that the selected definer is the
+live stock procedure handler under the invocation's current lookup context.
+Preserving `argv[0]` supplies no such proof: the direct entry bypasses command
+head dispatch. A replaced, shadowed or otherwise unproved definer uses generic
+dispatch with the same evaluated argv. Compiler declaration/span and operand
+admission remain separate from both live definer selection and compiled-entry
+authority.
+
+The ABI and the stock command share
+[`proc_cmd_with_native_entry`](../../../runtime/rust/src/cmd_proc.rs).
+`OriginalArguments` guards the actual operands while the shared handler selects
+name publication, current namespace, formal/body order and result semantics.
+A display FQN or internal entry key cannot substitute for the original name
+object. A substituted name or body is evaluated at its original call site once
+through generic dispatch, rather than reconstructed or evaluated in the new
+procedure's frame.
+
+The ABI uses the existing activation, borrowed-argv and completion owners. A
+Host refusal bypasses output adoption; caller-owned objects and mandatory
+cleanup retain their existing lifetime rules. Replacement by a source-only
+procedure retires the prior compiled entry while independently retained caller
+objects remain valid. The shared descriptor table owns the import signature and
+strict artefact/Runtime fingerprint comparison.
+
 ## Native C86 source text and split
 
 For independently selected Native C86, [`parse_script_with_original_text`](../../../runtime/rust/src/parse.rs) retains top-level `Esc` token spans and word-part indices in the central `ExecutablePartArena`, alongside the unchanged lexical `WordPart::Text` value. [`Interp::original_c86_word_text`](../../../runtime/rust/src/interp.rs) materialises the original text when that part is reached during substitution. It requires Native source admission, the entered operation's currency, `SourceChannel::NativeValue`, the actual lexer configuration and complete contiguous Text coverage of the retained span. A Logical-capable `source_string_protocol` alone grants no Native admission. Changed or unavailable authority, channel, grammar or geometry refuses rather than reconstructing original bytes from lexical text.

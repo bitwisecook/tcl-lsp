@@ -1,0 +1,10 @@
+
+running 5 tests
+test codegen_abi::tests::original_definition_argv_does_not_create_a_missing_holder ... ok
+test codegen_abi::tests::original_definition_argv_preserves_pending_host_refusal_and_untouched_output ... ok
+test codegen_abi::tests::original_definition_argv_replacement_retires_its_compiled_entry ... ok
+test codegen_abi::tests::original_definition_argv_uses_actual_name_and_current_holder ... ok
+test codegen_abi::tests::original_definition_argv_validates_inputs_without_consuming_arguments ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 2108 filtered out; finished in 5.05s
+

@@ -1,0 +1,4 @@
+/workspace/tcl-lsp/experiments/name-handling/results/codegen-root-colon-publication/evaluated-argv-oracles/missing-holder.tcl:2: Error: namespace, unknown command "exists": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp/experiments/name-handling/results/codegen-root-colon-publication/evaluated-argv-oracles/missing-holder.tcl", line 2
+    namespace exists missing

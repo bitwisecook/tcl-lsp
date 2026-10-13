@@ -1,0 +1,10 @@
+{
+  "rustc": {
+    "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+    "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f"
+  },
+  "cargo": {
+    "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+    "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14"
+  }
+}

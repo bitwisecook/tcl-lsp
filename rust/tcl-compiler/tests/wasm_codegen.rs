@@ -198,16 +198,11 @@ puts [add $e $f]
     );
     assert!(wat.contains(r#""tcl_codegen_local_bind""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
-    assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_codegen_proc_register"), 0, "{wat}");
     assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
-    // The procedure and both assignments have proven direct forms. `puts`
-    // under the analysis tier always dispatches through prebuilt argv — no
-    // fast path re-parses compatibility text — and the direct `[add …]` call
-    // is retired along with it, so the last statement is two generic
-    // prebuilt-argv invocations — the nested `add` and the `puts`; the native
-    // tier lowers the latter to its `Puts` intrinsic and native lowering gives the former
-    // its table-installed direct call.
-    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
+    // Both assignments retain their proven direct forms. The procedure
+    // declaration, nested add call and puts dispatch with original evaluated argv.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");
     assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
@@ -1439,7 +1434,8 @@ fn top_installs_one_table_entry_per_bound_body() {
     assert_eq!(
         call_targets(top)
             .iter()
-            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
+            .filter(|target| **target
+                == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
             .count(),
         2,
         "each definition binds through the definition ABI"
@@ -1705,7 +1701,8 @@ fn only_the_definition_whose_body_was_compiled_binds_an_entry() {
     assert_eq!(
         call_targets(top)
             .iter()
-            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
+            .filter(|target| **target
+                == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
             .count(),
         1
     );
@@ -1722,7 +1719,8 @@ fn only_the_definition_whose_body_was_compiled_binds_an_entry() {
                 .expect("the tier emits ::top")
         )
         .iter()
-        .filter(|target| **target == import_index(&redefined, CodegenAbiImportId::ProcDefineNative))
+        .filter(|target| **target
+            == import_index(&redefined, CodegenAbiImportId::ProcDefineOriginalArgv))
         .count(),
         1,
         "only one of the two statements binds"

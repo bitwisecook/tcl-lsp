@@ -1318,7 +1318,7 @@ pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) 
                 status
             } else {
                 1
-            }
+            };
         }
     };
     if value.is_null() {
@@ -1353,7 +1353,7 @@ pub unsafe extern "C" fn tcl_codegen_slot_lappend(slot: i32, value: *mut TclObj)
                 status
             } else {
                 1
-            }
+            };
         }
     };
     if value.is_null() {
@@ -1739,7 +1739,7 @@ pub unsafe extern "C" fn tcl_codegen_proc_define_native(
                 status
             } else {
                 1
-            }
+            };
         }
     };
     let name = unsafe { input_bytes(name_ptr, name_len) };
@@ -2369,6 +2369,74 @@ pub unsafe extern "C" fn tcl_invoke_argv(
         };
     }
     let code = operation.interpreter.dispatch(words);
+    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
+}
+
+/// Define from borrowed evaluated argv through the original procedure handler.
+/// The caller retains every argument and supplies a checked compiled entry.
+///
+/// # Safety
+/// `argv` must hold `argc` live caller-owned objects and `out` must be writable
+/// completion storage. The caller must independently prove the live stock
+/// procedure definer in the current lookup context; this entry bypasses head
+/// dispatch. A present entry must separately satisfy `NativeProcEntry`.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_proc_define_original_argv(
+    argv: *const *mut TclObj,
+    argc: i32,
+    entry: Option<NativeProcEntry>,
+    out: *mut TclCompletionAbi,
+) -> i32 {
+    if out.is_null() {
+        return TCL_INVOKE_ABI_NULL_OUT;
+    }
+    let mut operation = match CodegenOperation::enter() {
+        Ok(operation) => operation,
+        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
+            unsafe {
+                write_detached_completion(
+                    out,
+                    detached_error_completion(
+                        b"no current interpreter for tcl_codegen_proc_define_original_argv",
+                    ),
+                )
+            };
+            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
+        }
+        Err(status) => return status,
+    };
+    let argc = match usize::try_from(argc) {
+        Ok(argc) if argc > 0 => argc,
+        _ => {
+            let code = operation
+                .interpreter
+                .set_error(b"tcl_codegen_proc_define_original_argv requires a command head");
+            return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
+        }
+    };
+    if argv.is_null() {
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_codegen_proc_define_original_argv received a null argv");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
+    }
+    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
+    if words.iter().any(|word| word.is_null()) {
+        let code = operation
+            .interpreter
+            .set_error(b"tcl_codegen_proc_define_original_argv received a null word");
+        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
+    }
+    // All caller-owned argv references remain borrowed through dispatch and capture.
+    let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
+    if activation.is_none() {
+        return unsafe {
+            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
+        };
+    }
+    let code =
+        crate::cmd_proc::proc_cmd_with_native_entry(&mut operation.interpreter, words, entry);
     unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
 }
 
@@ -5838,6 +5906,284 @@ mod tests {
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
         }
+    }
+    unsafe fn define_original_words(
+        words: &[*mut TclObj],
+        entry: Option<NativeProcEntry>,
+    ) -> TclCompletionAbi {
+        let mut out = TclCompletionAbi {
+            code: 777,
+            result: ptr::null_mut(),
+            options: ptr::null_mut(),
+        };
+        // SAFETY: caller-owned live objects and writable local completion storage.
+        let status = unsafe {
+            tcl_codegen_proc_define_original_argv(
+                words.as_ptr(),
+                i32::try_from(words.len()).unwrap(),
+                entry,
+                &mut out,
+            )
+        };
+        assert_eq!(status, TCL_INVOKE_ABI_OK);
+        out
+    }
+
+    #[test]
+    fn original_definition_argv_uses_actual_name_and_current_holder() {
+        leak_free(|| unsafe {
+            for environment in ["tcl8.6", "tcl9.0"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                for holder_name in [b"holder".as_slice(), b":".as_slice(), b":ns".as_slice()] {
+                    let holder = interp
+                        .namespaces_mut()
+                        .ensure_namespace(crate::namespace::GLOBAL, holder_name);
+                    interp.set_current_ns(holder);
+                    let name = if holder_name == b"holder" {
+                        b":audit".as_slice()
+                    } else {
+                        b"audit".as_slice()
+                    };
+                    let words = [
+                        owned_word(b"proc"),
+                        owned_word(name),
+                        owned_word(b""),
+                        owned_word(b"return ORIGINAL"),
+                    ];
+                    let mut completion = define_original_words(&words, None);
+                    assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                    tcl_completion_release(&mut completion);
+                    // The ABI borrows these objects; they stay live until cleanup.
+                    release_words(&words);
+                    assert_eq!(interp.eval_str(name), Code::Ok);
+                    assert_eq!(interp.result_bytes(), b"ORIGINAL");
+                    assert_eq!(interp.current_ns(), holder);
+                }
+                interp.set_current_ns(crate::namespace::GLOBAL);
+                assert_eq!(interp.eval_str(b"info commands :audit"), Code::Ok);
+                assert!(interp.result_bytes().is_empty());
+                assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
+                assert!(interp.result_bytes().is_empty());
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn original_definition_argv_does_not_create_a_missing_holder() {
+        leak_free(|| unsafe {
+            for environment in ["tcl8.6", "tcl9.0"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                let words = [
+                    owned_word(b"proc"),
+                    owned_word(b"missing::audit"),
+                    owned_word(b""),
+                    owned_word(b"return NEVER"),
+                ];
+                let mut completion = define_original_words(&words, None);
+                assert_eq!(
+                    completion.code,
+                    i32::try_from(Code::Error.as_int()).unwrap()
+                );
+                tcl_completion_release(&mut completion);
+                release_words(&words);
+                assert_eq!(interp.eval_str(b"namespace exists missing"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"0");
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn original_root_name_object_retains_the_installed_software_entry() {
+        // This callable is an existing Rust software ABI stub, not Native evidence.
+        leak_free(|| unsafe {
+            for environment in ["tcl8.6", "tcl9.0"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                stub_argv(&[b"return", b"compiled"]);
+                let words = [
+                    owned_word(b"proc"),
+                    owned_word(b":audit"),
+                    owned_word(b""),
+                    owned_word(b"return source"),
+                ];
+                let before = tcl_codegen_native_proc_dispatches();
+                let mut completion = define_original_words(&words, Some(stub_body));
+                assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                tcl_completion_release(&mut completion);
+                release_words(&words);
+                assert_eq!(interp.eval_str(b":audit"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"compiled");
+                assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+                assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"return source");
+                assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
+                assert!(interp.result_bytes().is_empty());
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn original_definition_argv_replacement_retires_its_compiled_entry() {
+        // The existing callable is a Rust software ABI stub, not Native provenance.
+        leak_free(|| unsafe {
+            for environment in ["tcl8.6", "tcl9.0"] {
+                let mut interp = scalar_interpreter(environment);
+                tcl_runtime_set_current_interp(&mut interp);
+                stub_argv(&[b"info", b"level", b"0"]);
+                let original = [
+                    owned_word(b"proc"),
+                    owned_word(b":audit"),
+                    owned_word(b"name"),
+                    owned_word(b"return OLD_SOURCE"),
+                ];
+                let before = tcl_codegen_native_proc_dispatches();
+                let mut completion = define_original_words(&original, Some(stub_body));
+                assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                tcl_completion_release(&mut completion);
+                assert_eq!(interp.eval_str(b":audit first"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b":audit first");
+                assert_eq!(stub_calls(), 1);
+                assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+                assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"return OLD_SOURCE");
+
+                // Reuse the live original head/name/formal argument objects. Their
+                // caller-owned references span both borrowed ABI calls; only the
+                // new source body has an additional caller-owned reference.
+                let body = owned_word(b"return [list REPLACED $name [info level 0]]");
+                let replacement = [original[0], original[1], original[2], body];
+                let mut completion = define_original_words(&replacement, None);
+                assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+                tcl_completion_release(&mut completion);
+                assert_eq!(interp.eval_str(b":audit second"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"REPLACED second {:audit second}");
+                assert_eq!(
+                    stub_calls(),
+                    1,
+                    "replacement must not enter the retired callable"
+                );
+                assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+                assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+                assert_eq!(
+                    interp.result_bytes(),
+                    b"return [list REPLACED $name [info level 0]]"
+                );
+                assert_eq!(interp.eval_str(b"info args :audit"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"name");
+                assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
+                assert!(interp.result_bytes().is_empty());
+                // Replacement retires the procedure's old references, but cannot
+                // consume or mutate either caller's original argument objects.
+                assert_eq!(obj_bytes(original[1]), b":audit");
+                assert_eq!(obj_bytes(original[3]), b"return OLD_SOURCE");
+                assert_eq!(
+                    obj_bytes(body),
+                    b"return [list REPLACED $name [info level 0]]"
+                );
+                release_words(&[body]);
+                release_words(&original);
+                tcl_runtime_set_current_interp(ptr::null_mut());
+            }
+        });
+    }
+
+    #[test]
+    fn original_definition_argv_validates_inputs_without_consuming_arguments() {
+        leak_free(|| unsafe {
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            let mut out = empty_completion();
+            assert_eq!(
+                tcl_codegen_proc_define_original_argv(ptr::null(), 1, None, &mut out),
+                TCL_INVOKE_ABI_NO_CURRENT_INTERP,
+            );
+            assert_eq!(out.code, 1);
+            tcl_completion_release(&mut out);
+
+            let mut interp = scalar_interpreter("tcl9.0");
+            tcl_runtime_set_current_interp(&mut interp);
+            for argc in [-1, 0] {
+                assert_eq!(
+                    tcl_codegen_proc_define_original_argv(ptr::null(), argc, None, &mut out),
+                    TCL_INVOKE_ABI_INVALID_ARGC,
+                );
+                assert_eq!(out.code, 1);
+                tcl_completion_release(&mut out);
+            }
+            assert_eq!(
+                tcl_codegen_proc_define_original_argv(ptr::null(), 1, None, &mut out),
+                TCL_INVOKE_ABI_NULL_ARGV,
+            );
+            tcl_completion_release(&mut out);
+            let invalid = [ptr::null_mut::<TclObj>()];
+            assert_eq!(
+                tcl_codegen_proc_define_original_argv(invalid.as_ptr(), 1, None, &mut out),
+                TCL_INVOKE_ABI_NULL_WORD,
+            );
+            tcl_completion_release(&mut out);
+
+            let words = [
+                owned_word(b"proc"),
+                owned_word(b":audit"),
+                owned_word(b""),
+                owned_word(b"return ORIGINAL"),
+            ];
+            assert_eq!(
+                tcl_codegen_proc_define_original_argv(words.as_ptr(), 4, None, ptr::null_mut()),
+                TCL_INVOKE_ABI_NULL_OUT,
+            );
+            assert_eq!(obj_bytes(words[1]), b":audit");
+            assert_eq!(interp.eval_str(b"info commands :audit"), Code::Ok);
+            assert!(interp.result_bytes().is_empty());
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        });
+    }
+
+    #[test]
+    fn original_definition_argv_preserves_pending_host_refusal_and_untouched_output() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let failing = [
+                owned_word(b"string"),
+                owned_word(b"toupper"),
+                owned_word(b"A\xff"),
+            ];
+            let words = [
+                owned_word(b"proc"),
+                owned_word(b":audit"),
+                owned_word(b""),
+                owned_word(b"return NEVER"),
+            ];
+            let mut out = TclCompletionAbi {
+                code: 77,
+                result: ptr::null_mut(),
+                options: ptr::null_mut(),
+            };
+            assert_eq!(
+                tcl_invoke_argv(failing.as_ptr(), 3, &mut out),
+                TCL_INVOKE_ABI_HOST_REFUSED,
+            );
+            assert_eq!(
+                tcl_codegen_proc_define_original_argv(words.as_ptr(), 4, None, &mut out),
+                TCL_INVOKE_ABI_HOST_REFUSED,
+            );
+            assert_eq!(out.code, 77);
+            assert!(out.result.is_null() && out.options.is_null());
+            assert_eq!(tcl_codegen_host_refusal_pending(), 1);
+            assert_eq!((*interp).unicode_access_refusal().unwrap().valid_up_to, 1);
+            assert_eq!(obj_bytes(words[1]), b":audit");
+            assert_eq!(obj_bytes(words[3]), b"return NEVER");
+            release_words(&failing);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
     }
 }
 

@@ -1,0 +1,17 @@
+{
+  "run.py": "3f76578c66f6f8076c11b2edba5fbbf8b12196817406ba1e6f153235daf2cee1",
+  "metadata.json": "45627e0093c442c346e6c0b8f1932a51a95cb2b79f5fe06f3460db6032315831",
+  "metadata_argv": [
+    "cargo",
+    "metadata",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--offline",
+    "--format-version",
+    "1"
+  ],
+  "capture_argv": [
+    "python3",
+    "/tmp/capture-original-argv-runtime.py"
+  ]
+}

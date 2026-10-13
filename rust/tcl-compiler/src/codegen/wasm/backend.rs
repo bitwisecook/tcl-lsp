@@ -245,7 +245,6 @@ struct AotImports {
     var_get: u32,
     expr_add: u32,
     puts: u32,
-    proc_register: u32,
     argv: ArgvImports,
 }
 
@@ -265,18 +264,12 @@ struct ArgvImports {
 
 #[derive(Default)]
 struct FunctionFacts {
-    operations: HashMap<(u32, u32), SemanticOperationId>,
     direct_assignments: HashMap<(u32, u32), String>,
     direct_calls: HashMap<(u32, u32, String), String>,
     /// Selected prebuilt-argv plans, keyed by leaf-statement span.
     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
     /// Typed reasons a leaf statement stayed on the source-span eval fallback.
     leaf_declines: HashMap<(u32, u32), WasmLeafInvokeDecline>,
-    /// Spans of `proc` definitions that wrote every word out, so this tier may
-    /// register the definition itself instead of leaving it to the runtime's
-    /// own `proc`. Decided while planning, where the statement's
-    /// structured words are still to hand.
-    literal_proc_definitions: HashSet<(u32, u32)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -319,7 +312,6 @@ struct WasmEmitter {
     proc_indices: HashMap<String, u32>,
     procedure_arity: HashMap<String, usize>,
     direct_procs: HashSet<String>,
-    procedures_by_span: HashMap<(u32, u32), Procedure>,
     facts: FunctionFacts,
 }
 
@@ -340,7 +332,6 @@ impl WasmEmitter {
             proc_indices: HashMap::new(),
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
-            procedures_by_span: HashMap::new(),
             facts: FunctionFacts::default(),
         }
     }
@@ -363,7 +354,6 @@ impl WasmEmitter {
             proc_indices: HashMap::new(),
             procedure_arity: HashMap::new(),
             direct_procs: HashSet::new(),
-            procedures_by_span: HashMap::new(),
             facts: FunctionFacts::default(),
         }
     }
@@ -703,69 +693,8 @@ impl WasmEmitter {
                 self.push(WasmOp::Return);
                 true
             }
-            Statement::Call { span, .. } => {
-                // Each alternative must be transactional. A `try_*` may emit
-                // part of its sequence before hitting a word it cannot prove
-                // and declining — `try_emit_direct_operation` boxes leading
-                // arguments before it reaches, say, an `$arr(key)` it does not
-                // handle. `emit_typed_statement` only rolls back when the whole
-                // chain declines, so without this a decline followed by a
-                // successful fallback would leave the half-emitted prefix in
-                // the body and its operands stranded on the stack, producing a
-                // module wasmtime rejects with "values remaining on stack at
-                // end of block".
-                self.attempt(|emitter| emitter.try_emit_direct_operation(*span))
-                    || self.attempt(|emitter| emitter.try_emit_leaf_invocation(*span))
-            }
+            Statement::Call { span, .. } => self.try_emit_leaf_invocation(*span),
             _ => false,
-        }
-    }
-
-    /// The narrow direct specialisations that beat generic argv invocation
-    /// when the binding lattice proves the command is still its builtin.
-    fn try_emit_direct_operation(&mut self, span: Span) -> bool {
-        let Some(aot) = self.general_imports().aot else {
-            return false;
-        };
-        let Some(operation) = self.facts.operations.get(&span_key(span)).copied() else {
-            return false;
-        };
-        match operation {
-            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
-                // Only a definition whose words were all written out. Otherwise
-                // `Procedure` holds the *written* word while the body was
-                // compiled from a value this tier materialised, and registering
-                // that word reports the wrong `info body` and leaves any later
-                // run of the source body evaluating a substitution in the
-                // procedure's own frame. The generic invocation
-                // below hands the word to the runtime's `proc`, which evaluates
-                // it at the call site as Tcl does.
-                if !self
-                    .facts
-                    .literal_proc_definitions
-                    .contains(&span_key(span))
-                {
-                    return false;
-                }
-                let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
-                    return false;
-                };
-                let Some(body) = proc.body_source.as_deref() else {
-                    return false;
-                };
-                self.push_text_pair(&proc.qualified_name);
-                self.push_text_pair(&proc.params_raw);
-                self.push_text_pair(body);
-                self.call(aot.proc_register);
-                self.emit_completion_dispatch();
-                true
-            }
-            // There is no `puts` fast path reparsing compatibility text: the
-            // leaf-invocation path below evaluates its words structurally, and
-            // the native tier owns the channel-write intrinsic.
-            SemanticOperationId::Invoke
-            | SemanticOperationId::Intrinsic(_)
-            | SemanticOperationId::StructuredLowering(_) => false,
         }
     }
 
@@ -1743,31 +1672,6 @@ fn function_facts(
             {
                 facts.direct_assignments.insert(span_key(*span), value);
             }
-            let (Statement::Call {
-                command, tokens, ..
-            }
-            | Statement::Barrier {
-                command, tokens, ..
-            }) = statement
-            else {
-                continue;
-            };
-            if let Some(tokens) = tokens
-                && let Some(context) = context
-                && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-                    resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
-                && bindings.is_original_builtin_at(block, stmt_idx, command)
-                && mutations.trusts(invocation.descriptor_key().label())
-            {
-                record_operation(
-                    &mut facts,
-                    module,
-                    registry,
-                    Some(context),
-                    statement.span(),
-                    tokens,
-                );
-            }
             // Generic prebuilt-argv invocation is the normal leaf-command path
             // and needs no binding proof: the runtime resolves the command head
             // exactly as interpreted Tcl does, so a rename, alias, ensemble, or
@@ -1978,81 +1882,6 @@ fn plan_leaf_statement(
     }
 }
 
-/// Record the semantic operation a proven statement resolves to, and — for a
-/// `proc` definition — whether this tier may register it itself.
-///
-/// The literal-definition verdict is decided here rather than at emit time
-/// because this is where the statement's structured words are still to hand;
-/// the emitter sees only spans and the surviving [`crate::ir::Procedure`].
-fn record_operation(
-    facts: &mut FunctionFacts,
-    module: &Module,
-    registry: &CommandRegistry,
-    context: Option<InvocationMetadataContext<'_>>,
-    span: Span,
-    tokens: &crate::ir::CommandTokens,
-) {
-    let Some(context) = context else {
-        return;
-    };
-    let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-        resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
-    else {
-        return;
-    };
-    // Compatibility codegen retains written argv. Registry positional hooks
-    // require the argument correspondence proved by the shared projection.
-    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
-        return;
-    };
-    if effective.words.len() != tokens.words().len()
-        || effective.origins.iter().any(|origin| {
-            matches!(
-                origin,
-                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
-            )
-        })
-    {
-        return;
-    }
-    facts
-        .operations
-        .insert(span_key(span), invocation.operation);
-    if invocation.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Proc)
-        && proc_definition_is_written_out(module, span, tokens)
-    {
-        facts.literal_proc_definitions.insert(span_key(span));
-    }
-}
-
-/// Whether the `proc` statement at `span` wrote every word out, against the
-/// [`crate::ir::Procedure`] that survived for it.
-///
-/// The general tier's half of the rule the native tier applies in
-/// `native_lowering::lower::lower_definition`; both call the same predicate so
-/// the two cannot drift.
-fn proc_definition_is_written_out(
-    module: &crate::ir::Module,
-    span: Span,
-    tokens: &crate::ir::CommandTokens,
-) -> bool {
-    let Some(procedure) = module
-        .procedures
-        .values()
-        .find(|procedure| procedure.span == span)
-    else {
-        return false;
-    };
-    let Some(body_source) = procedure.body_source.as_deref() else {
-        return false;
-    };
-    crate::native_lowering::lower::definition_words_are_written_out(
-        tokens.words(),
-        &procedure.params_raw,
-        body_source,
-    )
-}
-
 const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
     match value {
         CodegenAbiValueType::I32 => ValType::I32,
@@ -2123,7 +1952,6 @@ fn general_import_id(imports: Imports, index: u32) -> Option<CodegenAbiImportId>
         entries.push((aot.var_get, CodegenAbiImportId::VarGet));
         entries.push((aot.expr_add, CodegenAbiImportId::ExprAdd));
         entries.push((aot.puts, CodegenAbiImportId::Puts));
-        entries.push((aot.proc_register, CodegenAbiImportId::ProcRegister));
         entries.push((aot.argv.frame_alloc, CodegenAbiImportId::CallFrameAlloc));
         entries.push((aot.argv.frame_free, CodegenAbiImportId::CallFrameFree));
         entries.push((aot.argv.string_owned, CodegenAbiImportId::NewOwnedString));
@@ -2219,7 +2047,6 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
         var_get: add_codegen_import(wasm, CodegenAbiImportId::VarGet),
         expr_add: add_codegen_import(wasm, CodegenAbiImportId::ExprAdd),
         puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
-        proc_register: add_codegen_import(wasm, CodegenAbiImportId::ProcRegister),
         argv: ArgvImports::default(),
     };
     imports.argv = add_argv_imports(wasm, imports.var_get);
@@ -2230,7 +2057,6 @@ struct ProcedurePlan<'a> {
     procs: Vec<&'a Procedure>,
     indices: HashMap<String, u32>,
     arity: HashMap<String, usize>,
-    by_span: HashMap<(u32, u32), Procedure>,
     direct: HashSet<String>,
 }
 
@@ -2264,10 +2090,6 @@ fn procedure_plan<'a>(
         .iter()
         .map(|proc| (proc.qualified_name.clone(), proc.params.len()))
         .collect();
-    let by_span = procs
-        .iter()
-        .map(|proc| (span_key(proc.span), (*proc).clone()))
-        .collect();
     let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
         procs
             .iter()
@@ -2283,7 +2105,6 @@ fn procedure_plan<'a>(
         procs,
         indices,
         arity,
-        by_span,
         direct,
     }
 }
@@ -2440,8 +2261,8 @@ fn collect_defined_procs(
         use crate::native_lowering::ir::NativeOp;
         for op in ops {
             match op {
-                NativeOp::DefineProc { qualified_name, .. } => {
-                    out.insert(qualified_name.clone());
+                NativeOp::DefineProc { entry_key, .. } => {
+                    out.insert(entry_key.clone());
                 }
                 NativeOp::IfElse {
                     then_ops, else_ops, ..
@@ -2545,7 +2366,6 @@ fn codegen_runtime_chunk(
         proc_indices: HashMap::new(),
         procedure_arity: HashMap::new(),
         direct_procs: HashSet::new(),
-        procedures_by_span: HashMap::new(),
         facts: FunctionFacts::default(),
     };
     if let Some(chunk) = chunk {
@@ -2614,7 +2434,6 @@ fn codegen(
         procs,
         indices: proc_indices,
         arity: procedure_arity,
-        by_span: procedures_by_span,
         direct: direct_procs,
     } = procedure_plan(module, analysis, top_idx);
     let top_facts = analysis.map_or_else(FunctionFacts::default, |(unit, registry)| {
@@ -2642,7 +2461,6 @@ fn codegen(
         proc_indices,
         procedure_arity,
         direct_procs,
-        procedures_by_span,
         facts: top_facts,
     };
     // Every procedure body is lowered *before* `::top` is emitted: which of
@@ -3438,21 +3256,6 @@ mod tests {
         found
     }
 
-    /// A definition whose body word is a substitution must not be registered
-    /// by this tier.
-    ///
-    /// `Procedure` records the *written* word
-    /// `${body}` while the body this module compiled came from `return hello`,
-    /// so registering it would report that word as `info body`, and any later
-    /// run of the source body would evaluate the substitution in `p`'s own
-    /// frame, where `body` does not exist.
-    ///
-    /// Asserted against the rule rather than against the emitted module,
-    /// because the emit path is unreachable today: every substituted word in a
-    /// definition also defeats the enclosing function's binding proof, so no
-    /// `StructuredLowering(Proc)` operation is recorded to gate. That is a
-    /// coincidence of two independent proofs, not a design — the point of the
-    /// guard is that it already holds when procedure bodies become proven.
     #[test]
     fn host_script_admission_boxes_the_complete_original_byte_image() {
         use crate::command_binding::{ExecutedScriptSource, SourceOriginId};
@@ -3491,22 +3294,32 @@ mod tests {
             .into_iter()
             .find(|(span, _)| *span == procedure.span)
             .expect("the inner `proc` statement kept its tokens");
-        assert!(
-            !proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
-            "a substituted body word must keep the generic invocation",
+        let facts = function_facts(
+            enclosing,
+            &unit.ir_module,
+            &registry,
+            &unit.command_mutations,
+            false,
         );
+        let plan = facts
+            .leaf_invocations
+            .get(&span_key(definition.0))
+            .expect("the original variable word has a generic argv plan");
+        let [_, _, _, body] = plan.root.words.as_slice() else {
+            panic!(
+                "the original four-word vector survives: {:?}",
+                plan.root.words
+            );
+        };
+        assert!(matches!(body, WasmWordPlan::Scalar { name, .. } if name == "body"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
     }
 
-    /// The same proof, on a body that *is* written out, still binds — so the
-    /// rule is about substitution rather than a blanket refusal to register
-    /// anything defined inside a procedure.
     #[test]
-    fn a_written_out_definition_body_still_binds() {
+    fn a_written_out_definition_body_keeps_original_generic_argv() {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let registry = context.commands();
-        // A called original body supplies its reached binding separately from
-        // the uncalled declaration preview and from availability metadata.
         let unit = retained_source_unit(
             std::sync::Arc::clone(&context),
             "proc make {} { proc p {x} {return $x} }; make\n",
@@ -3517,13 +3330,7 @@ mod tests {
         let definition = proc_statement_tokens(enclosing)
             .into_iter()
             .find(|(span, _)| *span == procedure.span)
-            .expect("the inner `proc` statement kept its tokens");
-        assert!(
-            proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
-            "a written-out definition is exactly what this tier may register",
-        );
-
-        // And the reachable end of it: the fact the emitter consults is set.
+            .expect("the original definition keeps its own span");
         let facts = function_facts(
             enclosing,
             &unit.ir_module,
@@ -3531,26 +3338,35 @@ mod tests {
             &unit.command_mutations,
             false,
         );
-        assert!(
-            facts
-                .literal_proc_definitions
-                .contains(&span_key(procedure.span)),
-            "the guard must not refuse a definition it should register: {:?}",
-            facts.literal_proc_definitions,
-        );
+        let plan = facts
+            .leaf_invocations
+            .get(&span_key(definition.0))
+            .expect("the original literal definition retains its generic argv");
+        let [head, name, parameters, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(head, WasmWordPlan::Literal { text, .. } if text == "proc"));
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == "p"));
+        assert!(matches!(parameters, WasmWordPlan::Literal { text, .. } if text == "x"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
     }
 
-    /// A top-level written-out definition is registered too — the guard is
-    /// about the words, not about where the definition sits.
     #[test]
-    fn a_top_level_written_out_definition_is_registered() {
-        let facts = top_level_facts("proc p {x} {return $x}\n");
-        assert_eq!(
-            facts.literal_proc_definitions.len(),
-            1,
-            "{:?}",
-            facts.literal_proc_definitions,
-        );
+    fn a_top_level_written_out_definition_retains_original_name_operand() {
+        let facts = top_level_facts("proc :audit {x} {return $x}\n");
+        assert_eq!(facts.leaf_invocations.len(), 1);
+        let plan = facts
+            .leaf_invocations
+            .values()
+            .next()
+            .expect("one original argv plan");
+        let [_, name, _, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == ":audit"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(facts.leaf_declines.is_empty());
     }
 
     /// A leaf command whose words all compile selects a plan and records no

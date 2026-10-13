@@ -653,12 +653,10 @@ pub enum NativeOp {
     /// invocation, so a redefinition at run time replaces the binding with an
     /// ordinary source-only procedure.
     DefineProc {
-        /// The procedure's fully qualified name.
-        qualified_name: String,
-        /// The formal-parameter list exactly as written.
-        params_raw: String,
-        /// The body's exact source text.
-        body_source: String,
+        /// Internal compiled-body selection key, never a publication operand.
+        entry_key: String,
+        /// Already evaluated original arguments, including the command head.
+        argv: Vec<NativeValueId>,
     },
     /// The last rung: evaluate the statement's exact source text through the
     /// runtime, because the lowering declined it for the recorded reason.

@@ -1,0 +1,681 @@
+[
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#typenum@1.20.1",
+    "target": "typenum",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtypenum-ae975a31f28ad839.rlib",
+    "sha256": "cd80dbee921954cc395a269d17fd83a4c7388f4edb1519614c497d950777e83c"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#typenum@1.20.1",
+    "target": "typenum",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtypenum-ae975a31f28ad839.rmeta",
+    "sha256": "ffd05507013ba981aafb37bceeb786aa95148e6c53fa03b74738ffdcbe61dd53"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/proc-macro2-346fa1be638f98f3/build-script-build",
+    "sha256": "3135d786c45a58d71fcd70b666e4c1bae19399751dae894d8df11b3e158c7da6"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#hybrid-array@0.4.15",
+    "target": "hybrid_array",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libhybrid_array-5d18b8ad07c77ea3.rlib",
+    "sha256": "a3c95349bb73384f5ba5186d7fe561ab033862b7118eaf9fe51eda18492ecf36"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#hybrid-array@0.4.15",
+    "target": "hybrid_array",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libhybrid_array-5d18b8ad07c77ea3.rmeta",
+    "sha256": "0063d2d3058ae4e294964226b1a8f8e26b79e00861493099679c91c0dacb3099"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.26",
+    "target": "unicode_ident",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libunicode_ident-1c3ab445d59154f4.rlib",
+    "sha256": "9476dcddb6b838043e26c082c56a82c25eb4b35f33d2f0e6fd3a679738316e68"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.26",
+    "target": "unicode_ident",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libunicode_ident-1c3ab445d59154f4.rmeta",
+    "sha256": "24e766bc2cf7b87bbc7b697bf695fc9ca3cd1c5474f2c6dd0f61bdf08e54a032"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/quote-281b1bc39d16de7f/build-script-build",
+    "sha256": "e18d5d503d3b3090ec427d228f052d9cb91dd81c8b7924b7e0d11c59e2538fa7"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+    "target": "proc_macro2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libproc_macro2-2bd597a9082108c9.rlib",
+    "sha256": "deac97240ebaec422dcbf4fedfcbed3b84c335f3435f45a754ace10dada7da39"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+    "target": "proc_macro2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libproc_macro2-2bd597a9082108c9.rmeta",
+    "sha256": "7838e1b6da3d441fa293672e72843132584a109d04f7ceaab1ae47c8718e1e96"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.5",
+    "target": "cfg_if",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcfg_if-c5749788b74aba21.rlib",
+    "sha256": "8d7767d8ac50b71dc5f6fef03248b93cf1775e8f4172d891c388b7c437d6ceac"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.5",
+    "target": "cfg_if",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcfg_if-c5749788b74aba21.rmeta",
+    "sha256": "136e551de14c5553a41ed50577e5384ffac6652e496cebe9ce87fa158ba3f645"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+    "target": "quote",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libquote-bd68107b2947e119.rlib",
+    "sha256": "a717bb584033264045e44c051e66255ab4edc562592b75db4ad8677324354993"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+    "target": "quote",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libquote-bd68107b2947e119.rmeta",
+    "sha256": "20971a28da1fa96e7c976b4df37c5047a023015898df7f20f04b2479d108e470"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#crypto-common@0.2.2",
+    "target": "crypto_common",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrypto_common-66cd52a614979156.rlib",
+    "sha256": "31fe958cd94964c3e0645a10a46c5b75bc6c51f48f7fba2ce1046d328678e7d0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#crypto-common@0.2.2",
+    "target": "crypto_common",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrypto_common-66cd52a614979156.rmeta",
+    "sha256": "9b41face590ab0fe9f76d440b607340b39b7db083e92ddec1a248d2657535a12"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#block-buffer@0.12.1",
+    "target": "block_buffer",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libblock_buffer-8e8faee3f2fd7af6.rlib",
+    "sha256": "0d8e0ab691a1952fcfc870ec450be045b95850258f9ab60d7f66016ee817e134"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#block-buffer@0.12.1",
+    "target": "block_buffer",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libblock_buffer-8e8faee3f2fd7af6.rmeta",
+    "sha256": "445fa8a18b570b7bc8d657bbb1f8c389ada495adfffce05af5dc2473f7ba23ab"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-dialect-01514755b6fd4dad/build-script-build",
+    "sha256": "b77d2ef93f490df706636c78bf5b704e8ee984428c2210d46221702e6f4f1683"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#const-oid@0.10.2",
+    "target": "const_oid",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libconst_oid-8e3e75693f11d4a0.rlib",
+    "sha256": "b92c33ddb7cd1bddddfc49cff71ef13557887c6fd29b61a8a4c79934a107b270"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#const-oid@0.10.2",
+    "target": "const_oid",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libconst_oid-8e3e75693f11d4a0.rmeta",
+    "sha256": "d946a206074bc7e665cf7cde823ed54c13786237b18c0170802d9f05cba4b642"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#digest@0.11.3",
+    "target": "digest",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libdigest-fe703c4c07bb0dd5.rlib",
+    "sha256": "c50b1705382a385671f9037d32ed5e70a98fd35087499bbcf2a5abfb5a3fba77"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#digest@0.11.3",
+    "target": "digest",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libdigest-fe703c4c07bb0dd5.rmeta",
+    "sha256": "080e6f5368e03143247efff0852a0afff390461804ee320480b732102468fce0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#syn@3.0.6",
+    "target": "syn",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsyn-686cda178807088c.rlib",
+    "sha256": "7c4a6febe6bf296d0068a3d33bfd808b0c65759f47f263694820f745d671e75c"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#syn@3.0.6",
+    "target": "syn",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsyn-686cda178807088c.rmeta",
+    "sha256": "5989dbc739d0f5813ff6b0608e099334c0dd259140f963b0cac9b7950a69a210"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+    "target": "tcl_core_types",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_core_types-89b48518428f5dbb.rlib",
+    "sha256": "6e5e56453581b9d24e7e13884a8db67b76dec44c29075289aceae458e31b96e1"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+    "target": "tcl_core_types",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_core_types-89b48518428f5dbb.rmeta",
+    "sha256": "05afa8524863b6cffab8ebbbc0be2db4e8fbdea457b42987afb09d89ec0ece1f"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#bitflags@2.13.2",
+    "target": "bitflags",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbitflags-5a4e44694db2c296.rlib",
+    "sha256": "31d206ea07a41538de8034360b7f72f30206d91d5b2efd07512bef1f554a97af"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#bitflags@2.13.2",
+    "target": "bitflags",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbitflags-5a4e44694db2c296.rmeta",
+    "sha256": "39532f33f7861346a69fecece6f5be3ef17342cefc067dd65487c7a22b79cdfb"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/thiserror-3d503c6da2b6cad1/build-script-build",
+    "sha256": "1d996dd947ca76f2d91626e3da61966737f1dea18fe3caf28583c5264e480c8a"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+    "target": "tcl_dialect",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_dialect-0d6870501e528e8e.rlib",
+    "sha256": "b29090dd1cd0d5ffcb79e4a4192e537763049006bc533910102a2b20df13e304"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+    "target": "tcl_dialect",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_dialect-0d6870501e528e8e.rmeta",
+    "sha256": "98da58e771235218b6cfe9e3db7085f325301657e57a6b8a4427b76389fb7098"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.21",
+    "target": "thiserror_impl",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror_impl-dcfc6fd80e6ee9f9.so",
+    "sha256": "834b94634c62c65b80cbc622de995f664b2ea262682b7fb43ec6af14140d9e45"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cpufeatures@0.3.1",
+    "target": "cpufeatures",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcpufeatures-ca644647bc9d1c77.rlib",
+    "sha256": "921233218d652874444ae346d027d8869f35af4eb52d3a6bc350bbc0aeab23d0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cpufeatures@0.3.1",
+    "target": "cpufeatures",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcpufeatures-ca644647bc9d1c77.rmeta",
+    "sha256": "c4603ff3e5fbe9a7bd3b12b020620639b359a437c158a6b5cc697945854d1ba2"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libm@0.2.16",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/libm-a009a2d4d99b9cf2/build-script-build",
+    "sha256": "4ecd09ff8bfe3b666a4fc9fd568ec9feedb4e02a35822f13582e1bfe567244fd"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+    "target": "thiserror",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror-5d7c22bfd47e388b.rlib",
+    "sha256": "992664f99b06898d4fbc39722b5e5cc5213ef951d8cc5d29ab134d4b4936568a"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+    "target": "thiserror",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror-5d7c22bfd47e388b.rmeta",
+    "sha256": "18532695d0de46b7d3edb41acf21d100ce29cb0c2a2b51c933efd435eb6dec3b"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#bytecount@0.6.9",
+    "target": "bytecount",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbytecount-bbc1d87e30a1f37f.rlib",
+    "sha256": "87c703090ec95f57ad9ae9bff1fb470b6422901f1564d8755b400658f92da712"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#bytecount@0.6.9",
+    "target": "bytecount",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbytecount-bbc1d87e30a1f37f.rmeta",
+    "sha256": "19989fe78b940b560739f43c3612f8592388cf68a2e29e6de3249acbaf5f7f6f"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+    "target": "tcl_lexer",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_lexer-3d1b7d4117dea70f.rlib",
+    "sha256": "d927d965e1fe6f43d8a8bb8cf215d2e6869214611e2b8dff10ac1fc0dea8e33b"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+    "target": "tcl_lexer",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_lexer-3d1b7d4117dea70f.rmeta",
+    "sha256": "367c2075e31eed2e3854fac1b7b5f826d88018976fd26f55430c29e279001f2c"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libm@0.2.16",
+    "target": "libm",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibm-9deb250b51280dcd.rlib",
+    "sha256": "0ea587d7a7685b1f510912a272751d943c249a2159bbb8e413f675b79bf3a160"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libm@0.2.16",
+    "target": "libm",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibm-9deb250b51280dcd.rmeta",
+    "sha256": "92d2c8044efc2dd6bc6cd5b08755ecb079638fc33c352dc0bc715ac5b603f1e9"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha2@0.11.0",
+    "target": "sha2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha2-a0f5cbc43b976f6f.rlib",
+    "sha256": "958959272ba6c75d6ba28a4e3cfda5b31fac631ce22d4ced2ba8eb9bf09a55a8"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha2@0.11.0",
+    "target": "sha2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha2-a0f5cbc43b976f6f.rmeta",
+    "sha256": "8905f6bd6455ff51d8182bde627335366343a090de408fcf96b3a3214d7a6651"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#shlex@2.0.1",
+    "target": "shlex",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libshlex-38c44e2d30f69498.rlib",
+    "sha256": "314265c9d84215d4d3c1a0e33c1b5c12822c5305c11f739cb798ec95605d5b13"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#shlex@2.0.1",
+    "target": "shlex",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libshlex-38c44e2d30f69498.rmeta",
+    "sha256": "23047ea6afed41db67b93e33d40c69c29044d503d2fa88d483eda7b0cda03484"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+    "target": "tcl_platform",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_platform-eacc196559060589.rlib",
+    "sha256": "70f8c4d197602b68002293120562443115469d1c9caf695d4c6fde80af2ee150"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+    "target": "tcl_platform",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_platform-eacc196559060589.rmeta",
+    "sha256": "8c458264458474998f3bad830831a643ad7e0bd6f8f31becf41def0147783b34"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#find-msvc-tools@0.1.14",
+    "target": "find_msvc_tools",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libfind_msvc_tools-1612a9a7a6991e05.rlib",
+    "sha256": "2ff135bbb5ebf6bc2b4be4fa103753feee06859eda0863f635ce2139b374f769"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#find-msvc-tools@0.1.14",
+    "target": "find_msvc_tools",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libfind_msvc_tools-1612a9a7a6991e05.rmeta",
+    "sha256": "39473f94d9d706458c41ee2732202542cc9493f33dc8f43d5806baf31a59f8eb"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cc@1.6.0",
+    "target": "cc",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcc-5329085d5c801afb.rlib",
+    "sha256": "0064581c0e57eab348131b1710da97d1afc866b34327306d7d8ccc73236af12f"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#cc@1.6.0",
+    "target": "cc",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcc-5329085d5c801afb.rmeta",
+    "sha256": "d19f456627bc7b3d7e30fb1c1bc99d682033a361219d8c0bc439c911a3f16987"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+    "target": "tcl_syntax",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_syntax-7de6ff568c58473b.rlib",
+    "sha256": "5c3c391e9b75d6052b9ffcd383b1db0dc29f955dd0956b73df63214bf3f24645"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+    "target": "tcl_syntax",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_syntax-7de6ff568c58473b.rmeta",
+    "sha256": "7e15e97eaf17f315c3f23b321bc7c38f1c7ab4cdea481b5e710ff4e4308c72f2"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.190",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/libc-0078c6ac5bd6e9b4/build-script-build",
+    "sha256": "d631110132e5d5424d8dc90b62097da50560925e815024994e7a5aaf03f5e7fb"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-host-c-abi-4b24acb4aa38fddf/build-script-build",
+    "sha256": "77597ff21c4ca8db5f94a5ce349b1384f183377830ae43fbb83df11fa83c865f"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.190",
+    "target": "libc",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibc-e3683aa881c1e51c.rlib",
+    "sha256": "45b322b7c76545d4eb4ba084eec8056d3d0c81ee3c5410067a8b94007cbc0ad3"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.190",
+    "target": "libc",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibc-e3683aa881c1e51c.rmeta",
+    "sha256": "54cd299303d73dc18e1a410b7109e5074bf20f67f3703db5f71ee95808fc382e"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha1@0.11.0",
+    "target": "sha1",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha1-6b8004a7c98c31db.rlib",
+    "sha256": "bdef27f69aec81913008e11e08aaa3e9404da5381fc072cc47ca49c11c1af5e1"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha1@0.11.0",
+    "target": "sha1",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha1-6b8004a7c98c31db.rmeta",
+    "sha256": "7877b5045e4540d816ff4b09314aab3a57c35e1535e69eab81a4f174ef9e61a7"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#md-5@0.11.0",
+    "target": "md5",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libmd5-ae33f56743de9a87.rlib",
+    "sha256": "25301d232121140813323395308b8c87d3a56cf461a294f618813cee9efd86ae"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#md-5@0.11.0",
+    "target": "md5",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libmd5-ae33f56743de9a87.rmeta",
+    "sha256": "352149b77dc809920052c05bd316c09e21a33e130255176bce380ed30171f0c1"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#crc32fast@1.5.2",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/crc32fast-e36d3eb64dafec9c/build-script-build",
+    "sha256": "2e70250bd6c9092c0304728a87a16059d639cfbe2a3e0999c7669cc06249005f"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+    "target": "tcl_host_c_abi",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_c_abi-62d1c0c070f9f8fc.rlib",
+    "sha256": "8d29a680a7c21d2d43fceb94bcf162d2166d84569031ca5c04b5351f0bb27ae3"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+    "target": "tcl_host_c_abi",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_c_abi-62d1c0c070f9f8fc.rmeta",
+    "sha256": "2603d4a44455cd2301140d36af360eba2d2b98d2749aed90ce8bd95a8dadada0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#simd-adler32@0.3.10",
+    "target": "simd_adler32",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsimd_adler32-66dc7741befabab3.rlib",
+    "sha256": "7d0cb34328bfcbbacb9e4e9412d5de91d7609aad1c2b1838ce345fc03c632bde"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#simd-adler32@0.3.10",
+    "target": "simd_adler32",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsimd_adler32-66dc7741befabab3.rmeta",
+    "sha256": "67dda81145b708be742b0ccf0a944d194fc92f6b76b85af090a54a08cee43953"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1",
+    "target": "adler2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libadler2-1e865cc3bcdddac2.rlib",
+    "sha256": "2ce370096af33fc1f38affe01eed828bcd1e663ed302a0a8ea43fd30a99a1fc0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1",
+    "target": "adler2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libadler2-1e865cc3bcdddac2.rmeta",
+    "sha256": "093dab5e57e3931c133e3f9188ce65b54f8ef31531855151bdbee3d209ae7344"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.9.1",
+    "target": "miniz_oxide",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libminiz_oxide-f93731e81aa15187.rlib",
+    "sha256": "e22059cd91c039dfe8d927b9f6c053fa4f94e64e798f502e8eeec4b682498a2d"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.9.1",
+    "target": "miniz_oxide",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libminiz_oxide-f93731e81aa15187.rmeta",
+    "sha256": "467d5841f58a2e584566ebaa613d1f30dfab2b785d5d81b575b1bec51e832ee0"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#crc32fast@1.5.2",
+    "target": "crc32fast",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrc32fast-f1b9bf67daa2058e.rlib",
+    "sha256": "3bf20102f7fdc0f6a467a7cca0288f7af7641dc8cc9d2c7cec6eab6073cdddcb"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#crc32fast@1.5.2",
+    "target": "crc32fast",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrc32fast-f1b9bf67daa2058e.rmeta",
+    "sha256": "4cb7c1ae1155f58707d7bc747a2544b987cc5398c2eaae7371d50af693184a07"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#smallvec@1.16.2",
+    "target": "smallvec",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsmallvec-d2e3b5c9bccb2b7d.rlib",
+    "sha256": "6245b3e78dbee9f5111d97797881685b64d3fce645a4f879903d8da4978830dc"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#smallvec@1.16.2",
+    "target": "smallvec",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsmallvec-d2e3b5c9bccb2b7d.rmeta",
+    "sha256": "f03bc0ba6a85cc9cc2d2f6d8a48242c3b2a6259324fba369f15a1857ebf3b682"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#rustc-hash@2.1.3",
+    "target": "rustc_hash",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/librustc_hash-eae8c487c1b4dc4b.rlib",
+    "sha256": "9847f2ea15868d17e98eca915511352045fb281bc4b049bf77e279eebf460fec"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#rustc-hash@2.1.3",
+    "target": "rustc_hash",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/librustc_hash-eae8c487c1b4dc4b.rmeta",
+    "sha256": "7800aefdade0c502d914a68311b729b4cfa9e31ffe45c67e1f2da3e4cbbcdfa2"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/runtime/rust#tcl-runtime@0.1.0",
+    "target": "build-script-build",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-runtime-26aa0658b81609ba/build-script-build",
+    "sha256": "a5bafd2ba1c8c181dff91297d980a730ed2db7e95b7457ef6f971f0a6d4d6235"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+    "target": "tcl_runtime_api",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_runtime_api-6ad7cbec92a871ee.rlib",
+    "sha256": "6ab7e53eab84eca3af68bab9a138bf025ce1df243617ad71496cb76dc59444c4"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+    "target": "tcl_runtime_api",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_runtime_api-6ad7cbec92a871ee.rmeta",
+    "sha256": "3ae5b9a8d51b6fae52e620ef62d47c54a7e6b237dc1ff213e377fae36ffa5a9e"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+    "target": "tcl_cmd_core",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_cmd_core-b54a4a5c64221cf0.rlib",
+    "sha256": "8b1383681b92cc6d1b58fb10934ffda9a21e23b4da54356b84269ed306db90b9"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+    "target": "tcl_cmd_core",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_cmd_core-b54a4a5c64221cf0.rmeta",
+    "sha256": "12aeb2c908c4a34ebd768aa1538601a4f3746c950d3783e7b7843d7d45a9499d"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+    "target": "tcl_regex",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_regex-ef065bd571950799.rlib",
+    "sha256": "9da6f05cc7efb64a29f68ea63792c4012b2ec6d64bcd263f4b106a6af6dd4d17"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+    "target": "tcl_regex",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_regex-ef065bd571950799.rmeta",
+    "sha256": "bf2060f95b23d91feb133847e829f416c16e95b8617e996790f9769062675e2a"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+    "target": "tcl_bytecode",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_bytecode-3b0f73e7069403f0.rlib",
+    "sha256": "a2db986d59ffa8fadd9561978ed43cfaef4533eeba92b440fc30db6e23e8bd58"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+    "target": "tcl_bytecode",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_bytecode-3b0f73e7069403f0.rmeta",
+    "sha256": "0adfdeb577f55a70ac63a4d67699b0dd44f26fddb8c37a9961782962ed1dd4a8"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#flate2@1.1.10",
+    "target": "flate2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libflate2-4a6aeee9b8919eb8.rlib",
+    "sha256": "ce1bf24497278ef61eec9d17d154946f8ba016175f6e9774916e32179a7a6432"
+  },
+  {
+    "package_id": "registry+https://github.com/rust-lang/crates.io-index#flate2@1.1.10",
+    "target": "flate2",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libflate2-4a6aeee9b8919eb8.rmeta",
+    "sha256": "4f6961d64e5a13cf431e1efaff97a1ca6ce5975783c26a09c135ad03186c1913"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+    "target": "tcl_host_native",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_native-f1c0b7ab768c24f6.rlib",
+    "sha256": "7b5e4fc2d430986f90a69d22f0ffb46539330b4df24006559793eaa97cf4c292"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+    "target": "tcl_host_native",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_native-f1c0b7ab768c24f6.rmeta",
+    "sha256": "47d60ccb257281ccad5d5c1da2eae617a39ed6bb5988e5c6f9b7b28ca6aa87b2"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+    "target": "tcl_test_support",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_test_support-df14c92916e66e09.rlib",
+    "sha256": "c72dbc1989ecc551842f1211e867efe67da71fdcd8a1d48aa90c21f0ff3c746b"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+    "target": "tcl_test_support",
+    "fresh": true,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_test_support-df14c92916e66e09.rmeta",
+    "sha256": "6b097156cbbce95c6de9e603657ec5e08bd07d3dfe3e761770ae8ab8a903d181"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+    "target": "tcl_registry",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_registry-960960a25505f09e.rlib",
+    "sha256": "dd3c4210543b07dca30cdc7d3fbe923d4945a850e72c8288adbf41145256a0ef"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+    "target": "tcl_registry",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_registry-960960a25505f09e.rmeta",
+    "sha256": "aa9144125441c959f55d110c9a66d3712822aedeefae69a2034830d56e28faef"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/runtime/rust#tcl-runtime@0.1.0",
+    "target": "tcl_runtime",
+    "fresh": false,
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "sha256": "3144e383e9ab1225204ff56acd5eba3d413324fbe05467994cf837efbfc14b35"
+  }
+]

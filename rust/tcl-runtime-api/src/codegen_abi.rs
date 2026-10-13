@@ -293,6 +293,9 @@ pub enum CodegenAbiImportId {
     /// two spellings define the same proc, and this one subsumes the older,
     /// which stays for already-emitted legacy-tier modules.
     ProcDefineNative,
+    /// Define a procedure from borrowed, already evaluated original argv.
+    /// Parameters are argv, argc, optional compiled entry, and completion out.
+    ProcDefineOriginalArgv,
     /// Log one `while executing` / `invoked from within` `errorInfo` frame for
     /// a compiled statement that completed with an error.
     ///
@@ -414,6 +417,7 @@ impl CodegenAbiImportId {
         Self::MathOp,
         Self::MathFunc,
         Self::ProcDefineNative,
+        Self::ProcDefineOriginalArgv,
         Self::LogCommand,
         Self::ReturnState,
         Self::NativeProcDispatches,
@@ -509,6 +513,11 @@ impl CodegenAbiImportId {
             Self::ProcDefineNative => tcl_import(
                 "tcl_codegen_proc_define_native",
                 I32_I32_I32_I32_I32_I32_I32,
+                I32,
+            ),
+            Self::ProcDefineOriginalArgv => tcl_import(
+                "tcl_codegen_proc_define_original_argv",
+                I32_I32_I32_I32,
                 I32,
             ),
             Self::LogCommand => tcl_import("tcl_codegen_log_command", I32_I32_I32, NONE),
@@ -1034,12 +1043,28 @@ mod tests {
     }
 
     #[test]
+    fn original_proc_definition_borrows_argv_and_writes_completion() {
+        use CodegenAbiValueType::I32;
+        let import = CodegenAbiImportId::ProcDefineOriginalArgv.descriptor();
+        assert_eq!(import.module, "tcl");
+        assert_eq!(import.name, "tcl_codegen_proc_define_original_argv");
+        assert_eq!(import.parameters, &[I32; 4][..]);
+        assert_eq!(import.results, &[I32][..]);
+        assert!(CodegenAbiImportId::ALL.contains(&CodegenAbiImportId::ProcDefineOriginalArgv));
+        assert!(CodegenAbiImportId::ProcDefineOriginalArgv.requires_host_refusal_check());
+        let removed: Vec<_> = DESCRIPTORS
+            .iter()
+            .copied()
+            .filter(|descriptor| descriptor.name != import.name)
+            .collect();
+        assert_ne!(fingerprint(&removed, &LAYOUT), CODEGEN_ABI_VERSION);
+    }
+
+    #[test]
     fn native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter() {
         use CodegenAbiValueType::I32;
 
-        // The definition import is `proc_register` plus one trailing entry
-        // index, so a module that binds a native body and one that does not
-        // emit the same call with `entry = 0`.
+        // Legacy byte-definition callers retain the optional entry parameter.
         let define = CodegenAbiImportId::ProcDefineNative.descriptor();
         assert_eq!(define.module, "tcl");
         assert_eq!(define.name, "tcl_codegen_proc_define_native");

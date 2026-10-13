@@ -320,13 +320,28 @@ evaluator without giving up its specialised error-stack context.
 
 ### Binding a compiled body to its procedure
 
-A `proc` statement whose body became one of this module's functions lowers to
-the **definition** shape rather than a generic invocation
-(`NativeLowering::Definition`, the registry descriptor `proc` has always
-carried): `tcl_codegen_proc_define_native(name, params, body, entry)`, where
+An admitted `proc` statement whose body became one of this module's functions
+lowers to `NativeOp::DefineProc { entry_key, argv }`. Its existing evaluated
+argument objects reach
+`tcl_codegen_proc_define_original_argv(argv, argc, entry, out) -> status`.
 `entry` is the body's index in the runtime's shared function table, or `0` for
-"source body only". The runtime then binds both — the written source body,
-exactly as `proc` does, and the compiled entry beside it.
+a source-only procedure. The internal `entry_key` selects that table entry;
+it never supplies the Tcl publication name. The original name is `argv[1]`,
+including any literal colon, whitespace or empty spelling.
+
+The Runtime borrows all arguments and delegates to the same original procedure
+handler as ordinary `proc`. That handler selects the actual current namespace,
+name/publication recipe, formal/body conversion order and result convention.
+The optional compiled entry does not replace those checks. General emission
+uses ordinary runtime dispatch with the complete evaluated argv; substituted
+operands and unproved bindings retain that route. The legacy byte-definition
+ABI exports remain available. The descriptor-derived ABI fingerprint must match
+the actual Runtime before linking.
+
+Native definition selection independently requires the live stock definer in
+the modelled current context. The direct ABI does not resolve its retained
+command head. A known replacement or shadow therefore keeps generic dispatch;
+a literal name alone cannot attach a compiled entry.
 
 `::top` owns the install. Its prologue, guarded on a module global that starts
 at `-1` so a second call is a no-op, grows the shared table once by the

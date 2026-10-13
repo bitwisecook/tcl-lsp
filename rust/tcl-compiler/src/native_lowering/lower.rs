@@ -963,7 +963,7 @@ impl<'a> Lowerer<'a> {
                     }
                 }
                 NativeLowering::Definition if proven => {
-                    if let Some(outcome) = self.lower_definition(invoke) {
+                    if let Some(outcome) = self.lower_definition(invoke, &argv) {
                         return outcome;
                     }
                 }
@@ -988,7 +988,11 @@ impl<'a> Lowerer<'a> {
     /// function lowers to [`NativeOp::DefineProc`]; a second definition of the
     /// same name stays a generic invocation and therefore rebinds an ordinary
     /// source-only procedure at run time, exactly as Tcl does.
-    fn lower_definition(&mut self, invoke: &GenericInvoke) -> Option<StatementOutcome> {
+    fn lower_definition(
+        &mut self,
+        invoke: &GenericInvoke,
+        argv: &[NativeValueId],
+    ) -> Option<StatementOutcome> {
         let procedure = self
             .input
             .module
@@ -1009,10 +1013,13 @@ impl<'a> Lowerer<'a> {
         ) {
             return None;
         }
+        if argv.len() != 4 {
+            return None;
+        }
+        self.max_argc = self.max_argc.max(argv.len());
         self.emit(NativeOp::DefineProc {
-            qualified_name: procedure.qualified_name.clone(),
-            params_raw: procedure.params_raw.clone(),
-            body_source,
+            entry_key: procedure.qualified_name.clone(),
+            argv: argv.to_vec(),
         });
         self.clobber_shadows();
         Some(StatementOutcome::NativeDefinition)

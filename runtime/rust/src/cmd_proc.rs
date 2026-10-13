@@ -25,7 +25,7 @@
 //! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
 use crate::interp::native_arguments::OriginalArguments;
-use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
+use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
 use crate::obj::TclObj;
 use crate::obj::{self, Owned};
 use tcl_cmd_core::CmdError;
@@ -94,11 +94,19 @@ pub(crate) fn install_stock_scripted_library(
 
 /// `proc name params body` — define a procedure.
 fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    proc_cmd_with_native_entry(interp, argv, None)
+}
+
+pub(crate) fn proc_cmd_with_native_entry(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    native: Option<crate::interp::NativeProcEntry>,
+) -> Code {
     let arguments = match OriginalArguments::enter(interp, argv) {
         Ok(arguments) => arguments,
         Err(error) => return interp.report_cmd_error(error),
     };
-    let code = proc_cmd_original(interp, argv, &arguments);
+    let code = proc_cmd_original(interp, argv, &arguments, native);
     arguments.finish(code)
 }
 
@@ -106,6 +114,7 @@ fn proc_cmd_original(
     interp: &mut Interp,
     argv: &[*mut TclObj],
     arguments: &OriginalArguments,
+    native: Option<crate::interp::NativeProcEntry>,
 ) -> Code {
     use tcl_registry::native_procedure::{
         NativeProcedureDefinitionSelection, NativeProcedureDefinitionSpec,
@@ -307,7 +316,7 @@ fn proc_cmd_original(
         params,
         Some(argv[definition.parameters_at + 1]),
         (original_body, chosen_body),
-        None,
+        native,
         statics,
     );
     if let Err(error) = arguments.check() {
@@ -460,7 +469,7 @@ pub(crate) fn parse_params_object(
     spec: *mut TclObj,
     procedure: &[u8],
 ) -> Result<Vec<Param>, CmdError> {
-    use tcl_syntax::formal_params::{parse_formal_parameter_values, FormalParameterValueError};
+    use tcl_syntax::formal_params::{FormalParameterValueError, parse_formal_parameter_values};
     let protocol = interp
         .name_policy_protocol()
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

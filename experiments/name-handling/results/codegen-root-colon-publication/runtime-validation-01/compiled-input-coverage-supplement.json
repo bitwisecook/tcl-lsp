@@ -1,0 +1,417 @@
+{
+  "scope": "Post-capture audit of actual local Rust dep-info; supplement is not a before/after capture of these omitted compiled inputs",
+  "dep_info_sha256": {
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_core_types-89b48518428f5dbb.d": "4b3af319f164775babe169371a11ab4e3b692e52dbd78a12acdc1d12d5ce8901",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_dialect-0d6870501e528e8e.d": "fe496eeb84f4d824f0cfafbfbd8cbe2d8132212cf0db95aa5d5383fd9e1cd2e6",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_lexer-3d1b7d4117dea70f.d": "180975e355191ee18c87122ef48d57cc6da05a9df8602daf5d0b2e0f3833d5c5",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_platform-eacc196559060589.d": "3e33118e6bd7646b3d103463a758a3dbc0012803454637d8a40156bd0761953e",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_syntax-7de6ff568c58473b.d": "719c7855a9bcaaaeb4e298441e8fc1781a66268f8d4cd1e082391446880ed9bc",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_host_c_abi-62d1c0c070f9f8fc.d": "8c5f278253a30861b40bb11cff5759638adf7f75d1dd403af5f0f1eee26c40d7",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime_api-6ad7cbec92a871ee.d": "c4170ec4dda3ca9dea5aa53a9eaecb3f1f090433475c1efff8dd2c641a723051",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-b54a4a5c64221cf0.d": "4b2046dc495b7d1ab61d9b926fff113eecaecc2df735b95a1a76194dec2c462c",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_regex-ef065bd571950799.d": "cb10b9f90b654d78dc984f3445393e9d60d8dcdd6dd25dacbbe1c52128e38985",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_bytecode-3b0f73e7069403f0.d": "5dfa49848c525eb7c3a80895e5468bbf345495d211a7d51ffaa3cc4b4b423371",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_host_native-f1c0b7ab768c24f6.d": "3ced2d7b2b3809a9921c5ed5dc57aa468b30f148821f94d5b378bf70cad2da6e",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_test_support-df14c92916e66e09.d": "a0d73432fca3b7e81413dc73ec881da1084670298ef69df0c9550391a29563e3",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_registry-960960a25505f09e.d": "49505303f0ba7e92203d4d238f5231366a61902be98039e8860c88e7cc9735b6"
+  },
+  "normalised_compiled_input_count": 2574,
+  "covered_before_and_after": 2495,
+  "additional_inputs": {
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-ff/stdout": {
+      "sha256": "7e72c1eb8d27779edcc28328a38314765776e40b714a08fe44141542cfa1f2aa",
+      "mtime_ns": 1791894835037883505,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-utf8-eacute-octets/stdout": {
+      "sha256": "177bdc09c3b0540a66f19a456df58ee353b3a58fde3ebe86d10fe75939b3afda",
+      "mtime_ns": 1791894835037990726,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-zero/stdout": {
+      "sha256": "99cc9401ce0c272aeb414cf2a2d959fc496f71b147f615ee4864ff5d87c5c5d2",
+      "mtime_ns": 1791894835038173151,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-astral/stdout": {
+      "sha256": "6269a719b9d320f0baf33d1bbdda427e0c6b9bd9882c9717448f301e421e19d6",
+      "mtime_ns": 1791894835045881185,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-eacute/stdout": {
+      "sha256": "e5d490050e35b65d905a1d55e3a75430a9fe8f051ff4c56c78c8bcbf98316e8f",
+      "mtime_ns": 1791894835045960064,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-ff/stdout": {
+      "sha256": "eb8f2558e1d37fa831ac1a5ee2f3351af58a3fd84846383770c6514ff33c4cc0",
+      "mtime_ns": 1791894835046029418,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-literal-zero/stdout": {
+      "sha256": "02e1cd55e2385dff251553f57a8fa0fdb63d466b9282e1e286f6e33f97edeaef",
+      "mtime_ns": 1791894835046082989,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-modified-zero/stdout": {
+      "sha256": "ac50503c4f364e44d0745aabc5c917efce4dff713dcc25a4bc988b468091614d",
+      "mtime_ns": 1791894835046139544,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-single-high-surrogate/stdout": {
+      "sha256": "e648409ff17b4952400f5b2243cd5517e755a65e10609952787602f9254c38ba",
+      "mtime_ns": 1791894835046189890,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-surrogate-pair/stdout": {
+      "sha256": "4781be8625e2185c7599783871496dfe2eda70ca91c6fa438f666dd79364b54e",
+      "mtime_ns": 1791894835046244543,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-ff/stdout": {
+      "sha256": "cdd0c7d7589b9b19473ab306f83069739702d6b2c87fa6e15e31eabaffdcaa27",
+      "mtime_ns": 1791894835047284070,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-utf8-eacute-octets/stdout": {
+      "sha256": "e7bfce1f6009b9869e0bbaf9146a07b3cf1ecbb5e2c28d87cd23d7b23b6ea4a2",
+      "mtime_ns": 1791894835047345323,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-zero/stdout": {
+      "sha256": "3a0ab86c58687b44796fc70166e7f5da72215b7593089edadd967132882b1929",
+      "mtime_ns": 1791894835047397692,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-astral/stdout": {
+      "sha256": "ab1be825e339410ff0a1fb8111d639805f2e7fff2a6214fe5f2c6135c0d15252",
+      "mtime_ns": 1791894835053615908,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-eacute/stdout": {
+      "sha256": "e5b176339c0215e86ff05731cb68cb111cd455c63b678e146b2884d2c37f8b21",
+      "mtime_ns": 1791894835053700676,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-ff/stdout": {
+      "sha256": "bb5be57931dada1fc0e87ef5c0326166ef7b0d9257062c8bca0f967063317aa0",
+      "mtime_ns": 1791894835053767056,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-literal-zero/stdout": {
+      "sha256": "ded4ef33b7aa7517226c2b078249b406604f102257df1145493d21dab5587888",
+      "mtime_ns": 1791894835053952826,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-modified-zero/stdout": {
+      "sha256": "f678eca5bd90cc746e8c02f845ae7ff67b3769549c15cb0c2c7c0e589f3b6449",
+      "mtime_ns": 1791894835054028270,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-single-high-surrogate/stdout": {
+      "sha256": "c58e7aa60d8104147a2f24919ba6ecfb1c26c6268939fab40afa46785eaf8b06",
+      "mtime_ns": 1791894835054080759,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-surrogate-pair/stdout": {
+      "sha256": "2772d54d27a611aebddf84b0b7174ed087e2223afe2c73ec5abf80d9ba3deaad",
+      "mtime_ns": 1791894835054132788,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-ff/stdout": {
+      "sha256": "f1b203592cffddca29dd5d394a7c3b97351583cda977ba4b610592bcedad3937",
+      "mtime_ns": 1791894835054413461,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-utf8-eacute-octets/stdout": {
+      "sha256": "b75543e18d4c3e07563117706603aec5dfbf9dd8e8bc5f450596d725e6611bab",
+      "mtime_ns": 1791894835054477057,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-zero/stdout": {
+      "sha256": "5594ee976c21a28713b788ecfd523b006f14d5dc0005431fc36bde02aad38720",
+      "mtime_ns": 1791894835054545600,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-astral/stdout": {
+      "sha256": "2e049cfa0fa330fe55d226f8ae6121bfe79ee6c67e1c641414d7af432d208740",
+      "mtime_ns": 1791894835062301666,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-eacute/stdout": {
+      "sha256": "ef17521912ce1580f36e70c7aa335617fccee09a0dfcd92bb0ca470b08a8a56e",
+      "mtime_ns": 1791894835062370420,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-ff/stdout": {
+      "sha256": "56c6ade9563adb2a6322c2eb4b9d5b03d94bb7b6f2fe336a142502559f8e415a",
+      "mtime_ns": 1791894835062424081,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-literal-zero/stdout": {
+      "sha256": "ae55e491c9c5ffb03578a7bbc4e3daa9801a29eb16e6c3e00789b7865634c6b4",
+      "mtime_ns": 1791894835062478583,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-modified-zero/stdout": {
+      "sha256": "6b08bb44c67bc42e83255b3263ff443b8431fb184dcff063f837cbc41f709031",
+      "mtime_ns": 1791894835062528589,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-single-high-surrogate/stdout": {
+      "sha256": "2add5b458f263b5dd860f19072c8eb789aa2601f8a3a7a1244a4f40e4df411c0",
+      "mtime_ns": 1791894835062581839,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-surrogate-pair/stdout": {
+      "sha256": "e41a932ce11e38a058fe164baec80073cc980e9ad5c1e9a7f2b4ab85507dc3fb",
+      "mtime_ns": 1791894835062753368,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-ff/stdout": {
+      "sha256": "b8aee9e2e8e7bf9225500d3fc939463571fbefb56825c2472c76ad96d7677176",
+      "mtime_ns": 1791894835063919917,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-utf8-eacute-octets/stdout": {
+      "sha256": "4e56044278ea7cabab2910eca7d557353463ac929974df43a58febf2c60af63e",
+      "mtime_ns": 1791894835064035351,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-zero/stdout": {
+      "sha256": "0c11a1f4c4ebe11ca819ce89e091b2fd171f16c52f72ba1d9cf7921f6905d72e",
+      "mtime_ns": 1791894835064087750,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-astral/stdout": {
+      "sha256": "e9af05c46b9d6d688af590a99955047d4b4141a44f3e885b0ba6a8f890b74c93",
+      "mtime_ns": 1791894835074065175,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-eacute/stdout": {
+      "sha256": "dc4f40488892fbbc262072aae742a9edabedf6b9322d0a109f5df4d864f05dda",
+      "mtime_ns": 1791894835074451367,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-ff/stdout": {
+      "sha256": "14ab656dbb2ada6808844867aa61c4c5d697f8b339e4dc9b25dc745121e3089e",
+      "mtime_ns": 1791894835074520912,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-literal-zero/stdout": {
+      "sha256": "15910772f9d2fddfb30652c8ca4e63b9c2d11881b06efd7da96a7b872cafce45",
+      "mtime_ns": 1791894835074576045,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-modified-zero/stdout": {
+      "sha256": "7070df2089a08a38777696e77d751d9d13c410cce10bb51d6895d47a6eda58ba",
+      "mtime_ns": 1791894835074628114,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-single-high-surrogate/stdout": {
+      "sha256": "9e2e1e9c96313de8f9a414dfd4b1f6309c6069e61cf0239ffd40552618528dd9",
+      "mtime_ns": 1791894835074685961,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-surrogate-pair/stdout": {
+      "sha256": "9373b38c0ca25563a71de710d1ad2daa6830d123e6ea6aff92be8379db795909",
+      "mtime_ns": 1791894835074741905,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-ff/stdout": {
+      "sha256": "5f428d8842aa330298250122e405abae625d41606dc53835c1cddc8bd7de9d3f",
+      "mtime_ns": 1791894835076182468,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-utf8-eacute-octets/stdout": {
+      "sha256": "57c551adacff120351eedf28cf3499e9236e51f7e08a725e1f783168d15cda61",
+      "mtime_ns": 1791894835076248597,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-zero/stdout": {
+      "sha256": "c492e04aab61af15ea7b7e348e0dd3b2fff456be3109af310528e8651dbb15ef",
+      "mtime_ns": 1791894835076316179,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-astral/stdout": {
+      "sha256": "8d84570c0c080c650450d183079b5314f2e09f3b1c8c5bfb4ff9db24e0a46e27",
+      "mtime_ns": 1791894835097089916,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-eacute/stdout": {
+      "sha256": "45e1f5baad3b2af1791c18ae982bdb1539aea83b138074b24a2e3189a5b741ff",
+      "mtime_ns": 1791894835097183267,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-ff/stdout": {
+      "sha256": "bb1120f47dee7ad287192a279fdb2fd90ddad20cafeb3fc1d89de91a820ce3e4",
+      "mtime_ns": 1791894835097236837,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-literal-zero/stdout": {
+      "sha256": "4e88f651b01fa4e047de9d4216971718b1d5b17d99cec1bec49a333323223c7c",
+      "mtime_ns": 1791894835097290919,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-modified-zero/stdout": {
+      "sha256": "0f9f37fdd46dc1c2c5dd64792548d3eeaab08c93078225be3a18ce81a73c94fc",
+      "mtime_ns": 1791894835097344119,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-single-high-surrogate/stdout": {
+      "sha256": "9f4676385ac7cdc702d05bb9fd2aa126d4d9e3a7487475dd4b658be981ed8c03",
+      "mtime_ns": 1791894835097405041,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-surrogate-pair/stdout": {
+      "sha256": "b3c3ebee4293a950bd8ed7630dc7b19325fddcc8d874fa0863d81d655e879e20",
+      "mtime_ns": 1791894835097456629,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_object306/jim/string-eacute/stdout": {
+      "sha256": "e2203213036a1c3f2d9e5f74348e24efbdd7f4ed4cc390992bf92c6d2d10af43",
+      "mtime_ns": 1791894835101229258,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/string-eacute-single-high-surrogate/stdout": {
+      "sha256": "ef78ee15df67f896a1d523a3744522f1a5be612b6c0ceabd173f88bd98f81e93",
+      "mtime_ns": 1791894835103797751,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/string-eacute-single-high-surrogate/stdout": {
+      "sha256": "5648e3f4adb815024c1231e7d327b3856bb79d80652ea222850a913872be7212",
+      "mtime_ns": 1791894835104949478,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/string-eacute-single-high-surrogate/stdout": {
+      "sha256": "140bb0ca966017b80eb8b4872b79fef778f5dcc1eceb59e45741eddcfc94fbaf",
+      "mtime_ns": 1791894835106124420,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/string-eacute-single-high-surrogate/stdout": {
+      "sha256": "8f0ab1ef69f2470f8d9bc7b98f12c04b3873ffa87844d4116f7ddc35df3f0836",
+      "mtime_ns": 1791894835107212781,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/string-eacute-single-high-surrogate/stdout": {
+      "sha256": "b859264a6eb2ccae4834f4bcf472abd7743a65a54dd7a7658c20990a110bcd42",
+      "mtime_ns": 1791894835108342184,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout": {
+      "sha256": "eac17edbcc3f3f8804b829ee92e137d75b6289af4cb877ad9ad5bdf1d2c522e0",
+      "mtime_ns": 1791894835145227411,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout": {
+      "sha256": "f042575419d46c9e510e86c90787308e1c3c86dc45fceccb46235240bf07b06c",
+      "mtime_ns": 1791894835145282243,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout": {
+      "sha256": "602e8d34e43fe4d58bec368043fc3d02141eb0463989f2ce2d4ae881f72eb63d",
+      "mtime_ns": 1791894835145422625,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout": {
+      "sha256": "0043679e95dcc50d39987c95b0e1bc5a8843d51094f2fd0570c2b3c8e33ed43c",
+      "mtime_ns": 1791894835145483166,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout": {
+      "sha256": "68b4617b917717c365eeba4fc7955f5988bdddbc039cf606a20d830cbac7d1e9",
+      "mtime_ns": 1791894835145530828,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout": {
+      "sha256": "ce4a5c975e57fabc4b3d286e3ee77a075a0173f48f4815ad6a98c580f433a372",
+      "mtime_ns": 1791894835146258175,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout": {
+      "sha256": "baaed3deb8fa8deb3b78ff71eee1eb586da0e8fd5424bd0eb8981412f2cf2fcf",
+      "mtime_ns": 1791894835146402773,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout": {
+      "sha256": "49654352b32be51158edee912cffee7eb03095188060d03579025272ddafd4a1",
+      "mtime_ns": 1791894835146457656,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout": {
+      "sha256": "f2f50bf3a7d16f5bc9d31af94bcfc27db32d1c929b754488d5cbf49521069133",
+      "mtime_ns": 1791894835146507501,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout": {
+      "sha256": "42e389e37d63b6de44d714c7d0ed79c62d9db4c1a444e0bc01450d3e433619e0",
+      "mtime_ns": 1791894835146563956,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout": {
+      "sha256": "beba7b1838b241a4377467bce570a31e5bdb86b22ac15b6521f975f4f1d82676",
+      "mtime_ns": 1791894835147713910,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout": {
+      "sha256": "01fa86f6465651a0a34dca5923d5c0640efb116067666b2fffa4a725a98a420e",
+      "mtime_ns": 1791894835147760440,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout": {
+      "sha256": "9601a8c622e7b4bf74a55bd31a5b06b30aa03d36eaa728ca81e7af24225d4c6f",
+      "mtime_ns": 1791894835147813851,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout": {
+      "sha256": "3f4bc7ad158afb2652b164c518d6d11971e8803571d17b446771b337aff9ca27",
+      "mtime_ns": 1791894835147961323,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout": {
+      "sha256": "15f3c289112683d734e35a3b40b639503dde426b7506df26278cd9f952e08c23",
+      "mtime_ns": 1791894835148019491,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout": {
+      "sha256": "b244c424e943b95a41acf7257d3a1e86b5b6f866e64e46ab86c81bb36415c09e",
+      "mtime_ns": 1791894835149264538,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout": {
+      "sha256": "60fff7c279f52d7c75a69e334c913f28e2664466a0102cc89faee27dd2adb769",
+      "mtime_ns": 1791894835149312401,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout": {
+      "sha256": "85260d904806d57bc559cf871b02b0b0468f0f7deb2812e843bd69871419e523",
+      "mtime_ns": 1791894835149365080,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout": {
+      "sha256": "579125fe85f5c9ab999ce05cace4ee768ba628824e93ad1e0e4e206b9dd90cc8",
+      "mtime_ns": 1791894835149428295,
+      "matches_captured_git_head": true
+    },
+    "rust/tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout": {
+      "sha256": "db76bde12317277489a738c3f520507841da44ca20ecda8ffe5be031e9644179",
+      "mtime_ns": 1791894835149475977,
+      "matches_captured_git_head": true
+    },
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt": {
+      "sha256": "8b9cfcc4541dd1751c68bf2820e5c767bcde99a75d877e97ff74973d5201d1ae",
+      "mtime_ns": 1791894836168274288,
+      "matches_captured_git_head": true
+    },
+    "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt": {
+      "sha256": "cbea670f6f3705c78cdb72eab38fe41d878ae0a589c2d1674db13f5bea6433a7",
+      "mtime_ns": 1791894836168274288,
+      "matches_captured_git_head": true
+    },
+    "tmp/name-target-runtime/debug/build/tcl-dialect-0f3c4db63f5781a6/out/reference_toolchains.rs": {
+      "sha256": "9799b8afff33b692b221e9ff0ee056c63eb71c1a2e60599b61a394717e69770c",
+      "mtime_ns": 1791897715320797297,
+      "matches_captured_git_head": false
+    }
+  }
+}

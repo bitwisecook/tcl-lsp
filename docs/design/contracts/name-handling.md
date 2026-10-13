@@ -205,9 +205,15 @@ their generator.
 
 Compiler analyses and codegen consume binding and variable-place facts.
 Direct/native specialisation needs a binding proof and guards; generic runtime
-invocation preserves call-time lookup. Audit all registered backends before
-claiming that every target delegates resolution. A restricted DSL such as
-BPF-Tcl reports unsupported namespace/procedure features at its boundary.
+invocation preserves call-time lookup. WASM procedure definitions transport the
+existing evaluated original argv to the shared Runtime procedure owner; the
+internal compiled-body key supplies no Tcl name or namespace. See
+[original command arguments](../runtime/original-command-arguments.md#compiled-procedure-definitions).
+Procedure maps and compiled-entry tables still use reporting FQNs in parts of
+the compiler; these are not an injective replacement for structured slots.
+Audit all registered backends before claiming that every target delegates
+resolution. A restricted DSL such as BPF-Tcl reports unsupported
+namespace/procedure features at its boundary.
 
 F5 protocol command prefixes, iRule procedure namespaces and BIG-IP object
 paths are distinct concepts. Preserve their registry/context rules. Appliance

@@ -1,0 +1,90 @@
+{
+  "question": "missing-holder-publication-direct",
+  "channel": "custom original Tcl program; no Tcltest harness",
+  "records": [
+    {
+      "provider": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "8.4.20.stdout",
+      "stderr": "8.4.20.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    },
+    {
+      "provider": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "8.5.19.stdout",
+      "stderr": "8.5.19.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    },
+    {
+      "provider": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "8.6.18.stdout",
+      "stderr": "8.6.18.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    },
+    {
+      "provider": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "9.0.4.stdout",
+      "stderr": "9.0.4.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    },
+    {
+      "provider": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "9.1.0.stdout",
+      "stderr": "9.1.0.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    },
+    {
+      "provider": "jim-existing-pin",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/codegen-original-argv-missing-holder/probe.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "jim-existing-pin.stdout",
+      "stderr": "jim-existing-pin.stderr",
+      "tcl_library": "unset",
+      "probe_sha256": "f3c9e86b78f7ace3203d8416483b496a5cf18dc3d643e928c6ef1611283415da"
+    }
+  ]
+}

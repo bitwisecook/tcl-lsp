@@ -1,0 +1,90 @@
+{
+  "started_utc": "2026-10-13T13:53:14Z",
+  "git_head": "919daa17186f9df0395fa4a7ac3ee6eeacc16d66",
+  "scope": "14 resolved local packages, relevant source/data/manifests/locks and selected libtommath C/header inputs; no claim every retained fixture compiled",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": null,
+    "RUSTFLAGS": null,
+    "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath",
+    "CARGO_HOME": "/workspace/.cargo",
+    "RUSTUP_HOME": "/workspace/.rustup"
+  },
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.cargo/bin/rustup",
+      "sha256": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "cargo": {
+      "path": "/workspace/.cargo/bin/rustup",
+      "sha256": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "cc": {
+      "path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "stdout": "cc (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "stderr": "",
+      "exit_code": 0
+    }
+  },
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 73.37102985000001
+  },
+  "tests": [
+    {
+      "selector": "codegen_abi::tests::original_definition_argv",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "codegen_abi::tests::original_definition_argv",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 5.080850310999267,
+      "stdout": "test-0.stdout",
+      "stderr": "test-0.stderr"
+    },
+    {
+      "selector": "codegen_abi::tests::original_root_name_object_retains_the_installed_software_entry",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "codegen_abi::tests::original_root_name_object_retains_the_installed_software_entry",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 3.024104900999191,
+      "stdout": "test-1.stdout",
+      "stderr": "test-1.stderr"
+    }
+  ],
+  "executable": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "sha256": "3144e383e9ab1225204ff56acd5eba3d413324fbe05467994cf837efbfc14b35",
+    "sha256_after": "3144e383e9ab1225204ff56acd5eba3d413324fbe05467994cf837efbfc14b35"
+  },
+  "inputs_unchanged": true,
+  "source_count": 15175,
+  "changed_sources": [],
+  "finished_utc": "2026-10-13T13:54:37Z"
+}

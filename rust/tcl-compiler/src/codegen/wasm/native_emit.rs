@@ -119,7 +119,7 @@ pub(super) struct NativeImports {
     expr_bool_eval: u32,
     mathop: u32,
     mathfunc: u32,
-    proc_define_native: u32,
+    proc_define_original_argv: u32,
     log_command: u32,
     return_state: u32,
     host_refusal_pending: u32,
@@ -165,7 +165,7 @@ pub(super) fn add_native_imports(
         expr_bool_eval: add(wasm, CodegenAbiImportId::ExprBoolEval),
         mathop: add(wasm, CodegenAbiImportId::MathOp),
         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
-        proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
+        proc_define_original_argv: add(wasm, CodegenAbiImportId::ProcDefineOriginalArgv),
         log_command: add(wasm, CodegenAbiImportId::LogCommand),
         return_state: add(wasm, CodegenAbiImportId::ReturnState),
         host_refusal_pending: add(wasm, CodegenAbiImportId::HostRefusalPending),
@@ -716,7 +716,9 @@ fn argv_slots(function: &NativeFunction) -> usize {
     fn walk(ops: &[NativeOp], largest: &mut usize) {
         for op in ops {
             let count = match op {
-                NativeOp::Invoke { argv } | NativeOp::NestedInvoke { argv, .. } => argv.len(),
+                NativeOp::Invoke { argv }
+                | NativeOp::NestedInvoke { argv, .. }
+                | NativeOp::DefineProc { argv, .. } => argv.len(),
                 NativeOp::MathOp { args, .. } | NativeOp::MathFunc { args, .. } => args.len(),
                 NativeOp::Concat { parts, .. } => parts.len(),
                 NativeOp::CellAppend { values, .. } => values.len(),
@@ -1679,17 +1681,15 @@ impl Emitter<'_, '_> {
                     self.set_owned(code_local + 1);
                 }
             }
-            NativeOp::DefineProc {
-                qualified_name,
-                params_raw,
-                body_source,
-            } => {
-                self.text_pair(qualified_name);
-                self.text_pair(params_raw);
-                self.text_pair(body_source);
-                self.push_entry_index(qualified_name);
-                self.call(self.imports.proc_define_native);
-                self.fail_on_code(completion);
+            NativeOp::DefineProc { entry_key, argv } => {
+                self.argv(argv);
+                self.i32(i64::try_from(argv.len()).unwrap_or(0));
+                self.push_entry_index(entry_key);
+                self.frame_offset(FRAME_COMPLETION);
+                self.call(self.imports.proc_define_original_argv);
+                self.push(WasmOp::Drop);
+                self.adopt_frame_completion(completion);
+                self.release_scratch();
             }
             NativeOp::EvalSource { text, .. } => {
                 self.text_pair(text);

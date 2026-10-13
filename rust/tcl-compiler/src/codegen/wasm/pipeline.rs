@@ -867,6 +867,10 @@ mod tests {
             calls_to(&output.module, CodegenAbiImportId::ProcDefineNative),
             0
         );
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
+            0
+        );
         assert_eq!(output.module.functions.len(), 1);
         assert_eq!(output.module.functions[0].kind, "host-compilation-entry");
         assert!(
@@ -903,6 +907,10 @@ mod tests {
         ));
         assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 0);
         assert_eq!(calls_to(&output.module, CodegenAbiImportId::VarSet), 0);
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
+            0
+        );
         assert!(
             output.module.functions[0]
                 .body
@@ -934,12 +942,13 @@ mod tests {
                 .iter()
                 .any(|function| function.name == "::bad")
         );
-        // ProcDefineNative with no exported table entry registers a source-only
-        // body, as does ProcRegister. Its host entry performs pre-formal admission.
+        // A definition without a compiled table entry keeps the original source
+        // body. Its host entry retains independent pre-formal admission.
         assert!(
             calls_to(&output.module, CodegenAbiImportId::EvalCode)
                 + calls_to(&output.module, CodegenAbiImportId::ProcRegister)
                 + calls_to(&output.module, CodegenAbiImportId::ProcDefineNative)
+                + calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv)
                 > 0
         );
         assert!(
