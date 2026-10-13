@@ -173,10 +173,10 @@ impl ModuleCommandBindings {
         }
         let hook = self.baseline.trusted_loaders.values().find_map(|loader| {
             let selected = self.loaded_provider(&loader.package)?;
-            selected
-                .compiler_hooks
-                .iter()
-                .find_map(|(command, hook)| (super::nqn(command) == token.origin).then_some(*hook))
+            selected.compiler_hooks.iter().find_map(|(command, hook)| {
+                tcl_registry::command_descriptor_labels_match(command, &token.origin)
+                    .then_some(*hook)
+            })
         })?;
         match hook {
             tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent => Some(false),

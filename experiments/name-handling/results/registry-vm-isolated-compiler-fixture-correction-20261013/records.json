@@ -1,0 +1,152 @@
+[
+  {
+    "package": "tcl-compiler",
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "85d368867e4685efcf2f24e336c583cda7737d773ccc5f51f3ac87c69b8af628",
+    "stderr_sha256": "583135e9bd9d23efa98d4241dbbc81bdf84ea686d55e07cf8cb3b0d0eb205909",
+    "time": "2026-10-13T18:24:03.385840+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "5d0d437a187402c4f7523dce2410e4333623ce8e06a58ceeec6e9a1a740cca17",
+    "stderr_sha256": "3a5ddcec70e14e39c44b603a07d3e35388d23a6f30a7fb9de017a2a72a2c02a1",
+    "time": "2026-10-13T18:24:05.812515+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "e3a317a105a4fa3de454f1e7f4b1a6de9d6cb80a0c85abc29187cc5d9d85b240",
+    "stderr_sha256": "eaa1c96307231719197d6b66a6d464838b1fcdf295a6445fda292c3c31c5dbfc",
+    "time": "2026-10-13T18:24:06.316912+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "6107c3ebae23f1959836fa7e0c1a001f019c7d287b459b426e9b2f951cedff63",
+    "stderr_sha256": "eaa1c96307231719197d6b66a6d464838b1fcdf295a6445fda292c3c31c5dbfc",
+    "time": "2026-10-13T18:24:06.835914+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "4532e49fb652ddde8e7c86cdfcc3654af510d75b8b21556964c2819fa8b2ce30",
+    "stderr_sha256": "97c5093846f72f0410b76a6ae95c53c4bbf23cdace1731883d0efd0754957718",
+    "time": "2026-10-13T18:24:07.333190+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "0148019ab246d66ecb22c7eab8f11b5b7947cc257818135d3bbac843507d7dad",
+    "stderr_sha256": "8eadbce0a0ac18dc574272e6accc5ea2dfddc924af6c4206ef5f404c9267adf8",
+    "time": "2026-10-13T18:24:13.976703+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+    }
+  }
+]

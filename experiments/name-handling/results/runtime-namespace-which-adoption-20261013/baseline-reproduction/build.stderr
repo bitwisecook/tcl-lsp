@@ -1,0 +1,3 @@
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-registry)
+   Compiling tcl-runtime v0.1.0 (/workspace/name-implementation-worktrees/runtime/runtime/rust)
+    Finished `test` profile [unoptimized] target(s) in 1m 17s

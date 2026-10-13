@@ -1,0 +1,26 @@
+[
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::compiled_namespace_which_uses_the_original_command_operand_and_plain_result"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::compiled_introspection_preserves_thirty_three_native_original_header_windows"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::compiled_arrays_preserve_forty_eight_native_original_header_and_local_windows"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::compiled_array_make_preserves_the_native_write_array_error_category"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::generic_array_existence_preserves_six_legacy_native_original_header_windows"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows"
+  }
+]

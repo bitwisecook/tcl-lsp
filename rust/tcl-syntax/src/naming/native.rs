@@ -221,9 +221,19 @@ pub enum NativeNamespacePatternSource {
 pub struct NativeNamespacePatternParts {
     pub original: NameBytes,
     pub selected: NameBytes,
+    /// Qualification selected from this purpose's original input extent.
+    pub qualification: NativeNameQualification,
     pub source: Option<NativeNamespacePatternSource>,
     pub tail: NameBytes,
     pub purpose: NativeNamePurpose,
+}
+
+/// A fresh Jim namespace-command-query operand and its independent report.
+/// Neither spelling grants a command token or a publication address.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeJimNamespaceCommandQueryCandidate {
+    pub lookup: NameBytes,
+    pub reported: NameBytes,
 }
 
 /// Actual current namespace context; constructed paths must not be reparsed.
@@ -1452,6 +1462,7 @@ impl NativeNameProtocol {
         Ok(NativeNamespacePatternParts {
             original: original.into(),
             selected,
+            qualification: input.qualification(),
             source,
             tail,
             purpose,
@@ -1492,6 +1503,28 @@ impl NativeNameProtocol {
             selected,
             Some(context),
         ))
+    }
+
+    /// Jim `namespace which -command` tries fresh rooted canonical and original
+    /// operands in that order, reporting the successful candidate's bytes.
+    ///
+    /// # Errors
+    /// Refuses C recipes or an absent actual Jim namespace object.
+    pub fn jim_namespace_command_query_candidates(
+        self,
+        context: NativeNameContext<'_>,
+        original: &[u8],
+    ) -> Result<[NativeJimNamespaceCommandQueryCandidate; 2], NameProjectionUnavailable> {
+        let canonical = self.jim_namespace_canonical_input(context, original)?;
+        let candidate = |name: &[u8]| {
+            let mut rooted = b"::".to_vec();
+            rooted.extend_from_slice(name);
+            NativeJimNamespaceCommandQueryCandidate {
+                lookup: NameBytes::from(rooted.as_slice()),
+                reported: NameBytes::from(rooted.as_slice()),
+            }
+        };
+        Ok([candidate(canonical.selected()), candidate(original)])
     }
 
     /// Select Jim's original-object canonicalisation branch before construction.
@@ -4581,4 +4614,51 @@ mod original_command_key_tests {
             Err(NameProjectionUnavailable::PurposeNotModelled)
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn jim_namespace_command_query_uses_two_fresh_report_candidates() {
+    let jim = NativeNameProtocol::Jim084;
+    let path = ByteNamespacePath::root().with_child(b"__nh_context");
+    let context = NativeNameContext::with_jim_namespace(&path, b"__nh_context");
+    for (original, first, second) in [
+        (
+            b"__nh_shared".as_slice(),
+            b"::__nh_context::__nh_shared".as_slice(),
+            b"::__nh_shared".as_slice(),
+        ),
+        (
+            b"::__nh_shared".as_slice(),
+            b"::__nh_shared".as_slice(),
+            b"::::__nh_shared".as_slice(),
+        ),
+        (
+            b":__nh_literal".as_slice(),
+            b"::__nh_context:::__nh_literal".as_slice(),
+            b":::__nh_literal".as_slice(),
+        ),
+    ] {
+        let candidates = jim
+            .jim_namespace_command_query_candidates(context, original)
+            .unwrap();
+        assert_eq!(candidates[0].lookup.as_bytes(), first);
+        assert_eq!(candidates[1].lookup.as_bytes(), second);
+        for candidate in candidates {
+            assert_eq!(candidate.lookup, candidate.reported);
+        }
+    }
+    let same = jim
+        .jim_namespace_command_query_candidates(NativeNameContext::root(), b"__nh_shared")
+        .unwrap();
+    assert_eq!(same[0], same[1]);
+    assert_eq!(
+        jim.jim_namespace_command_query_candidates(NativeNameContext::new(&path), b"name"),
+        Err(NameProjectionUnavailable::MissingJimNamespaceObject)
+    );
+    assert_eq!(
+        NativeNameProtocol::C(TclVersion::V9_0)
+            .jim_namespace_command_query_candidates(context, b"name"),
+        Err(NameProjectionUnavailable::PurposeNotModelled)
+    );
 }

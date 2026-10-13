@@ -1,0 +1,6 @@
+
+running 1 test
+test registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1772 filtered out; finished in 0.09s
+

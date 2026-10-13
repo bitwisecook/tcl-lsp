@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/msteveb/jimtcl",
+  "commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "path": "nshelper.tcl",
+  "git_blob": "499022ee790385125eee773e05b3bde56b553f6b",
+  "sha256": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627",
+  "matches_provisioned_source": true,
+  "source_scope": "namespace which32-43 constructs canonical rooted candidate then rooted original-name fallback through exists-command; source authority for Jim-only query projection, not Native object allocation/currentness evidence",
+  "latest_upstream_verification": "root independently verified upstream HEAD on2026-10-13; this receipt binds retained pinned source only"
+}

@@ -1,0 +1,23 @@
+{
+  "package": "tcl-compiler",
+  "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 101,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+  "time": "2026-10-13T18:09:34.309399+00:00",
+  "actual_test_count": null,
+  "test_binaries": {}
+}

@@ -3980,6 +3980,7 @@ pub fn function_optimisations<'db>(
     let proc = tcl_compiler::ir::Procedure {
         name: deps.proc_name(db).clone(),
         qualified_name: qname.clone(),
+        publication: None,
         params: params.clone(),
         span: tcl_lexer::Span::new(0, body_len),
         body,

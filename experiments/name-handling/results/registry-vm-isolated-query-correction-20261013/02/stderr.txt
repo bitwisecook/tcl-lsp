@@ -1,0 +1,5 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-cmd-core)
+    Finished `test` profile [unoptimized] target(s) in 10.11s
+     Running unittests src/lib.rs (target/debug/deps/tcl_cmd_core-6ef33476c521644b)

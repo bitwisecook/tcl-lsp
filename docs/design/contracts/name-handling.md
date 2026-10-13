@@ -356,3 +356,7 @@ without acquiring Original publication authority. Its selected last-nonempty
 bootstrap policy and physical retained/dying holders remain adapter-owned.
 `NativeOoVarnameLookup` carries original-versus-constructed operand selection;
 actual caller objects, lookup purposes, cells and currency remain separate.
+
+Class declaration navigation in Native source delegates OriginalDeclaration selection and its current Class metadata. A missing or withdrawn original selection does not fall back to the Logical class-name inventory. Logical navigation uses its separately admitted source inventory.
+
+Procedure IR retains optional SignatureSourceCommand publication from the original written operand and caller naming scope. Publication geometry does not borrow physical compiler permission and issues no Native body or dispatch admission. Installed and synthetic bodies retain their independent producers.

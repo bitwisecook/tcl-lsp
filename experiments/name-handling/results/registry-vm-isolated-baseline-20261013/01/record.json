@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "2976b85de9d529f29647e547f2027251039b229c1709248cae1737197d6dd332",
+  "stderr_sha256": "399786956b64b8b8db694f8634d560b043fe2333b5500183190da8f323f21ea2",
+  "time": "2026-10-13T16:36:03.842719+00:00"
+}

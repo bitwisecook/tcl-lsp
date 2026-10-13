@@ -110,6 +110,17 @@ impl Interp {
                 self.native_namespace_origin_result(&bytes)
                     .map_err(|error| self.report_cmd_error(error.into()))?
             }
+            Kind::NamespaceWhich => {
+                let bytes = self
+                    .native_resolved_command_name(operands[0].as_ptr())
+                    .map_err(|error| self.report_cmd_error(error.into()))?;
+                match bytes {
+                    Some(bytes) => self
+                        .native_namespace_origin_result(&bytes)
+                        .map_err(|error| self.report_cmd_error(error.into()))?,
+                    None => obj::Owned::fresh(obj::new_obj()),
+                }
+            }
             Kind::NamespaceCode => {
                 let namespace = u32::try_from(self.current_ns())
                     .map(tcl_runtime_api::NsId)
@@ -170,6 +181,37 @@ mod tests {
             .unwrap()
             .into()
     }
+
+    #[test]
+    fn compiled_namespace_which_uses_the_original_command_operand_and_plain_result() {
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = super::super::tests::interpreter(engine);
+            assert_eq!(
+                interp.eval_str(b"namespace eval N {proc p {} {}; proc q {} {namespace which -com p}; proc absent {} {namespace which missing}; proc variable_query {} {namespace which -variable v}}; N::q"),
+                Code::Ok,
+                "{engine}: {:?}", interp.result_bytes(),
+            );
+            assert_eq!(interp.result_bytes(), b"::N::p", "{engine}");
+            assert!(!interp.host_refusal_pending(), "{engine}");
+            for name in [b"::N::q".as_slice(), b"::N::absent"] {
+                if name == b"::N::absent" {
+                    assert_eq!(interp.eval_str(name), Code::Ok, "{engine}");
+                    assert_eq!(interp.result_bytes(), b"", "{engine}");
+                }
+                let procedure = interp.proc_def(name).expect("original procedure");
+                let artifact = super::super::cache(procedure.body.as_ptr())
+                    .expect("actual original namespace which artifact");
+                assert!(artifact.scripts.values().any(|script| script.commands.iter().any(|command| matches!(&command.operation, Operation::Introspection(recipe) if recipe.kind == Kind::NamespaceWhich))), "{engine}: {name:?}");
+            }
+            assert_eq!(interp.eval_str(b"N::variable_query"), Code::Ok, "{engine}");
+            assert_eq!(interp.result_bytes(), b"", "{engine}");
+            let procedure = interp.proc_def(b"::N::variable_query").unwrap();
+            let artifact = super::super::cache(procedure.body.as_ptr())
+                .expect("actual variable-query artifact");
+            assert!(!artifact.scripts.values().any(|script| script.commands.iter().any(|command| matches!(&command.operation, Operation::Introspection(recipe) if recipe.kind == Kind::NamespaceWhich))), "{engine}: variable query stays generic");
+        }
+    }
+
     #[test]
     fn compiled_introspection_preserves_thirty_three_native_original_header_windows() {
         // naming.compiler.introspection-source-and-effect-frontiers

@@ -1,0 +1,13 @@
+fn main() {
+ let registry=tcl_registry::CommandRegistry::build_default();
+ let profile=tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+ let dialect=tcl_registry::InvocationDialect::of_profile(profile);
+ for (head,args) in [("binary",vec!["encode","hex","DATA"]),("::tcl::binary::encode",vec!["hex","DATA"]),("::tcl::binary::encode::hex",vec!["DATA"])] {
+  let words=tcl_registry::InvocationWords::literals(head,&args).with_dialect(dialect);
+  println!("HEAD {head} PREFIX {:?} COMPILER {:?}",registry.native_registration_operand_prefix(head,dialect),registry.native_compilation_for_registration(head,dialect));
+  let native=registry.native_registration_invocation_facts(words);
+  println!("PRIVATE FACTS {:?}",native.as_ref().map(|facts| (facts.argument_offset,facts.native_compilation)));
+  let resolution=registry.resolve_structured_invocation(words,dialect.authoring_query());
+  println!("DIRECT FACTS {:?}",resolution.resolved().map(|resolved| (resolved.facts().argument_offset,resolved.facts().native_compilation)));
+ }
+}

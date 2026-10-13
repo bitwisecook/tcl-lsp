@@ -420,7 +420,7 @@ pub fn definition_with(
             .unwrap_or(proc_def);
         return vec![span_to_range(source, &line_index, in_effect.name_span)];
     }
-    if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
+    if let Some(span) = class_declaration_at(source, analysis, &word, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
     // Class-member lookup — when the cursor sits inside a
@@ -516,7 +516,7 @@ fn indirect_definition_target(
             .unwrap_or(proc_def);
         return Some(captured.name_span);
     }
-    class_declaration_at(analysis, &hop.target, cursor_off)
+    class_declaration_at(source, analysis, &hop.target, cursor_off)
 }
 
 /// Original written procedure header, including displaced declarations.
@@ -2717,10 +2717,24 @@ fn itcl_self_qualified_candidate(
 /// the local extension would shadow the true definition.  When the class *is*
 /// created here, `via_define` is false and this is that creation site.
 fn class_declaration_at(
+    source: &str,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<tcl_lexer::Span> {
+    if !analysis.allows_lexical_declaration_advice() {
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            crate::original_declaration::select_at_offset("", source, analysis, cursor_offset)
+        else {
+            return None;
+        };
+        if identity.role() != crate::original_declaration::OriginalDeclarationRole::Class {
+            return None;
+        }
+        return identity
+            .class_metadata(analysis)
+            .map(|declaration| declaration.metadata().name_span);
+    }
     if let Some((_, class_def)) = analysis
         .all_classes
         .iter()

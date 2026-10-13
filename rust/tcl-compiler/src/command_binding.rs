@@ -859,10 +859,11 @@ impl BindingBaseline {
             declared_commands: Arc::default(),
             declared_surface: None,
             catalogue_commands: Arc::new(
-                registry
-                    .command_names()
-                    .map(|name| (nqn(name), name.to_owned()))
-                    .collect(),
+                tcl_registry::unique_command_descriptor_coordinates(
+                    registry.command_descriptor_keys(),
+                )
+                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+                .collect(),
             ),
             semantics: registry.profile().map_or_else(
                 || registry.effective_semantics(),
@@ -7238,7 +7239,11 @@ impl SourceCommandBindings {
             for site in script.command_binding_sites.iter_mut() {
                 let proof = bindings.invocation_at_source(&site.binding.name, site.span.start());
                 if !proof.proved_execution_target().is_some_and(|target| {
-                    target.registry_backed && nqn(&target.command) == nqn(&site.binding.identity)
+                    target.registry_backed
+                        && tcl_registry::command_descriptor_labels_match(
+                            &target.command,
+                            &site.binding.identity,
+                        )
                 }) {
                     valid = false;
                 }
@@ -12611,7 +12616,7 @@ impl ModuleCommandBindings {
                             && selected.is_some_and(|target| {
                                     target.registry_backed
                                         && target.prepended.is_empty()
-                                        && nqn(&target.command) == nqn(command)
+                                        && tcl_registry::command_descriptor_labels_match(&target.command, command)
                                         && target.implementation_generation == 0
                                 })
                     })
@@ -12929,7 +12934,7 @@ impl ModuleCommandBindings {
             proof.proved_target().is_some_and(|target| {
                 target.registry_backed
                     && target.prepended.is_empty()
-                    && nqn(&target.command) == nqn(command)
+                    && tcl_registry::command_descriptor_labels_match(&target.command, command)
                     && target.implementation_generation == 0
             })
         });
@@ -12940,7 +12945,7 @@ impl ModuleCommandBindings {
                 if provider_timing.is_some() {
                     original_command_table::ProviderValidationTiming::optional_row();
                 }
-                let slot = nqn(command);
+                let slot = tcl_registry::rooted_command_descriptor_label(command);
                 let keys = self.source_keys(command, &root);
                 keys.len() == 1
                     && self.bindings.get(&keys[0]).is_some_and(|alternatives| {
@@ -13096,7 +13101,10 @@ impl ModuleCommandBindings {
             if proof.proved_target().is_some_and(|target| {
                 target.registry_backed
                     && target.prepended.is_empty()
-                    && nqn(&target.command) == nqn(&dependency.registry_identity)
+                    && tcl_registry::command_descriptor_labels_match(
+                        &target.command,
+                        &dependency.registry_identity,
+                    )
                     && target.implementation_generation == 0
             }) {
                 return true;
@@ -13242,10 +13250,15 @@ impl ModuleCommandBindings {
         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
         baseline.declared_surface = options.retained_declared_command_contracts();
         baseline.declared_commands = Arc::new(
-            tcl_registry::model::DocumentCommandSurface::new(registry, options.declared_commands)
-                .declared_names()
-                .map(|name| (nqn(name), name.to_owned()))
-                .collect(),
+            tcl_registry::unique_command_descriptor_coordinates(
+                tcl_registry::model::DocumentCommandSurface::new(
+                    registry,
+                    options.declared_commands,
+                )
+                .declared_descriptor_keys(),
+            )
+            .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
+            .collect(),
         );
         baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
         baseline.trusted_loaders = options
@@ -16534,7 +16547,7 @@ fn command_binding_site_is_exact(
     }
     target.registry_backed
         && target.prepended.is_empty()
-        && nqn(&target.command) == nqn(&site.binding.identity)
+        && tcl_registry::command_descriptor_labels_match(&target.command, &site.binding.identity)
 }
 
 /// Apply command-table effects from evaluated `[...]` words before the outer
@@ -18319,7 +18332,7 @@ fn install_trusted_package_provider(
         return;
     };
     for command in &loader.command_surface {
-        let slot = nqn(command);
+        let slot = tcl_registry::rooted_command_descriptor_label(command);
         let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(&slot);
         Arc::make_mut(&mut state.namespaces).insert(namespace.to_owned());
         state.install(
@@ -18343,7 +18356,7 @@ fn install_trusted_package_provider(
         );
     }
     for command in &loader.optional_command_surface {
-        let slot = nqn(command);
+        let slot = tcl_registry::rooted_command_descriptor_label(command);
         Arc::make_mut(&mut state.namespaces).insert(command_holder(&slot));
         let original = MayBinding::Target(ResolvedCommandTarget {
             command: slot.clone(),

@@ -1,0 +1,25 @@
+{
+  "package": "tcl-registry",
+  "selector": "command_descriptor_key::tests::descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "command_descriptor_key::tests::descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "1ce2ed731f15d10f5c43093f492a5f8a4a0d0d1089232b28a71c66e54b520c7e",
+  "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+  "time": "2026-10-13T18:07:22.038548+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+  }
+}

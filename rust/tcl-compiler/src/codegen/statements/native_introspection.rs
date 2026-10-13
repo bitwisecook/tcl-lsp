@@ -68,6 +68,7 @@ impl CodegenCtx<'_> {
         let (op, operands) = match recipe.kind {
             Kind::NamespaceCurrent => (Op::CURRENT_NAMESPACE, Vec::new()),
             Kind::NamespaceOrigin => (Op::ORIGIN_CMD, Vec::new()),
+            Kind::NamespaceWhich => (Op::RESOLVE_CMD, Vec::new()),
             Kind::NamespaceCode => (Op::LIST, vec![Operand::Imm(4)]),
             Kind::InfoLevel => (
                 if has_number {

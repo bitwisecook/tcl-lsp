@@ -1,0 +1,6 @@
+
+running 1 test
+test native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1772 filtered out; finished in 0.05s
+

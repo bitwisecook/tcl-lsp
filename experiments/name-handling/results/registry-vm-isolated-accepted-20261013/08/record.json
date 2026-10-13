@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "e1f056374b7b0b4fdffac67bf03df14ef8d984e833c871e400f3ca9fb9f8710c",
+  "stderr_sha256": "31c023e913950c8bb7a7effcf476cd2649cae122e0c4d89842a4b5a8f15192e2",
+  "time": "2026-10-13T17:09:30.479501+00:00"
+}

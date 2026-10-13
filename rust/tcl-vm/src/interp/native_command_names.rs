@@ -359,6 +359,44 @@ impl Vm {
         original: &Value,
         follow_imports: bool,
     ) -> Result<Option<Vec<u8>>, CmdError> {
+        if !follow_imports
+            && self
+                .name_policy_protocol()
+                .is_some_and(|policy| policy.recipe().is_jim084())
+        {
+            let current = self.current_ns_id();
+            let entered = OriginalLookup::enter(self, current, original)?;
+            let reached = (|| {
+                let bytes = entered.read(self)?;
+                let namespace = entered.read_jim_namespace(self)?;
+                let path = self.ns_path(current);
+                let candidates = tcl_syntax::naming::NativeNameProtocol::Jim084
+                    .jim_namespace_command_query_candidates(
+                        tcl_syntax::naming::NativeNameContext::with_jim_namespace(
+                            &path, &namespace,
+                        ),
+                        &bytes,
+                    )
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable(
+                            "Jim namespace command query projection",
+                        )
+                    })?;
+                for candidate in candidates {
+                    let lookup =
+                        Value::from_native_string_bytes(candidate.lookup.as_bytes().to_vec());
+                    let selected = self.native_command_from_original_at(current, &lookup)?;
+                    entered.check(self)?;
+                    drop(lookup);
+                    entered.check(self)?;
+                    if selected.is_some() {
+                        return Ok(Some(candidate.reported.as_bytes().to_vec()));
+                    }
+                }
+                Ok(None)
+            })();
+            return entered.finish(self, reached);
+        }
         let Some(command) = self.native_command_from_original(original)? else {
             return Ok(None);
         };

@@ -1,0 +1,11 @@
+
+running 1 test
+test interp::native_namespace_command_query_tests::original_command_queries_c84 ... FAILED
+
+failures:
+
+failures:
+    interp::native_namespace_command_query_tests::original_command_queries_c84
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1217 filtered out; finished in 4.38s
+

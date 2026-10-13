@@ -1,0 +1,101 @@
+diff --git a/rust/tcl-registry/src/native_introspection_compilation.rs b/rust/tcl-registry/src/native_introspection_compilation.rs
+index 7aba1d7e4..c6d68e91f 100644
+--- a/rust/tcl-registry/src/native_introspection_compilation.rs
++++ b/rust/tcl-registry/src/native_introspection_compilation.rs
+@@ -32,6 +32,8 @@ pub enum NativeIntrospectionKind {
+     NamespaceCurrent,
+     /// Original command cache and imported command origin.
+     NamespaceOrigin,
++    /// Resolve one original command name in the entered namespace.
++    NamespaceWhich,
+     /// Original scoped-list constructor.
+     NamespaceCode,
+     /// Original caller-variable frame introspection.
+@@ -61,6 +63,12 @@ pub fn compile_native_introspection(
+     if version < TclVersion::V8_6 || operand_from == 0 {
+         return None;
+     }
++    if kind == NativeIntrospectionKind::NamespaceWhich
++        && (words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version)
++            || words.checked_words().is_none())
++    {
++        return None;
++    }
+     let projected = project_native_compiler_words(words, version).ok()?;
+     let arguments = projected.get(operand_from..)?;
+     if arguments
+@@ -69,9 +77,26 @@ pub fn compile_native_introspection(
+     {
+         return None;
+     }
++    if kind == NativeIntrospectionKind::NamespaceWhich {
++        let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
++        let NativeNamespaceWhichShape::Command { argument } = namespace_which_shape(
++            &shapes,
++            arguments.first().and_then(|word| word.literal.as_deref()),
++            version,
++        ) else {
++            return None;
++        };
++        return Some(NativeIntrospectionInstruction {
++            kind,
++            operands: vec![arguments[argument].operand.clone()],
++        });
++    }
+     let valid = match kind {
+         NativeIntrospectionKind::NamespaceCurrent => arguments.is_empty(),
+         NativeIntrospectionKind::NamespaceOrigin => arguments.len() == 1,
++        NativeIntrospectionKind::NamespaceWhich => {
++            unreachable!("selected command operand handled above")
++        }
+         NativeIntrospectionKind::InfoLevel => arguments.len() <= 1,
+         NativeIntrospectionKind::InfoCommands => {
+             matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral | Shape::BackslashLiteral)
+@@ -88,6 +113,47 @@ pub fn compile_native_introspection(
+     })
+ }
+ 
++/// Original SIMPLE_WORD option grammar, independent of registration authority.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum NativeNamespaceWhichShape {
++    Command { argument: usize },
++    Declined,
++    Unavailable,
++}
++
++pub(crate) fn namespace_which_shape(
++    shapes: &[Shape],
++    option: Option<&[u8]>,
++    version: TclVersion,
++) -> NativeNamespaceWhichShape {
++    use NativeNamespaceWhichShape as Outcome;
++    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
++        return Outcome::Declined;
++    }
++    let argument = if shapes.len() == 1 {
++        0
++    } else {
++        match shapes[0] {
++            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
++                let Some(option) = option else {
++                    return Outcome::Unavailable;
++                };
++                if !(2..=8).contains(&option.len()) || !b"-command".starts_with(option) {
++                    return Outcome::Declined;
++                }
++                1
++            }
++            Shape::BackslashLiteral | Shape::Substituted => return Outcome::Declined,
++            Shape::Expanded | Shape::Opaque => return Outcome::Unavailable,
++        }
++    };
++    if matches!(shapes[argument], Shape::Expanded | Shape::Opaque) {
++        Outcome::Unavailable
++    } else {
++        Outcome::Command { argument }
++    }
++}
++
+ /// Pure compile-known pattern restriction of the original C compiler. The
+ /// caller supplies its original source-channel value and selected registration.
+ #[must_use]

@@ -217,7 +217,10 @@ pub mod remote_method;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
-pub use command_descriptor_key::CanonicalCommandDescriptorKey;
+pub use command_descriptor_key::{
+    CanonicalCommandDescriptorKey, command_descriptor_labels_match,
+    rooted_command_descriptor_label, unique_command_descriptor_coordinates,
+};
 pub mod result_stability;
 pub mod return_type;
 pub mod runtime_backing;

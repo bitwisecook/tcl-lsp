@@ -1,0 +1,55 @@
+warning: unused import: `ends_with_separator`
+ --> rust/tcl-syntax/src/naming/native.rs:8:13
+  |
+8 | use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+  |             ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-syntax` (lib) generated 1 warning (run `cargo fix --lib -p tcl-syntax` to apply 1 suggestion)
+   Compiling tcl-compiler v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-compiler)
+error: couldn't read `/workspace/name-implementation-worktrees/registry_vm/rust/tcl-compiler/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl`: No such file or directory (os error 2)
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:4675:27
+     |
+4675 |       const PRIVATE: &str = include_str!(concat!(
+     |  ___________________________^
+4676 | |         env!("CARGO_MANIFEST_DIR"),
+4677 | |         "/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
+4678 | |     ));
+     | |______^
+
+error[E0432]: unresolved import `tcl_registry::model::Provenance`
+   --> rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:457:65
+    |
+457 |     use tcl_registry::model::{DeclaredCommand, DeclaredSurface, Provenance};
+    |                                                                 ^^^^^^^^^^ no `Provenance` in `model`
+    |
+    = help: consider importing this enum instead:
+            crate::ir::Provenance
+
+error[E0433]: cannot find type `BindingBaseline` in this scope
+   --> rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:421:20
+    |
+421 |     let baseline = BindingBaseline::for_registry(&registry);
+    |                    ^^^^^^^^^^^^^^^ use of undeclared type `BindingBaseline`
+    |
+help: consider importing this struct
+    |
+  4 + use crate::command_binding::BindingBaseline;
+    |
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+   --> rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:402:24
+    |
+402 |     let mut registry = CommandRegistry::build_default();
+    |                        ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+error[E0433]: cannot find type `CommandRegistry` in this scope
+   --> rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs:458:20
+    |
+458 |     let registry = CommandRegistry::build_default();
+    |                    ^^^^^^^^^^^^^^^ use of undeclared type `CommandRegistry`
+
+Some errors have detailed explanations: E0432, E0433.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `tcl-compiler` (lib test) due to 5 previous errors

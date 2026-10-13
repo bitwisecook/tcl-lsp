@@ -94,6 +94,17 @@ impl OriginalLookup {
         reached
     }
 
+    pub(super) fn read_jim_namespace(&self, vm: &mut Vm) -> Result<Rc<[u8]>, CmdError> {
+        self.check(vm)?;
+        let holder = self
+            .jim_namespace
+            .as_ref()
+            .ok_or_else(|| vm.retain_name_query_refusal("original Jim namespace query holder"))?;
+        let reached = vm.native_name_operand_bytes_checked(holder.value());
+        self.check(vm)?;
+        reached
+    }
+
     pub(super) fn command(
         &self,
         vm: &mut Vm,

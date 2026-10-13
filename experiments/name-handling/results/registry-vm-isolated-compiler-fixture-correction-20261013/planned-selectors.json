@@ -1,0 +1,26 @@
+[
+  [
+    "tcl-compiler",
+    "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand"
+  ],
+  [
+    "tcl-compiler",
+    "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook"
+  ],
+  [
+    "tcl-compiler",
+    "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions"
+  ],
+  [
+    "tcl-compiler",
+    "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions"
+  ],
+  [
+    "tcl-compiler",
+    "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions"
+  ],
+  [
+    "tcl-compiler",
+    "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens"
+  ]
+]

@@ -1,0 +1,11 @@
+warning: unused import: `ends_with_separator`
+ --> rust/tcl-syntax/src/naming/native.rs:8:13
+  |
+8 | use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+  |             ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-syntax` (lib) generated 1 warning (run `cargo fix --lib -p tcl-syntax` to apply 1 suggestion)
+    Checking tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-registry)
+    Finished `dev` profile [unoptimized] target(s) in 20.12s

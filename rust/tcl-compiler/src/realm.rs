@@ -832,17 +832,14 @@ fn realm_from_source_bindings(
     bindings: SourceCommandBindings,
     registry: &CommandRegistry,
 ) -> CommandBindingRealm {
-    let specs = registry
-        .command_names()
-        .filter_map(|name| {
-            registry.get(name).map(|spec| {
-                (
-                    tcl_syntax::naming::normalise_qualified_name(name),
-                    SpecKey::new(spec),
-                )
+    let specs =
+        tcl_registry::unique_command_descriptor_coordinates(registry.command_descriptor_keys())
+            .filter_map(|(coordinate, key)| {
+                registry
+                    .get(key.label())
+                    .map(|spec| (coordinate, SpecKey::new(spec)))
             })
-        })
-        .collect();
+            .collect();
     CommandBindingRealm {
         bindings,
         source_input: None,
@@ -1763,6 +1760,39 @@ mod original_resolved_realm_input_tests {
                 "{label}"
             );
             assert!(realm.matches_resolved_analysis_input(&input), "{label}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod descriptor_index_tests {
+    use super::*;
+    #[test]
+    fn realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions() {
+        let mut registry = CommandRegistry::build_default();
+        for label in [
+            "NAME_REALM::",
+            "NAME_REALM:::member",
+            "::::NAME_REALM",
+            "NAME_REALM_COLLISION",
+            "::NAME_REALM_COLLISION",
+        ] {
+            registry.insert(tcl_registry::CommandSpec {
+                name: label,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+        }
+        let realm =
+            document_realm_bindings_with_config("", tcl_lexer::LexerConfig::default(), &registry);
+        for coordinate in ["::NAME_REALM::", "::NAME_REALM:::member", "::::NAME_REALM"] {
+            assert!(realm.specs.contains_key(coordinate), "{coordinate}");
+        }
+        for missing in [
+            "::NAME_REALM",
+            "::NAME_REALM::member",
+            "::NAME_REALM_COLLISION",
+        ] {
+            assert!(!realm.specs.contains_key(missing), "{missing}");
         }
     }
 }

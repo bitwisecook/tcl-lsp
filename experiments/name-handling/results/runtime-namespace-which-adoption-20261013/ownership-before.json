@@ -1,0 +1,5 @@
+{
+  "runtime/rust/src/interp/native_body_artifact/native_introspection.rs": "81ae5e5a5bde5c4f2919a3f6d08da25d8710acec49776e1853bc7a1942f7eb41",
+  "rust/tcl-registry/src/native_introspection_compilation.rs": "4c2cba70050bf6b3f31f2771bce52123cdd1a6253d944f61fbe7bb08a617cc53",
+  "rust/tcl-registry/src/native_compilation.rs": "2435743747ebd969cba9c68f8e1ab90d9e290ac067a55bf5ede16b8d2964cbba"
+}

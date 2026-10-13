@@ -68,17 +68,18 @@ impl Vm {
                 .name_policy_protocol()
                 .expect("selected native TclOO names")
                 .recipe();
-            let lookup = tcl_syntax::naming::native_oo_varname_lookup_bytes(
+            let lookup = tcl_syntax::naming::native_oo_varname_lookup(
                 protocol,
                 &tcl_runtime_api::Namespaces::name_bytes(self, namespace),
                 &bytes,
                 storage,
             )
             .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
-            let lookup = if bytes.starts_with(b"::") {
-                original.clone()
-            } else {
-                Value::new_native_string_bytes(lookup)
+            let lookup = match lookup {
+                tcl_syntax::naming::NativeOoVarnameLookup::Original(_) => original.clone(),
+                tcl_syntax::naming::NativeOoVarnameLookup::Constructed(bytes) => {
+                    Value::new_native_string_bytes(bytes)
+                }
             };
             let (_root, _bytes, _element, resolved) = self
                 .prepare_native_original_variable_in(

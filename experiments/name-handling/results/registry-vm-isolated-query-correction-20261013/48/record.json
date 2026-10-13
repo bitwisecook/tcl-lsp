@@ -1,0 +1,25 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "f7d0d7646dc9b9afc8dc0a2021197aa92f79e5e5e215335d6ad4bfe1a33a1ae7",
+  "stderr_sha256": "0044cb338eae3e879ed892f19209addad534d68da03165e463885dfbba19568a",
+  "time": "2026-10-13T18:17:38.838099+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+  }
+}

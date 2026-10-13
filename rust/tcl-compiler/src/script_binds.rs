@@ -791,7 +791,7 @@ mod tests {
             ("jim", "&link"),
         ] {
             let source = format!("proc ::missing::p {{{formals}}} {{puts $missing}}");
-            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let profile = crate::environment_ingress::resolve_environment(dialect).unit_profile();
             let (_owner, analysis) = native_read_fixture(&source, profile);
             let input = analysis.resolved_input.as_ref().unwrap();
             let context = input.context_registry();

@@ -1,0 +1,25 @@
+{
+  "package": "tcl-compiler",
+  "selector": "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "e3a317a105a4fa3de454f1e7f4b1a6de9d6cb80a0c85abc29187cc5d9d85b240",
+  "stderr_sha256": "eaa1c96307231719197d6b66a6d464838b1fcdf295a6445fda292c3c31c5dbfc",
+  "time": "2026-10-13T18:24:06.316912+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+  }
+}

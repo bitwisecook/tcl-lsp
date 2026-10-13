@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "native_compilation::namespace_which_tests::checked_member_facts_keep_original_which_operand_offset",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "native_compilation::namespace_which_tests::checked_member_facts_keep_original_which_operand_offset",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "473a580273ef93fbd081d19bdac58f4ef6d307fb7cda962bf49167ba6cc662be",
+  "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+  "time": "2026-10-13T16:36:09.504653+00:00"
+}

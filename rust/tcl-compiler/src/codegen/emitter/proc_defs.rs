@@ -123,6 +123,7 @@ mod tests {
         Procedure {
             name: name.into(),
             qualified_name: format!("::{name}"),
+            publication: None,
             params: Vec::new(),
             span: Span::new(0, 0),
             body: Script::new(),

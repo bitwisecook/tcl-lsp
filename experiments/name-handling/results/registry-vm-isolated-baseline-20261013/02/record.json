@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "7ecc0d8932bbc0b03531c5c44c27fae0eec291ff8f89f4470bc9861fca5cae4d",
+  "stderr_sha256": "671f50c1b46ac01dc796f7126da7d847da7acbd6651cfdafd31ba11adb7fd89d",
+  "time": "2026-10-13T16:36:04.525912+00:00"
+}

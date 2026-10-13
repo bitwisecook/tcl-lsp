@@ -1,0 +1,52 @@
+{
+  "baseline": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "base_context": "prior sealed3 variable files + inherited root-owned destination_of hunk + sealed7 publication files",
+  "owned_files": {
+    "runtime/rust/src/interp/native_body_artifact/native_introspection.rs": "e58d98ee0ab69de16e59dc5c0c6518de32808abfeabbf303079484482ce700ba"
+  },
+  "peer_dependency_files": {
+    "rust/tcl-registry/src/native_compilation.rs": "748b536f921e54551ef91967ed209b5164df5a3763cb5b9e81d50ae7895324dc",
+    "rust/tcl-registry/src/native_introspection_compilation.rs": "0571caa6a04af6872d83be9d9e85f33a582768cb66d2cbb3665442933f32ae2e"
+  },
+  "peer_dependencies": [
+    {
+      "path": "/tmp/runtime-namespace-which-adoption-20261013/registry-vm-namespace-which-kind.patch",
+      "sha256": "ae35c538ccedb757b406926fd171c3cd2893a5fafdb46b9ef05aea277b93a81b"
+    },
+    {
+      "path": "/tmp/runtime-namespace-which-adoption-20261013/registry-vm-namespace-which-selector.patch",
+      "sha256": "a73661440c9a0c56cd219e2d88b7a0a96496fbeb36e111083527c0c6bd546fba"
+    }
+  ],
+  "patch_sha256": "e5af18d10db22f226739b1ceb7c68beaba37c61e52c260593130143c7237a830",
+  "source_paths": 10325,
+  "source_changes": [],
+  "added_sources": [],
+  "deleted_sources": [],
+  "compiled_inputs": 4990,
+  "unresolved": [],
+  "uncovered": [],
+  "binary_hashes": {
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235": "89e18d6c86b06f3853b4fa103cc2e1946617b2068c367a939ee2bf1fb81ca44d"
+  },
+  "changed_compiled_inputs": {},
+  "changed_artifacts": {},
+  "exact_tests": 6,
+  "passed": 5,
+  "failed": [
+    "interp::native_body_artifact::native_introspection::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows"
+  ],
+  "failure_reproduced_on_pre_which_sources": true,
+  "baseline_source_matches_prior_sealed_publication_source": true,
+  "baseline_artifact_matches_prior_sealed_publication_artifact": true,
+  "new_actual_artifact_profiles": [
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1"
+  ],
+  "new_actual_artifact_assertions": "selected Which for found/missing original command operands; -variable remains Generic",
+  "fresh_namespace_query_oracles_executed": false,
+  "namespace_query_150_comparison_claimed": false,
+  "native_query_physical_header_equivalence_claimed": false,
+  "full_gates_run": false
+}

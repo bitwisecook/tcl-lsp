@@ -1,0 +1,133 @@
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -1898,6 +1898,18 @@
+             }
+             NativeCompilationGrammar::StringTrim { .. } => matches!(count, 1 | 2),
+             NativeCompilationGrammar::NamespaceCurrent => count == 0,
++            NativeCompilationGrammar::NamespaceWhich => {
++                let tcl_syntax::native_string::NativeStringProtocol::C(version) =
++                    words.source_protocol()
++                else {
++                    return false;
++                };
++                crate::native_introspection_compilation::namespace_which_shape(
++                    &words.shapes()[operand_from..],
++                    words.literal(operand_from),
++                    version,
++                ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
++            }
+             NativeCompilationGrammar::NamespaceCode => {
+                 count == 1
+                     && literal_shape(words.shapes()[operand_from])
+@@ -1955,7 +1967,6 @@
+             // command literal preparation, or an unauthored compiler hook.
+             NativeCompilationGrammar::Unresolved
+             | NativeCompilationGrammar::HookFrom(_)
+-            | NativeCompilationGrammar::NamespaceWhich
+             | NativeCompilationGrammar::ProcedureHookFrom(_)
+             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
+             | NativeCompilationGrammar::Array { .. }
+@@ -2047,6 +2058,7 @@
+             NativeCompilationGrammar::InfoCommands => Some(Kind::InfoCommands),
+             NativeCompilationGrammar::NamespaceCurrent => Some(Kind::NamespaceCurrent),
+             NativeCompilationGrammar::NamespaceOrigin => Some(Kind::NamespaceOrigin),
++            NativeCompilationGrammar::NamespaceWhich => Some(Kind::NamespaceWhich),
+             NativeCompilationGrammar::NamespaceCode => Some(Kind::NamespaceCode),
+             _ => None,
+         }
+@@ -3111,7 +3123,7 @@
+             };
+         }
+         if self.grammar == NativeCompilationGrammar::NamespaceWhich {
+-            return original_namespace_which_grammar(words, operand_from, version);
++            return original_namespace_which_grammar(words, operand_from, version, self.operation);
+         }
+         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
+             return selection;
+@@ -3869,6 +3881,7 @@
+                 shapes,
+                 words.arguments().literal_at(0).map(str::as_bytes),
+                 version,
++                self.operation,
+             ),
+             NativeCompilationGrammar::NamespaceUpvarBindings => {
+                 if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
+@@ -4380,33 +4393,22 @@
+     }
+ }
+ 
+-// Accepted command syntax retains its independent resolveCmd obligation.
+ fn namespace_which_selection(
+     shapes: &[NativeCompilationWordShape],
+     option: Option<&[u8]>,
+     version: TclVersion,
++    operation: SemanticOperationId,
+ ) -> NativeCompilationSelection {
+-    use NativeCompilationSelection as Selection;
+-    use NativeCompilationWordShape as Shape;
+-    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
+-        return Selection::Generic;
+-    }
+-    if shapes.len() == 1 {
+-        return Selection::Unknown;
+-    }
+-    match shapes[0] {
+-        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
+-            let Some(option) = option else {
+-                return Selection::Unknown;
+-            };
+-            if (2..=8).contains(&option.len()) && b"-command".starts_with(option) {
+-                Selection::Unknown
+-            } else {
+-                Selection::Generic
+-            }
+-        }
+-        Shape::BackslashLiteral | Shape::Substituted => Selection::Generic,
+-        Shape::Expanded | Shape::Opaque => Selection::Unknown,
++    use crate::native_introspection_compilation::{
++        NativeNamespaceWhichShape, namespace_which_shape,
++    };
++    match namespace_which_shape(shapes, option, version) {
++        NativeNamespaceWhichShape::Command { .. } => NativeCompilationSelection::Inline {
++            operation,
++            guard: NativeCompilationGuard::BeforeArguments,
++        },
++        NativeNamespaceWhichShape::Declined => NativeCompilationSelection::Generic,
++        NativeNamespaceWhichShape::Unavailable => NativeCompilationSelection::Unknown,
+     }
+ }
+ 
+@@ -4414,14 +4416,32 @@
+     words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+     operand_from: usize,
+     version: TclVersion,
++    operation: SemanticOperationId,
+ ) -> NativeCompilationSelection {
++    use crate::native_introspection_compilation::{
++        NativeIntrospectionKind, compile_native_introspection,
++    };
+     if words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version) {
+         return NativeCompilationSelection::Unknown;
+     }
+     let Some(shapes) = words.shapes().get(operand_from..) else {
+         return NativeCompilationSelection::Unknown;
+     };
+-    namespace_which_selection(shapes, words.literal(operand_from), version)
++    let selected =
++        namespace_which_selection(shapes, words.literal(operand_from), version, operation);
++    if matches!(selected, NativeCompilationSelection::Inline { .. })
++        && compile_native_introspection(
++            words,
++            operand_from,
++            NativeIntrospectionKind::NamespaceWhich,
++            version,
++        )
++        .is_none()
++    {
++        NativeCompilationSelection::Unknown
++    } else {
++        selected
++    }
+ }
+ 
+ fn namespace_origin_grammar(

@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "8a86d031382ead495277c30327dba68b274ac956c9d20109bbc692fae7c1b4b2",
+  "stderr_sha256": "854e970c969df80260727164bafc1b1bb0595de411306e414335b7853cfea09d",
+  "time": "2026-10-13T17:09:29.447205+00:00"
+}

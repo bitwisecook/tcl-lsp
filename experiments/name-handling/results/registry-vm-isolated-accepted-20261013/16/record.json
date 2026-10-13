@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "333b213eaf10c6d0ab1e3d9b1c7bb8904062bd7d8ae233f3fbb6742e26ed9c90",
+  "stderr_sha256": "d88abd544d33bc568e6cdb357d4e5327ff9aeeef114d9a1202a3568e454f6304",
+  "time": "2026-10-13T17:09:32.946220+00:00"
+}

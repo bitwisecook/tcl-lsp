@@ -630,6 +630,20 @@ fn parse_formal_param_names(
     )
 }
 
+/// Retain original creation/publication geometry without borrowing compiler policy.
+fn original_procedure_publication(
+    tokens: &CommandTokens,
+) -> Option<crate::signature_scan::scope::SignatureSourceCommand> {
+    use crate::signature_scan::scope::{SignatureSourceCommand, SignatureSourceNameInput};
+    let binding = tokens.source_binding.as_ref()?;
+    let input = binding.original_written_name_input(tokens, 1)?;
+    let SignatureSourceNameInput::OriginalWord(key) = &input else {
+        return None;
+    };
+    let lookup = binding.original_command_lookup(tokens, &input)?;
+    SignatureSourceCommand::procedure_from_key(lookup.original_naming_scope()?, key)
+}
+
 /// Return `Some(true)` / `Some(false)` if *`expr_text`* is a
 /// literal Tcl boolean, or `None` when the condition is not a
 /// simple literal. Tolerates surrounding whitespace and is
@@ -3270,6 +3284,7 @@ impl<'r> Lowerer<'r> {
                     entry.insert(Procedure {
                         name,
                         qualified_name: qualified,
+                        publication: original_procedure_publication(tokens),
                         params,
                         span: seg.span,
                         body,
@@ -3774,15 +3789,11 @@ impl<'r> Lowerer<'r> {
                 tokens: Some(self.cmd_tokens(seg)),
             };
         };
-        let dialect = self
-            .cmd_tokens(seg)
-            .source_binding
-            .as_ref()
-            .and_then(crate::command_binding::SourceInvocationBinding::native_compiler_dialect);
-        let Some(qualified) = tcl_registry::native_procedure::published_procedure_key(
-            qualify_proc_name(namespace, proc_name),
-            dialect,
-        ) else {
+        let tokens = self.cmd_tokens(seg);
+        let Some(publication) = original_procedure_publication(&tokens) else {
+            return self.lower_default(seg, namespace);
+        };
+        let Some(qualified) = publication.reported_full_name() else {
             return self.lower_default(seg, namespace);
         };
         let body_text = &args[2];
@@ -3807,6 +3818,7 @@ impl<'r> Lowerer<'r> {
                     e.insert(Procedure {
                         name: proc_name.clone(),
                         qualified_name: qualified,
+                        publication: Some(publication),
                         params,
                         span: seg.span,
                         body,
@@ -4240,6 +4252,7 @@ impl<'r> Lowerer<'r> {
             Procedure {
                 name: event_name.to_owned(),
                 qualified_name: qualified,
+                publication: None,
                 params: vec![],
                 span: seg.span,
                 body,
@@ -4558,6 +4571,7 @@ impl<'r> Lowerer<'r> {
             Procedure {
                 name: short_name,
                 qualified_name: qualified,
+                publication: None,
                 params,
                 span,
                 body,

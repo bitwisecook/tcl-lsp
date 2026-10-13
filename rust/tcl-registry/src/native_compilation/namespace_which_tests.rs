@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Original which-hook declines and independent accepted-command obligations.
+//! Original which-hook selection and retained command-name operands.
 
 use super::*;
 use crate::native_compiler_words::NativeCompilerWords;
@@ -75,7 +75,10 @@ fn original_which_shapes_match_retained_compiler_choice_boundaries() {
             let expected = if version < TclVersion::V8_6 {
                 NativeCompilationSelection::Generic
             } else if columns[2] == "1" {
-                NativeCompilationSelection::Unknown
+                NativeCompilationSelection::Inline {
+                    operation: SPEC.operation,
+                    guard: NativeCompilationGuard::BeforeArguments,
+                }
             } else {
                 assert_eq!(columns[4], "1");
                 NativeCompilationSelection::Generic
@@ -86,11 +89,31 @@ fn original_which_shapes_match_retained_compiler_choice_boundaries() {
                 "{version:?}: {}",
                 case[0]
             );
+            let recipe = crate::native_introspection_compilation::compile_native_introspection(
+                &words,
+                2,
+                crate::native_introspection_compilation::NativeIntrospectionKind::NamespaceWhich,
+                version,
+            );
+            assert_eq!(
+                recipe.is_some(),
+                version >= TclVersion::V8_6 && columns[2] == "1"
+            );
+            if let Some(recipe) = recipe {
+                assert_eq!(
+                    recipe.operands,
+                    vec![
+                        crate::native_compiler_word_projection::NativeCompilerWordOperand::Original(
+                            words.original_words().len() - 1
+                        ),
+                    ]
+                );
+            }
             compared += 1;
         }
         assert_eq!(compared, 16);
         eprintln!(
-            "{version:?}: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases retain Unknown"
+            "{version:?}: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand"
         );
     }
 }
@@ -157,7 +180,10 @@ fn checked_member_facts_keep_original_which_operand_offset() {
                 if version < TclVersion::V8_6 || option == "-variable" {
                     NativeCompilationSelection::Generic
                 } else {
-                    NativeCompilationSelection::Unknown
+                    NativeCompilationSelection::Inline {
+                        operation: SPEC.operation,
+                        guard: NativeCompilationGuard::BeforeArguments,
+                    }
                 }
             );
         }

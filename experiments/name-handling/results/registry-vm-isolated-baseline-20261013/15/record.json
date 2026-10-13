@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::native_root_factory_descriptor_uses_actual_axes",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::native_root_factory_descriptor_uses_actual_axes",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "f6e66c7ab59405f9b5e9377e133db352a893db0f0dee8bfc680d76024054cabb",
+  "stderr_sha256": "bd005a764b94d20cbb41c3082998ff2f38370ea731afdc3f679ccee3d2c04f64",
+  "time": "2026-10-13T16:36:08.833444+00:00"
+}

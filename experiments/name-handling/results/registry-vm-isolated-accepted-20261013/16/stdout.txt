@@ -1,0 +1,6 @@
+
+running 1 test
+test native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1772 filtered out; finished in 0.00s
+

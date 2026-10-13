@@ -1,0 +1,22 @@
+{
+  "scope": "internal Registry metadata diagnostic only, not an oracle execution or Native binding observation",
+  "command": [
+    "rustc",
+    "--edition",
+    "2024",
+    "--crate-name",
+    "registry_vm_layout_probe",
+    "/tmp/registry-vm-layout-probe.rs",
+    "-L",
+    "dependency=target/debug/deps",
+    "--extern",
+    "tcl_registry=target/debug/deps/libtcl_registry-ad8027834de88982.rlib",
+    "-o",
+    "/tmp/registry-vm-layout-probe"
+  ],
+  "build_exit": 0,
+  "library": "target/debug/deps/libtcl_registry-ad8027834de88982.rlib",
+  "library_sha256": "7d4fa63d35996d3a91e91dc0cc312701adafefc12e9e8859302c6a7eaf206719",
+  "exit": 0,
+  "binary_sha256": "76cca9949427af55c7f3e5e3a5254efd6791b931ac02ee537006aafc43f7760d"
+}

@@ -1,0 +1,25 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "b0cd8b31af0f4fd3bec91480cfb5d2dc41a4ed17f2b38271449246ef4a1e75db",
+  "stderr_sha256": "31169dcb431f1284d73b682ff1a11582a97d5c625c6ca78fb2d38c5e8019bb5c",
+  "time": "2026-10-13T18:16:42.818512+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+  }
+}

@@ -118,6 +118,7 @@ impl Lowerer<'_> {
             Procedure {
                 name: installed.command,
                 qualified_name: label.clone(),
+                publication: None,
                 params: installed
                     .parameters
                     .into_iter()

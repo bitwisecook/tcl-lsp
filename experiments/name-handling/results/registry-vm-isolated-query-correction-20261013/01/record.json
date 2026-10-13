@@ -1,0 +1,25 @@
+{
+  "package": "tcl-syntax",
+  "selector": "naming::native::jim_namespace_command_query_uses_two_fresh_report_candidates",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-syntax",
+    "--lib",
+    "naming::native::jim_namespace_command_query_uses_two_fresh_report_candidates",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "9b548c16ad428e56b181a460ea277b86532b0136d6c5c9dbb7af4278d655315a",
+  "stderr_sha256": "333742b332649a5fc1da10ea08db80c7f406a2c5d5c81ad66bb70d5b36b397f6",
+  "time": "2026-10-13T18:03:31.110875+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_syntax-d16b323745d6e16a": "a5c7b3b2944ac079df2eb6626aac159e4523c68dbd425ab3847af921e7172878"
+  }
+}

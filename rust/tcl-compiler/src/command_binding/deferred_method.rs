@@ -2119,8 +2119,7 @@ pub(super) fn original_definition_member_target(
         target.registry_backed
             && target.prepended.is_empty()
             && target.registry_identity().is_some_and(|identity| {
-                crate::naming::normalise_qualified_name(identity)
-                    == crate::naming::normalise_qualified_name(&lookup.implementation)
+                tcl_registry::command_descriptor_labels_match(identity, &lookup.implementation)
             })
             && target.implementation_generation == 0
             && !state.tainted_object_dispatch.contains("*")

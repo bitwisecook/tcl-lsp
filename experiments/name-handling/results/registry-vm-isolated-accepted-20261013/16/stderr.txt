@@ -1,0 +1,39 @@
+warning: unused import: `ends_with_separator`
+ --> rust/tcl-syntax/src/naming/native.rs:8:13
+  |
+8 | use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+  |             ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-syntax` (lib) generated 1 warning (run `cargo fix --lib -p tcl-syntax` to apply 1 suggestion)
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_creation.rs:256:9
+    |
+256 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_literal.rs:390:9
+    |
+390 |     use super::*;
+    |         ^^^^^^^^
+
+warning: unused variable: `missing`
+    --> rust/tcl-registry/src/native_compilation.rs:8642:17
+     |
+8642 |             let missing = &args[..args.len() - 1];
+     |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_missing`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-registry` (lib test) generated 3 warnings (run `cargo fix --lib -p tcl-registry --tests` to apply 3 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 0.12s
+     Running unittests src/lib.rs (target/debug/deps/tcl_registry-30152f1b62ed4924)
+V8_4: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand
+V8_5: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand
+V8_6: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand
+V9_0: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand
+V9_1: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand

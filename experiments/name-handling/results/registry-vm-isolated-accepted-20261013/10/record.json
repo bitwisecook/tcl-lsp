@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::conflicting_private_registration_mappings_retain_uncertainty",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::conflicting_private_registration_mappings_retain_uncertainty",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "57fd0622185d614a9fb7ac4cf189fba0a873fb167d4495ba79c352f8e3b19a86",
+  "stderr_sha256": "af4bb9817e7daf80ff8204b7052d3be69da636900fbbb32f4d4a77ca9925d01e",
+  "time": "2026-10-13T17:09:31.336612+00:00"
+}

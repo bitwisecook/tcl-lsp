@@ -1,0 +1,21 @@
+{
+  "package": "tcl-vm",
+  "selector": "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "65fe6817fc2cc52dd178fb4fe2ea7893af33ac3b1a326d8aec0dd6f2e319d5e9",
+  "stderr_sha256": "c2b15fe0326b73c398ae6756ace2c113d646f04b871cbe386fa2b112176c180c",
+  "time": "2026-10-13T17:21:26.738993+00:00"
+}

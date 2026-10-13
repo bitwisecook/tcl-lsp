@@ -586,6 +586,14 @@ impl<'a> DocumentCommandSurface<'a> {
             .map(|(name, _)| name)
     }
 
+    /// Exact descriptor labels supplied by the document's own declarations.
+    pub fn declared_descriptor_keys(
+        &self,
+    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'a>> {
+        self.declared_names()
+            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
+    }
+
     /// Every command this document declares that a reader holding the
     /// catalogue alone may call by name, with the frame effect its
     /// declaration states ([`DeclaredCommand::plain_call_frame_effect`]), in

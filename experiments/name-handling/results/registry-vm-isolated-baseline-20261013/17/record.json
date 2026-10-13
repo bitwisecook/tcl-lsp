@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "356239d77f44bca9875988210583e9ad175fca708c3ec7a988aa100ff2871a95",
+  "stderr_sha256": "e2c41b7fe3ce3587f4a6ac9737d753e347358e166a77f6af337182de36145988",
+  "time": "2026-10-13T16:36:09.285678+00:00"
+}

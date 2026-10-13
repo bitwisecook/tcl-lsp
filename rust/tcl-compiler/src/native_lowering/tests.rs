@@ -1268,6 +1268,68 @@ fn original_constant(function: &NativeFunction, id: super::ir::NativeValueId) ->
 }
 
 #[test]
+fn original_publication_retains_body_without_native_dispatch_permission() {
+    let source = "proc :audit {} {return ORIGINAL}\n:audit\n";
+    for environment in ["tcl8.6", "tcl9.0"] {
+        let (_actual_owner, context, unit) = original_boolean_unit(source, environment);
+        let declaration = unit
+            .ir_module
+            .procedures
+            .values()
+            .find(|procedure| procedure.span.start() == 0)
+            .expect("the original declaration body is retained independently of compiler policy");
+        let publication = declaration
+            .publication
+            .as_ref()
+            .expect("the original word and caller scope issue source publication geometry");
+        assert_eq!(
+            publication.slot(),
+            &tcl_core_types::ByteCommandSlot::new(
+                tcl_core_types::ByteNamespacePath::root(),
+                tcl_core_types::NameBytes::from(":audit"),
+            )
+        );
+        assert_eq!(declaration.body_source.as_deref(), Some("return ORIGINAL"));
+        assert_eq!(declaration.params_raw, "");
+        let facts = &unit.top_level.semantic_facts;
+        let function = facts
+            .executable()
+            .function()
+            .expect("original retained call");
+        let proof = crate::dispatch_proof::analyse_original_dispatch_stability(
+            function,
+            facts.dispatch_entry_assumption(),
+            context.commands(),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                context.commands(),
+                &unit.ir_module,
+            ),
+        );
+        let (block, instruction) =
+            function
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(block, body)| {
+                    body.instructions.iter().enumerate().find_map(|(instruction, value)| {
+                matches!(value, crate::executable_ir::ExecutableInstruction::Invoke(invoke)
+                    if invoke.source.span.start() == 0).then_some((block, instruction))
+            })
+                })
+                .expect("the actual original declaration invocation");
+        assert!(
+            proof
+                .site(
+                    u32::try_from(block).unwrap(),
+                    u32::try_from(instruction).unwrap()
+                )
+                .is_none(),
+            "source publication cannot broaden Native execution-ledger permissions"
+        );
+    }
+}
+
+#[test]
 fn original_root_colon_definition_preserves_evaluated_publication_operand() {
     let source = "proc :audit {} {return ORIGINAL}\n:audit\n";
     for environment in ["tcl8.6", "tcl9.0"] {

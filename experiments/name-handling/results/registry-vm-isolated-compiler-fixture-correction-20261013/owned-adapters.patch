@@ -1,0 +1,2131 @@
+--- a/rust/tcl-cmd-core/src/namespace.rs
++++ b/rust/tcl-cmd-core/src/namespace.rs
+@@ -178,20 +178,26 @@
+     Variable,
+ }
+ 
+-/// Parse the words after `namespace which` as C's `NamespaceWhichCmd` does.
+-///
+-/// One word is always the name, even when it starts with `-`. Two words are
+-/// accepted only when the first is an unambiguous abbreviation of `-command`
+-/// or `-variable`; every other shape is the command's wrong-arity path.
++/// Select the original positional option grammar for `namespace which`.
++/// C8.4 and Jim require full option names; C8.5+ accept prefixes. A single
++/// operand is always the name, including one beginning with `-`.
+ #[must_use]
+-pub fn which_request<T: AsRef<[u8]>>(args: &[T]) -> Option<(WhichKind, usize)> {
++pub fn which_request_in<T: AsRef<[u8]>>(
++    protocol: tcl_syntax::naming::NativeNameProtocol,
++    args: &[T],
++) -> Option<(WhichKind, usize)> {
++    use tcl_syntax::naming::NativeNameProtocol;
++    let prefixes = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
+     match args {
+         [_] => Some((WhichKind::Command, 0)),
+         [option, _] => {
+             let option = option.as_ref();
+-            if option.len() > 1 && b"-command".starts_with(option) {
++            let matches = |full: &[u8]| {
++                option == full || (prefixes && option.len() > 1 && full.starts_with(option))
++            };
++            if matches(b"-command") {
+                 Some((WhichKind::Command, 1))
+-            } else if option.len() > 1 && b"-variable".starts_with(option) {
++            } else if matches(b"-variable") {
+                 Some((WhichKind::Variable, 1))
+             } else {
+                 None
+@@ -1097,20 +1103,47 @@
+     }
+ 
+     #[test]
+-    fn which_request_matches_namespace_whichs_positional_option_rule() {
+-        assert_eq!(which_request(&["puts"]), Some((WhichKind::Command, 0)));
+-        assert_eq!(which_request(&["-command"]), Some((WhichKind::Command, 0)));
+-        assert_eq!(
+-            which_request(&["-com", "puts"]),
+-            Some((WhichKind::Command, 1))
+-        );
+-        assert_eq!(
+-            which_request(&["-var", "name"]),
+-            Some((WhichKind::Variable, 1))
+-        );
+-        assert_eq!(which_request::<&str>(&[]), None);
+-        assert_eq!(which_request(&["-zork", "puts"]), None);
+-        assert_eq!(which_request(&["-command", "-variable", "puts"]), None);
++    fn which_request_matches_retained_provider_option_results() {
++        use tcl_syntax::naming::NativeNameProtocol;
++        for protocol in [
++            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4),
++            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_5),
++            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_6),
++            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0),
++            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_1),
++            NativeNameProtocol::Jim084,
++        ] {
++            assert_eq!(
++                which_request_in(protocol, &["puts"]),
++                Some((WhichKind::Command, 0))
++            );
++            assert_eq!(
++                which_request_in(protocol, &["-command"]),
++                Some((WhichKind::Command, 0))
++            );
++            assert_eq!(
++                which_request_in(protocol, &["-command", "puts"]),
++                Some((WhichKind::Command, 1))
++            );
++            assert_eq!(
++                which_request_in(protocol, &["-variable", "name"]),
++                Some((WhichKind::Variable, 1))
++            );
++            let abbreviates = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
++            for option in ["-c", "-comman"] {
++                assert_eq!(
++                    which_request_in(protocol, &[option, "puts"]),
++                    abbreviates.then_some((WhichKind::Command, 1))
++                );
++            }
++            assert_eq!(which_request_in::<&str>(protocol, &[]), None);
++            assert_eq!(which_request_in(protocol, &["-", "puts"]), None);
++            assert_eq!(which_request_in(protocol, &["-zork", "puts"]), None);
++            assert_eq!(
++                which_request_in(protocol, &["-command", "-variable", "puts"]),
++                None
++            );
++        }
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/codegen/statements/native_introspection.rs
++++ b/rust/tcl-compiler/src/codegen/statements/native_introspection.rs
+@@ -68,6 +68,7 @@
+         let (op, operands) = match recipe.kind {
+             Kind::NamespaceCurrent => (Op::CURRENT_NAMESPACE, Vec::new()),
+             Kind::NamespaceOrigin => (Op::ORIGIN_CMD, Vec::new()),
++            Kind::NamespaceWhich => (Op::RESOLVE_CMD, Vec::new()),
+             Kind::NamespaceCode => (Op::LIST, vec![Operand::Imm(4)]),
+             Kind::InfoLevel => (
+                 if has_number {
+--- a/rust/tcl-compiler/src/codegen/statements/native_introspection_tests.rs
++++ b/rust/tcl-compiler/src/codegen/statements/native_introspection_tests.rs
+@@ -113,3 +113,65 @@
+             .any(|item| item.op == Op::RESOLVE_CMD)
+     );
+ }
++
++#[test]
++fn original_namespace_which_compiler_selects_only_the_command_name_operand() {
++    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++        let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
++        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
++        let entry = crate::environment_ingress::captured_native_entry(profile);
++        for source in [
++            b"namespace which ::set".as_slice(),
++            b"namespace which -command ::set",
++            b"namespace which -c $pattern",
++            b"namespace which {-command} ::missing",
++        ] {
++            let context = emit(&registry, &entry, source);
++            assert!(!context.native_dependency_refusal, "{engine}: {source:?}");
++            let resolves = context
++                .instructions
++                .iter()
++                .filter(|item| item.op == Op::RESOLVE_CMD)
++                .count();
++            assert_eq!(
++                resolves,
++                usize::from(
++                    entry.execution_point.unwrap().tcl_version().unwrap()
++                        >= tcl_dialect::TclVersion::V8_6
++                ),
++                "{engine}: {source:?}"
++            );
++            assert!(
++                !context.instructions.iter().any(|item| item.op == Op::LIST),
++                "a command query does not wrap its result in a List"
++            );
++        }
++    }
++}
++
++#[test]
++fn original_namespace_which_compiler_requires_the_selected_worker_hook() {
++    use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
++    let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
++    let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
++    let mut entry = crate::environment_ingress::captured_native_entry(profile);
++    let token = entry
++        .lookup_command_bytes(entry.current_namespace, b"::tcl::namespace::which")
++        .unwrap()
++        .unwrap()
++        .token;
++    entry
++        .commands
++        .iter_mut()
++        .find(|command| command.token == token)
++        .unwrap()
++        .compiler_hook = NativeCompilerHookPresence::Unknown;
++    let context = emit(&registry, &entry, b"namespace which -command ::set");
++    assert!(context.native_dependency_refusal);
++    assert!(
++        !context
++            .instructions
++            .iter()
++            .any(|item| item.op == Op::RESOLVE_CMD)
++    );
++}
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -859,10 +859,11 @@
+             declared_commands: Arc::default(),
+             declared_surface: None,
+             catalogue_commands: Arc::new(
+-                registry
+-                    .command_names()
+-                    .map(|name| (nqn(name), name.to_owned()))
+-                    .collect(),
++                tcl_registry::unique_command_descriptor_coordinates(
++                    registry.command_descriptor_keys(),
++                )
++                .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
++                .collect(),
+             ),
+             semantics: registry.profile().map_or_else(
+                 || registry.effective_semantics(),
+@@ -7238,7 +7239,11 @@
+             for site in script.command_binding_sites.iter_mut() {
+                 let proof = bindings.invocation_at_source(&site.binding.name, site.span.start());
+                 if !proof.proved_execution_target().is_some_and(|target| {
+-                    target.registry_backed && nqn(&target.command) == nqn(&site.binding.identity)
++                    target.registry_backed
++                        && tcl_registry::command_descriptor_labels_match(
++                            &target.command,
++                            &site.binding.identity,
++                        )
+                 }) {
+                     valid = false;
+                 }
+@@ -12611,7 +12616,7 @@
+                             && selected.is_some_and(|target| {
+                                     target.registry_backed
+                                         && target.prepended.is_empty()
+-                                        && nqn(&target.command) == nqn(command)
++                                        && tcl_registry::command_descriptor_labels_match(&target.command, command)
+                                         && target.implementation_generation == 0
+                                 })
+                     })
+@@ -12929,7 +12934,7 @@
+             proof.proved_target().is_some_and(|target| {
+                 target.registry_backed
+                     && target.prepended.is_empty()
+-                    && nqn(&target.command) == nqn(command)
++                    && tcl_registry::command_descriptor_labels_match(&target.command, command)
+                     && target.implementation_generation == 0
+             })
+         });
+@@ -12940,7 +12945,7 @@
+                 if provider_timing.is_some() {
+                     original_command_table::ProviderValidationTiming::optional_row();
+                 }
+-                let slot = nqn(command);
++                let slot = tcl_registry::rooted_command_descriptor_label(command);
+                 let keys = self.source_keys(command, &root);
+                 keys.len() == 1
+                     && self.bindings.get(&keys[0]).is_some_and(|alternatives| {
+@@ -13096,7 +13101,10 @@
+             if proof.proved_target().is_some_and(|target| {
+                 target.registry_backed
+                     && target.prepended.is_empty()
+-                    && nqn(&target.command) == nqn(&dependency.registry_identity)
++                    && tcl_registry::command_descriptor_labels_match(
++                        &target.command,
++                        &dependency.registry_identity,
++                    )
+                     && target.implementation_generation == 0
+             }) {
+                 return true;
+@@ -13242,10 +13250,15 @@
+         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
+         baseline.declared_surface = options.retained_declared_command_contracts();
+         baseline.declared_commands = Arc::new(
+-            tcl_registry::model::DocumentCommandSurface::new(registry, options.declared_commands)
+-                .declared_names()
+-                .map(|name| (nqn(name), name.to_owned()))
+-                .collect(),
++            tcl_registry::unique_command_descriptor_coordinates(
++                tcl_registry::model::DocumentCommandSurface::new(
++                    registry,
++                    options.declared_commands,
++                )
++                .declared_descriptor_keys(),
++            )
++            .map(|(coordinate, key)| (coordinate, key.label().to_owned()))
++            .collect(),
+         );
+         baseline.trusted_source_modules = options.trusted_source_modules.to_vec();
+         baseline.trusted_loaders = options
+@@ -16534,7 +16547,7 @@
+     }
+     target.registry_backed
+         && target.prepended.is_empty()
+-        && nqn(&target.command) == nqn(&site.binding.identity)
++        && tcl_registry::command_descriptor_labels_match(&target.command, &site.binding.identity)
+ }
+ 
+ /// Apply command-table effects from evaluated `[...]` words before the outer
+@@ -18319,7 +18332,7 @@
+         return;
+     };
+     for command in &loader.command_surface {
+-        let slot = nqn(command);
++        let slot = tcl_registry::rooted_command_descriptor_label(command);
+         let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(&slot);
+         Arc::make_mut(&mut state.namespaces).insert(namespace.to_owned());
+         state.install(
+@@ -18343,7 +18356,7 @@
+         );
+     }
+     for command in &loader.optional_command_surface {
+-        let slot = nqn(command);
++        let slot = tcl_registry::rooted_command_descriptor_label(command);
+         Arc::make_mut(&mut state.namespaces).insert(command_holder(&slot));
+         let original = MayBinding::Target(ResolvedCommandTarget {
+             command: slot.clone(),
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
+@@ -1536,7 +1536,7 @@
+         && target.kind == BindingKind::Builtin
+         && target.implementation_generation == 0
+         && target.prepended.is_empty()
+-        && super::nqn(&target.command) == super::nqn(lookup.slot)
++        && tcl_registry::command_descriptor_labels_match(&target.command, lookup.slot)
+ }
+ 
+ /// A monolithic compileProc owns the complete original command vector. The
+@@ -2095,7 +2095,7 @@
+     if !target.registry_backed
+         || target.implementation_generation != 0
+         || !target.prepended.is_empty()
+-        || super::nqn(&target.command) != super::nqn(lookup.slot)
++        || !tcl_registry::command_descriptor_labels_match(&target.command, lookup.slot)
+     {
+         return None;
+     }
+@@ -2133,8 +2133,8 @@
+         }
+         let mut current = target.clone();
+         let start = path.iter().position(|lookup| {
+-            super::nqn(&current.command) == super::nqn(lookup.ensemble)
+-                || super::nqn(&current.command) == super::nqn(lookup.slot)
++            tcl_registry::command_descriptor_labels_match(&current.command, lookup.ensemble)
++                || tcl_registry::command_descriptor_labels_match(&current.command, lookup.slot)
+         });
+         let Some(start) = start else {
+             return false;
+--- a/rust/tcl-compiler/src/command_binding/deferred_method.rs
++++ b/rust/tcl-compiler/src/command_binding/deferred_method.rs
+@@ -2119,8 +2119,7 @@
+         target.registry_backed
+             && target.prepended.is_empty()
+             && target.registry_identity().is_some_and(|identity| {
+-                crate::naming::normalise_qualified_name(identity)
+-                    == crate::naming::normalise_qualified_name(&lookup.implementation)
++                tcl_registry::command_descriptor_labels_match(identity, &lookup.implementation)
+             })
+             && target.implementation_generation == 0
+             && !state.tainted_object_dispatch.contains("*")
+--- a/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs
++++ b/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs
+@@ -73,35 +73,137 @@
+ }
+ 
+ impl ModuleCommandBindings {
++    fn native_expected_implementation(
++        &self,
++        lookup: &tcl_registry::native_compilation::NativeCompilerImplementationLookup,
++    ) -> Option<SourceCommandTarget> {
++        let root = self.native_root_namespace_key()?;
++        let proof = super::source_binding(self, lookup.slot, &root);
++        let expected = proof.proved_target()?;
++        (expected.registry_backed
++            && expected.prepended.is_empty()
++            && expected.implementation_generation == 0
++            && expected.implementation_allocation.is_none()
++            && tcl_registry::command_descriptor_labels_match(&expected.command, lookup.slot))
++        .then(|| expected.clone())
++    }
++
++    fn native_implementation_target_matches(
++        &self,
++        target: &SourceCommandTarget,
++        expected: &SourceCommandTarget,
++    ) -> bool {
++        let Some(entry) = self.baseline.native_entry.as_ref() else {
++            return false;
++        };
++        let Some(actual) = target
++            .identity
++            .as_ref()
++            .and_then(|identity| identity.runtime)
++        else {
++            return false;
++        };
++        let Some(required) = expected
++            .identity
++            .as_ref()
++            .and_then(|identity| identity.runtime)
++        else {
++            return false;
++        };
++        actual.interpreter == entry.interpreter
++            && required == actual
++            && target.runtime_implementation_generation.is_some()
++            && target.runtime_implementation_generation
++                == expected.runtime_implementation_generation
++            && target.implementation_generation == 0
++            && target.implementation_allocation.is_none()
++            && target.prepended.is_empty()
++    }
++
+     pub(super) fn original_ensemble_mapping_holds(
+         &self,
+         target: &SourceCommandTarget,
+         lookup: &tcl_registry::native_compilation::NativeCompilerImplementationLookup,
+     ) -> bool {
+-        if super::nqn(&target.command) == super::nqn(lookup.slot) {
++        if tcl_registry::command_descriptor_labels_match(&target.command, lookup.slot) {
++            return self.baseline.native_entry.is_none()
++                || self
++                    .native_expected_implementation(lookup)
++                    .is_some_and(|expected| {
++                        self.native_implementation_target_matches(target, &expected)
++                    });
++        }
++        if !tcl_registry::command_descriptor_labels_match(&target.command, lookup.ensemble) {
++            return false;
++        }
++        let Some(entry) = self.baseline.native_entry.as_ref() else {
+             return true;
+-        }
+-        if super::nqn(&target.command) != super::nqn(lookup.ensemble) {
+-            return false;
+-        }
+-        if self.baseline.native_entry.is_none() {
+-            return true;
+-        }
+-        self.runtime_ensemble_configuration_for_identity(
+-            target.identity.as_ref(), target.implementation_generation,
++        };
++        let Some(public) = self.runtime_ensemble_configuration_for_identity(
++            target.identity.as_ref(),
++            target.implementation_generation,
+             target.implementation_allocation.as_ref(),
++        ) else {
++            return false;
++        };
++        let Some(configuration) = public
++            .compiler
++            .as_ref()
++            .and_then(|compiler| compiler.ensemble.as_ref())
++        else {
++            return false;
++        };
++        if !configuration.parameters.is_empty()
++            || configuration.unknown_handler.is_some()
++            || configuration.subcommands.as_ref().is_some_and(|members| {
++                !members
++                    .iter()
++                    .any(|member| member.as_bytes() == lookup.member.as_bytes())
++            })
++            || !configuration.map.iter().any(|(member, prefix)| {
++                member.as_bytes() == lookup.member.as_bytes()
++                    && matches!(prefix.as_slice(), [Some(_)])
++            })
++        {
++            return false;
++        }
++        let NativeEnsembleWorkerSelection::Worker {
++            binding: worker, ..
++        } = tcl_registry::native_ensemble::select_worker_in_entry(
++            entry,
++            public.token,
++            configuration,
++            Some(lookup.member.as_bytes()),
++            Some(NativeCompilationWordShape::Literal),
++            self.baseline.compilation_dialect(),
+         )
+-            .and_then(|row| row.compiler.as_ref()?.ensemble.as_ref())
+-            .is_some_and(|configuration| {
+-                configuration.parameters.is_empty()
+-                    && configuration.unknown_handler.is_none()
+-                    && configuration.subcommands.as_ref().is_none_or(|members| {
+-                        members.iter().any(|member| member.as_bytes() == lookup.member.as_bytes())
+-                    })
+-                    && configuration.map.iter().any(|(member, prefix)| {
+-                        member.as_bytes() == lookup.member.as_bytes()
+-                            && matches!(prefix.as_slice(), [Some(worker)] if worker.try_utf8().is_ok_and(|worker| super::nqn(worker) == super::nqn(lookup.slot)))
+-                    })
++        else {
++            return false;
++        };
++        let tcl_runtime_api::native_compilation::NativeCommandImplementation::Registry {
++            identity,
++            ..
++        } = &worker.implementation
++        else {
++            return false;
++        };
++        if !tcl_registry::command_descriptor_labels_match(identity, lookup.slot)
++            || !self.original_compiler_worker_node_holds(&worker)
++        {
++            return false;
++        }
++        let Some(expected) = self.native_expected_implementation(lookup) else {
++            return false;
++        };
++        expected
++            .identity
++            .as_ref()
++            .and_then(|identity| identity.runtime)
++            .is_some_and(|runtime| {
++                runtime.interpreter == entry.interpreter
++                    && runtime.token == worker.token
++                    && expected.runtime_implementation_generation
++                        == Some(worker.implementation_generation)
+             })
+     }
+ 
+@@ -340,3 +442,79 @@
+         })
+     }
+ }
++
++#[cfg(test)]
++mod native_mapping_tests {
++    use super::super::{SourceAnalysisOptions, source_binding};
++    use super::*;
++    use tcl_registry::native_compilation::{
++        NativeBodyCompilation, NativeCompilationGrammar, NativeCompilationSpec,
++    };
++
++    #[test]
++    fn original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens() {
++        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
++            let dialect = tcl_registry::InvocationDialect::of_profile(profile);
++            let registry =
++                tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
++            let lookup = NativeCompilationSpec {
++                grammar: NativeCompilationGrammar::NamespaceWhich,
++                operation: tcl_registry::SemanticOperationId::Invoke,
++                body: NativeBodyCompilation::Direct,
++            }
++            .implementation_lookup(dialect)
++            .unwrap();
++            for (word, expected) in [
++                ("::tcl::namespace::which", true),
++                ("::::tcl:::namespace::which", true),
++                ("::tcl::namespace::which::", false),
++                ("::__name_missing::which", false),
++            ] {
++                let (_vm, entry) =
++                    crate::environment_ingress::captured_native_entry_with_owner_using(
++                        profile,
++                        |vm| {
++                            let args = [
++                                tcl_vm::Value::string("ensemble"),
++                                tcl_vm::Value::string("configure"),
++                                tcl_vm::Value::string("::namespace"),
++                                tcl_vm::Value::string("-map"),
++                                tcl_vm::Value::list(vec![
++                                    tcl_vm::Value::string("which"),
++                                    tcl_vm::Value::list(vec![tcl_vm::Value::string(word)]),
++                                ]),
++                            ];
++                            let completion = vm.invoke_command("namespace", &args);
++                            assert!(
++                                completion.code.is_ok(),
++                                "{engine}: {word}: {:?}",
++                                completion.result
++                            );
++                        },
++                    );
++                let state = ModuleCommandBindings::initial_with_options(
++                    &registry,
++                    SourceAnalysisOptions {
++                        native_entry: Some(&entry),
++                        ..Default::default()
++                    },
++                    Some(tcl_lexer::LexerConfig::from_grammar(profile.grammar)),
++                );
++                let root = state.native_root_namespace_key().unwrap();
++                let public = source_binding(&state, "namespace", &root);
++                let public = public.proved_target().unwrap();
++                assert_eq!(
++                    state.original_ensemble_mapping_holds(public, &lookup),
++                    expected,
++                    "{engine}: {word}"
++                );
++                if expected {
++                    let private = source_binding(&state, lookup.slot, &root);
++                    let private = private.proved_target().unwrap();
++                    assert!(state.original_ensemble_mapping_holds(private, &lookup));
++                }
++            }
++        }
++    }
++}
+--- a/rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs
++++ b/rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs
+@@ -396,3 +396,111 @@
+         expected
+     );
+ }
++
++#[test]
++fn registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions() {
++    let mut registry = tcl_registry::CommandRegistry::build_default();
++    let labels = [
++        ("NAME_DESCRIPTOR::", "::NAME_DESCRIPTOR::"),
++        ("NAME_DESCRIPTOR:::member", "::NAME_DESCRIPTOR:::member"),
++        ("::::NAME_DESCRIPTOR", "::::NAME_DESCRIPTOR"),
++        (":NAME_DESCRIPTOR", ":::NAME_DESCRIPTOR"),
++    ];
++    for (label, _) in labels {
++        registry.insert(tcl_registry::CommandSpec {
++            name: label,
++            ..tcl_registry::CommandSpec::DEFAULT
++        });
++    }
++    for label in ["NAME_DESCRIPTOR_COLLISION", "::NAME_DESCRIPTOR_COLLISION"] {
++        registry.insert(tcl_registry::CommandSpec {
++            name: label,
++            ..tcl_registry::CommandSpec::DEFAULT
++        });
++    }
++    let baseline = super::super::BindingBaseline::for_registry(&registry);
++    for (label, coordinate) in labels {
++        assert_eq!(
++            baseline
++                .catalogue_commands
++                .get(coordinate)
++                .map(String::as_str),
++            Some(label)
++        );
++    }
++    for absent in [
++        "::NAME_DESCRIPTOR",
++        "::NAME_DESCRIPTOR::member",
++        "::NAME_DESCRIPTOR_COLLISION",
++    ] {
++        assert!(
++            !baseline.catalogue_commands.contains_key(absent),
++            "{absent}"
++        );
++    }
++    for (left, right) in [
++        ("NAME_DESCRIPTOR::", "::NAME_DESCRIPTOR"),
++        ("NAME_DESCRIPTOR:::member", "NAME_DESCRIPTOR::member"),
++        ("::::NAME_DESCRIPTOR", "::NAME_DESCRIPTOR"),
++        ("::", ""),
++    ] {
++        assert!(!tcl_registry::command_descriptor_labels_match(left, right));
++    }
++    assert!(tcl_registry::command_descriptor_labels_match(
++        "NAME_DESCRIPTOR:::member",
++        "::NAME_DESCRIPTOR:::member"
++    ));
++}
++
++#[test]
++fn declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions() {
++    use tcl_dialect::model::Provenance;
++    use tcl_registry::model::{DeclaredCommand, DeclaredSurface};
++    let registry = tcl_registry::CommandRegistry::build_default();
++    let mut declarations = DeclaredSurface::new();
++    for label in [
++        "NAME_DECLARED::",
++        "NAME_DECLARED:::member",
++        "::::NAME_DECLARED",
++        "NAME_DECLARED_COLLISION",
++        "::NAME_DECLARED_COLLISION",
++    ] {
++        declarations.declare(DeclaredCommand::new(
++            label.to_owned(),
++            Vec::new(),
++            Provenance::Document,
++        ));
++    }
++    let state = ModuleCommandBindings::initial_with_options(
++        &registry,
++        super::super::SourceAnalysisOptions {
++            declared_commands: Some(&declarations),
++            ..Default::default()
++        },
++        None,
++    );
++    for (coordinate, label) in [
++        ("::NAME_DECLARED::", "NAME_DECLARED::"),
++        ("::NAME_DECLARED:::member", "NAME_DECLARED:::member"),
++        ("::::NAME_DECLARED", "::::NAME_DECLARED"),
++    ] {
++        assert_eq!(
++            state
++                .baseline
++                .declared_commands
++                .get(coordinate)
++                .map(String::as_str),
++            Some(label)
++        );
++    }
++    for absent in [
++        "::NAME_DECLARED",
++        "::NAME_DECLARED::member",
++        "::NAME_DECLARED_COLLISION",
++    ] {
++        assert!(
++            !state.baseline.declared_commands.contains_key(absent),
++            "{absent}"
++        );
++    }
++}
+--- a/rust/tcl-compiler/src/command_binding/original_math_function.rs
++++ b/rust/tcl-compiler/src/command_binding/original_math_function.rs
+@@ -530,8 +530,9 @@
+     expression: &super::SourceConditionalExpressionEvaluation,
+     rows: &[&DeclarationLayoutObservation],
+ ) -> (Option<SourceCommandReference>, Option<String>) {
+-    let relative = tcl_registry::mathfunc::qualified_name(function)
+-        .trim_start_matches("::")
++    let qualified = tcl_registry::mathfunc::qualified_name(function);
++    let relative = tcl_syntax::naming::unroot_rooted_key(&qualified)
++        .expect("qualified math-function reporting key has one root marker")
+         .to_owned();
+     if bindings.implicit_math_invocations.contains_key(&(
+         Arc::clone(&site.source),
+--- a/rust/tcl-compiler/src/command_binding/runtime_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/runtime_entry.rs
+@@ -173,10 +173,10 @@
+         }
+         let hook = self.baseline.trusted_loaders.values().find_map(|loader| {
+             let selected = self.loaded_provider(&loader.package)?;
+-            selected
+-                .compiler_hooks
+-                .iter()
+-                .find_map(|(command, hook)| (super::nqn(command) == token.origin).then_some(*hook))
++            selected.compiler_hooks.iter().find_map(|(command, hook)| {
++                tcl_registry::command_descriptor_labels_match(command, &token.origin)
++                    .then_some(*hook)
++            })
+         })?;
+         match hook {
+             tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent => Some(false),
+--- a/rust/tcl-compiler/src/math_function_binding.rs
++++ b/rust/tcl-compiler/src/math_function_binding.rs
+@@ -85,11 +85,13 @@
+     resolved_call(proof, &proof.function)?;
+     if let Some(binding) = &reached.command_binding {
+         let target = binding.proved_target()?;
++        let lookup = tcl_registry::mathfunc::qualified_name(&proof.function);
++        let lookup = tcl_syntax::naming::unroot_rooted_key(&lookup)?;
+         return Some(NativeMathFoldDependency::Command(
+             tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+                 &binding.lookup_namespace,
+-                tcl_registry::mathfunc::qualified_name(&proof.function).trim_start_matches("::"),
+-                target.command.strip_prefix("::").unwrap_or(&target.command),
++                lookup,
++                tcl_syntax::naming::unroot_rooted_key(&target.command).unwrap_or(&target.command),
+             )
+             .with_namespace_context(binding.lookup_namespace_key.to_compiled_context()),
+         ));
+--- a/rust/tcl-compiler/src/realm.rs
++++ b/rust/tcl-compiler/src/realm.rs
+@@ -832,17 +832,14 @@
+     bindings: SourceCommandBindings,
+     registry: &CommandRegistry,
+ ) -> CommandBindingRealm {
+-    let specs = registry
+-        .command_names()
+-        .filter_map(|name| {
+-            registry.get(name).map(|spec| {
+-                (
+-                    tcl_syntax::naming::normalise_qualified_name(name),
+-                    SpecKey::new(spec),
+-                )
++    let specs =
++        tcl_registry::unique_command_descriptor_coordinates(registry.command_descriptor_keys())
++            .filter_map(|(coordinate, key)| {
++                registry
++                    .get(key.label())
++                    .map(|spec| (coordinate, SpecKey::new(spec)))
+             })
+-        })
+-        .collect();
++            .collect();
+     CommandBindingRealm {
+         bindings,
+         source_input: None,
+@@ -1766,3 +1763,36 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod descriptor_index_tests {
++    use super::*;
++    #[test]
++    fn realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions() {
++        let mut registry = CommandRegistry::build_default();
++        for label in [
++            "NAME_REALM::",
++            "NAME_REALM:::member",
++            "::::NAME_REALM",
++            "NAME_REALM_COLLISION",
++            "::NAME_REALM_COLLISION",
++        ] {
++            registry.insert(tcl_registry::CommandSpec {
++                name: label,
++                ..tcl_registry::CommandSpec::DEFAULT
++            });
++        }
++        let realm =
++            document_realm_bindings_with_config("", tcl_lexer::LexerConfig::default(), &registry);
++        for coordinate in ["::NAME_REALM::", "::NAME_REALM:::member", "::::NAME_REALM"] {
++            assert!(realm.specs.contains_key(coordinate), "{coordinate}");
++        }
++        for missing in [
++            "::NAME_REALM",
++            "::NAME_REALM::member",
++            "::NAME_REALM_COLLISION",
++        ] {
++            assert!(!realm.specs.contains_key(missing), "{missing}");
++        }
++    }
++}
+--- a/rust/tcl-registry/src/command_descriptor_key.rs
++++ b/rust/tcl-registry/src/command_descriptor_key.rs
+@@ -18,7 +18,54 @@
+     pub const fn label(self) -> &'a str {
+         self.0
+     }
++    /// Exact optional-root metadata coordinate, without written-name parsing.
++    #[must_use]
++    pub fn rooted_binding_label(self) -> String {
++        rooted_command_descriptor_label(self.0)
++    }
+ }
++
++/// Add an optional metadata root marker while preserving every descriptor byte.
++/// Empty labels remain empty; this grants no written lookup or registration.
++#[must_use]
++pub fn rooted_command_descriptor_label(label: &str) -> String {
++    if label.is_empty() || tcl_syntax::naming::unroot_rooted_key(label).is_some() {
++        label.to_owned()
++    } else {
++        tcl_syntax::naming::root_unrooted_key(label)
++    }
++}
++
++/// Compare descriptor metadata with one optional root marker. Separator runs,
++/// empty tails and lone colons remain exact; no live identity is established.
++#[must_use]
++pub fn command_descriptor_labels_match(left: &str, right: &str) -> bool {
++    rooted_command_descriptor_label(left) == rooted_command_descriptor_label(right)
++}
++
++/// Index selected descriptor coordinates, declining distinct labels that collide.
++/// The retained value is the original label, never a reconstructed identity.
++pub fn unique_command_descriptor_coordinates<'a>(
++    keys: impl IntoIterator<Item = CanonicalCommandDescriptorKey<'a>>,
++) -> impl Iterator<Item = (String, CanonicalCommandDescriptorKey<'a>)> {
++    use std::collections::{BTreeMap, btree_map::Entry};
++    let mut entries = BTreeMap::new();
++    for key in keys {
++        match entries.entry(key.rooted_binding_label()) {
++            Entry::Vacant(entry) => {
++                entry.insert(Some(key));
++            }
++            Entry::Occupied(mut entry) if *entry.get() != Some(key) => {
++                entry.insert(None);
++            }
++            Entry::Occupied(_) => {}
++        }
++    }
++    entries
++        .into_iter()
++        .filter_map(|(coordinate, key)| Some((coordinate, key?)))
++}
++
+ 
+ #[cfg(test)]
+ mod tests {
+@@ -42,4 +89,38 @@
+             tcl_syntax::naming::unroot_rooted_key(selected.label()).unwrap()
+         );
+     }
++    #[test]
++    fn descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels() {
++        let labels = [
++            "",
++            "::",
++            "NAME::",
++            "NAME:::member",
++            "::::NAME",
++            ":NAME",
++            "collision",
++            "::collision",
++        ];
++        let keys = labels.map(CanonicalCommandDescriptorKey::from_registry_label);
++        let indexed: std::collections::BTreeMap<_, _> =
++            unique_command_descriptor_coordinates(keys).collect();
++        for (coordinate, label) in [
++            ("", ""),
++            ("::", "::"),
++            ("::NAME::", "NAME::"),
++            ("::NAME:::member", "NAME:::member"),
++            ("::::NAME", "::::NAME"),
++            (":::NAME", ":NAME"),
++        ] {
++            assert_eq!(indexed.get(coordinate).unwrap().label(), label);
++        }
++        assert!(!indexed.contains_key("::collision"));
++        assert!(!command_descriptor_labels_match("::", ""));
++        assert!(!command_descriptor_labels_match("::::NAME", "::NAME"));
++        assert!(!command_descriptor_labels_match(
++            "NAME:::member",
++            "NAME::member"
++        ));
++        assert!(command_descriptor_labels_match("NAME::", "::NAME::"));
++    }
+ }
+--- a/rust/tcl-registry/src/lib.rs
++++ b/rust/tcl-registry/src/lib.rs
+@@ -216,7 +216,10 @@
+ pub mod repeated;
+ pub mod representation;
+ pub mod resolved_invocation;
+-pub use command_descriptor_key::CanonicalCommandDescriptorKey;
++pub use command_descriptor_key::{
++    CanonicalCommandDescriptorKey, command_descriptor_labels_match,
++    rooted_command_descriptor_label, unique_command_descriptor_coordinates,
++};
+ pub mod result_stability;
+ pub mod return_type;
+ pub mod runtime_backing;
+--- a/rust/tcl-registry/src/model/declaration.rs
++++ b/rust/tcl-registry/src/model/declaration.rs
+@@ -586,6 +586,14 @@
+             .map(|(name, _)| name)
+     }
+ 
++    /// Exact descriptor labels supplied by the document's own declarations.
++    pub fn declared_descriptor_keys(
++        &self,
++    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'a>> {
++        self.declared_names()
++            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
++    }
++
+     /// Every command this document declares that a reader holding the
+     /// catalogue alone may call by name, with the frame effect its
+     /// declaration states ([`DeclaredCommand::plain_call_frame_effect`]), in
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -1898,6 +1898,18 @@
+             }
+             NativeCompilationGrammar::StringTrim { .. } => matches!(count, 1 | 2),
+             NativeCompilationGrammar::NamespaceCurrent => count == 0,
++            NativeCompilationGrammar::NamespaceWhich => {
++                let tcl_syntax::native_string::NativeStringProtocol::C(version) =
++                    words.source_protocol()
++                else {
++                    return false;
++                };
++                crate::native_introspection_compilation::namespace_which_shape(
++                    &words.shapes()[operand_from..],
++                    words.literal(operand_from),
++                    version,
++                ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
++            }
+             NativeCompilationGrammar::NamespaceCode => {
+                 count == 1
+                     && literal_shape(words.shapes()[operand_from])
+@@ -1955,7 +1967,6 @@
+             // command literal preparation, or an unauthored compiler hook.
+             NativeCompilationGrammar::Unresolved
+             | NativeCompilationGrammar::HookFrom(_)
+-            | NativeCompilationGrammar::NamespaceWhich
+             | NativeCompilationGrammar::ProcedureHookFrom(_)
+             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
+             | NativeCompilationGrammar::Array { .. }
+@@ -2047,6 +2058,7 @@
+             NativeCompilationGrammar::InfoCommands => Some(Kind::InfoCommands),
+             NativeCompilationGrammar::NamespaceCurrent => Some(Kind::NamespaceCurrent),
+             NativeCompilationGrammar::NamespaceOrigin => Some(Kind::NamespaceOrigin),
++            NativeCompilationGrammar::NamespaceWhich => Some(Kind::NamespaceWhich),
+             NativeCompilationGrammar::NamespaceCode => Some(Kind::NamespaceCode),
+             _ => None,
+         }
+@@ -2511,6 +2523,26 @@
+         dialect: Option<InvocationDialect>,
+         context: NativeCompilationContext,
+     ) -> NativeCompilationSelection {
++        self.select_with_named_operand_view(
++            words,
++            shapes,
++            dialect,
++            context,
++            NamedCompilerOperandView::Unknown,
++        )
++    }
++
++    /// Select with an independently retained metadata operand layout. This
++    /// neither resolves an original head nor supplies native compiler authority.
++    #[must_use]
++    pub fn select_with_named_operand_view(
++        self,
++        words: InvocationWords<'_>,
++        shapes: &[NativeCompilationWordShape],
++        dialect: Option<InvocationDialect>,
++        context: NativeCompilationContext,
++        named_view: NamedCompilerOperandView,
++    ) -> NativeCompilationSelection {
+         use NativeCompilationSelection as Selection;
+         if !self.operation_matches_grammar() {
+             return Selection::Unknown;
+@@ -2519,7 +2551,8 @@
+             if dialect.is_none_or(|dialect| self.implementation_prerequisites(dialect).is_none()) {
+                 return Selection::Unknown;
+             }
+-            return compiler.select(words, shapes, dialect, context);
++            return compiler
++                .select_with_named_operand_view(words, shapes, dialect, context, named_view);
+         }
+         if context.mode == NativeCompilationMode::Direct {
+             return Selection::Generic;
+@@ -2595,7 +2628,13 @@
+         if shapes.contains(&NativeCompilationWordShape::Expanded) {
+             return Selection::Generic;
+         }
+-        self.select_grammar(words.with_dialect(dialect), shapes, version, context)
++        self.select_grammar(
++            words.with_dialect(dialect),
++            shapes,
++            version,
++            context,
++            named_view,
++        )
+     }
+ 
+     /// Select an independently registered compiler using original byte words.
+@@ -3111,7 +3150,7 @@
+             };
+         }
+         if self.grammar == NativeCompilationGrammar::NamespaceWhich {
+-            return original_namespace_which_grammar(words, operand_from, version);
++            return original_namespace_which_grammar(words, operand_from, version, self.operation);
+         }
+         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
+             return selection;
+@@ -3143,11 +3182,12 @@
+         let Some(projected) = words.checked_words() else {
+             return Selection::Unknown;
+         };
+-        self.select(
++        self.select_with_named_operand_view(
+             InvocationWords::structured(projected[0], &projected[operand_from..]),
+             shapes,
+             Some(dialect),
+             context,
++            NamedCompilerOperandView::SelectedWorker,
+         )
+     }
+ 
+@@ -3273,6 +3313,9 @@
+         dialect: Option<InvocationDialect>,
+         context: NativeCompilationContext,
+     ) -> NativeCompilationSelection {
++        if self.is_named_invocation_compiler() {
++            return NativeCompilationSelection::Unknown;
++        }
+         let offset = if matches!(
+             self.grammar,
+             NativeCompilationGrammar::InfoExists
+@@ -3301,11 +3344,14 @@
+         let Some(shapes) = shapes.get(offset..) else {
+             return NativeCompilationSelection::Unknown;
+         };
+-        self.select(
++        self.select_with_named_operand_view(
+             InvocationWords::from_arguments(words.head(), words.arguments().slice_from(offset)),
+             shapes,
+             dialect,
+             context,
++            NamedCompilerOperandView::OriginalArguments {
++                selectors_retained: facts.argument_offset,
++            },
+         )
+     }
+ 
+@@ -3631,9 +3677,12 @@
+         shapes: &[NativeCompilationWordShape],
+         version: TclVersion,
+         context: NativeCompilationContext,
++        named_view: NamedCompilerOperandView,
+     ) -> NativeCompilationSelection {
+         use NativeCompilationSelection as Selection;
+-        if let Some(selection) = self.select_delegated_grammar(words, shapes, version, context) {
++        if let Some(selection) =
++            self.select_delegated_grammar(words, shapes, version, context, named_view)
++        {
+             return selection;
+         }
+         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
+@@ -3816,6 +3865,7 @@
+         shapes: &[NativeCompilationWordShape],
+         version: TclVersion,
+         context: NativeCompilationContext,
++        named_view: NamedCompilerOperandView,
+     ) -> Option<NativeCompilationSelection> {
+         use NativeCompilationSelection as Selection;
+         Some(match self.grammar {
+@@ -3842,7 +3892,7 @@
+                 hook_from,
+                 arity,
+                 ..
+-            } => named_ensemble_grammar(lookup, hook_from, arity, words, shapes, version),
++            } => named_ensemble_grammar(lookup, hook_from, arity, named_view, shapes, version),
+             NativeCompilationGrammar::Try => {
+                 crate::native_try::select(self.operation, words, shapes, version, context)
+             }
+@@ -3869,6 +3919,7 @@
+                 shapes,
+                 words.arguments().literal_at(0).map(str::as_bytes),
+                 version,
++                self.operation,
+             ),
+             NativeCompilationGrammar::NamespaceUpvarBindings => {
+                 if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
+@@ -4380,33 +4431,22 @@
+     }
+ }
+ 
+-// Accepted command syntax retains its independent resolveCmd obligation.
+ fn namespace_which_selection(
+     shapes: &[NativeCompilationWordShape],
+     option: Option<&[u8]>,
+     version: TclVersion,
++    operation: SemanticOperationId,
+ ) -> NativeCompilationSelection {
+-    use NativeCompilationSelection as Selection;
+-    use NativeCompilationWordShape as Shape;
+-    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
+-        return Selection::Generic;
+-    }
+-    if shapes.len() == 1 {
+-        return Selection::Unknown;
+-    }
+-    match shapes[0] {
+-        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
+-            let Some(option) = option else {
+-                return Selection::Unknown;
+-            };
+-            if (2..=8).contains(&option.len()) && b"-command".starts_with(option) {
+-                Selection::Unknown
+-            } else {
+-                Selection::Generic
+-            }
+-        }
+-        Shape::BackslashLiteral | Shape::Substituted => Selection::Generic,
+-        Shape::Expanded | Shape::Opaque => Selection::Unknown,
++    use crate::native_introspection_compilation::{
++        NativeNamespaceWhichShape, namespace_which_shape,
++    };
++    match namespace_which_shape(shapes, option, version) {
++        NativeNamespaceWhichShape::Command { .. } => NativeCompilationSelection::Inline {
++            operation,
++            guard: NativeCompilationGuard::BeforeArguments,
++        },
++        NativeNamespaceWhichShape::Declined => NativeCompilationSelection::Generic,
++        NativeNamespaceWhichShape::Unavailable => NativeCompilationSelection::Unknown,
+     }
+ }
+ 
+@@ -4414,14 +4454,32 @@
+     words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+     operand_from: usize,
+     version: TclVersion,
++    operation: SemanticOperationId,
+ ) -> NativeCompilationSelection {
++    use crate::native_introspection_compilation::{
++        NativeIntrospectionKind, compile_native_introspection,
++    };
+     if words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version) {
+         return NativeCompilationSelection::Unknown;
+     }
+     let Some(shapes) = words.shapes().get(operand_from..) else {
+         return NativeCompilationSelection::Unknown;
+     };
+-    namespace_which_selection(shapes, words.literal(operand_from), version)
++    let selected =
++        namespace_which_selection(shapes, words.literal(operand_from), version, operation);
++    if matches!(selected, NativeCompilationSelection::Inline { .. })
++        && compile_native_introspection(
++            words,
++            operand_from,
++            NativeIntrospectionKind::NamespaceWhich,
++            version,
++        )
++        .is_none()
++    {
++        NativeCompilationSelection::Unknown
++    } else {
++        selected
++    }
+ }
+ 
+ fn namespace_origin_grammar(
+@@ -4606,23 +4664,38 @@
+     }
+ }
+ 
++/// Metadata view of original named-compiler operands, without registration proof.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum NamedCompilerOperandView {
++    /// The supplied slice begins at the actual selected worker's operands.
++    SelectedWorker,
++    /// Registry facts have projected synthetic members out of these arguments.
++    OriginalArguments {
++        /// Original selector words still retained before the worker operands.
++        selectors_retained: usize,
++    },
++    /// No producer has retained the original operand layout.
++    Unknown,
++}
++
+ fn named_ensemble_grammar(
+     lookup: &'static NativeCompilerImplementationLookup,
+     hook_from: TclVersion,
+     arity: crate::Arity,
+-    words: InvocationWords<'_>,
++    view: NamedCompilerOperandView,
+     shapes: &[NativeCompilationWordShape],
+     version: TclVersion,
+ ) -> NativeCompilationSelection {
+-    let head = words
+-        .head_literal()
+-        .map(|head| head.trim_start_matches("::"));
+-    let from = if head == Some(lookup.slot.trim_start_matches("::")) {
+-        0
+-    } else if head == Some(lookup.ensemble.trim_start_matches("::")) {
+-        1
+-    } else {
+-        lookup.prepended.len()
++    let from = match view {
++        NamedCompilerOperandView::SelectedWorker => 0,
++        NamedCompilerOperandView::OriginalArguments { selectors_retained } => selectors_retained,
++        NamedCompilerOperandView::Unknown => {
++            return if version < hook_from {
++                NativeCompilationSelection::Generic
++            } else {
++                NativeCompilationSelection::Unknown
++            };
++        }
+     };
+     if version < hook_from
+         || shapes.len() < from
+@@ -8545,7 +8618,7 @@
+             command: "binary",
+             prepended: &["encode", "hex"],
+         };
+-        for (head, args, from) in [
++        for (_head, args, from) in [
+             ("binary", vec!["encode", "hex", "DATA"], 2),
+             ("::tcl::binary::encode", vec!["hex", "DATA"], 1),
+             ("::tcl::binary::encode::hex", vec!["DATA"], 0),
+@@ -8553,7 +8626,7 @@
+             let shapes = vec![NativeCompilationWordShape::Literal; args.len()];
+             assert!(matches!(
+                 named_ensemble_grammar(&LOOKUP, TclVersion::V8_6, crate::Arity::exact(1),
+-                    InvocationWords::literals(head, &args), &shapes, TclVersion::V8_6),
++                    NamedCompilerOperandView::OriginalArguments { selectors_retained: from }, &shapes, TclVersion::V8_6),
+                 NativeCompilationSelection::NamedInvocation { arguments_from, .. } if arguments_from == from
+             ));
+             assert_eq!(
+@@ -8561,19 +8634,22 @@
+                     &LOOKUP,
+                     TclVersion::V8_6,
+                     crate::Arity::exact(1),
+-                    InvocationWords::literals(head, &args),
++                    NamedCompilerOperandView::OriginalArguments {
++                        selectors_retained: from
++                    },
+                     &shapes,
+                     TclVersion::V8_5
+                 ),
+                 NativeCompilationSelection::Generic
+             );
+-            let missing = &args[..args.len() - 1];
+             assert_eq!(
+                 named_ensemble_grammar(
+                     &LOOKUP,
+                     TclVersion::V8_6,
+                     crate::Arity::exact(1),
+-                    InvocationWords::literals(head, missing),
++                    NamedCompilerOperandView::OriginalArguments {
++                        selectors_retained: from
++                    },
+                     &shapes[..shapes.len() - 1],
+                     TclVersion::V8_6
+                 ),
+@@ -8615,3 +8691,78 @@
+ #[cfg(test)]
+ #[path = "native_compilation/namespace_which_tests.rs"]
+ mod namespace_which_tests;
++
++#[cfg(test)]
++mod named_operand_layout_tests {
++    use super::*;
++    fn context() -> NativeCompilationContext {
++        NativeCompilationContext {
++            mode: NativeCompilationMode::BytecodeObject,
++            frame: NativeCompilationFrame::ScriptCode,
++            loop_depth: 0,
++            catch_depth: Some(0),
++        }
++    }
++    #[test]
++    fn original_named_metadata_layout_keeps_public_nested_and_private_offsets() {
++        let registry = crate::CommandRegistry::build_default();
++        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
++            let dialect = InvocationDialect::for_version(version);
++            let public_args = ["encode", "hex", "DATA"];
++            let public_words =
++                InvocationWords::literals("binary", &public_args).with_dialect(dialect);
++            let public =
++                registry.resolve_structured_invocation(public_words, dialect.authoring_query());
++            let public = public.resolved().unwrap().facts();
++            let spec = public.native_compilation.unwrap();
++            assert!(spec.is_named_invocation_compiler());
++            for (head, args, selectors, role_offset) in [
++                ("binary", vec!["encode", "hex", "DATA"], 2, Some(1)),
++                ("::tcl::binary::encode", vec!["hex", "DATA"], 1, Some(0)),
++                ("::tcl::binary::encode::hex", vec!["DATA"], 0, None),
++            ] {
++                let words = InvocationWords::literals(head, &args).with_dialect(dialect);
++                let facts = registry
++                    .native_registration_invocation_facts(words)
++                    .or_else(|| {
++                        registry
++                            .resolve_structured_invocation(words, dialect.authoring_query())
++                            .resolved()
++                            .map(|resolved| resolved.facts())
++                    });
++                assert_eq!(
++                    facts.as_ref().map(|facts| facts.argument_offset),
++                    role_offset,
++                    "{version:?}: {head}: role coordinates are not compiler selectors"
++                );
++                let shapes = vec![NativeCompilationWordShape::Literal; args.len()];
++                if let Some(facts) = facts {
++                    assert_eq!(
++                        spec.select_for_facts(words, &shapes, &facts, Some(dialect), context()),
++                        NativeCompilationSelection::Unknown
++                    );
++                }
++                assert!(
++                    matches!(spec.select_with_named_operand_view(words, &shapes, Some(dialect), context(), NamedCompilerOperandView::OriginalArguments { selectors_retained: selectors }), NativeCompilationSelection::NamedInvocation { arguments_from, .. } if arguments_from == selectors)
++                );
++                assert_eq!(
++                    spec.select(words, &shapes, Some(dialect), context()),
++                    NativeCompilationSelection::Unknown
++                );
++                let missing = &args[..args.len() - 1];
++                assert_eq!(
++                    spec.select_with_named_operand_view(
++                        InvocationWords::literals(head, missing).with_dialect(dialect),
++                        &shapes[..shapes.len() - 1],
++                        Some(dialect),
++                        context(),
++                        NamedCompilerOperandView::OriginalArguments {
++                            selectors_retained: selectors
++                        }
++                    ),
++                    NativeCompilationSelection::Generic
++                );
++            }
++        }
++    }
++}
+--- a/rust/tcl-registry/src/native_compilation/namespace_which_tests.rs
++++ b/rust/tcl-registry/src/native_compilation/namespace_which_tests.rs
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+-//! Original which-hook declines and independent accepted-command obligations.
++//! Original which-hook selection and retained command-name operands.
+ 
+ use super::*;
+ use crate::native_compiler_words::NativeCompilerWords;
+@@ -75,7 +75,10 @@
+             let expected = if version < TclVersion::V8_6 {
+                 NativeCompilationSelection::Generic
+             } else if columns[2] == "1" {
+-                NativeCompilationSelection::Unknown
++                NativeCompilationSelection::Inline {
++                    operation: SPEC.operation,
++                    guard: NativeCompilationGuard::BeforeArguments,
++                }
+             } else {
+                 assert_eq!(columns[4], "1");
+                 NativeCompilationSelection::Generic
+@@ -86,11 +89,31 @@
+                 "{version:?}: {}",
+                 case[0]
+             );
++            let recipe = crate::native_introspection_compilation::compile_native_introspection(
++                &words,
++                2,
++                crate::native_introspection_compilation::NativeIntrospectionKind::NamespaceWhich,
++                version,
++            );
++            assert_eq!(
++                recipe.is_some(),
++                version >= TclVersion::V8_6 && columns[2] == "1"
++            );
++            if let Some(recipe) = recipe {
++                assert_eq!(
++                    recipe.operands,
++                    vec![
++                        crate::native_compiler_word_projection::NativeCompilerWordOperand::Original(
++                            words.original_words().len() - 1
++                        ),
++                    ]
++                );
++            }
+             compared += 1;
+         }
+         assert_eq!(compared, 16);
+         eprintln!(
+-            "{version:?}: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases retain Unknown"
++            "{version:?}: 16 syntactic selector controls; C84 disassembler is unavailable, so C84 no-hook controls do not claim opcode observations; accepted resolveCmd cases select one original name operand"
+         );
+     }
+ }
+@@ -157,7 +180,10 @@
+                 if version < TclVersion::V8_6 || option == "-variable" {
+                     NativeCompilationSelection::Generic
+                 } else {
+-                    NativeCompilationSelection::Unknown
++                    NativeCompilationSelection::Inline {
++                        operation: SPEC.operation,
++                        guard: NativeCompilationGuard::BeforeArguments,
++                    }
+                 }
+             );
+         }
+--- a/rust/tcl-registry/src/native_introspection_compilation.rs
++++ b/rust/tcl-registry/src/native_introspection_compilation.rs
+@@ -32,6 +32,8 @@
+     NamespaceCurrent,
+     /// Original command cache and imported command origin.
+     NamespaceOrigin,
++    /// Resolve one original command name in the entered namespace.
++    NamespaceWhich,
+     /// Original scoped-list constructor.
+     NamespaceCode,
+     /// Original caller-variable frame introspection.
+@@ -61,6 +63,12 @@
+     if version < TclVersion::V8_6 || operand_from == 0 {
+         return None;
+     }
++    if kind == NativeIntrospectionKind::NamespaceWhich
++        && (words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version)
++            || words.checked_words().is_none())
++    {
++        return None;
++    }
+     let projected = project_native_compiler_words(words, version).ok()?;
+     let arguments = projected.get(operand_from..)?;
+     if arguments
+@@ -69,9 +77,26 @@
+     {
+         return None;
+     }
++    if kind == NativeIntrospectionKind::NamespaceWhich {
++        let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
++        let NativeNamespaceWhichShape::Command { argument } = namespace_which_shape(
++            &shapes,
++            arguments.first().and_then(|word| word.literal.as_deref()),
++            version,
++        ) else {
++            return None;
++        };
++        return Some(NativeIntrospectionInstruction {
++            kind,
++            operands: vec![arguments[argument].operand.clone()],
++        });
++    }
+     let valid = match kind {
+         NativeIntrospectionKind::NamespaceCurrent => arguments.is_empty(),
+         NativeIntrospectionKind::NamespaceOrigin => arguments.len() == 1,
++        NativeIntrospectionKind::NamespaceWhich => {
++            unreachable!("selected command operand handled above")
++        }
+         NativeIntrospectionKind::InfoLevel => arguments.len() <= 1,
+         NativeIntrospectionKind::InfoCommands => {
+             matches!(arguments, [word] if matches!(word.shape, Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral | Shape::BackslashLiteral)
+@@ -86,6 +111,47 @@
+         kind,
+         operands: arguments.iter().map(|word| word.operand.clone()).collect(),
+     })
++}
++
++/// Original SIMPLE_WORD option grammar, independent of registration authority.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum NativeNamespaceWhichShape {
++    Command { argument: usize },
++    Declined,
++    Unavailable,
++}
++
++pub(crate) fn namespace_which_shape(
++    shapes: &[Shape],
++    option: Option<&[u8]>,
++    version: TclVersion,
++) -> NativeNamespaceWhichShape {
++    use NativeNamespaceWhichShape as Outcome;
++    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
++        return Outcome::Declined;
++    }
++    let argument = if shapes.len() == 1 {
++        0
++    } else {
++        match shapes[0] {
++            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
++                let Some(option) = option else {
++                    return Outcome::Unavailable;
++                };
++                if !(2..=8).contains(&option.len()) || !b"-command".starts_with(option) {
++                    return Outcome::Declined;
++                }
++                1
++            }
++            Shape::BackslashLiteral | Shape::Substituted => return Outcome::Declined,
++            Shape::Expanded | Shape::Opaque => return Outcome::Unavailable,
++        }
++    };
++    if matches!(shapes[argument], Shape::Expanded | Shape::Opaque) {
++        Outcome::Unavailable
++    } else {
++        Outcome::Command { argument }
++    }
+ }
+ 
+ /// Pure compile-known pattern restriction of the original C compiler. The
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -964,21 +964,12 @@
+ 
+ const JIM_COMMANDS: &str = "* + - / after alarm alias append apply array binary binary::nextarg break catch cd class clock close collect concat continue curry defer dict ensemble env eof error errorInfo eval exec exists exit expr fconfigure file fileevent finalize flush for foreach format function getref gets glob glob.explode glob.glob glob.globdir global history if incr info interp join json::decode json::encode json::subencode kill lambda lambda.finalizer lappend lassign lindex linsert list llength lmap load load_ssl_certs local loop lrange lrepeat lreplace lreverse lsearch lset lsort lsubst namespace open os.fork os.gethostname os.getids os.umask os.uptime pack package parray pid pipe popen proc puts pwd rand range read readdir ref regexp regsub rename return scan seek set setref signal sleep socket source split stackdump stacktrace stderr stdin stdout string subst super switch syslog tailcall taint tcl::autocomplete tcl::prefix tcl::stdhint tell throw time timerate tree try unpack unset untaint upcall update uplevel upvar variable vwait wait while xtrace zlib";
+ 
+-// Descriptor labels permit one optional root marker; other bytes remain exact.
+-fn rooted_descriptor_binding_name(name: &str) -> String {
+-    if name.is_empty() || tcl_syntax::naming::unroot_rooted_key(name).is_some() {
+-        name.to_owned()
+-    } else {
+-        tcl_syntax::naming::root_unrooted_key(name)
+-    }
+-}
+-
+ fn jim_fresh_command_names() -> &'static BTreeSet<String> {
+     static NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
+     NAMES.get_or_init(|| {
+         JIM_COMMANDS
+             .split_whitespace()
+-            .map(rooted_descriptor_binding_name)
++            .map(crate::rooted_command_descriptor_label)
+             .collect()
+     })
+ }
+@@ -3240,6 +3231,14 @@
+         self.by_name.keys().copied()
+     }
+ 
++    /// Exact selected labels from the current Registry descriptor roster.
++    pub fn command_descriptor_keys(
++        &self,
++    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'_>> {
++        self.command_names()
++            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
++    }
++
+     /// Audited native root factory whose default construction has no user
+     /// hook graph. A document binding, authored override or arbitrary `TclOO`
+     /// metaclass cannot inherit this admission by sharing a grammar.
+@@ -3320,7 +3319,7 @@
+             let mut unresolved_command_handlers = BTreeSet::new();
+ 
+             for (&name, specs) in &self.by_name {
+-                let binding_name = rooted_descriptor_binding_name(name);
++                let binding_name = crate::rooted_command_descriptor_label(name);
+                 binding_names.insert(binding_name.clone());
+                 if specs
+                     .last()
+@@ -3421,7 +3420,7 @@
+             let Some(spec) = context.resolve_spec_in_realm(self, name, realm) else {
+                 continue;
+             };
+-            let binding_name = rooted_descriptor_binding_name(name);
++            let binding_name = crate::rooted_command_descriptor_label(name);
+             // Source metadata remains known for hosted packages, but their
+             // names are not initial bindings until this context activates them.
+             let binding_available = spec
+@@ -3505,7 +3504,7 @@
+             let Some(spec) = self.selected_entry_descriptor(specs, dialect, query) else {
+                 continue;
+             };
+-            let binding_name = rooted_descriptor_binding_name(name);
++            let binding_name = crate::rooted_command_descriptor_label(name);
+             if jim {
+                 if !audited_jim || !jim_names.contains(&binding_name) {
+                     continue;
+@@ -4228,7 +4227,7 @@
+             == Some(tcl_dialect::model::DialectPoint::canonical(
+                 tcl_dialect::model::Release::JIM_0_84,
+             )))
+-        .then(|| jim_fresh_command_names().contains(&rooted_descriptor_binding_name(name)))
++        .then(|| jim_fresh_command_names().contains(&crate::rooted_command_descriptor_label(name)))
+     }
+ 
+     /// Discard derived command facts after a mutation to the command surface.
+@@ -14324,7 +14323,7 @@
+         let index = registry.effective_semantics();
+         let mut expected_bindings: BTreeSet<String> = registry
+             .command_names()
+-            .map(rooted_descriptor_binding_name)
++            .map(crate::rooted_command_descriptor_label)
+             .collect();
+         // Authored private implementation slots are bindings even when they
+         // have no public command catalogue row.
+@@ -14373,7 +14372,7 @@
+         let expected_handlers: BTreeSet<String> = registry
+             .commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER)
+             .into_iter()
+-            .map(rooted_descriptor_binding_name)
++            .map(crate::rooted_command_descriptor_label)
+             .collect();
+         assert_eq!(index.binding_names(), &expected_bindings);
+         assert_eq!(index.unresolved_command_handlers(), &expected_handlers);
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -92,7 +92,8 @@
+ pub use native::{
+     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
+     NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeDictionaryMissingKeyError,
+-    NativeDictionaryMissingKeyOperation, NativeJimNamespaceConstruction, NativeNameContext,
++    NativeDictionaryMissingKeyOperation, NativeJimNamespaceCommandQueryCandidate,
++    NativeJimNamespaceConstruction, NativeNameContext,
+     NativeNameProjection, NativeNameProtocol, NativeNamePurpose, NativeNameQualification,
+     NativeNameReportPurpose, NativeNamespaceLookupError, NativeNamespaceLookupOperation,
+     NativeNamespaceOperationError, NativeNamespacePatternParts, NativeNamespacePatternSource,
+--- a/rust/tcl-syntax/src/naming/native.rs
++++ b/rust/tcl-syntax/src/naming/native.rs
+@@ -5,7 +5,7 @@
+ //! extent. It grants no namespace/frame identity, receiver lifetime, alias
+ //! closure, command generation, compiler permission or observer proof.
+ 
+-use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
++use super::{is_qualified, qualifier_segments, written_command_tail};
+ 
+ mod routing;
+ use crate::native_string::NativeStringProtocol;
+@@ -221,9 +221,19 @@
+ pub struct NativeNamespacePatternParts {
+     pub original: NameBytes,
+     pub selected: NameBytes,
++    /// Qualification selected from this purpose's original input extent.
++    pub qualification: NativeNameQualification,
+     pub source: Option<NativeNamespacePatternSource>,
+     pub tail: NameBytes,
+     pub purpose: NativeNamePurpose,
++}
++
++/// A fresh Jim namespace-command-query operand and its independent report.
++/// Neither spelling grants a command token or a publication address.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct NativeJimNamespaceCommandQueryCandidate {
++    pub lookup: NameBytes,
++    pub reported: NameBytes,
+ }
+ 
+ /// Actual current namespace context; constructed paths must not be reparsed.
+@@ -1452,6 +1462,7 @@
+         Ok(NativeNamespacePatternParts {
+             original: original.into(),
+             selected,
++            qualification: input.qualification(),
+             source,
+             tail,
+             purpose,
+@@ -1492,6 +1503,28 @@
+             selected,
+             Some(context),
+         ))
++    }
++
++    /// Jim `namespace which -command` tries fresh rooted canonical and original
++    /// operands in that order, reporting the successful candidate's bytes.
++    ///
++    /// # Errors
++    /// Refuses C recipes or an absent actual Jim namespace object.
++    pub fn jim_namespace_command_query_candidates(
++        self,
++        context: NativeNameContext<'_>,
++        original: &[u8],
++    ) -> Result<[NativeJimNamespaceCommandQueryCandidate; 2], NameProjectionUnavailable> {
++        let canonical = self.jim_namespace_canonical_input(context, original)?;
++        let candidate = |name: &[u8]| {
++            let mut rooted = b"::".to_vec();
++            rooted.extend_from_slice(name);
++            NativeJimNamespaceCommandQueryCandidate {
++                lookup: NameBytes::from(rooted.as_slice()),
++                reported: NameBytes::from(rooted.as_slice()),
++            }
++        };
++        Ok([candidate(canonical.selected()), candidate(original)])
+     }
+ 
+     /// Select Jim's original-object canonicalisation branch before construction.
+@@ -4582,3 +4615,50 @@
+         );
+     }
+ }
++
++#[cfg(test)]
++#[test]
++fn jim_namespace_command_query_uses_two_fresh_report_candidates() {
++    let jim = NativeNameProtocol::Jim084;
++    let path = ByteNamespacePath::root().with_child(b"__nh_context");
++    let context = NativeNameContext::with_jim_namespace(&path, b"__nh_context");
++    for (original, first, second) in [
++        (
++            b"__nh_shared".as_slice(),
++            b"::__nh_context::__nh_shared".as_slice(),
++            b"::__nh_shared".as_slice(),
++        ),
++        (
++            b"::__nh_shared".as_slice(),
++            b"::__nh_shared".as_slice(),
++            b"::::__nh_shared".as_slice(),
++        ),
++        (
++            b":__nh_literal".as_slice(),
++            b"::__nh_context:::__nh_literal".as_slice(),
++            b":::__nh_literal".as_slice(),
++        ),
++    ] {
++        let candidates = jim
++            .jim_namespace_command_query_candidates(context, original)
++            .unwrap();
++        assert_eq!(candidates[0].lookup.as_bytes(), first);
++        assert_eq!(candidates[1].lookup.as_bytes(), second);
++        for candidate in candidates {
++            assert_eq!(candidate.lookup, candidate.reported);
++        }
++    }
++    let same = jim
++        .jim_namespace_command_query_candidates(NativeNameContext::root(), b"__nh_shared")
++        .unwrap();
++    assert_eq!(same[0], same[1]);
++    assert_eq!(
++        jim.jim_namespace_command_query_candidates(NativeNameContext::new(&path), b"name"),
++        Err(NameProjectionUnavailable::MissingJimNamespaceObject)
++    );
++    assert_eq!(
++        NativeNameProtocol::C(TclVersion::V9_0)
++            .jim_namespace_command_query_candidates(context, b"name"),
++        Err(NameProjectionUnavailable::PurposeNotModelled)
++    );
++}
+--- a/rust/tcl-vm/src/cmd_namespace.rs
++++ b/rust/tcl-vm/src/cmd_namespace.rs
+@@ -505,7 +505,13 @@
+                     Ok(words) => words,
+                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                 };
+-                let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&words)
++                let Some(protocol) = vm.name_policy_protocol() else {
++                    return vm.refuse_host_command(
++                        "namespace which name protocol is unavailable".into(),
++                    );
++                };
++                let Some((kind, name_index)) =
++                    tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &words)
+                 else {
+                     return crate::command::native_wrong_arguments_message(
+                         vm,
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -109,6 +109,8 @@
+ mod native_name_world;
+ #[cfg(test)]
+ mod native_namespace_address_tests;
++#[cfg(test)]
++mod native_namespace_command_query_tests;
+ mod native_namespace_names;
+ #[cfg(test)]
+ mod native_namespace_root_tests;
+@@ -12081,6 +12083,59 @@
+         Ok(selected)
+     }
+ 
++    fn namespace_pattern_parts(
++        &self,
++        original: &[u8],
++        purpose: tcl_syntax::naming::NativeNamePurpose,
++    ) -> Result<tcl_syntax::naming::NativeNamespacePatternParts, NativeCommandLookupUnavailable>
++    {
++        let protocol = self
++            .name_policy_protocol()
++            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
++            .recipe();
++        let current = self.current_ns_id();
++        let path = self.ns_path(current);
++        let jim = self
++            .name_world
++            .borrow()
++            .jim_namespace_objects
++            .get(&current)
++            .cloned();
++        let context = if protocol.is_jim084() {
++            tcl_syntax::naming::NativeNameContext::with_jim_namespace(
++                &path,
++                jim.as_ref()
++                    .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
++                    .as_bytes(),
++            )
++        } else {
++            tcl_syntax::naming::NativeNameContext::new(&path)
++        };
++        protocol
++            .namespace_pattern_parts(context, original, purpose)
++            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
++    }
++
++    fn namespace_pattern_source(
++        &self,
++        parts: &tcl_syntax::naming::NativeNamespacePatternParts,
++    ) -> Option<NsId> {
++        use tcl_syntax::naming::{NativeNameQualification, NativeNamespacePatternSource};
++        match parts.source.as_ref() {
++            None => Some(self.current_ns_id()),
++            Some(NativeNamespacePatternSource::C(path)) => self.namespace_token_at_path(
++                path,
++                parts.qualification == NativeNameQualification::Absolute,
++            ),
++            Some(NativeNamespacePatternSource::Jim(object)) => self
++                .name_world
++                .borrow()
++                .jim_namespace_objects
++                .iter()
++                .find_map(|(token, candidate)| (candidate == object).then_some(*token)),
++        }
++    }
++
+     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
+     /// exported command of the source namespace matching the glob into the
+     /// current namespace under its tail name. Returns the imported tail names.
+@@ -12089,34 +12144,15 @@
+         pattern: impl AsRef<[u8]>,
+         allow_overwrite: bool,
+     ) -> Result<Vec<NameBytes>, NamespaceImportError> {
+-        let policy = self.name_policy_protocol().ok_or_else(|| {
+-            NamespaceImportError::Host("native import pattern protocol is unavailable".into())
+-        })?;
+-        let original = pattern.as_ref();
+-        let projection = policy
+-            .recipe()
+-            .namespace_pattern_input(
+-                original,
++        let parts = self
++            .namespace_pattern_parts(
++                pattern.as_ref(),
+                 tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+             )
+-            .map_err(|_| {
+-                NamespaceImportError::Host("native import pattern projection is unavailable".into())
+-            })?;
+-        let pattern = projection.selected();
+-        let glob = tcl_cmd_core::namespace::tail(pattern);
+-        let source = tcl_cmd_core::namespace::qualifiers(pattern);
+-        let source_rooted = pattern.starts_with(b"::");
+-        let mut source_path = if source_rooted {
+-            NamespacePath::root()
+-        } else {
+-            self.ns_path(self.current_ns_id())
+-        };
+-        for segment in tcl_syntax::naming::qualifier_segments(source) {
+-            source_path.push(segment);
+-        }
+-        let src_ns_id = self
+-            .namespace_token_at_path(&source_path, source_rooted)
+-            .unwrap_or(ROOT_NS);
++            .map_err(|error| NamespaceImportError::Host(error.to_string()))?;
++        let pattern = parts.selected.as_bytes();
++        let glob = parts.tail.as_bytes();
++        let src_ns_id = self.namespace_pattern_source(&parts).unwrap_or(ROOT_NS);
+         let exports = self
+             .retained_record_of(src_ns_id)
+             .and_then(|record| record.exports.get(&src_ns_id).cloned())
+@@ -12772,21 +12808,13 @@
+         &mut self,
+         original: impl AsRef<[u8]>,
+     ) -> Result<(), Completion<Value>> {
+-        let Some(policy) = self.name_policy_protocol() else {
+-            return Err(
+-                self.refuse_host_command("native forget pattern protocol is unavailable".into())
+-            );
+-        };
+-        let projection = policy
+-            .recipe()
+-            .namespace_pattern_input(
++        let parts = self
++            .namespace_pattern_parts(
+                 original.as_ref(),
+                 tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
+             )
+-            .map_err(|_| {
+-                self.refuse_host_command("native forget pattern projection is unavailable".into())
+-            })?;
+-        let pattern = projection.selected();
++            .map_err(|error| self.refuse_host_command(error.to_string()))?;
++        let pattern = parts.selected.as_bytes();
+         let cur = self.current_ns_id();
+         let mut current_imports: Vec<String> = self
+             .imported_commands
+@@ -12804,29 +12832,9 @@
+             .collect();
+         current_imports.sort();
+         current_imports.dedup();
+-        let victims: Vec<String> = if tcl_syntax::naming::is_qualified(pattern) {
+-            // Qualified pattern: source namespace + simple pattern on the
+-            // origin. Splitting at the last separator *run* keeps colon-run
+-            // patterns working (`namespace forget ::src:::im*` forgets from
+-            // `src`, tclsh8.6-verified; a plain `rsplit_once("::")` would produce
+-            // `src:` — and panic outright on `:::pat`).
+-            let pb = pattern;
+-            let simple = tcl_cmd_core::namespace::tail(pb);
+-            let source = tcl_cmd_core::namespace::qualifiers(pb);
+-            let source_path = if pattern.starts_with(b"::") {
+-                NamespacePath::from_segments(tcl_syntax::naming::qualifier_segments(source))
+-            } else {
+-                {
+-                    let mut path = self.ns_path(cur);
+-                    for segment in tcl_syntax::naming::qualifier_segments(source) {
+-                        path.push(segment);
+-                    }
+-                    path
+-                }
+-            };
+-            let Some(src_ns) =
+-                self.namespace_token_at_path(&source_path, pattern.starts_with(b"::"))
+-            else {
++        let victims: Vec<String> = if parts.source.is_some() {
++            let simple = parts.tail.as_bytes();
++            let Some(src_ns) = self.namespace_pattern_source(&parts) else {
+                 let mut message = b"unknown namespace in namespace forget pattern \"".to_vec();
+                 message.extend_from_slice(pattern);
+                 message.push(b'"');
+--- a/rust/tcl-vm/src/interp/native_command_names.rs
++++ b/rust/tcl-vm/src/interp/native_command_names.rs
+@@ -359,6 +359,44 @@
+         original: &Value,
+         follow_imports: bool,
+     ) -> Result<Option<Vec<u8>>, CmdError> {
++        if !follow_imports
++            && self
++                .name_policy_protocol()
++                .is_some_and(|policy| policy.recipe().is_jim084())
++        {
++            let current = self.current_ns_id();
++            let entered = OriginalLookup::enter(self, current, original)?;
++            let reached = (|| {
++                let bytes = entered.read(self)?;
++                let namespace = entered.read_jim_namespace(self)?;
++                let path = self.ns_path(current);
++                let candidates = tcl_syntax::naming::NativeNameProtocol::Jim084
++                    .jim_namespace_command_query_candidates(
++                        tcl_syntax::naming::NativeNameContext::with_jim_namespace(
++                            &path, &namespace,
++                        ),
++                        &bytes,
++                    )
++                    .map_err(|_| {
++                        ValueError::CommandProtocolUnavailable(
++                            "Jim namespace command query projection",
++                        )
++                    })?;
++                for candidate in candidates {
++                    let lookup =
++                        Value::from_native_string_bytes(candidate.lookup.as_bytes().to_vec());
++                    let selected = self.native_command_from_original_at(current, &lookup)?;
++                    entered.check(self)?;
++                    drop(lookup);
++                    entered.check(self)?;
++                    if selected.is_some() {
++                        return Ok(Some(candidate.reported.as_bytes().to_vec()));
++                    }
++                }
++                Ok(None)
++            })();
++            return entered.finish(self, reached);
++        }
+         let Some(command) = self.native_command_from_original(original)? else {
+             return Ok(None);
+         };
+--- a/rust/tcl-vm/src/interp/native_original_lookup.rs
++++ b/rust/tcl-vm/src/interp/native_original_lookup.rs
+@@ -94,6 +94,17 @@
+         reached
+     }
+ 
++    pub(super) fn read_jim_namespace(&self, vm: &mut Vm) -> Result<Rc<[u8]>, CmdError> {
++        self.check(vm)?;
++        let holder = self
++            .jim_namespace
++            .as_ref()
++            .ok_or_else(|| vm.retain_name_query_refusal("original Jim namespace query holder"))?;
++        let reached = vm.native_name_operand_bytes_checked(holder.value());
++        self.check(vm)?;
++        reached
++    }
++
+     pub(super) fn command(
+         &self,
+         vm: &mut Vm,
+--- a/rust/tcl-vm/src/interp/native_variable_names/native_tcloo.rs
++++ b/rust/tcl-vm/src/interp/native_variable_names/native_tcloo.rs
+@@ -68,17 +68,18 @@
+                 .name_policy_protocol()
+                 .expect("selected native TclOO names")
+                 .recipe();
+-            let lookup = tcl_syntax::naming::native_oo_varname_lookup_bytes(
++            let lookup = tcl_syntax::naming::native_oo_varname_lookup(
+                 protocol,
+                 &tcl_runtime_api::Namespaces::name_bytes(self, namespace),
+                 &bytes,
+                 storage,
+             )
+             .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+-            let lookup = if bytes.starts_with(b"::") {
+-                original.clone()
+-            } else {
+-                Value::new_native_string_bytes(lookup)
++            let lookup = match lookup {
++                tcl_syntax::naming::NativeOoVarnameLookup::Original(_) => original.clone(),
++                tcl_syntax::naming::NativeOoVarnameLookup::Constructed(bytes) => {
++                    Value::new_native_string_bytes(bytes)
++                }
+             };
+             let (_root, _bytes, _element, resolved) = self
+                 .prepare_native_original_variable_in(
+--- /dev/null
++++ b/rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs
+@@ -0,0 +1,96 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Original public command-query output from retained reference executions.
++
++use std::{cell::RefCell, io::Write, rc::Rc};
++
++struct Output(Rc<RefCell<Vec<u8>>>);
++impl Write for Output {
++    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
++        self.0.borrow_mut().extend_from_slice(bytes);
++        Ok(bytes.len())
++    }
++    fn flush(&mut self) -> std::io::Result<()> {
++        Ok(())
++    }
++}
++
++fn compare(engine: &str, oracle: &[u8]) {
++    let profile = crate::environment::profile_for_dialect(engine);
++    let output = Rc::new(RefCell::new(Vec::new()));
++    let mut vm = crate::native_fixture::interpreter_with_output(
++        profile,
++        Box::new(Output(Rc::clone(&output))),
++    );
++    let completion = vm
++        .try_eval_source(include_str!(
++            "../../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
++        ))
++        .unwrap();
++    assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
++    assert!(vm.refused_completion().is_none(), "{engine}");
++    let actual = output.borrow();
++    let (actual_identity, actual_rows) =
++        actual.split_at(actual.iter().position(|byte| *byte == b'\n').unwrap() + 1);
++    let (oracle_identity, oracle_rows) =
++        oracle.split_at(oracle.iter().position(|byte| *byte == b'\n').unwrap() + 1);
++    if engine == "jim" {
++        assert_eq!(actual_identity, b"IDENTITY 0.84\n");
++        assert_eq!(oracle_identity, b"IDENTITY 0.84-9-g5bac7c9\n");
++    } else {
++        assert_eq!(
++            actual_identity, oracle_identity,
++            "{engine}: provider reporting"
++        );
++    }
++    let rows = std::str::from_utf8(oracle_rows).unwrap();
++    assert_eq!(rows.lines().count(), 33);
++    let setup_and_context = [
++        "alias-setup",
++        "path-setup",
++        "path-reverse-setup",
++        "path-clear-setup",
++        "export-setup",
++        "import-setup",
++        "colon-left-current",
++        "colon-right-current",
++    ];
++    let mut queries = 0;
++    for row in rows.lines() {
++        let columns = tcl_syntax::list::split_list(row).unwrap();
++        assert_eq!(columns.len(), 5);
++        assert_eq!(columns[0], "OBSERVATION");
++        if !setup_and_context.contains(&columns[1].as_ref()) {
++            queries += 1;
++        }
++    }
++    assert_eq!(queries, 25);
++    assert_eq!(
++        actual_rows, oracle_rows,
++        "{engine}: exact original command-query output, including setup outcomes and equal display names"
++    );
++    eprintln!(
++        "{engine}:25 actual query rows+6 setup outcomes+2 context displays; answer bytes are output only, never reconstructed command identities"
++    );
++}
++
++macro_rules! queries {
++    ($test:ident, $engine:literal, $provider:literal) => {
++        #[test]
++        fn $test() {
++            compare(
++                $engine,
++                include_bytes!(concat!(
++                    "../../../../experiments/name-handling/namespace-command-query/portable/",
++                    $provider,
++                    "/stdout.bin"
++                )),
++            );
++        }
++    };
++}
++queries!(original_command_queries_c84, "tcl8.4", "8.4.20");
++queries!(original_command_queries_c85, "tcl8.5", "8.5.19");
++queries!(original_command_queries_c86, "tcl8.6", "8.6.18");
++queries!(original_command_queries_c90, "tcl9.0", "9.0.4");
++queries!(original_command_queries_c91, "tcl9.1", "9.1.0");
++queries!(original_command_queries_jim, "jim", "jim");

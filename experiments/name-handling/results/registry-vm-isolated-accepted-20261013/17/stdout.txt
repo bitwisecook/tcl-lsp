@@ -1,0 +1,11 @@
+
+running 1 test
+test native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection ... FAILED
+
+failures:
+
+failures:
+    native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1772 filtered out; finished in 0.00s
+

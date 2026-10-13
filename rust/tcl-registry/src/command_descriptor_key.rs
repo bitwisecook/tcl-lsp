@@ -18,6 +18,60 @@ impl<'a> CanonicalCommandDescriptorKey<'a> {
     pub const fn label(self) -> &'a str {
         self.0
     }
+    /// Exact optional-root metadata coordinate, without written-name parsing.
+    #[must_use]
+    pub fn rooted_binding_label(self) -> String {
+        rooted_command_descriptor_label(self.0)
+    }
+}
+
+/// Add an optional metadata root marker while preserving every descriptor byte.
+/// Empty labels remain empty; this grants no written lookup or registration.
+#[must_use]
+pub fn rooted_command_descriptor_label(label: &str) -> String {
+    if label.is_empty() || tcl_syntax::naming::unroot_rooted_key(label).is_some() {
+        label.to_owned()
+    } else {
+        tcl_syntax::naming::root_unrooted_key(label)
+    }
+}
+
+/// Compare descriptor metadata with one optional root marker. Separator runs,
+/// empty tails and lone colons remain exact; no live identity is established.
+#[must_use]
+pub fn command_descriptor_labels_match(left: &str, right: &str) -> bool {
+    rooted_command_descriptor_label(left) == rooted_command_descriptor_label(right)
+}
+
+/// Index selected descriptor coordinates, declining distinct labels that collide.
+/// The retained value is the original label, never a reconstructed identity.
+pub fn unique_command_descriptor_coordinates<'a>(
+    keys: impl IntoIterator<Item = CanonicalCommandDescriptorKey<'a>>,
+) -> impl Iterator<Item = (String, CanonicalCommandDescriptorKey<'a>)> {
+    use std::collections::{BTreeMap, btree_map::Entry};
+    let mut entries = BTreeMap::new();
+    for key in keys {
+        match entries.entry(key.rooted_binding_label()) {
+            Entry::Vacant(entry) => {
+                entry.insert(Some(key));
+            }
+            Entry::Occupied(mut entry) if *entry.get() != Some(key) => {
+                entry.insert(None);
+            }
+            Entry::Occupied(_) => {}
+        }
+    }
+    entries
+        .into_iter()
+        .filter_map(|(coordinate, key)| Some((coordinate, key?)))
+}
+
+impl crate::CommandSpec {
+    /// Exact label of this selected descriptor; no runtime binding is supplied.
+    #[must_use]
+    pub const fn descriptor_key(&self) -> CanonicalCommandDescriptorKey<'static> {
+        CanonicalCommandDescriptorKey::from_registry_label(self.name)
+    }
 }
 
 impl crate::CommandSpec {
@@ -49,5 +103,39 @@ mod tests {
             selected.label(),
             tcl_syntax::naming::unroot_rooted_key(selected.label()).unwrap()
         );
+    }
+    #[test]
+    fn descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels() {
+        let labels = [
+            "",
+            "::",
+            "NAME::",
+            "NAME:::member",
+            "::::NAME",
+            ":NAME",
+            "collision",
+            "::collision",
+        ];
+        let keys = labels.map(CanonicalCommandDescriptorKey::from_registry_label);
+        let indexed: std::collections::BTreeMap<_, _> =
+            unique_command_descriptor_coordinates(keys).collect();
+        for (coordinate, label) in [
+            ("", ""),
+            ("::", "::"),
+            ("::NAME::", "NAME::"),
+            ("::NAME:::member", "NAME:::member"),
+            ("::::NAME", "::::NAME"),
+            (":::NAME", ":NAME"),
+        ] {
+            assert_eq!(indexed.get(coordinate).unwrap().label(), label);
+        }
+        assert!(!indexed.contains_key("::collision"));
+        assert!(!command_descriptor_labels_match("::", ""));
+        assert!(!command_descriptor_labels_match("::::NAME", "::NAME"));
+        assert!(!command_descriptor_labels_match(
+            "NAME:::member",
+            "NAME::member"
+        ));
+        assert!(command_descriptor_labels_match("NAME::", "::NAME::"));
     }
 }

@@ -1,0 +1,127 @@
+warning: unused import: `ends_with_separator`
+ --> rust/tcl-syntax/src/naming/native.rs:8:13
+  |
+8 | use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+  |             ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-syntax` (lib) generated 1 warning (run `cargo fix --lib -p tcl-syntax` to apply 1 suggestion)
+warning: function `int_add` is never used
+  --> rust/tcl-vm/src/value_ops.rs:60:15
+   |
+60 | pub(crate) fn int_add<'a>(
+   |               ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `create_local_names` is never used
+    --> rust/tcl-vm/src/literal_pool.rs:1265:15
+     |
+1265 | pub(crate) fn create_local_names(
+     |               ^^^^^^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` that must be used
+    --> rust/tcl-vm/src/value_ops/native_jim_index.rs:1094:9
+     |
+1094 |         vm.with_native_interp_result(|result| assert_eq!(result.string_bytes().as_ref(), b"6"));
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: this `Result` may be an `Err` variant, which should be handled
+     = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+     |
+1094 |         let _ = vm.with_native_interp_result(|result| assert_eq!(result.string_bytes().as_ref(), b"6"));
+     |         +++++++
+
+warning: unused return value of `interp::Vm::refuse_host_command` that must be used
+   --> rust/tcl-vm/src/cmd_array/original_argument_tests.rs:216:13
+    |
+216 |             vm.refuse_host_command("first actual array observer".into());
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: use `let _ = ...` to ignore the resulting value
+    |
+216 |             let _ = vm.refuse_host_command("first actual array observer".into());
+    |             +++++++
+
+warning: unused return value of `interp::Vm::refuse_host_command` that must be used
+    --> rust/tcl-vm/src/cmd_namespace.rs:2752:17
+     |
+2752 |                 vm.refuse_host_command("original VM import first cause".to_owned());
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: use `let _ = ...` to ignore the resulting value
+     |
+2752 |                 let _ = vm.refuse_host_command("original VM import first cause".to_owned());
+     |                 +++++++
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> rust/tcl-vm/src/interp/native_numeric_ops.rs:1110:13
+     |
+1110 |             drop(retired);
+     |             ^^^^^-------^
+     |                  |
+     |                  argument has type `bool`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1110 -             drop(retired);
+1110 +             let _ = retired;
+     |
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> rust/tcl-vm/src/interp/native_numeric_ops.rs:1135:9
+     |
+1135 |         drop(retired);
+     |         ^^^^^-------^
+     |              |
+     |              argument has type `bool`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+1135 -         drop(retired);
+1135 +         let _ = retired;
+     |
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> rust/tcl-vm/src/interp/native_numeric_ops.rs:1247:13
+     |
+1247 |             drop(retired);
+     |             ^^^^^-------^
+     |                  |
+     |                  argument has type `bool`
+     |
+help: use `let _ = ...` to ignore the expression or result
+     |
+1247 -             drop(retired);
+1247 +             let _ = retired;
+     |
+
+warning: unused return value of `interp::Vm::refuse_host_command` that must be used
+   --> rust/tcl-vm/src/interp/native_scalar_ingress/tests.rs:170:17
+    |
+170 |                 vm.refuse_host_command("original scalar Host refusal".into());
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: use `let _ = ...` to ignore the resulting value
+    |
+170 |                 let _ = vm.refuse_host_command("original scalar Host refusal".into());
+    |                 +++++++
+
+warning: unused `std::result::Result` that must be used
+   --> rust/tcl-vm/src/interp/variable_cleanup/tests.rs:209:13
+    |
+209 |             reached.unwrap();
+    |             ^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+    |
+209 |             let _ = reached.unwrap();
+    |             +++++++
+
+warning: `tcl-vm` (lib test) generated 10 warnings
+    Finished `test` profile [unoptimized] target(s) in 0.10s
+     Running unittests src/lib.rs (target/debug/deps/tcl_vm-48d40b80675d74df)

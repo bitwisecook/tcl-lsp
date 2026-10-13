@@ -1,0 +1,357 @@
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-host-c-abi)
+   Compiling wnaf v0.14.1
+   Compiling tcl-compiler v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-compiler)
+   Compiling zmij v1.0.23
+   Compiling ring v0.17.14
+   Compiling itoa v1.0.18
+   Compiling oid-registry v0.8.1
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling num-bigint v0.4.8
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling data-encoding v2.11.1
+   Compiling lazy_static v1.5.1
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling tcl-host-native v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-host-native)
+   Compiling base64 v0.23.1
+   Compiling tcl-vm v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-engine-api)
+   Compiling ipnet v2.12.2
+   Compiling tcl-pkg-model v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-pkg-model)
+   Compiling tcl-userdirs v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-userdirs)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-test-support v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-test-support)
+   Compiling tcl-irules v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-spectcl)
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-registry)
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.4.20-0.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1518:17
+     |
+1518 | /                 include_str!(concat!(
+1519 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1520 | |                     $engine,
+1521 | |                     "-0.txt"
+1522 | |                 )),
+     | |__________________^
+...
+1553 |               (TclVersion::V8_4, engine_cases!("8.4.20")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.4.20-1.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1523:17
+     |
+1523 | /                 include_str!(concat!(
+1524 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1525 | |                     $engine,
+1526 | |                     "-1.txt"
+1527 | |                 )),
+     | |__________________^
+...
+1553 |               (TclVersion::V8_4, engine_cases!("8.4.20")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.4.20-2.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1528:17
+     |
+1528 | /                 include_str!(concat!(
+1529 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1530 | |                     $engine,
+1531 | |                     "-2.txt"
+1532 | |                 )),
+     | |__________________^
+...
+1553 |               (TclVersion::V8_4, engine_cases!("8.4.20")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.4.20-3.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1533:17
+     |
+1533 | /                 include_str!(concat!(
+1534 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1535 | |                     $engine,
+1536 | |                     "-3.txt"
+1537 | |                 )),
+     | |__________________^
+...
+1553 |               (TclVersion::V8_4, engine_cases!("8.4.20")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.5.19-0.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1518:17
+     |
+1518 | /                 include_str!(concat!(
+1519 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1520 | |                     $engine,
+1521 | |                     "-0.txt"
+1522 | |                 )),
+     | |__________________^
+...
+1554 |               (TclVersion::V8_5, engine_cases!("8.5.19")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.5.19-1.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1523:17
+     |
+1523 | /                 include_str!(concat!(
+1524 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1525 | |                     $engine,
+1526 | |                     "-1.txt"
+1527 | |                 )),
+     | |__________________^
+...
+1554 |               (TclVersion::V8_5, engine_cases!("8.5.19")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.5.19-2.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1528:17
+     |
+1528 | /                 include_str!(concat!(
+1529 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1530 | |                     $engine,
+1531 | |                     "-2.txt"
+1532 | |                 )),
+     | |__________________^
+...
+1554 |               (TclVersion::V8_5, engine_cases!("8.5.19")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.5.19-3.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1533:17
+     |
+1533 | /                 include_str!(concat!(
+1534 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1535 | |                     $engine,
+1536 | |                     "-3.txt"
+1537 | |                 )),
+     | |__________________^
+...
+1554 |               (TclVersion::V8_5, engine_cases!("8.5.19")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.6.18-0.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1518:17
+     |
+1518 | /                 include_str!(concat!(
+1519 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1520 | |                     $engine,
+1521 | |                     "-0.txt"
+1522 | |                 )),
+     | |__________________^
+...
+1555 |               (TclVersion::V8_6, engine_cases!("8.6.18")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.6.18-1.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1523:17
+     |
+1523 | /                 include_str!(concat!(
+1524 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1525 | |                     $engine,
+1526 | |                     "-1.txt"
+1527 | |                 )),
+     | |__________________^
+...
+1555 |               (TclVersion::V8_6, engine_cases!("8.6.18")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.6.18-2.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1528:17
+     |
+1528 | /                 include_str!(concat!(
+1529 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1530 | |                     $engine,
+1531 | |                     "-2.txt"
+1532 | |                 )),
+     | |__________________^
+...
+1555 |               (TclVersion::V8_6, engine_cases!("8.6.18")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/8.6.18-3.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1533:17
+     |
+1533 | /                 include_str!(concat!(
+1534 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1535 | |                     $engine,
+1536 | |                     "-3.txt"
+1537 | |                 )),
+     | |__________________^
+...
+1555 |               (TclVersion::V8_6, engine_cases!("8.6.18")),
+     |                                  ----------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.0.4-0.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1518:17
+     |
+1518 | /                 include_str!(concat!(
+1519 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1520 | |                     $engine,
+1521 | |                     "-0.txt"
+1522 | |                 )),
+     | |__________________^
+...
+1556 |               (TclVersion::V9_0, engine_cases!("9.0.4")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.0.4-1.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1523:17
+     |
+1523 | /                 include_str!(concat!(
+1524 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1525 | |                     $engine,
+1526 | |                     "-1.txt"
+1527 | |                 )),
+     | |__________________^
+...
+1556 |               (TclVersion::V9_0, engine_cases!("9.0.4")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.0.4-2.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1528:17
+     |
+1528 | /                 include_str!(concat!(
+1529 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1530 | |                     $engine,
+1531 | |                     "-2.txt"
+1532 | |                 )),
+     | |__________________^
+...
+1556 |               (TclVersion::V9_0, engine_cases!("9.0.4")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.0.4-3.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1533:17
+     |
+1533 | /                 include_str!(concat!(
+1534 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1535 | |                     $engine,
+1536 | |                     "-3.txt"
+1537 | |                 )),
+     | |__________________^
+...
+1556 |               (TclVersion::V9_0, engine_cases!("9.0.4")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.1.0-0.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1518:17
+     |
+1518 | /                 include_str!(concat!(
+1519 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1520 | |                     $engine,
+1521 | |                     "-0.txt"
+1522 | |                 )),
+     | |__________________^
+...
+1557 |               (TclVersion::V9_1, engine_cases!("9.1.0")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.1.0-1.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1523:17
+     |
+1523 | /                 include_str!(concat!(
+1524 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1525 | |                     $engine,
+1526 | |                     "-1.txt"
+1527 | |                 )),
+     | |__________________^
+...
+1557 |               (TclVersion::V9_1, engine_cases!("9.1.0")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.1.0-2.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1528:17
+     |
+1528 | /                 include_str!(concat!(
+1529 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1530 | |                     $engine,
+1531 | |                     "-2.txt"
+1532 | |                 )),
+     | |__________________^
+...
+1557 |               (TclVersion::V9_1, engine_cases!("9.1.0")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-registry/src/../../tcl-vm/tests/data/native_procedure_recompile/9.1.0-3.txt`: No such file or directory (os error 2)
+    --> rust/tcl-registry/src/native_procedure.rs:1533:17
+     |
+1533 | /                 include_str!(concat!(
+1534 | |                     "../../tcl-vm/tests/data/native_procedure_recompile/",
+1535 | |                     $engine,
+1536 | |                     "-3.txt"
+1537 | |                 )),
+     | |__________________^
+...
+1557 |               (TclVersion::V9_1, engine_cases!("9.1.0")),
+     |                                  ---------------------- in this macro invocation
+     |
+     = note: this error originates in the macro `include_str` which comes from the expansion of the macro `engine_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_creation.rs:256:9
+    |
+256 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_literal.rs:390:9
+    |
+390 |     use super::*;
+    |         ^^^^^^^^
+
+warning: `tcl-registry` (lib test) generated 2 warnings
+error: could not compile `tcl-registry` (lib test) due to 20 previous errors; 2 warnings emitted

@@ -1,0 +1,61 @@
+{
+  "patch_sha256": "ded240daca0e592c3859824042cd73747951962b6eed832fe4d326168db2b70c",
+  "checkout_commit": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "source_dependencies": {
+    "rust/tcl-cmd-core/src/namespace.rs": "e3bd2823d93e08ecd6971d3e42f9cfa0f48156f0b05d2637e2aa8357c167a833",
+    "rust/tcl-compiler/src/codegen/statements/native_introspection.rs": "e87a64462e93d9a8d4ab0e89bb6f5e4e5642501febd10ac92ec12cfe68e6a9ed",
+    "rust/tcl-compiler/src/codegen/statements/native_introspection_tests.rs": "5c62a4a8fa521225bcc52c71bbd40efe786865189193aafc8ff40068a75866da",
+    "rust/tcl-compiler/src/command_binding.rs": "96c5f42dccbac89f7538bc5db6beee07fce460d36c6a3414d634c6c8c8ba3ff3",
+    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "d2504ee007556c95598396e4ccfb46bc805a765714fa297806c802809546090f",
+    "rust/tcl-compiler/src/command_binding/deferred_method.rs": "6afe597e43b31863a9e0e4efe8b64df952bdc308c4399c4aceb164dd6042d2fc",
+    "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs": "7ad1dbf9f4d0a8f46d6e3369ff3cb34b3adb26c1628cb6b63744588c89cc7705",
+    "rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs": "68d88d613f7fc0f40c62a924e95a061d2a623dc52a01de045ac1c54a9b2e7cf8",
+    "rust/tcl-compiler/src/command_binding/original_math_function.rs": "ee7dffb56c050031e923e24dfa0bfbe83251c15e9bb13b44e1dd15774261a5df",
+    "rust/tcl-compiler/src/command_binding/runtime_entry.rs": "01893450bb5de7a27bfc3acd71b74e2ab8611aae4b41318825f9bd03f0daddbb",
+    "rust/tcl-compiler/src/math_function_binding.rs": "4ad75cfe771ae90566be318da14a2770a725627b799bd622bc55b27ab6a6a675",
+    "rust/tcl-compiler/src/realm.rs": "824117bc6d3d83c3b6aff853fb9c57cc9e5c54fc5ce666faa71e75e3a0cc9c9f",
+    "rust/tcl-registry/src/command_descriptor_key.rs": "be37ecf7d1d200b0d349ca845e27143f22e15f94eccf2ca0362055c93c877d08",
+    "rust/tcl-registry/src/lib.rs": "428c01b0372cc76c85bfa23a9705088ddaceaed859d60f654047e32a43f60700",
+    "rust/tcl-registry/src/model/declaration.rs": "18c5fe937a5a0e83c86600b76fb57ad39b8567c6fffba85b1d1e5a99c2325d6c",
+    "rust/tcl-registry/src/native_compilation.rs": "75023b6cf571affc1c5f33c108bdb3892a3165870a7b28683cbbb6eba7ad1a5d",
+    "rust/tcl-registry/src/native_compilation/namespace_which_tests.rs": "d4484f1b9aa12c5d7e97dbfac4ae38546659131bb7615a1d0e7b5cac1c108961",
+    "rust/tcl-registry/src/native_introspection_compilation.rs": "0571caa6a04af6872d83be9d9e85f33a582768cb66d2cbb3665442933f32ae2e",
+    "rust/tcl-registry/src/registry.rs": "6ec4bea91d3f3c316a042c9e1f60f448cc23ef80214cf80d553f0d2976ec84e4",
+    "rust/tcl-syntax/src/naming.rs": "1d63b51d30ebecf9d8745540a6623ee964322f2d6a013779f9e6ddc865d63574",
+    "rust/tcl-syntax/src/naming/native.rs": "0db9fb7deb1f716f407f725f6106d6304d50d3e9d552abe6353d6b662f76d000",
+    "rust/tcl-syntax/src/naming/native/routing.rs": "9f72eaaf5c66cdd0bddf0dc7c18b4b05245b96a182ef7bc02ddcda14d734bead",
+    "rust/tcl-syntax/src/naming/oo_variables.rs": "0b7ce75e1e631521fb27a8ae1eae182ba0700943d95e76a8c489d48ea0022ab0",
+    "rust/tcl-vm/src/cmd_namespace.rs": "c25d498bf307971e9c365294a6bfea6aef1899f0672ffd7de5dcc4d336e10866",
+    "rust/tcl-vm/src/interp.rs": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
+    "rust/tcl-vm/src/interp/native_command_names.rs": "dd4555704b4e8936ab921a93cc26c745f84a6b0a0142aea6be532125b212e1c6",
+    "rust/tcl-vm/src/interp/native_original_lookup.rs": "37eee4c66c64b98d838834f573c51a44f77539f10fe904e68ea2aa67ef34bea3",
+    "rust/tcl-vm/src/interp/native_variable_names/native_tcloo.rs": "d0ee5499a71cce766934d85f0df2f07687c1a30d1ef1aab52bb348fce1bbbdb5",
+    "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs": "30e3d272d4f633ba702ed90726e1ac4aa94062f4c56c96756d563638fe406d67"
+  },
+  "excluded_peer_full_files": [
+    "rust/tcl-syntax/src/naming/native/routing.rs",
+    "rust/tcl-syntax/src/naming/oo_variables.rs"
+  ],
+  "partial_peer_exports": "naming.rs includes only new query export; full tested file retains peer written-parts/TclOO owner exports",
+  "duplicate_codegen_producer": "CommandSpec::descriptor_key method omitted from owned patch; identical codegen producer exists",
+  "receipts": {
+    "registry-vm-isolated-query-correction-20261013": {
+      "attempts": 49,
+      "exact_passes": 43,
+      "fixture_build_blocked": 6,
+      "zero_attempts": 0,
+      "source_stable": true
+    },
+    "registry-vm-isolated-compiler-fixture-correction-20261013": {
+      "attempts": 6,
+      "exact_passes": 6,
+      "fixture_build_blocked": 0,
+      "zero_attempts": 0,
+      "source_stable": true
+    }
+  },
+  "changed_between_seals": [
+    "rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs"
+  ],
+  "scope": "49 unique accepted selectors across two seals, with production bytes unchanged. Genuine Rust Core Native construction/lookup/emission/metadata scope; original oracle answers remain independent C5/Jim reference executions, no Native C allocation or F5 claim."
+}

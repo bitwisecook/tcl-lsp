@@ -1,0 +1,2226 @@
+   Compiling tcl-vm v0.1.0 (/workspace/name-implementation-worktrees/registry_vm/rust/tcl-vm)
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/original-0.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:364:13
+    |
+364 | /             include_bytes!(concat!(
+365 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+366 | |                 $file
+367 | |             ))
+    | |______________^
+...
+380 |           fixture!("original-0.tcl"),
+    |           -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `fixture` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/original-1.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:364:13
+    |
+364 | /             include_bytes!(concat!(
+365 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+366 | |                 $file
+367 | |             ))
+    | |______________^
+...
+381 |           fixture!("original-1.tcl"),
+    |           -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `fixture` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/original-2.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:364:13
+    |
+364 | /             include_bytes!(concat!(
+365 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+366 | |                 $file
+367 | |             ))
+    | |______________^
+...
+382 |           fixture!("original-2.tcl"),
+    |           -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `fixture` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/8.4.20/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:372:13
+    |
+372 | /             include_str!(concat!(
+373 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+374 | |                 $provider,
+375 | |                 "/stdout"
+376 | |             ))
+    | |______________^
+...
+386 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/8.5.19/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:372:13
+    |
+372 | /             include_str!(concat!(
+373 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+374 | |                 $provider,
+375 | |                 "/stdout"
+376 | |             ))
+    | |______________^
+...
+387 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/8.6.18/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:372:13
+    |
+372 | /             include_str!(concat!(
+373 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+374 | |                 $provider,
+375 | |                 "/stdout"
+376 | |             ))
+    | |______________^
+...
+388 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/9.0.4/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:372:13
+    |
+372 | /             include_str!(concat!(
+373 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+374 | |                 $provider,
+375 | |                 "/stdout"
+376 | |             ))
+    | |______________^
+...
+389 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/../../tcl-registry/tests/data/native_source_list_length241/9.1.0/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/value_source_tests.rs:372:13
+    |
+372 | /             include_str!(concat!(
+373 | |                 "../../tcl-registry/tests/data/native_source_list_length241/",
+374 | |                 $provider,
+375 | |                 "/stdout"
+376 | |             ))
+    | |______________^
+...
+390 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/deferred-original.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+52 |           source: source!("deferred-original.tcl"),
+   |                   -------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/recreated-object-private-dispatcher.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+57 |           source: source!("recreated-object-private-dispatcher.tcl"),
+   |                   -------------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-create.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+62 |           source: source!("synchronous-create.tcl"),
+   |                   --------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-create.prelude.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+63 |           prelude: Some(source!("synchronous-create.prelude.tcl")),
+   |                         ----------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-create.query.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+64 |           query: Some(source!("synchronous-create.query.tcl")),
+   |                       --------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-replace.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+67 |           source: source!("synchronous-replace.tcl"),
+   |                   ---------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-replace.prelude.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+68 |           prelude: Some(source!("synchronous-replace.prelude.tcl")),
+   |                         ------------------------------------------ in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/synchronous-replace.query.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+69 |           query: Some(source!("synchronous-replace.query.tcl")),
+   |                       ---------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/deferred-alias-relative-rooted.tcl`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:12:9
+   |
+12 | /         include_bytes!(concat!(
+13 | |             "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+14 | |             $file
+15 | |         ))
+   | |__________^
+...
+72 |           source: source!("deferred-alias-relative-rooted.tcl"),
+   |                   --------------------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+109 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+109 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+109 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+109 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.4.20/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+109 |           ("tcl8.4", rows!("8.4.20")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+110 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+110 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+110 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+110 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.5.19/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+110 |           ("tcl8.5", rows!("8.5.19")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+111 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+111 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+111 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+111 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/8.6.18/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+111 |           ("tcl8.6", rows!("8.6.18")),
+    |                      --------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+112 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+112 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+112 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+112 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.0.4/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+112 |           ("tcl9.0", rows!("9.0.4")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+113 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+113 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+113 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+113 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/9.1.0/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+113 |           ("tcl9.1", rows!("9.1.0")),
+    |                      -------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/jim/deferred-original/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:21:13
+    |
+ 21 | /             include_str!(concat!(
+ 22 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 23 | |                 $version,
+ 24 | |                 "/deferred-original/stdout"
+ 25 | |             )),
+    | |______________^
+...
+114 |           ("jim", rows!("jim")),
+    |                   ------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/jim/recreated-object-private-dispatcher/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:26:13
+    |
+ 26 | /             include_str!(concat!(
+ 27 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 28 | |                 $version,
+ 29 | |                 "/recreated-object-private-dispatcher/stdout"
+ 30 | |             )),
+    | |______________^
+...
+114 |           ("jim", rows!("jim")),
+    |                   ------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/jim/synchronous-create/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:31:13
+    |
+ 31 | /             include_str!(concat!(
+ 32 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 33 | |                 $version,
+ 34 | |                 "/synchronous-create/stdout"
+ 35 | |             )),
+    | |______________^
+...
+114 |           ("jim", rows!("jim")),
+    |                   ------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/jim/synchronous-replace/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:36:13
+    |
+ 36 | /             include_str!(concat!(
+ 37 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 38 | |                 $version,
+ 39 | |                 "/synchronous-replace/stdout"
+ 40 | |             )),
+    | |______________^
+...
+114 |           ("jim", rows!("jim")),
+    |                   ------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_namespace_holder_routing202/jim/deferred-alias-relative-rooted/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:41:13
+    |
+ 41 | /             include_str!(concat!(
+ 42 | |                 "../../../tcl-registry/tests/data/native_namespace_holder_routing202/",
+ 43 | |                 $version,
+ 44 | |                 "/deferred-alias-relative-rooted/stdout"
+ 45 | |             )),
+    | |______________^
+...
+114 |           ("jim", rows!("jim")),
+    |                   ------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/default-live.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+173 |           ensemble_source!("default-live.tcl"),
+    |           ------------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/relative-qualified-live.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+174 |           ensemble_source!("relative-qualified-live.tcl"),
+    |           ----------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/default-retained-parent.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+175 |           ensemble_source!("default-retained-parent.tcl"),
+    |           ----------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/relative-retained-parent.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+176 |           ensemble_source!("relative-retained-parent.tcl"),
+    |           ------------------------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.4.20/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+179 |           ("tcl8.4", ensemble_rows!("8.4.20")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.4.20/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+179 |           ("tcl8.4", ensemble_rows!("8.4.20")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.4.20/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+179 |           ("tcl8.4", ensemble_rows!("8.4.20")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.4.20/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+179 |           ("tcl8.4", ensemble_rows!("8.4.20")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.5.19/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+180 |           ("tcl8.5", ensemble_rows!("8.5.19")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.5.19/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+180 |           ("tcl8.5", ensemble_rows!("8.5.19")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.5.19/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+180 |           ("tcl8.5", ensemble_rows!("8.5.19")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.5.19/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+180 |           ("tcl8.5", ensemble_rows!("8.5.19")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.6.18/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+181 |           ("tcl8.6", ensemble_rows!("8.6.18")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.6.18/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+181 |           ("tcl8.6", ensemble_rows!("8.6.18")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.6.18/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+181 |           ("tcl8.6", ensemble_rows!("8.6.18")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/8.6.18/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+181 |           ("tcl8.6", ensemble_rows!("8.6.18")),
+    |                      ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.0.4/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+182 |           ("tcl9.0", ensemble_rows!("9.0.4")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.0.4/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+182 |           ("tcl9.0", ensemble_rows!("9.0.4")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.0.4/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+182 |           ("tcl9.0", ensemble_rows!("9.0.4")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.0.4/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+182 |           ("tcl9.0", ensemble_rows!("9.0.4")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.1.0/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+183 |           ("tcl9.1", ensemble_rows!("9.1.0")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.1.0/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+183 |           ("tcl9.1", ensemble_rows!("9.1.0")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.1.0/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+183 |           ("tcl9.1", ensemble_rows!("9.1.0")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/9.1.0/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+183 |           ("tcl9.1", ensemble_rows!("9.1.0")),
+    |                      ----------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/jim/default-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:142:13
+    |
+142 | /             include_str!(concat!(
+143 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+144 | |                 $version,
+145 | |                 "/default-live/stdout"
+146 | |             )),
+    | |______________^
+...
+184 |           ("jim", ensemble_rows!("jim")),
+    |                   --------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/jim/relative-qualified-live/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:147:13
+    |
+147 | /             include_str!(concat!(
+148 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+149 | |                 $version,
+150 | |                 "/relative-qualified-live/stdout"
+151 | |             )),
+    | |______________^
+...
+184 |           ("jim", ensemble_rows!("jim")),
+    |                   --------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/jim/default-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:152:13
+    |
+152 | /             include_str!(concat!(
+153 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+154 | |                 $version,
+155 | |                 "/default-retained-parent/stdout"
+156 | |             )),
+    | |______________^
+...
+184 |           ("jim", ensemble_rows!("jim")),
+    |                   --------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/jim/relative-retained-parent/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:157:13
+    |
+157 | /             include_str!(concat!(
+158 | |                 "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+159 | |                 $version,
+160 | |                 "/relative-retained-parent/stdout"
+161 | |             )),
+    | |______________^
+...
+184 |           ("jim", ensemble_rows!("jim")),
+    |                   --------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `ensemble_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/holder-prelude.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+195 |                   ensemble_source!("holder-prelude.tcl"),
+    |                   -------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_ensemble_holder_routing205/retained-query.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:133:9
+    |
+133 | /         include_bytes!(concat!(
+134 | |             "../../../tcl-registry/tests/data/native_ensemble_holder_routing205/",
+135 | |             $file
+136 | |         ))
+    | |__________^
+...
+204 |                       ensemble_source!("retained-query.tcl"),
+    |                       -------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `ensemble_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/original-library-formals-and-bodies.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:216:9
+    |
+216 | /         include_bytes!(concat!(
+217 | |             "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+218 | |             $file
+219 | |         ))
+    | |__________^
+...
+257 |           jim_library_source!("original-library-formals-and-bodies.tcl"),
+    |           -------------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `jim_library_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/global-helper-replacement.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:216:9
+    |
+216 | /         include_bytes!(concat!(
+217 | |             "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+218 | |             $file
+219 | |         ))
+    | |__________^
+...
+258 |           jim_library_source!("global-helper-replacement.tcl"),
+    |           ---------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `jim_library_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/namespace-local-helper-replacement.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:216:9
+    |
+216 | /         include_bytes!(concat!(
+217 | |             "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+218 | |             $file
+219 | |         ))
+    | |__________^
+...
+259 |           jim_library_source!("namespace-local-helper-replacement.tcl"),
+    |           ------------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `jim_library_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/original-unsupported-and-arity.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:216:9
+    |
+216 | /         include_bytes!(concat!(
+217 | |             "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+218 | |             $file
+219 | |         ))
+    | |__________^
+...
+260 |           jim_library_source!("original-unsupported-and-arity.tcl"),
+    |           --------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `jim_library_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.4.20/original-library-formals-and-bodies/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:225:13
+    |
+225 | /             include_str!(concat!(
+226 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+227 | |                 $version,
+228 | |                 "/original-library-formals-and-bodies/stdout"
+229 | |             )),
+    | |______________^
+...
+263 |           ("tcl8.4", jim_library_rows!("8.4.20")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.4.20/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+263 |           ("tcl8.4", jim_library_rows!("8.4.20")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.4.20/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+263 |           ("tcl8.4", jim_library_rows!("8.4.20")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.4.20/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+263 |           ("tcl8.4", jim_library_rows!("8.4.20")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.5.19/original-library-formals-and-bodies/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:225:13
+    |
+225 | /             include_str!(concat!(
+226 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+227 | |                 $version,
+228 | |                 "/original-library-formals-and-bodies/stdout"
+229 | |             )),
+    | |______________^
+...
+264 |           ("tcl8.5", jim_library_rows!("8.5.19")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.5.19/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+264 |           ("tcl8.5", jim_library_rows!("8.5.19")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.5.19/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+264 |           ("tcl8.5", jim_library_rows!("8.5.19")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.5.19/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+264 |           ("tcl8.5", jim_library_rows!("8.5.19")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.6.18/original-library-formals-and-bodies/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:225:13
+    |
+225 | /             include_str!(concat!(
+226 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+227 | |                 $version,
+228 | |                 "/original-library-formals-and-bodies/stdout"
+229 | |             )),
+    | |______________^
+...
+265 |           ("tcl8.6", jim_library_rows!("8.6.18")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.6.18/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+265 |           ("tcl8.6", jim_library_rows!("8.6.18")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.6.18/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+265 |           ("tcl8.6", jim_library_rows!("8.6.18")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/8.6.18/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+265 |           ("tcl8.6", jim_library_rows!("8.6.18")),
+    |                      --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.0.4/original-library-formals-and-bodies/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:225:13
+    |
+225 | /             include_str!(concat!(
+226 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+227 | |                 $version,
+228 | |                 "/original-library-formals-and-bodies/stdout"
+229 | |             )),
+    | |______________^
+...
+266 |           ("tcl9.0", jim_library_rows!("9.0.4")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.0.4/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+266 |           ("tcl9.0", jim_library_rows!("9.0.4")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.0.4/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+266 |           ("tcl9.0", jim_library_rows!("9.0.4")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.0.4/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+266 |           ("tcl9.0", jim_library_rows!("9.0.4")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.1.0/original-library-formals-and-bodies/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:225:13
+    |
+225 | /             include_str!(concat!(
+226 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+227 | |                 $version,
+228 | |                 "/original-library-formals-and-bodies/stdout"
+229 | |             )),
+    | |______________^
+...
+267 |           ("tcl9.1", jim_library_rows!("9.1.0")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.1.0/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+267 |           ("tcl9.1", jim_library_rows!("9.1.0")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.1.0/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+267 |           ("tcl9.1", jim_library_rows!("9.1.0")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/9.1.0/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+267 |           ("tcl9.1", jim_library_rows!("9.1.0")),
+    |                      -------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/jim/global-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:230:13
+    |
+230 | /             include_str!(concat!(
+231 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+232 | |                 $version,
+233 | |                 "/global-helper-replacement/stdout"
+234 | |             )),
+    | |______________^
+...
+268 |           ("jim", jim_library_rows!("jim")),
+    |                   ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/jim/namespace-local-helper-replacement/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:235:13
+    |
+235 | /             include_str!(concat!(
+236 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+237 | |                 $version,
+238 | |                 "/namespace-local-helper-replacement/stdout"
+239 | |             )),
+    | |______________^
+...
+268 |           ("jim", jim_library_rows!("jim")),
+    |                   ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_namespace_distribution236/jim/original-unsupported-and-arity/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:240:13
+    |
+240 | /             include_str!(concat!(
+241 | |                 "../../../tcl-registry/tests/data/native_jim_namespace_distribution236/",
+242 | |                 $version,
+243 | |                 "/original-unsupported-and-arity/stdout"
+244 | |             )),
+    | |______________^
+...
+268 |           ("jim", jim_library_rows!("jim")),
+    |                   ------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `jim_library_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/default-namespace-command.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:284:9
+    |
+284 | /         include_bytes!(concat!(
+285 | |             "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+286 | |             $file
+287 | |         ))
+    | |__________^
+...
+325 |           rooted_factory_source!("default-namespace-command.tcl"),
+    |           ------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `rooted_factory_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/namespace-prefix-override.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:284:9
+    |
+284 | /         include_bytes!(concat!(
+285 | |             "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+286 | |             $file
+287 | |         ))
+    | |__________^
+...
+326 |           rooted_factory_source!("namespace-prefix-override.tcl"),
+    |           ------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `rooted_factory_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/literal-command-prefix-override.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:284:9
+    |
+284 | /         include_bytes!(concat!(
+285 | |             "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+286 | |             $file
+287 | |         ))
+    | |__________^
+...
+327 |           rooted_factory_source!("literal-command-prefix-override.tcl"),
+    |           ------------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `rooted_factory_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/exact-create-and-option-selection.tcl`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:284:9
+    |
+284 | /         include_bytes!(concat!(
+285 | |             "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+286 | |             $file
+287 | |         ))
+    | |__________^
+...
+328 |           rooted_factory_source!("exact-create-and-option-selection.tcl"),
+    |           --------------------------------------------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_bytes` which comes from the expansion of the macro `rooted_factory_source` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.4.20/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+331 |           ("tcl8.4", rooted_factory_rows!("8.4.20")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.4.20/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+331 |           ("tcl8.4", rooted_factory_rows!("8.4.20")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.4.20/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+331 |           ("tcl8.4", rooted_factory_rows!("8.4.20")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.4.20/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+331 |           ("tcl8.4", rooted_factory_rows!("8.4.20")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.5.19/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+332 |           ("tcl8.5", rooted_factory_rows!("8.5.19")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.5.19/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+332 |           ("tcl8.5", rooted_factory_rows!("8.5.19")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.5.19/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+332 |           ("tcl8.5", rooted_factory_rows!("8.5.19")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.5.19/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+332 |           ("tcl8.5", rooted_factory_rows!("8.5.19")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.6.18/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+333 |           ("tcl8.6", rooted_factory_rows!("8.6.18")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.6.18/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+333 |           ("tcl8.6", rooted_factory_rows!("8.6.18")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.6.18/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+333 |           ("tcl8.6", rooted_factory_rows!("8.6.18")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/8.6.18/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+333 |           ("tcl8.6", rooted_factory_rows!("8.6.18")),
+    |                      ------------------------------ in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.0.4/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+334 |           ("tcl9.0", rooted_factory_rows!("9.0.4")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.0.4/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+334 |           ("tcl9.0", rooted_factory_rows!("9.0.4")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.0.4/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+334 |           ("tcl9.0", rooted_factory_rows!("9.0.4")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.0.4/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+334 |           ("tcl9.0", rooted_factory_rows!("9.0.4")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.1.0/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+335 |           ("tcl9.1", rooted_factory_rows!("9.1.0")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.1.0/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+335 |           ("tcl9.1", rooted_factory_rows!("9.1.0")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.1.0/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+335 |           ("tcl9.1", rooted_factory_rows!("9.1.0")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/9.1.0/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+335 |           ("tcl9.1", rooted_factory_rows!("9.1.0")),
+    |                      ----------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/jim/default-namespace-command/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:293:13
+    |
+293 | /             include_str!(concat!(
+294 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+295 | |                 $version,
+296 | |                 "/default-namespace-command/stdout"
+297 | |             )),
+    | |______________^
+...
+336 |           ("jim", rooted_factory_rows!("jim")),
+    |                   --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/jim/namespace-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:298:13
+    |
+298 | /             include_str!(concat!(
+299 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+300 | |                 $version,
+301 | |                 "/namespace-prefix-override/stdout"
+302 | |             )),
+    | |______________^
+...
+336 |           ("jim", rooted_factory_rows!("jim")),
+    |                   --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/jim/literal-command-prefix-override/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:303:13
+    |
+303 | /             include_str!(concat!(
+304 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+305 | |                 $version,
+306 | |                 "/literal-command-prefix-override/stdout"
+307 | |             )),
+    | |______________^
+...
+336 |           ("jim", rooted_factory_rows!("jim")),
+    |                   --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/jim/exact-create-and-option-selection/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-vm/src/interp/native_command_holder_tests.rs:308:13
+    |
+308 | /             include_str!(concat!(
+309 | |                 "../../../tcl-registry/tests/data/native_jim_ensemble_rooted_result245/",
+310 | |                 $version,
+311 | |                 "/exact-create-and-option-selection/stdout"
+312 | |             )),
+    | |______________^
+...
+336 |           ("jim", rooted_factory_rows!("jim")),
+    |                   --------------------------- in this macro invocation
+    |
+    = note: this error originates in the macro `include_str` which comes from the expansion of the macro `rooted_factory_rows` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.4.20/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+43 |           provider!("tcl8.4", "8.4.20"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.4.20/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+43 |           provider!("tcl8.4", "8.4.20"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.4.20/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+43 |           provider!("tcl8.4", "8.4.20"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.5.19/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+44 |           provider!("tcl8.5", "8.5.19"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.5.19/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+44 |           provider!("tcl8.5", "8.5.19"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.5.19/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+44 |           provider!("tcl8.5", "8.5.19"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.6.18/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+45 |           provider!("tcl8.6", "8.6.18"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.6.18/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+45 |           provider!("tcl8.6", "8.6.18"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/8.6.18/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+45 |           provider!("tcl8.6", "8.6.18"),
+   |           ----------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.0.4/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+46 |           provider!("tcl9.0", "9.0.4"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.0.4/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+46 |           provider!("tcl9.0", "9.0.4"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.0.4/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+46 |           provider!("tcl9.0", "9.0.4"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.1.0/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+47 |           provider!("tcl9.1", "9.1.0"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.1.0/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+47 |           provider!("tcl9.1", "9.1.0"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/9.1.0/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+47 |           provider!("tcl9.1", "9.1.0"),
+   |           ---------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/jim/root/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:18:21
+   |
+18 | /                     include_str!(concat!(
+19 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+20 | |                         $version,
+21 | |                         "/root/stdout"
+22 | |                     )),
+   | |______________________^
+...
+48 |           provider!("jim", "jim"),
+   |           ----------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/jim/linked/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:23:21
+   |
+23 | /                     include_str!(concat!(
+24 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+25 | |                         $version,
+26 | |                         "/linked/stdout"
+27 | |                     )),
+   | |______________________^
+...
+48 |           provider!("jim", "jim"),
+   |           ----------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: couldn't read `rust/tcl-vm/src/interp/../../../tcl-registry/tests/data/native_precision_unset319/jim/unrelated/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-vm/src/interp/native_precision_tests.rs:28:21
+   |
+28 | /                     include_str!(concat!(
+29 | |                         "../../../tcl-registry/tests/data/native_precision_unset319/",
+30 | |                         $version,
+31 | |                         "/unrelated/stdout"
+32 | |                     )),
+   | |______________________^
+...
+48 |           provider!("jim", "jim"),
+   |           ----------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `include_str` which comes from the expansion of the macro `provider` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: could not compile `tcl-vm` (lib test) due to 150 previous errors

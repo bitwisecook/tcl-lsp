@@ -1,0 +1,232 @@
+[
+  {
+    "index": 1,
+    "selector": "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+    "state": "test-pass"
+  },
+  {
+    "index": 2,
+    "selector": "registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation",
+    "state": "test-pass"
+  },
+  {
+    "index": 3,
+    "selector": "registry::tests::private_registration_facts_keep_actual_operand_indices",
+    "state": "test-pass"
+  },
+  {
+    "index": 4,
+    "selector": "registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments",
+    "state": "test-pass"
+  },
+  {
+    "index": 5,
+    "selector": "registry::tests::original_registration_source_descriptor_retains_parent_and_override_provenance",
+    "state": "test-pass"
+  },
+  {
+    "index": 6,
+    "selector": "registry::tests::string_repeat_registration_has_its_actual_basic_worker_compiler",
+    "state": "test-pass"
+  },
+  {
+    "index": 7,
+    "selector": "registry::tests::native_registration_compilation_keeps_private_member_and_version",
+    "state": "test-pass"
+  },
+  {
+    "index": 8,
+    "selector": "registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor",
+    "state": "test-pass"
+  },
+  {
+    "index": 9,
+    "selector": "registry::tests::nested_compiler_registration_retains_each_independent_path_row",
+    "state": "test-pass"
+  },
+  {
+    "index": 10,
+    "selector": "registry::tests::conflicting_private_registration_mappings_retain_uncertainty",
+    "state": "test-pass"
+  },
+  {
+    "index": 11,
+    "selector": "registry::tests::authored_source_model_roster_keeps_context_separate_from_native_release_evidence",
+    "state": "test-pass"
+  },
+  {
+    "index": 12,
+    "selector": "registry::tests::binding_rosters_preserve_exact_custom_descriptor_components",
+    "state": "test-pass"
+  },
+  {
+    "index": 13,
+    "selector": "registry::tests::jim_stock_admission_compares_exact_descriptor_components",
+    "state": "test-pass"
+  },
+  {
+    "index": 14,
+    "selector": "registry::tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+    "state": "zero-tests"
+  },
+  {
+    "index": 15,
+    "selector": "registry::tests::native_root_factory_descriptor_uses_actual_axes",
+    "state": "test-pass"
+  },
+  {
+    "index": 16,
+    "selector": "native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries",
+    "state": "test-pass"
+  },
+  {
+    "index": 17,
+    "selector": "native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection",
+    "state": "test-fail"
+  },
+  {
+    "index": 18,
+    "selector": "native_compilation::namespace_which_tests::checked_member_facts_keep_original_which_operand_offset",
+    "state": "test-pass"
+  },
+  {
+    "index": 19,
+    "selector": "command_descriptor_key::tests::descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels",
+    "state": "test-pass"
+  },
+  {
+    "index": 20,
+    "selector": "native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets",
+    "state": "test-fail"
+  },
+  {
+    "index": 21,
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand",
+    "state": "build-blocked"
+  },
+  {
+    "index": 22,
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+    "state": "build-blocked"
+  },
+  {
+    "index": 23,
+    "selector": "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "state": "build-blocked"
+  },
+  {
+    "index": 24,
+    "selector": "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "state": "build-blocked"
+  },
+  {
+    "index": 25,
+    "selector": "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+    "state": "build-blocked"
+  },
+  {
+    "index": 26,
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c84",
+    "state": "test-pass"
+  },
+  {
+    "index": 27,
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c85",
+    "state": "test-pass"
+  },
+  {
+    "index": 28,
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c86",
+    "state": "test-pass"
+  },
+  {
+    "index": 29,
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "state": "test-pass"
+  },
+  {
+    "index": 30,
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c91",
+    "state": "test-pass"
+  },
+  {
+    "index": 31,
+    "selector": "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+    "state": "test-pass"
+  },
+  {
+    "index": 32,
+    "selector": "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+    "state": "test-pass"
+  },
+  {
+    "index": 33,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c84",
+    "state": "test-pass"
+  },
+  {
+    "index": 34,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c85",
+    "state": "test-pass"
+  },
+  {
+    "index": 35,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c86",
+    "state": "test-pass"
+  },
+  {
+    "index": 36,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c90",
+    "state": "test-pass"
+  },
+  {
+    "index": 37,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c91",
+    "state": "test-pass"
+  },
+  {
+    "index": 38,
+    "selector": "interp::native_variable_query_tests::original_variable_queries_jim",
+    "state": "test-pass"
+  },
+  {
+    "index": 39,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c84",
+    "state": "test-fail"
+  },
+  {
+    "index": 40,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c85",
+    "state": "test-pass"
+  },
+  {
+    "index": 41,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c86",
+    "state": "test-pass"
+  },
+  {
+    "index": 42,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c90",
+    "state": "test-pass"
+  },
+  {
+    "index": 43,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c91",
+    "state": "test-pass"
+  },
+  {
+    "index": 44,
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_jim",
+    "state": "test-fail"
+  },
+  {
+    "index": 45,
+    "selector": "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+    "state": "test-pass"
+  },
+  {
+    "index": 46,
+    "selector": "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls",
+    "state": "test-pass"
+  }
+]

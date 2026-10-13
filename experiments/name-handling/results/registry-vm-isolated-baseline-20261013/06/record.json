@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::string_repeat_registration_has_its_actual_basic_worker_compiler",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::string_repeat_registration_has_its_actual_basic_worker_compiler",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "43ca720e4543b3860c32970597cdc11802a2d8ad5b8acc5a315abbdf851d867f",
+  "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+  "time": "2026-10-13T16:36:05.658695+00:00"
+}

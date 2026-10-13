@@ -113,3 +113,65 @@ fn original_info_commands_compiler_requires_literal_pattern_and_actual_worker() 
             .any(|item| item.op == Op::RESOLVE_CMD)
     );
 }
+
+#[test]
+fn original_namespace_which_compiler_selects_only_the_command_name_operand() {
+    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        for source in [
+            b"namespace which ::set".as_slice(),
+            b"namespace which -command ::set",
+            b"namespace which -c $pattern",
+            b"namespace which {-command} ::missing",
+        ] {
+            let context = emit(&registry, &entry, source);
+            assert!(!context.native_dependency_refusal, "{engine}: {source:?}");
+            let resolves = context
+                .instructions
+                .iter()
+                .filter(|item| item.op == Op::RESOLVE_CMD)
+                .count();
+            assert_eq!(
+                resolves,
+                usize::from(
+                    entry.execution_point.unwrap().tcl_version().unwrap()
+                        >= tcl_dialect::TclVersion::V8_6
+                ),
+                "{engine}: {source:?}"
+            );
+            assert!(
+                !context.instructions.iter().any(|item| item.op == Op::LIST),
+                "a command query does not wrap its result in a List"
+            );
+        }
+    }
+}
+
+#[test]
+fn original_namespace_which_compiler_requires_the_selected_worker_hook() {
+    use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
+    let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+    let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+    let mut entry = crate::environment_ingress::captured_native_entry(profile);
+    let token = entry
+        .lookup_command_bytes(entry.current_namespace, b"::tcl::namespace::which")
+        .unwrap()
+        .unwrap()
+        .token;
+    entry
+        .commands
+        .iter_mut()
+        .find(|command| command.token == token)
+        .unwrap()
+        .compiler_hook = NativeCompilerHookPresence::Unknown;
+    let context = emit(&registry, &entry, b"namespace which -command ::set");
+    assert!(context.native_dependency_refusal);
+    assert!(
+        !context
+            .instructions
+            .iter()
+            .any(|item| item.op == Op::RESOLVE_CMD)
+    );
+}

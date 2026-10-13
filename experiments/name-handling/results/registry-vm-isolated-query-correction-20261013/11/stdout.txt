@@ -1,0 +1,6 @@
+
+running 1 test
+test registry::tests::nested_compiler_registration_retains_each_independent_path_row ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1772 filtered out; finished in 0.44s
+

@@ -1,0 +1,1215 @@
+[
+  {
+    "package": "tcl-syntax",
+    "selector": "naming::native::jim_namespace_command_query_uses_two_fresh_report_candidates",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-syntax",
+      "--lib",
+      "naming::native::jim_namespace_command_query_uses_two_fresh_report_candidates",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "9b548c16ad428e56b181a460ea277b86532b0136d6c5c9dbb7af4278d655315a",
+    "stderr_sha256": "333742b332649a5fc1da10ea08db80c7f406a2c5d5c81ad66bb70d5b36b397f6",
+    "time": "2026-10-13T18:03:31.110875+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_syntax-d16b323745d6e16a": "a5c7b3b2944ac079df2eb6626aac159e4523c68dbd425ab3847af921e7172878"
+    }
+  },
+  {
+    "package": "tcl-cmd-core",
+    "selector": "namespace::tests::which_request_matches_retained_provider_option_results",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-cmd-core",
+      "--lib",
+      "namespace::tests::which_request_matches_retained_provider_option_results",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "f7c925f6e62e73890d908319bc53c7896a1f9b931b3a1b3d577b97f4bf820138",
+    "stderr_sha256": "12903eeb97fe99ee1aa2ae0e8eacd4d3df223ec6f66ba1a64e09ecc778d2004c",
+    "time": "2026-10-13T18:03:41.292331+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_cmd_core-6ef33476c521644b": "6266e37af12ec8cc2eff526bd785779db748fd9c7191da355de35b137ed156c4"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::native_registration_descriptor_queries_remove_one_root_marker",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "21d2d8f99f60e719d95c90a2c92d8cc8fc58c4187103425ff0037756e5c4f146",
+    "stderr_sha256": "d75239bbc57b32880525225c694ad083fe48318d35e7d1063419aa43bd519a88",
+    "time": "2026-10-13T18:07:15.007690+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "c7d7909962490922c3b35fcd4cbef29804d9a76e4ad84e7a471efec84c98217a",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:15.681909+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::private_registration_facts_keep_actual_operand_indices",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::private_registration_facts_keep_actual_operand_indices",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "5e57777b4992fab1f52e2bfe2edd124c07315bbfca949e4b24b6c477be5d32be",
+    "stderr_sha256": "dc3a1ffcd71799efa866acc5fc1dd8ff8e09f7077845ca131ec2d1982861a62b",
+    "time": "2026-10-13T18:07:15.990934+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "cabcb542f9b9031605af0add5c6d7020912f0792e23dacab43212f1fb90f4c37",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:16.316627+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::original_registration_source_descriptor_retains_parent_and_override_provenance",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::original_registration_source_descriptor_retains_parent_and_override_provenance",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "610aa6fddd534471ce07131879d42318f9f7a1b8cbf98c1e33e388f8467687f6",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:16.656321+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::string_repeat_registration_has_its_actual_basic_worker_compiler",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::string_repeat_registration_has_its_actual_basic_worker_compiler",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "695bc862f36d4161c5e6420786dfd6bf8cb78747ec33b6c89c3827044e420e0b",
+    "stderr_sha256": "671f50c1b46ac01dc796f7126da7d847da7acbd6651cfdafd31ba11adb7fd89d",
+    "time": "2026-10-13T18:07:17.069740+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::native_registration_compilation_keeps_private_member_and_version",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::native_registration_compilation_keeps_private_member_and_version",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "4311dabbc9a9b68b53f3cd513e09ab4071d48d2d7a3706e7d91606b6e5132115",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:17.442811+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::normal_worker_registration_retains_its_independent_compiler_descriptor",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "bc889c0fc55861f6ed6d8a0d6b88bab345522d0f6f2ac8def11661a3776c4456",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:17.804067+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::nested_compiler_registration_retains_each_independent_path_row",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::nested_compiler_registration_retains_each_independent_path_row",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "75e9a923d025423962b6a2300bf910870c09aff11529c471d9976e89d1c014a9",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:18.525062+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::conflicting_private_registration_mappings_retain_uncertainty",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::conflicting_private_registration_mappings_retain_uncertainty",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "cf0f706f1c55d1320621394794ee5ab5e270c6f0436dc2db2b4ee543ae316399",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:18.820484+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::authored_source_model_roster_keeps_context_separate_from_native_release_evidence",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::authored_source_model_roster_keeps_context_separate_from_native_release_evidence",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "da0e15916253dd32e1d3d8aaf32724e81d3a7ace5d4e28973e2c71f9d7453ac2",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:19.411027+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::binding_rosters_preserve_exact_custom_descriptor_components",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::binding_rosters_preserve_exact_custom_descriptor_components",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "00088378650a430daa0410e0dda7400d628195e7853a09181ee30d2e0ef0d1d9",
+    "stderr_sha256": "671f50c1b46ac01dc796f7126da7d847da7acbd6651cfdafd31ba11adb7fd89d",
+    "time": "2026-10-13T18:07:19.888939+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::jim_stock_admission_compares_exact_descriptor_components",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::jim_stock_admission_compares_exact_descriptor_components",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "7036e4ec6da9d8af2f33177448a56b9b9b4584b60721b8ed5af744cc473571a4",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:20.242921+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::declaration_key_tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::declaration_key_tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "ffc5a85702ea72a4c7133cc9c4e675c2075b9455ecea329de598fabb3e1a1066",
+    "stderr_sha256": "671f50c1b46ac01dc796f7126da7d847da7acbd6651cfdafd31ba11adb7fd89d",
+    "time": "2026-10-13T18:07:20.564551+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "registry::tests::native_root_factory_descriptor_uses_actual_axes",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "registry::tests::native_root_factory_descriptor_uses_actual_axes",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "238a286e6155b108244ccb4feb69ce344edfbe974d23059e8d7140f271d4ea7c",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:20.854357+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "native_compilation::namespace_which_tests::original_which_shapes_match_retained_compiler_choice_boundaries",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "333b213eaf10c6d0ab1e3d9b1c7bb8904062bd7d8ae233f3fbb6742e26ed9c90",
+    "stderr_sha256": "5a03ecac95405f016bf1a5c3c4c67742a97072046334337e7ad15f507d4cbcee",
+    "time": "2026-10-13T18:07:21.199797+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "native_compilation::namespace_which_tests::literal_variable_option_declines_before_opaque_name_projection",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "4960e0c876855d6efdeef0cb42457e4184304553d7ac54bcc621ca8a4d2a8ecf",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:21.491246+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "native_compilation::namespace_which_tests::checked_member_facts_keep_original_which_operand_offset",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "native_compilation::namespace_which_tests::checked_member_facts_keep_original_which_operand_offset",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "fcd855f8997a1a8e019f419c0b890294f3998fb04eb6c2387f2f3471782b8af0",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:21.763916+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "command_descriptor_key::tests::descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "command_descriptor_key::tests::descriptor_coordinates_preserve_empty_tails_and_decline_distinct_labels",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "1ce2ed731f15d10f5c43093f492a5f8a4a0d0d1089232b28a71c66e54b520c7e",
+    "stderr_sha256": "f21b7a52a16637462835ea1de8145add93247eefe22ecd6033691e4141582f25",
+    "time": "2026-10-13T18:07:22.038548+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-registry",
+    "selector": "native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-registry",
+      "--lib",
+      "native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "1a842c802bf1d5e5f86026ebedaf7da995eacd8a3350b01f3a2c2a1dd68847e4",
+    "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+    "time": "2026-10-13T18:07:22.359597+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+    }
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:08:30.877417+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:09:34.309399+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::original_command_table::advice_slot_tests::registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:10:42.105921+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::original_command_table::advice_slot_tests::declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:11:52.347043+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:12:56.194808+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-compiler",
+    "selector": "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 101,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "480f05044cd6fd1ff3dd70937fe89f094cb05c347576259b44112a929359094f",
+    "time": "2026-10-13T18:14:05.776991+00:00",
+    "actual_test_count": null,
+    "test_binaries": {}
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c84",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c84",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "a1d4c5cc06670a6cdcacc8c1d7437ce984bf9776efcf6879441d40068335f1c6",
+    "stderr_sha256": "383881415ec06741b60861a6be2d13b1a7ed54fce0788290ac40aa6add3e68e2",
+    "time": "2026-10-13T18:16:32.629916+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c85",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c85",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "eddc1e960ff3d137d2c11cc7ef0b6b9b314c454fceabd1f6d1a13da19aa08867",
+    "stderr_sha256": "3c13ecb0c0ea5f93669b7a11eb8f5b57e4a335c344b7486a0ad7afbae821a363",
+    "time": "2026-10-13T18:16:34.359093+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c86",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c86",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "61fcb2b20ab38ca5941ec8a819ec8bab4b74e5fd0e0f7e5ac800a8e2de2dbfe9",
+    "stderr_sha256": "855b1a28daad4f63ea998d329aea2c5362ec4f0dbc46bc255b8ca38b58a6042d",
+    "time": "2026-10-13T18:16:36.608989+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c90",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "c396d6d604e8c0f5e7ba345c90508a7e33d9bb223212ca09b1c877d3d2ed9c51",
+    "stderr_sha256": "764a31ba05a962863dbe55026a1459fa108751c1801bcdd7185633336de6d006",
+    "time": "2026-10-13T18:16:38.943747+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c91",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c91",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "1a7198ff9706f199e7802abb4d929ac0262b1e42903330a254274cdf2245b8c5",
+    "stderr_sha256": "e1567bf4f3523f290e4015bbc319f3be3723600b90ce4bc930a780918819031b",
+    "time": "2026-10-13T18:16:41.410506+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "80d2d059f65734249852a8d36299a159418a7527c128780d3dc6d0dfc86069f5",
+    "stderr_sha256": "62e69ad92d62051eb0b6bb48758b0c8b6761bcc84ad4db362b5c42fe31fad7a9",
+    "time": "2026-10-13T18:16:42.336051+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "b0cd8b31af0f4fd3bec91480cfb5d2dc41a4ed17f2b38271449246ef4a1e75db",
+    "stderr_sha256": "31169dcb431f1284d73b682ff1a11582a97d5c625c6ca78fb2d38c5e8019bb5c",
+    "time": "2026-10-13T18:16:42.818512+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c84",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c84",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "34f8025c6a2676da871d949345f8b5fb48b951753403bb51e592745688c7605c",
+    "stderr_sha256": "0ab1a3f5f9d9a70ba7b04e99865620bf435070e4ffde811bef55c01e94a5b6a5",
+    "time": "2026-10-13T18:16:44.176396+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c85",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c85",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "2ce0d6c4ab2b984723a095afc7fccf28949eb8856b8d5dd566352f3d6b771874",
+    "stderr_sha256": "c9aaf17d35ee5cb86b3e0c615ad4a43ce6ec74641e242f9f5d41de2b695f0610",
+    "time": "2026-10-13T18:16:46.385359+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c86",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c86",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "0c8db71fb8841202a2d84ad37667495993349d68bde2cedfd2789c94ad14df08",
+    "stderr_sha256": "96576f4ffc2ad807442e7bf13af209f79ab4b41e184d46863394ba24d382c1b1",
+    "time": "2026-10-13T18:16:49.549438+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c90",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c90",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "12e033ae42e5b7a2a174294bfeb327a05c6833b427eeb67209d819d3d77860bc",
+    "stderr_sha256": "67abab653f09e9fd66098404e842b6f4e8225fcdfb181b1c23cbddf54a18d5cf",
+    "time": "2026-10-13T18:16:53.234637+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c91",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c91",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "c565cde8c0c4dd2464225a3c4cdf6bb13d6687430323c9b74d462268ee2bfba8",
+    "stderr_sha256": "6eeebc805d1ce3ab2034b67a237fef73168ca4a0c7f5e340aa7fa6dc79fe9d53",
+    "time": "2026-10-13T18:16:56.780988+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_variable_query_tests::original_variable_queries_jim",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_jim",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "0b6d53572ec6ae3f65d96f54d6aae8f1b6c432915f9d6c711e987be76c623e87",
+    "stderr_sha256": "3751ec212452b96ea6c9076723ed9e344753538f2277686558b65e1dede9b1cb",
+    "time": "2026-10-13T18:16:57.291138+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c84",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_c84",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "a522da31123d57eaf5d870d618c5f5e784670c364fb9d6593749f0e32c3ae0bf",
+    "stderr_sha256": "32d4082cfc1f12f024085cc1bdb7de71cbde12f97f7e3e9b49a9844c33d235c4",
+    "time": "2026-10-13T18:17:01.657171+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c85",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_c85",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "f6d4b019789a4ab4d1306f0cc931c94d4647f155d077bc8ee1006d16a65f3fe5",
+    "stderr_sha256": "d7b49830188c80b48bcac8091f4bf41139b4f8e1ee18fbac2a8746e512fdd173",
+    "time": "2026-10-13T18:17:07.627736+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c86",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_c86",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "84e39bd965733a803840fb5c79fdaeb2e5bce85e6539052556883bb7e581d5e5",
+    "stderr_sha256": "497c63e6dc5437977782687d0f20e8ad298232a1967b0bcde0ad1dda66acb7c7",
+    "time": "2026-10-13T18:17:16.650763+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c90",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_c90",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "ac46053a739ef7133e1ee6d40a54e8486159cf95d9ab441dcff8460bb56699ae",
+    "stderr_sha256": "8ee53e8fc05e93e4bfa9631f941b030d658fc707f58bd99242cb50aaf27237ac",
+    "time": "2026-10-13T18:17:26.703388+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_c91",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_c91",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "243f816f8972e2064b190dd4fe58d819959ce41e3de6324073d339c8960e400b",
+    "stderr_sha256": "796d039cf0bae0efb77177c988eb71f64adb61a038ed2f4fd17d75c1bd7a94b0",
+    "time": "2026-10-13T18:17:37.171605+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_namespace_command_query_tests::original_command_queries_jim",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_command_query_tests::original_command_queries_jim",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "32024b852f1ef0b61c0fc2d7b0198478a8e3c244b0518184b8ee89421bb525b8",
+    "stderr_sha256": "200746edb1041c9b7fcc77205d1f5292300312b4521f5544aea3925f42a4c3eb",
+    "time": "2026-10-13T18:17:37.860584+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "f7d0d7646dc9b9afc8dc0a2021197aa92f79e5e5e215335d6ad4bfe1a33a1ae7",
+    "stderr_sha256": "0044cb338eae3e879ed892f19209addad534d68da03165e463885dfbba19568a",
+    "time": "2026-10-13T18:17:38.838099+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  },
+  {
+    "package": "tcl-vm",
+    "selector": "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "stdout_sha256": "0329a782a606d312be61361e595da9263ea383ce661192c86f7dd609f6260eac",
+    "stderr_sha256": "62e69ad92d62051eb0b6bb48758b0c8b6761bcc84ad4db362b5c42fe31fad7a9",
+    "time": "2026-10-13T18:19:15.733030+00:00",
+    "actual_test_count": 1,
+    "test_binaries": {
+      "target/debug/deps/tcl_vm-48d40b80675d74df": "7b8ad2585137f41715aba1fac71f8eea213ee05db26458ce47602bb512587ee8"
+    }
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "package": "tcl-compiler",
+  "selector": "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "realm::descriptor_index_tests::realm_descriptor_index_keeps_exact_coordinates_and_declines_collisions",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "4532e49fb652ddde8e7c86cdfcc3654af510d75b8b21556964c2819fa8b2ce30",
+  "stderr_sha256": "97c5093846f72f0410b76a6ae95c53c4bbf23cdace1731883d0efd0754957718",
+  "time": "2026-10-13T18:24:07.333190+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+  }
+}

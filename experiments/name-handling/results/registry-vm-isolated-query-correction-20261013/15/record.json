@@ -1,0 +1,25 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::jim_stock_admission_compares_exact_descriptor_components",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::jim_stock_admission_compares_exact_descriptor_components",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "7036e4ec6da9d8af2f33177448a56b9b9b4584b60721b8ed5af744cc473571a4",
+  "stderr_sha256": "c6256a5ad6a80ad37810c2c0b1cd5dab57a68404f460c55ada09142f9d537cf5",
+  "time": "2026-10-13T18:07:20.242921+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+  }
+}

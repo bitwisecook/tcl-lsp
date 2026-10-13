@@ -1,0 +1,17 @@
+{
+  "source_stable": true,
+  "checkout_commit": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "checkout": "/workspace/name-implementation-worktrees/registry_vm",
+  "target": "/workspace/name-implementation-worktrees/registry_vm/target",
+  "jobs": "1",
+  "compiled_rust_inputs": "all materialized rust files including restored tracked fixture/C/build inputs; retained experiment files excluding results; root manifest/lock/toolchain",
+  "test_debug": "0",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "selectors": 6,
+  "successful_processes": 6,
+  "accepted_exact_tests": 6,
+  "zero_test_attempts": 0,
+  "build_blocked_attempts": 0,
+  "scope": "6 previously build-blocked Compiler selectors after test-only import fix to public Provenance; frozen prior49 receipt remains43pass/6buildblocked, no result overwrite or retrospective acceptance; all production files byte-identical to previous49 capture"
+}

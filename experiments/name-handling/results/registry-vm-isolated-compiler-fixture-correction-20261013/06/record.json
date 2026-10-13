@@ -1,0 +1,25 @@
+{
+  "package": "tcl-compiler",
+  "selector": "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "0148019ab246d66ecb22c7eab8f11b5b7947cc257818135d3bbac843507d7dad",
+  "stderr_sha256": "8eadbce0a0ac18dc574272e6accc5ea2dfddc924af6c4206ef5f404c9267adf8",
+  "time": "2026-10-13T18:24:13.976703+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_compiler-f9d97fcba7ed4a1f": "54f67be8719a740e7e319e5a26d54a9cb380b10c9eca00039c237dd0ddde8bd6"
+  }
+}

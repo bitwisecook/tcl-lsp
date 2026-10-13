@@ -396,3 +396,111 @@ fn advice_index_warmth_preserves_full_baseline_equality_and_bounded_fallback() {
         expected
     );
 }
+
+#[test]
+fn registry_descriptor_indexes_preserve_components_and_decline_coordinate_collisions() {
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    let labels = [
+        ("NAME_DESCRIPTOR::", "::NAME_DESCRIPTOR::"),
+        ("NAME_DESCRIPTOR:::member", "::NAME_DESCRIPTOR:::member"),
+        ("::::NAME_DESCRIPTOR", "::::NAME_DESCRIPTOR"),
+        (":NAME_DESCRIPTOR", ":::NAME_DESCRIPTOR"),
+    ];
+    for (label, _) in labels {
+        registry.insert(tcl_registry::CommandSpec {
+            name: label,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+    }
+    for label in ["NAME_DESCRIPTOR_COLLISION", "::NAME_DESCRIPTOR_COLLISION"] {
+        registry.insert(tcl_registry::CommandSpec {
+            name: label,
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+    }
+    let baseline = super::super::BindingBaseline::for_registry(&registry);
+    for (label, coordinate) in labels {
+        assert_eq!(
+            baseline
+                .catalogue_commands
+                .get(coordinate)
+                .map(String::as_str),
+            Some(label)
+        );
+    }
+    for absent in [
+        "::NAME_DESCRIPTOR",
+        "::NAME_DESCRIPTOR::member",
+        "::NAME_DESCRIPTOR_COLLISION",
+    ] {
+        assert!(
+            !baseline.catalogue_commands.contains_key(absent),
+            "{absent}"
+        );
+    }
+    for (left, right) in [
+        ("NAME_DESCRIPTOR::", "::NAME_DESCRIPTOR"),
+        ("NAME_DESCRIPTOR:::member", "NAME_DESCRIPTOR::member"),
+        ("::::NAME_DESCRIPTOR", "::NAME_DESCRIPTOR"),
+        ("::", ""),
+    ] {
+        assert!(!tcl_registry::command_descriptor_labels_match(left, right));
+    }
+    assert!(tcl_registry::command_descriptor_labels_match(
+        "NAME_DESCRIPTOR:::member",
+        "::NAME_DESCRIPTOR:::member"
+    ));
+}
+
+#[test]
+fn declared_descriptor_indexes_preserve_components_and_decline_coordinate_collisions() {
+    use tcl_dialect::model::Provenance;
+    use tcl_registry::model::{DeclaredCommand, DeclaredSurface};
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let mut declarations = DeclaredSurface::new();
+    for label in [
+        "NAME_DECLARED::",
+        "NAME_DECLARED:::member",
+        "::::NAME_DECLARED",
+        "NAME_DECLARED_COLLISION",
+        "::NAME_DECLARED_COLLISION",
+    ] {
+        declarations.declare(DeclaredCommand::new(
+            label.to_owned(),
+            Vec::new(),
+            Provenance::Document,
+        ));
+    }
+    let state = ModuleCommandBindings::initial_with_options(
+        &registry,
+        super::super::SourceAnalysisOptions {
+            declared_commands: Some(&declarations),
+            ..Default::default()
+        },
+        None,
+    );
+    for (coordinate, label) in [
+        ("::NAME_DECLARED::", "NAME_DECLARED::"),
+        ("::NAME_DECLARED:::member", "NAME_DECLARED:::member"),
+        ("::::NAME_DECLARED", "::::NAME_DECLARED"),
+    ] {
+        assert_eq!(
+            state
+                .baseline
+                .declared_commands
+                .get(coordinate)
+                .map(String::as_str),
+            Some(label)
+        );
+    }
+    for absent in [
+        "::NAME_DECLARED",
+        "::NAME_DECLARED::member",
+        "::NAME_DECLARED_COLLISION",
+    ] {
+        assert!(
+            !state.baseline.declared_commands.contains_key(absent),
+            "{absent}"
+        );
+    }
+}

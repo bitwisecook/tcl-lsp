@@ -1,0 +1,21 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::native_namespace_command_query_tests::original_command_queries_c84",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_command_query_tests::original_command_queries_c84",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 101,
+  "stdout_sha256": "c701755a402837325f603594037267d1fa48361492dcce77270926a76b60f083",
+  "stderr_sha256": "be208bc0538b2dd4aa3d2a971e3942392d43739a5910a09a4db5e77e3f7dcfbd",
+  "time": "2026-10-13T17:19:05.117479+00:00"
+}

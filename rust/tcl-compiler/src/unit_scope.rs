@@ -3254,6 +3254,7 @@ mod tests {
         let procedure = crate::ir::Procedure {
             name: "helper".into(),
             qualified_name: "::helper".into(),
+            publication: None,
             params: Vec::new(),
             span: tcl_lexer::Span::new(0, 0),
             body: crate::ir::Script::default(),

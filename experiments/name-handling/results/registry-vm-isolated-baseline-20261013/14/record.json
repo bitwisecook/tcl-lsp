@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "8ffb8a0d958bd50431a59b78ab86000b09df69de751dce804eb5e570c4a89450",
+  "stderr_sha256": "dc3a1ffcd71799efa866acc5fc1dd8ff8e09f7077845ca131ec2d1982861a62b",
+  "time": "2026-10-13T16:36:08.596986+00:00"
+}

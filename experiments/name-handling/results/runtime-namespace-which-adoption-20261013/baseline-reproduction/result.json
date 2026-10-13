@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "interp::native_body_artifact::native_introspection::info_commands_literal_tests::compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "binary_sha256": "35a9607a6b2ad446404c32e999e530d4da8f4993ab33baba456bc2d2d99467e8",
+  "exit_code": 101,
+  "elapsed_seconds": 5.133929816998716,
+  "log_sha256": "8cdd7bfd01cc03f1ca4bf4939492e80385dfc1005bdbbdf54da3f2a23a52b570",
+  "binary_stable": true,
+  "source_sha256": {
+    "/workspace/name-implementation-worktrees/runtime/runtime/rust/src/interp/native_body_artifact/native_introspection.rs": "81ae5e5a5bde5c4f2919a3f6d08da25d8710acec49776e1853bc7a1942f7eb41",
+    "/workspace/name-implementation-worktrees/runtime/rust/tcl-registry/src/native_introspection_compilation.rs": "4c2cba70050bf6b3f31f2771bce52123cdd1a6253d944f61fbe7bb08a617cc53",
+    "/workspace/name-implementation-worktrees/runtime/rust/tcl-registry/src/native_compilation.rs": "2435743747ebd969cba9c68f8e1ab90d9e290ac067a55bf5ede16b8d2964cbba"
+  },
+  "prior_sealed_sources_byte_identical": true,
+  "prior_sealed_runtime_artifact_byte_identical": true,
+  "reused_compiled_input_receipt": {
+    "path": "/tmp/runtime-publication-adoption-20261013/final-control-capture/compiled-inputs.json",
+    "sha256": "e2d9fff17d5bde79a5089cf341cdccd1aa4a1d01c821b2f9fa3eff8ceff1b51d"
+  }
+}

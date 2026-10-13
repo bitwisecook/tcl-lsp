@@ -85,11 +85,13 @@ pub fn native_fold_dependency(
     resolved_call(proof, &proof.function)?;
     if let Some(binding) = &reached.command_binding {
         let target = binding.proved_target()?;
+        let lookup = tcl_registry::mathfunc::qualified_name(&proof.function);
+        let lookup = tcl_syntax::naming::unroot_rooted_key(&lookup)?;
         return Some(NativeMathFoldDependency::Command(
             tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
                 &binding.lookup_namespace,
-                tcl_registry::mathfunc::qualified_name(&proof.function).trim_start_matches("::"),
-                target.command.strip_prefix("::").unwrap_or(&target.command),
+                lookup,
+                tcl_syntax::naming::unroot_rooted_key(&target.command).unwrap_or(&target.command),
             )
             .with_namespace_context(binding.lookup_namespace_key.to_compiled_context()),
         ));

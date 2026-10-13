@@ -178,20 +178,26 @@ pub enum WhichKind {
     Variable,
 }
 
-/// Parse the words after `namespace which` as C's `NamespaceWhichCmd` does.
-///
-/// One word is always the name, even when it starts with `-`. Two words are
-/// accepted only when the first is an unambiguous abbreviation of `-command`
-/// or `-variable`; every other shape is the command's wrong-arity path.
+/// Select the original positional option grammar for `namespace which`.
+/// C8.4 and Jim require full option names; C8.5+ accept prefixes. A single
+/// operand is always the name, including one beginning with `-`.
 #[must_use]
-pub fn which_request<T: AsRef<[u8]>>(args: &[T]) -> Option<(WhichKind, usize)> {
+pub fn which_request_in<T: AsRef<[u8]>>(
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    args: &[T],
+) -> Option<(WhichKind, usize)> {
+    use tcl_syntax::naming::NativeNameProtocol;
+    let prefixes = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
     match args {
         [_] => Some((WhichKind::Command, 0)),
         [option, _] => {
             let option = option.as_ref();
-            if option.len() > 1 && b"-command".starts_with(option) {
+            let matches = |full: &[u8]| {
+                option == full || (prefixes && option.len() > 1 && full.starts_with(option))
+            };
+            if matches(b"-command") {
                 Some((WhichKind::Command, 1))
-            } else if option.len() > 1 && b"-variable".starts_with(option) {
+            } else if matches(b"-variable") {
                 Some((WhichKind::Variable, 1))
             } else {
                 None
@@ -1097,20 +1103,47 @@ mod tests {
     }
 
     #[test]
-    fn which_request_matches_namespace_whichs_positional_option_rule() {
-        assert_eq!(which_request(&["puts"]), Some((WhichKind::Command, 0)));
-        assert_eq!(which_request(&["-command"]), Some((WhichKind::Command, 0)));
-        assert_eq!(
-            which_request(&["-com", "puts"]),
-            Some((WhichKind::Command, 1))
-        );
-        assert_eq!(
-            which_request(&["-var", "name"]),
-            Some((WhichKind::Variable, 1))
-        );
-        assert_eq!(which_request::<&str>(&[]), None);
-        assert_eq!(which_request(&["-zork", "puts"]), None);
-        assert_eq!(which_request(&["-command", "-variable", "puts"]), None);
+    fn which_request_matches_retained_provider_option_results() {
+        use tcl_syntax::naming::NativeNameProtocol;
+        for protocol in [
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_5),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V8_6),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_0),
+            NativeNameProtocol::C(tcl_dialect::TclVersion::V9_1),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert_eq!(
+                which_request_in(protocol, &["puts"]),
+                Some((WhichKind::Command, 0))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-command"]),
+                Some((WhichKind::Command, 0))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-command", "puts"]),
+                Some((WhichKind::Command, 1))
+            );
+            assert_eq!(
+                which_request_in(protocol, &["-variable", "name"]),
+                Some((WhichKind::Variable, 1))
+            );
+            let abbreviates = matches!(protocol, NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_5);
+            for option in ["-c", "-comman"] {
+                assert_eq!(
+                    which_request_in(protocol, &[option, "puts"]),
+                    abbreviates.then_some((WhichKind::Command, 1))
+                );
+            }
+            assert_eq!(which_request_in::<&str>(protocol, &[]), None);
+            assert_eq!(which_request_in(protocol, &["-", "puts"]), None);
+            assert_eq!(which_request_in(protocol, &["-zork", "puts"]), None);
+            assert_eq!(
+                which_request_in(protocol, &["-command", "-variable", "puts"]),
+                None
+            );
+        }
     }
 
     #[test]

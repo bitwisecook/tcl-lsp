@@ -1,0 +1,21 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::native_namespace_address_tests::original_namespace_address_c90",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "1e35069ed123bde1c84a4663e74aae3d1451b65d65340371166167e86f159618",
+  "stderr_sha256": "5adf8020cf18c4fd842bcdc7b84dbafe5730ee1bbd6f31e50a842eab8aeacad2",
+  "time": "2026-10-13T17:18:42.841561+00:00"
+}

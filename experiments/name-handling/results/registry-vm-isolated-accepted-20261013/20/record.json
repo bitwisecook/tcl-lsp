@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "native_compilation::named_operand_layout_tests::original_named_metadata_layout_keeps_public_nested_and_private_offsets",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 101,
+  "stdout_sha256": "5f5b83621df4cb504aa39c0175ebbf779b9e8c317c58329a6c7a60db5d628700",
+  "stderr_sha256": "e084d8ac55e7ec0b3e5aadaa4d1c383be0c5179eaa80076e3b92c2a44f4e970b",
+  "time": "2026-10-13T17:09:33.711297+00:00"
+}

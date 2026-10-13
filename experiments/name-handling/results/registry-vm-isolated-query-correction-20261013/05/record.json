@@ -1,0 +1,25 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::private_registration_facts_keep_actual_operand_indices",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::private_registration_facts_keep_actual_operand_indices",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "5e57777b4992fab1f52e2bfe2edd124c07315bbfca949e4b24b6c477be5d32be",
+  "stderr_sha256": "dc3a1ffcd71799efa866acc5fc1dd8ff8e09f7077845ca131ec2d1982861a62b",
+  "time": "2026-10-13T18:07:15.990934+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_registry-30152f1b62ed4924": "ae105889ab405b542c10d0d9f2ecbfe596635dd695a67bcc7bb2302184786ac0"
+  }
+}

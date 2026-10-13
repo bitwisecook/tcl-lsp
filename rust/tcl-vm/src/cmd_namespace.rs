@@ -505,7 +505,13 @@ fn cmd_namespace_in(
                     Ok(words) => words,
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 };
-                let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&words)
+                let Some(protocol) = vm.name_policy_protocol() else {
+                    return vm.refuse_host_command(
+                        "namespace which name protocol is unavailable".into(),
+                    );
+                };
+                let Some((kind, name_index)) =
+                    tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &words)
                 else {
                     return crate::command::native_wrong_arguments_message(
                         vm,

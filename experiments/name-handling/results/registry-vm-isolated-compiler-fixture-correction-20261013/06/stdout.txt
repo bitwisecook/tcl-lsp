@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::ensemble_compilation::native_mapping_tests::original_mapping_uses_actual_prefix_objects_and_current_implementation_tokens ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9579 filtered out; finished in 6.19s
+

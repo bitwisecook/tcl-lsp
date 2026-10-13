@@ -1,0 +1,25 @@
+{
+  "package": "tcl-cmd-core",
+  "selector": "namespace::tests::which_request_matches_retained_provider_option_results",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-cmd-core",
+    "--lib",
+    "namespace::tests::which_request_matches_retained_provider_option_results",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "f7c925f6e62e73890d908319bc53c7896a1f9b931b3a1b3d577b97f4bf820138",
+  "stderr_sha256": "12903eeb97fe99ee1aa2ae0e8eacd4d3df223ec6f66ba1a64e09ecc778d2004c",
+  "time": "2026-10-13T18:03:41.292331+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_cmd_core-6ef33476c521644b": "6266e37af12ec8cc2eff526bd785779db748fd9c7191da355de35b137ed156c4"
+  }
+}

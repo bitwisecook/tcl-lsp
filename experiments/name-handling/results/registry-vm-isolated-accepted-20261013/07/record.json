@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::native_registration_compilation_keeps_private_member_and_version",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::native_registration_compilation_keeps_private_member_and_version",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "4311dabbc9a9b68b53f3cd513e09ab4071d48d2d7a3706e7d91606b6e5132115",
+  "stderr_sha256": "3363bf8c91cffdb854accf5207e038d9292b4a9ba2db91106dde1d92721ffffd",
+  "time": "2026-10-13T17:09:30.195172+00:00"
+}

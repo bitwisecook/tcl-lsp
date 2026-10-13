@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "namespace_which_tests",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "jobs": 1,
+  "test_debug": 0,
+  "time": "2026-10-13T16:46:19.239570+00:00",
+  "tool_exit": 130,
+  "actual_process_group_terminated": 88176,
+  "cargo_pid": 88177,
+  "last_child_rustc_pid": 90732,
+  "observed_compilation": [
+    "tcl-registry",
+    "tcl-compiler",
+    "tcl-lsp-core"
+  ],
+  "tests_executed": 0,
+  "reason": "Stopped before required shared heavy-build lease; tool interrupt left child cargo running until explicit own process-group termination. This is not a test result.",
+  "source_commit": "7aa200ed1da6b663da67c688e53839a20f19f052"
+}

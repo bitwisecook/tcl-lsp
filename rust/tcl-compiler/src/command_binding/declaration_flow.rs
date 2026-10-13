@@ -1649,12 +1649,14 @@ impl Builder<'_> {
             }
             return Some(false);
         }
-        if !name.contains("::") && self.entry.owns_read(&site.source, span) {
+        if !tcl_syntax::naming::is_qualified(name.as_bytes())
+            && self.entry.owns_read(&site.source, span)
+        {
             events.push(Event::AuthoredRead(name.to_owned(), span));
         }
         if !self.retained_local_read(site, span, text, name, true) {
             events.push(Event::ReadUnavailable);
-        } else if !name.contains("::") {
+        } else if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
             events.push(Event::Read(name.to_owned(), span));
         }
         Some(true)
@@ -1765,7 +1767,7 @@ impl Builder<'_> {
                         ExecutablePart::Variable { name, index } => {
                             let name = std::str::from_utf8(arena.bytes(*name).ok_or(())?)
                                 .map_err(|_| ())?;
-                            if !name.contains("::") {
+                            if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
                                 mentions.insert(name.to_owned());
                             }
                             lists.extend(*index);
@@ -1899,11 +1901,13 @@ impl Builder<'_> {
                         output.push(Event::Unknown);
                         continue;
                     };
-                    if !name.contains("::") && self.entry.owns_read(&site.source, read_span) {
+                    if !tcl_syntax::naming::is_qualified(name.as_bytes())
+                        && self.entry.owns_read(&site.source, read_span)
+                    {
                         output.push(Event::AuthoredRead(name.to_owned(), read_span));
                     }
                     if self.retained_local_read(site, read_span, original, name, false) {
-                        if !name.contains("::") {
+                        if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
                             output.push(Event::Read(name.to_owned(), read_span));
                         }
                     } else {

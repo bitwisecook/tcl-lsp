@@ -530,8 +530,9 @@ fn command_metadata(
     expression: &super::SourceConditionalExpressionEvaluation,
     rows: &[&DeclarationLayoutObservation],
 ) -> (Option<SourceCommandReference>, Option<String>) {
-    let relative = tcl_registry::mathfunc::qualified_name(function)
-        .trim_start_matches("::")
+    let qualified = tcl_registry::mathfunc::qualified_name(function);
+    let relative = tcl_syntax::naming::unroot_rooted_key(&qualified)
+        .expect("qualified math-function reporting key has one root marker")
         .to_owned();
     if bindings.implicit_math_invocations.contains_key(&(
         Arc::clone(&site.source),

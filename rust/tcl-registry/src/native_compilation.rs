@@ -1898,6 +1898,18 @@ impl NativeCompilationSpec {
             }
             NativeCompilationGrammar::StringTrim { .. } => matches!(count, 1 | 2),
             NativeCompilationGrammar::NamespaceCurrent => count == 0,
+            NativeCompilationGrammar::NamespaceWhich => {
+                let tcl_syntax::native_string::NativeStringProtocol::C(version) =
+                    words.source_protocol()
+                else {
+                    return false;
+                };
+                crate::native_introspection_compilation::namespace_which_shape(
+                    &words.shapes()[operand_from..],
+                    words.literal(operand_from),
+                    version,
+                ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
+            }
             NativeCompilationGrammar::NamespaceCode => {
                 count == 1
                     && literal_shape(words.shapes()[operand_from])
@@ -1955,7 +1967,6 @@ impl NativeCompilationSpec {
             // command literal preparation, or an unauthored compiler hook.
             NativeCompilationGrammar::Unresolved
             | NativeCompilationGrammar::HookFrom(_)
-            | NativeCompilationGrammar::NamespaceWhich
             | NativeCompilationGrammar::ProcedureHookFrom(_)
             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
             | NativeCompilationGrammar::Array { .. }
@@ -2047,6 +2058,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::InfoCommands => Some(Kind::InfoCommands),
             NativeCompilationGrammar::NamespaceCurrent => Some(Kind::NamespaceCurrent),
             NativeCompilationGrammar::NamespaceOrigin => Some(Kind::NamespaceOrigin),
+            NativeCompilationGrammar::NamespaceWhich => Some(Kind::NamespaceWhich),
             NativeCompilationGrammar::NamespaceCode => Some(Kind::NamespaceCode),
             _ => None,
         }
@@ -2511,6 +2523,26 @@ impl NativeCompilationSpec {
         dialect: Option<InvocationDialect>,
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
+        self.select_with_named_operand_view(
+            words,
+            shapes,
+            dialect,
+            context,
+            NamedCompilerOperandView::Unknown,
+        )
+    }
+
+    /// Select with an independently retained metadata operand layout. This
+    /// neither resolves an original head nor supplies native compiler authority.
+    #[must_use]
+    pub fn select_with_named_operand_view(
+        self,
+        words: InvocationWords<'_>,
+        shapes: &[NativeCompilationWordShape],
+        dialect: Option<InvocationDialect>,
+        context: NativeCompilationContext,
+        named_view: NamedCompilerOperandView,
+    ) -> NativeCompilationSelection {
         use NativeCompilationSelection as Selection;
         if !self.operation_matches_grammar() {
             return Selection::Unknown;
@@ -2519,7 +2551,8 @@ impl NativeCompilationSpec {
             if dialect.is_none_or(|dialect| self.implementation_prerequisites(dialect).is_none()) {
                 return Selection::Unknown;
             }
-            return compiler.select(words, shapes, dialect, context);
+            return compiler
+                .select_with_named_operand_view(words, shapes, dialect, context, named_view);
         }
         if context.mode == NativeCompilationMode::Direct {
             return Selection::Generic;
@@ -2595,7 +2628,13 @@ impl NativeCompilationSpec {
         if shapes.contains(&NativeCompilationWordShape::Expanded) {
             return Selection::Generic;
         }
-        self.select_grammar(words.with_dialect(dialect), shapes, version, context)
+        self.select_grammar(
+            words.with_dialect(dialect),
+            shapes,
+            version,
+            context,
+            named_view,
+        )
     }
 
     /// Select an independently registered compiler using original byte words.
@@ -3111,7 +3150,7 @@ impl NativeCompilationSpec {
             };
         }
         if self.grammar == NativeCompilationGrammar::NamespaceWhich {
-            return original_namespace_which_grammar(words, operand_from, version);
+            return original_namespace_which_grammar(words, operand_from, version, self.operation);
         }
         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
             return selection;
@@ -3143,11 +3182,12 @@ impl NativeCompilationSpec {
         let Some(projected) = words.checked_words() else {
             return Selection::Unknown;
         };
-        self.select(
+        self.select_with_named_operand_view(
             InvocationWords::structured(projected[0], &projected[operand_from..]),
             shapes,
             Some(dialect),
             context,
+            NamedCompilerOperandView::SelectedWorker,
         )
     }
 
@@ -3273,6 +3313,9 @@ impl NativeCompilationSpec {
         dialect: Option<InvocationDialect>,
         context: NativeCompilationContext,
     ) -> NativeCompilationSelection {
+        if self.is_named_invocation_compiler() {
+            return NativeCompilationSelection::Unknown;
+        }
         let offset = if matches!(
             self.grammar,
             NativeCompilationGrammar::InfoExists
@@ -3301,11 +3344,14 @@ impl NativeCompilationSpec {
         let Some(shapes) = shapes.get(offset..) else {
             return NativeCompilationSelection::Unknown;
         };
-        self.select(
+        self.select_with_named_operand_view(
             InvocationWords::from_arguments(words.head(), words.arguments().slice_from(offset)),
             shapes,
             dialect,
             context,
+            NamedCompilerOperandView::OriginalArguments {
+                selectors_retained: facts.argument_offset,
+            },
         )
     }
 
@@ -3631,9 +3677,12 @@ impl NativeCompilationSpec {
         shapes: &[NativeCompilationWordShape],
         version: TclVersion,
         context: NativeCompilationContext,
+        named_view: NamedCompilerOperandView,
     ) -> NativeCompilationSelection {
         use NativeCompilationSelection as Selection;
-        if let Some(selection) = self.select_delegated_grammar(words, shapes, version, context) {
+        if let Some(selection) =
+            self.select_delegated_grammar(words, shapes, version, context, named_view)
+        {
             return selection;
         }
         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
@@ -3816,6 +3865,7 @@ impl NativeCompilationSpec {
         shapes: &[NativeCompilationWordShape],
         version: TclVersion,
         context: NativeCompilationContext,
+        named_view: NamedCompilerOperandView,
     ) -> Option<NativeCompilationSelection> {
         use NativeCompilationSelection as Selection;
         Some(match self.grammar {
@@ -3842,7 +3892,7 @@ impl NativeCompilationSpec {
                 hook_from,
                 arity,
                 ..
-            } => named_ensemble_grammar(lookup, hook_from, arity, words, shapes, version),
+            } => named_ensemble_grammar(lookup, hook_from, arity, named_view, shapes, version),
             NativeCompilationGrammar::Try => {
                 crate::native_try::select(self.operation, words, shapes, version, context)
             }
@@ -3869,6 +3919,7 @@ impl NativeCompilationSpec {
                 shapes,
                 words.arguments().literal_at(0).map(str::as_bytes),
                 version,
+                self.operation,
             ),
             NativeCompilationGrammar::NamespaceUpvarBindings => {
                 if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
@@ -4380,33 +4431,22 @@ fn namespace_code_grammar(
     }
 }
 
-// Accepted command syntax retains its independent resolveCmd obligation.
 fn namespace_which_selection(
     shapes: &[NativeCompilationWordShape],
     option: Option<&[u8]>,
     version: TclVersion,
+    operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
-    use NativeCompilationSelection as Selection;
-    use NativeCompilationWordShape as Shape;
-    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
-        return Selection::Generic;
-    }
-    if shapes.len() == 1 {
-        return Selection::Unknown;
-    }
-    match shapes[0] {
-        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
-            let Some(option) = option else {
-                return Selection::Unknown;
-            };
-            if (2..=8).contains(&option.len()) && b"-command".starts_with(option) {
-                Selection::Unknown
-            } else {
-                Selection::Generic
-            }
-        }
-        Shape::BackslashLiteral | Shape::Substituted => Selection::Generic,
-        Shape::Expanded | Shape::Opaque => Selection::Unknown,
+    use crate::native_introspection_compilation::{
+        NativeNamespaceWhichShape, namespace_which_shape,
+    };
+    match namespace_which_shape(shapes, option, version) {
+        NativeNamespaceWhichShape::Command { .. } => NativeCompilationSelection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        },
+        NativeNamespaceWhichShape::Declined => NativeCompilationSelection::Generic,
+        NativeNamespaceWhichShape::Unavailable => NativeCompilationSelection::Unknown,
     }
 }
 
@@ -4414,14 +4454,32 @@ fn original_namespace_which_grammar(
     words: &crate::native_compiler_words::NativeCompilerWords<'_>,
     operand_from: usize,
     version: TclVersion,
+    operation: SemanticOperationId,
 ) -> NativeCompilationSelection {
+    use crate::native_introspection_compilation::{
+        NativeIntrospectionKind, compile_native_introspection,
+    };
     if words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version) {
         return NativeCompilationSelection::Unknown;
     }
     let Some(shapes) = words.shapes().get(operand_from..) else {
         return NativeCompilationSelection::Unknown;
     };
-    namespace_which_selection(shapes, words.literal(operand_from), version)
+    let selected =
+        namespace_which_selection(shapes, words.literal(operand_from), version, operation);
+    if matches!(selected, NativeCompilationSelection::Inline { .. })
+        && compile_native_introspection(
+            words,
+            operand_from,
+            NativeIntrospectionKind::NamespaceWhich,
+            version,
+        )
+        .is_none()
+    {
+        NativeCompilationSelection::Unknown
+    } else {
+        selected
+    }
 }
 
 fn namespace_origin_grammar(
@@ -4606,23 +4664,38 @@ fn array_compilation_grammar_for(
     }
 }
 
+/// Metadata view of original named-compiler operands, without registration proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedCompilerOperandView {
+    /// The supplied slice begins at the actual selected worker's operands.
+    SelectedWorker,
+    /// Registry facts have projected synthetic members out of these arguments.
+    OriginalArguments {
+        /// Original selector words still retained before the worker operands.
+        selectors_retained: usize,
+    },
+    /// No producer has retained the original operand layout.
+    Unknown,
+}
+
 fn named_ensemble_grammar(
     lookup: &'static NativeCompilerImplementationLookup,
     hook_from: TclVersion,
     arity: crate::Arity,
-    words: InvocationWords<'_>,
+    view: NamedCompilerOperandView,
     shapes: &[NativeCompilationWordShape],
     version: TclVersion,
 ) -> NativeCompilationSelection {
-    let head = words
-        .head_literal()
-        .map(|head| head.trim_start_matches("::"));
-    let from = if head == Some(lookup.slot.trim_start_matches("::")) {
-        0
-    } else if head == Some(lookup.ensemble.trim_start_matches("::")) {
-        1
-    } else {
-        lookup.prepended.len()
+    let from = match view {
+        NamedCompilerOperandView::SelectedWorker => 0,
+        NamedCompilerOperandView::OriginalArguments { selectors_retained } => selectors_retained,
+        NamedCompilerOperandView::Unknown => {
+            return if version < hook_from {
+                NativeCompilationSelection::Generic
+            } else {
+                NativeCompilationSelection::Unknown
+            };
+        }
     };
     if version < hook_from
         || shapes.len() < from
@@ -8545,7 +8618,7 @@ mod tailcall_tests {
             command: "binary",
             prepended: &["encode", "hex"],
         };
-        for (head, args, from) in [
+        for (_head, args, from) in [
             ("binary", vec!["encode", "hex", "DATA"], 2),
             ("::tcl::binary::encode", vec!["hex", "DATA"], 1),
             ("::tcl::binary::encode::hex", vec!["DATA"], 0),
@@ -8553,7 +8626,7 @@ mod tailcall_tests {
             let shapes = vec![NativeCompilationWordShape::Literal; args.len()];
             assert!(matches!(
                 named_ensemble_grammar(&LOOKUP, TclVersion::V8_6, crate::Arity::exact(1),
-                    InvocationWords::literals(head, &args), &shapes, TclVersion::V8_6),
+                    NamedCompilerOperandView::OriginalArguments { selectors_retained: from }, &shapes, TclVersion::V8_6),
                 NativeCompilationSelection::NamedInvocation { arguments_from, .. } if arguments_from == from
             ));
             assert_eq!(
@@ -8561,19 +8634,22 @@ mod tailcall_tests {
                     &LOOKUP,
                     TclVersion::V8_6,
                     crate::Arity::exact(1),
-                    InvocationWords::literals(head, &args),
+                    NamedCompilerOperandView::OriginalArguments {
+                        selectors_retained: from
+                    },
                     &shapes,
                     TclVersion::V8_5
                 ),
                 NativeCompilationSelection::Generic
             );
-            let missing = &args[..args.len() - 1];
             assert_eq!(
                 named_ensemble_grammar(
                     &LOOKUP,
                     TclVersion::V8_6,
                     crate::Arity::exact(1),
-                    InvocationWords::literals(head, missing),
+                    NamedCompilerOperandView::OriginalArguments {
+                        selectors_retained: from
+                    },
                     &shapes[..shapes.len() - 1],
                     TclVersion::V8_6
                 ),
@@ -8615,3 +8691,78 @@ mod native_command_currency_tests {
 #[cfg(test)]
 #[path = "native_compilation/namespace_which_tests.rs"]
 mod namespace_which_tests;
+
+#[cfg(test)]
+mod named_operand_layout_tests {
+    use super::*;
+    fn context() -> NativeCompilationContext {
+        NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: NativeCompilationFrame::ScriptCode,
+            loop_depth: 0,
+            catch_depth: Some(0),
+        }
+    }
+    #[test]
+    fn original_named_metadata_layout_keeps_public_nested_and_private_offsets() {
+        let registry = crate::CommandRegistry::build_default();
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = InvocationDialect::for_version(version);
+            let public_args = ["encode", "hex", "DATA"];
+            let public_words =
+                InvocationWords::literals("binary", &public_args).with_dialect(dialect);
+            let public =
+                registry.resolve_structured_invocation(public_words, dialect.authoring_query());
+            let public = public.resolved().unwrap().facts();
+            let spec = public.native_compilation.unwrap();
+            assert!(spec.is_named_invocation_compiler());
+            for (head, args, selectors, role_offset) in [
+                ("binary", vec!["encode", "hex", "DATA"], 2, Some(1)),
+                ("::tcl::binary::encode", vec!["hex", "DATA"], 1, Some(0)),
+                ("::tcl::binary::encode::hex", vec!["DATA"], 0, None),
+            ] {
+                let words = InvocationWords::literals(head, &args).with_dialect(dialect);
+                let facts = registry
+                    .native_registration_invocation_facts(words)
+                    .or_else(|| {
+                        registry
+                            .resolve_structured_invocation(words, dialect.authoring_query())
+                            .resolved()
+                            .map(|resolved| resolved.facts())
+                    });
+                assert_eq!(
+                    facts.as_ref().map(|facts| facts.argument_offset),
+                    role_offset,
+                    "{version:?}: {head}: role coordinates are not compiler selectors"
+                );
+                let shapes = vec![NativeCompilationWordShape::Literal; args.len()];
+                if let Some(facts) = facts {
+                    assert_eq!(
+                        spec.select_for_facts(words, &shapes, &facts, Some(dialect), context()),
+                        NativeCompilationSelection::Unknown
+                    );
+                }
+                assert!(
+                    matches!(spec.select_with_named_operand_view(words, &shapes, Some(dialect), context(), NamedCompilerOperandView::OriginalArguments { selectors_retained: selectors }), NativeCompilationSelection::NamedInvocation { arguments_from, .. } if arguments_from == selectors)
+                );
+                assert_eq!(
+                    spec.select(words, &shapes, Some(dialect), context()),
+                    NativeCompilationSelection::Unknown
+                );
+                let missing = &args[..args.len() - 1];
+                assert_eq!(
+                    spec.select_with_named_operand_view(
+                        InvocationWords::literals(head, missing).with_dialect(dialect),
+                        &shapes[..shapes.len() - 1],
+                        Some(dialect),
+                        context(),
+                        NamedCompilerOperandView::OriginalArguments {
+                            selectors_retained: selectors
+                        }
+                    ),
+                    NativeCompilationSelection::Generic
+                );
+            }
+        }
+    }
+}

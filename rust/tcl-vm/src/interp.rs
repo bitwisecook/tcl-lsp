@@ -109,6 +109,8 @@ mod native_name_queries;
 mod native_name_world;
 #[cfg(test)]
 mod native_namespace_address_tests;
+#[cfg(test)]
+mod native_namespace_command_query_tests;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_namespace_root_tests;
@@ -12081,6 +12083,59 @@ impl Vm {
         Ok(selected)
     }
 
+    fn namespace_pattern_parts(
+        &self,
+        original: &[u8],
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Result<tcl_syntax::naming::NativeNamespacePatternParts, NativeCommandLookupUnavailable>
+    {
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+            .recipe();
+        let current = self.current_ns_id();
+        let path = self.ns_path(current);
+        let jim = self
+            .name_world
+            .borrow()
+            .jim_namespace_objects
+            .get(&current)
+            .cloned();
+        let context = if protocol.is_jim084() {
+            tcl_syntax::naming::NativeNameContext::with_jim_namespace(
+                &path,
+                jim.as_ref()
+                    .ok_or(NativeCommandLookupUnavailable::NamespaceContextUnavailable)?
+                    .as_bytes(),
+            )
+        } else {
+            tcl_syntax::naming::NativeNameContext::new(&path)
+        };
+        protocol
+            .namespace_pattern_parts(context, original, purpose)
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)
+    }
+
+    fn namespace_pattern_source(
+        &self,
+        parts: &tcl_syntax::naming::NativeNamespacePatternParts,
+    ) -> Option<NsId> {
+        use tcl_syntax::naming::{NativeNameQualification, NativeNamespacePatternSource};
+        match parts.source.as_ref() {
+            None => Some(self.current_ns_id()),
+            Some(NativeNamespacePatternSource::C(path)) => self.namespace_token_at_path(
+                path,
+                parts.qualification == NativeNameQualification::Absolute,
+            ),
+            Some(NativeNamespacePatternSource::Jim(object)) => self
+                .name_world
+                .borrow()
+                .jim_namespace_objects
+                .iter()
+                .find_map(|(token, candidate)| (candidate == object).then_some(*token)),
+        }
+    }
+
     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
     /// exported command of the source namespace matching the glob into the
     /// current namespace under its tail name. Returns the imported tail names.
@@ -12089,34 +12144,15 @@ impl Vm {
         pattern: impl AsRef<[u8]>,
         allow_overwrite: bool,
     ) -> Result<Vec<NameBytes>, NamespaceImportError> {
-        let policy = self.name_policy_protocol().ok_or_else(|| {
-            NamespaceImportError::Host("native import pattern protocol is unavailable".into())
-        })?;
-        let original = pattern.as_ref();
-        let projection = policy
-            .recipe()
-            .namespace_pattern_input(
-                original,
+        let parts = self
+            .namespace_pattern_parts(
+                pattern.as_ref(),
                 tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
             )
-            .map_err(|_| {
-                NamespaceImportError::Host("native import pattern projection is unavailable".into())
-            })?;
-        let pattern = projection.selected();
-        let glob = tcl_cmd_core::namespace::tail(pattern);
-        let source = tcl_cmd_core::namespace::qualifiers(pattern);
-        let source_rooted = pattern.starts_with(b"::");
-        let mut source_path = if source_rooted {
-            NamespacePath::root()
-        } else {
-            self.ns_path(self.current_ns_id())
-        };
-        for segment in tcl_syntax::naming::qualifier_segments(source) {
-            source_path.push(segment);
-        }
-        let src_ns_id = self
-            .namespace_token_at_path(&source_path, source_rooted)
-            .unwrap_or(ROOT_NS);
+            .map_err(|error| NamespaceImportError::Host(error.to_string()))?;
+        let pattern = parts.selected.as_bytes();
+        let glob = parts.tail.as_bytes();
+        let src_ns_id = self.namespace_pattern_source(&parts).unwrap_or(ROOT_NS);
         let exports = self
             .retained_record_of(src_ns_id)
             .and_then(|record| record.exports.get(&src_ns_id).cloned())
@@ -12772,21 +12808,13 @@ impl Vm {
         &mut self,
         original: impl AsRef<[u8]>,
     ) -> Result<(), Completion<Value>> {
-        let Some(policy) = self.name_policy_protocol() else {
-            return Err(
-                self.refuse_host_command("native forget pattern protocol is unavailable".into())
-            );
-        };
-        let projection = policy
-            .recipe()
-            .namespace_pattern_input(
+        let parts = self
+            .namespace_pattern_parts(
                 original.as_ref(),
                 tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
             )
-            .map_err(|_| {
-                self.refuse_host_command("native forget pattern projection is unavailable".into())
-            })?;
-        let pattern = projection.selected();
+            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+        let pattern = parts.selected.as_bytes();
         let cur = self.current_ns_id();
         let mut current_imports: Vec<String> = self
             .imported_commands
@@ -12804,29 +12832,9 @@ impl Vm {
             .collect();
         current_imports.sort();
         current_imports.dedup();
-        let victims: Vec<String> = if tcl_syntax::naming::is_qualified(pattern) {
-            // Qualified pattern: source namespace + simple pattern on the
-            // origin. Splitting at the last separator *run* keeps colon-run
-            // patterns working (`namespace forget ::src:::im*` forgets from
-            // `src`, tclsh8.6-verified; a plain `rsplit_once("::")` would produce
-            // `src:` — and panic outright on `:::pat`).
-            let pb = pattern;
-            let simple = tcl_cmd_core::namespace::tail(pb);
-            let source = tcl_cmd_core::namespace::qualifiers(pb);
-            let source_path = if pattern.starts_with(b"::") {
-                NamespacePath::from_segments(tcl_syntax::naming::qualifier_segments(source))
-            } else {
-                {
-                    let mut path = self.ns_path(cur);
-                    for segment in tcl_syntax::naming::qualifier_segments(source) {
-                        path.push(segment);
-                    }
-                    path
-                }
-            };
-            let Some(src_ns) =
-                self.namespace_token_at_path(&source_path, pattern.starts_with(b"::"))
-            else {
+        let victims: Vec<String> = if parts.source.is_some() {
+            let simple = parts.tail.as_bytes();
+            let Some(src_ns) = self.namespace_pattern_source(&parts) else {
                 let mut message = b"unknown namespace in namespace forget pattern \"".to_vec();
                 message.extend_from_slice(pattern);
                 message.push(b'"');

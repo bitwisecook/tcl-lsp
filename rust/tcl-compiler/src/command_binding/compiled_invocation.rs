@@ -1536,7 +1536,7 @@ pub(super) fn original_fixed_compiler_lookup_preserves_names(
         && target.kind == BindingKind::Builtin
         && target.implementation_generation == 0
         && target.prepended.is_empty()
-        && super::nqn(&target.command) == super::nqn(lookup.slot)
+        && tcl_registry::command_descriptor_labels_match(&target.command, lookup.slot)
 }
 
 /// A monolithic compileProc owns the complete original command vector. The
@@ -2095,7 +2095,7 @@ fn implementation_dependency(
     if !target.registry_backed
         || target.implementation_generation != 0
         || !target.prepended.is_empty()
-        || super::nqn(&target.command) != super::nqn(lookup.slot)
+        || !tcl_registry::command_descriptor_labels_match(&target.command, lookup.slot)
     {
         return None;
     }
@@ -2133,8 +2133,8 @@ impl SourceInvocationBinding {
         }
         let mut current = target.clone();
         let start = path.iter().position(|lookup| {
-            super::nqn(&current.command) == super::nqn(lookup.ensemble)
-                || super::nqn(&current.command) == super::nqn(lookup.slot)
+            tcl_registry::command_descriptor_labels_match(&current.command, lookup.ensemble)
+                || tcl_registry::command_descriptor_labels_match(&current.command, lookup.slot)
         });
         let Some(start) = start else {
             return false;

@@ -1,0 +1,21 @@
+{
+  "package": "tcl-registry",
+  "selector": "registry::tests::nested_compiler_registration_retains_each_independent_path_row",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "registry::tests::nested_compiler_registration_retains_each_independent_path_row",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "1814b0702433d215f91084d95bf88dcb1e08ac693f8f2cfaf18f6b125b6abb18",
+  "stderr_sha256": "671f50c1b46ac01dc796f7126da7d847da7acbd6651cfdafd31ba11adb7fd89d",
+  "time": "2026-10-13T16:36:07.019735+00:00"
+}

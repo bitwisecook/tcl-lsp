@@ -1,0 +1,17 @@
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_creation.rs:256:9
+    |
+256 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_literal.rs:390:9
+    |
+390 |     use super::*;
+    |         ^^^^^^^^
+
+warning: `tcl-registry` (lib test) generated 2 warnings (run `cargo fix --lib -p tcl-registry --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 0.16s
+     Running unittests src/lib.rs (target/debug/deps/tcl_registry-30152f1b62ed4924)

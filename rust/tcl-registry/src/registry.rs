@@ -964,21 +964,12 @@ pub struct EffectiveCommandSemantics {
 
 const JIM_COMMANDS: &str = "* + - / after alarm alias append apply array binary binary::nextarg break catch cd class clock close collect concat continue curry defer dict ensemble env eof error errorInfo eval exec exists exit expr fconfigure file fileevent finalize flush for foreach format function getref gets glob glob.explode glob.glob glob.globdir global history if incr info interp join json::decode json::encode json::subencode kill lambda lambda.finalizer lappend lassign lindex linsert list llength lmap load load_ssl_certs local loop lrange lrepeat lreplace lreverse lsearch lset lsort lsubst namespace open os.fork os.gethostname os.getids os.umask os.uptime pack package parray pid pipe popen proc puts pwd rand range read readdir ref regexp regsub rename return scan seek set setref signal sleep socket source split stackdump stacktrace stderr stdin stdout string subst super switch syslog tailcall taint tcl::autocomplete tcl::prefix tcl::stdhint tell throw time timerate tree try unpack unset untaint upcall update uplevel upvar variable vwait wait while xtrace zlib";
 
-// Descriptor labels permit one optional root marker; other bytes remain exact.
-fn rooted_descriptor_binding_name(name: &str) -> String {
-    if name.is_empty() || tcl_syntax::naming::unroot_rooted_key(name).is_some() {
-        name.to_owned()
-    } else {
-        tcl_syntax::naming::root_unrooted_key(name)
-    }
-}
-
 fn jim_fresh_command_names() -> &'static BTreeSet<String> {
     static NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
     NAMES.get_or_init(|| {
         JIM_COMMANDS
             .split_whitespace()
-            .map(rooted_descriptor_binding_name)
+            .map(crate::rooted_command_descriptor_label)
             .collect()
     })
 }
@@ -3250,6 +3241,14 @@ impl CommandRegistry {
         self.by_name.keys().copied()
     }
 
+    /// Exact selected labels from the current Registry descriptor roster.
+    pub fn command_descriptor_keys(
+        &self,
+    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'_>> {
+        self.command_names()
+            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
+    }
+
     /// Audited native root factory whose default construction has no user
     /// hook graph. A document binding, authored override or arbitrary `TclOO`
     /// metaclass cannot inherit this admission by sharing a grammar.
@@ -3330,7 +3329,7 @@ impl CommandRegistry {
             let mut unresolved_command_handlers = BTreeSet::new();
 
             for (&name, specs) in &self.by_name {
-                let binding_name = rooted_descriptor_binding_name(name);
+                let binding_name = crate::rooted_command_descriptor_label(name);
                 binding_names.insert(binding_name.clone());
                 if specs
                     .last()
@@ -3431,7 +3430,7 @@ impl CommandRegistry {
             let Some(spec) = context.resolve_spec_in_realm(self, name, realm) else {
                 continue;
             };
-            let binding_name = rooted_descriptor_binding_name(name);
+            let binding_name = crate::rooted_command_descriptor_label(name);
             // Source metadata remains known for hosted packages, but their
             // names are not initial bindings until this context activates them.
             let binding_available = spec
@@ -3515,7 +3514,7 @@ impl CommandRegistry {
             let Some(spec) = self.selected_entry_descriptor(specs, dialect, query) else {
                 continue;
             };
-            let binding_name = rooted_descriptor_binding_name(name);
+            let binding_name = crate::rooted_command_descriptor_label(name);
             if jim {
                 if !audited_jim || !jim_names.contains(&binding_name) {
                     continue;
@@ -4238,7 +4237,7 @@ impl CommandRegistry {
             == Some(tcl_dialect::model::DialectPoint::canonical(
                 tcl_dialect::model::Release::JIM_0_84,
             )))
-        .then(|| jim_fresh_command_names().contains(&rooted_descriptor_binding_name(name)))
+        .then(|| jim_fresh_command_names().contains(&crate::rooted_command_descriptor_label(name)))
     }
 
     /// Discard derived command facts after a mutation to the command surface.
@@ -14334,7 +14333,7 @@ mod tests {
         let index = registry.effective_semantics();
         let mut expected_bindings: BTreeSet<String> = registry
             .command_names()
-            .map(rooted_descriptor_binding_name)
+            .map(crate::rooted_command_descriptor_label)
             .collect();
         // Authored private implementation slots are bindings even when they
         // have no public command catalogue row.
@@ -14383,7 +14382,7 @@ mod tests {
         let expected_handlers: BTreeSet<String> = registry
             .commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER)
             .into_iter()
-            .map(rooted_descriptor_binding_name)
+            .map(crate::rooted_command_descriptor_label)
             .collect();
         assert_eq!(index.binding_names(), &expected_bindings);
         assert_eq!(index.unresolved_command_handlers(), &expected_handlers);

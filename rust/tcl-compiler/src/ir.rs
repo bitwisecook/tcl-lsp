@@ -2420,6 +2420,8 @@ pub struct Procedure {
     pub name: String,
     /// Fully qualified name (e.g. `::ns::proc`).
     pub qualified_name: String,
+    /// Original source publication geometry; no Native binding or body admission.
+    pub publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Parameter names.
     pub params: Vec<String>,
     /// Source span of the definition.
@@ -3940,6 +3942,7 @@ mod tests {
         let proc = Procedure {
             name: "greet".into(),
             qualified_name: "::greet".into(),
+            publication: None,
             params: vec!["name".into()],
             span: Span::new(0, 50),
             body: Script::from_statements(vec![Statement::Call {
