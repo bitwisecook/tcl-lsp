@@ -13,22 +13,24 @@ Run either independently, or use `run_all.sh` for a turnkey pass over both.
 
 ## When something fails: reproduction bundles
 
-Both suites are built to be run unattended (including from an automated
-harness that needs to diagnose and fix what it finds, not just get a
-pass/fail) and to leave behind everything needed to reconstruct a failure
-without re-running the stress harness itself — timing-dependent races are not
-guaranteed to reproduce on demand, but the state that triggered them is
-captured regardless.
+Both suites save failure details and fixtures for investigation.
+Timing-dependent races are not guaranteed to reproduce on demand. The LSP
+suite captures recent messages and the latest document text, which may differ
+from the revision involved in an earlier failing request; it does not record
+every intermediate state.
 
-On any failure, grep the output for `STRESS_FAILURE:` — each line names a
-self-contained bundle directory. Every bundle contains at minimum:
+Grep the output for `STRESS_FAILURE:` — each line names a bundle directory.
+The LSP `tokens` scenario caps bundles at three and reports any further
+failures in its summary. Bundle contents depend on the scenario:
 
 - a `FAILURE.md` / `repro.md` describing what happened, in plain English,
   plus (for the Rust suite) a ready-to-adapt static unit-test skeleton;
-- the exact document/fixture text involved, as a real, directly-loadable
-  `.tcl` file — not a description of it;
-- (LSP suite) a JSON-RPC replay transcript (`transcript.jsonl`) and recent
-  server stderr;
+- (Rust suite and LSP `tokens` scenario) the captured document/fixture text
+  as a directly-loadable `.tcl` file;
+- (LSP suite) a bounded JSON-RPC transcript (`transcript.jsonl`) and recent
+  server stderr. The transcript retains up to 4,000 recent messages and
+  truncates outgoing document text beyond 400 characters; it is a diagnostic
+  log, not a complete replay;
 - (LSP suite `startup` scenario) the *entire on-disk workspace* — package
   index, ancestor file, filler files — copied out before its
   `TemporaryDirectory` would otherwise delete it the instant the failing run
@@ -81,14 +83,16 @@ python3 scripts/stress/stress_lsp.py --server-bin <bin> --scenario chaos --durat
 Scenarios:
 
 - **`tokens`** — many large documents, concurrent rapid-edit + immediate
-  `semanticTokens/full` bursts. Asserts every response arrives within a hard
-  ceiling (never starved) and prints p50/p95/max latency.
+  `semanticTokens/full` bursts. Checks that responses arrive within the
+  30-second request timeout and contain non-empty token data, and prints
+  p50/p95/max latency. It does not validate token encoding.
 - **`startup`** — a workspace with a `source`-ancestor file that requires a
   package, and a module using that package with no local `package require`,
   padded with filler files so the workspace scan has real work to do. Opens the module
   immediately (racing the server's own workspace scan, the way an editor
-  restoring tabs races `initialized`), then asserts the false-positive W120
-  the ancestor should suppress is gone once the server settles.
+  restoring tabs races `initialized`), then polls `textDocument/diagnostic`
+  for W120. Empty results and request errors are treated as no W120; this
+  check does not establish that push diagnostics have converged.
 - **`chaos`** — many documents opened / edited / closed / reopened rapidly and
   concurrently for the whole run; only checks the server stays alive and
   responsive throughout (a crash/hang/deadlock smoke test), not response
@@ -102,7 +106,7 @@ Exit code is 0 iff every requested scenario passed.
 scripts/stress/run_all.sh
 ```
 
-Builds the release server binary if needed, then runs the direct-infra
+Builds the release server binary, then runs the direct-infra
 example and all three LSP-API scenarios in sequence with moderate defaults
 (short enough for a pre-push sanity check, not a long soak). Set `DURATION`,
 `DOCS`, `PROCS`, or `PROFILE` in the environment to scale it up for a longer

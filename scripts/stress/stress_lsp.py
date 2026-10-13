@@ -20,9 +20,8 @@
 "through the front end" half.
 
 Drives the *real* `tcl-lsp-server` binary over stdio JSON-RPC — exactly what an
-editor does — under adversarial concurrent load, to prove the semantic-token
-prioritisation / W120 workspace-scan fixes hold up outside the tidy conditions
-of a unit or single-shot e2e test. See
+editor does — under concurrent edit/request load, exercising semantic-token
+responses and workspace-scan diagnostics. See
 `rust/tcl-lsp-db/examples/stress_concurrent_analysis.rs` for the sibling
 "direct infrastructure, no LSP" half of this suite.
 
@@ -38,17 +37,16 @@ Usage:
 
 Scenarios:
     tokens   Many large documents, concurrent rapid-edit + immediate
-             semanticTokens/full bursts. Asserts every response arrives within
-             a hard ceiling (never starved) and
-             that responses are always well-formed.
-    startup  Reproduces the exact startup race: a
+             semanticTokens/full bursts. Checks the 30-second request timeout
+             and non-empty token data; it does not validate token encoding.
+    startup  Races workspace scanning at startup: a
              workspace with a `source`-ancestor file that requires a package,
              and a module using that package with no local `package require`.
              Opens the module immediately (racing the server's own workspace
              scan, the same way an editor restoring tabs races
-             `initialized`), then asserts the false-positive W120 the ancestor
-             should suppress is gone once the server settles — not still
-             standing forever.
+             `initialized`), then polls `textDocument/diagnostic` for W120.
+             Empty results and request errors count as no W120; this does not
+             establish convergence of push diagnostics.
     chaos    Many documents opened / edited / closed / reopened rapidly and
              concurrently for the whole run, checking only that the server
              stays alive and responsive throughout (a final round-trip
@@ -57,21 +55,18 @@ Scenarios:
 Exit code is 0 iff every requested scenario passed. A concise PASS/FAIL
 summary with timing percentiles is always printed.
 
-On any failure, look for a line starting `STRESS_FAILURE:` — it names a
-self-contained reproduction bundle directory (default under
+For captured failures, look for a line starting `STRESS_FAILURE:` — it names a
+bundle directory (default under
 `$TMPDIR/tcl-lsp-stress-artifacts/`, override with `--artifacts-dir` or
-`TCL_LSP_STRESS_ARTIFACTS`) containing everything needed to reconstruct the
-failure without re-running the (inherently timing-dependent) stress harness:
-the exact document text(s) involved, a JSON-RPC replay transcript, recent
-server stderr, and (for `startup`) the whole on-disk workspace that would
-otherwise be deleted the instant its `TemporaryDirectory` goes out of scope.
-Every bundle's `FAILURE.md` also suggests where in the codebase to turn it
-into a permanent regression test. The sibling Rust suite
+`TCL_LSP_STRESS_ARTIFACTS`). Each bundle includes `FAILURE.md`, recent server
+stderr and a bounded JSON-RPC transcript with large outgoing texts truncated.
+The `tokens` scenario saves the latest document text, which may differ from
+an earlier failing request's revision, and caps bundles at three. The
+`startup` scenario copies its on-disk workspace before the temporary directory
+is removed; `chaos` saves a recent action log. The sibling Rust suite
 (`stress_concurrent_analysis.rs`) uses the identical `STRESS_FAILURE:` marker,
 so `grep STRESS_FAILURE:` over both suites' combined output finds every
-bundle from a single command — the intended way to run this from an
-automated (e.g. Claude Code) harness that needs to see and act on failures
-without a human re-running anything by hand.
+bundle from a single command.
 """
 
 from __future__ import annotations
@@ -177,8 +172,8 @@ def _truncate_large_text_fields(payload: dict) -> dict:
     single `didOpen`/`didChange` for a stress-scale document can be hundreds
     of KB, and the transcript only needs to show *that* a large document was
     sent, not carry every full copy. The failing document's actual current
-    text is captured separately (in full) by whichever scenario calls
-    `dump_repro_bundle`, so nothing is lost for reproduction purposes."""
+    text is captured separately by the `tokens` scenario after its workers
+    finish; intermediate document revisions are not retained."""
 
     def shrink(v: str) -> str:
         if len(v) <= _TRUNCATE_AT:
@@ -218,8 +213,9 @@ class LspClient:
     Deliberately small — this is a stress driver, not a general-purpose
     editor client. Requests block the calling thread only; multiple threads
     may call `request`/`notify` concurrently (each request gets its own id
-    and waits on its own condition variable), matching how several editor
-    panes can have requests in flight at once against one server process.
+    and waits for that id on a shared condition variable), matching how
+    several editor panes can have requests in flight at once against one
+    server process.
     """
 
     def __init__(self, server_bin: str, cwd: str):
@@ -497,8 +493,8 @@ def scenario_tokens(server_bin: str, duration: float, docs: int, procs: int) -> 
         samples_lock = threading.Lock()
         # The current text of each open document, kept only by that
         # document's own worker thread (single-writer, so no lock needed) —
-        # read after `join()` by the failure-dump path to capture the exact
-        # content a failing request was made against.
+        # read after `join()` by the failure-dump path. This is the latest
+        # revision, not necessarily the one used by an earlier failing request.
         doc_texts: dict[int, str] = {}
         doc_uris: dict[int, str] = {}
         stop_at = time.monotonic() + duration
@@ -682,11 +678,9 @@ def scenario_startup(server_bin: str, iterations: int) -> bool:
                 },
             )
 
-            # Settle: a synchronous pull request blocks until the server has
-            # analysed the document's current content (see the native
-            # harness's `settle_analysis` for the same technique), so this is
-            # a deterministic "has it converged" barrier rather than a fixed
-            # sleep.
+            # Poll returned diagnostic items for W120 for up to 20 seconds.
+            # Request errors become empty items below, so this loop does not
+            # establish that push diagnostics have converged.
             deadline = time.monotonic() + 20.0
             diagnostics: list[dict] = []
             while time.monotonic() < deadline:

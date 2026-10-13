@@ -9,7 +9,8 @@ or runtime dependencies are required. Download the binary for your platform
 from the
 [latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest),
 or build it from source with `make rust-server` (or
-`cargo build -p tcl-lsp-server`, producing `target/release/tcl-lsp-server`).
+`cargo build --release -p tcl-lsp-server`, producing
+`target/release/tcl-lsp-server`).
 
 See the [Installation Guide](../../INSTALL-editors.md) for full details.
 
@@ -22,7 +23,7 @@ built-in server list, so configure it with one of the forms below.
 
 ## Neovim 0.11+ (native LSP)
 
-1. Copy `tcl_lsp.lua` to `~/.config/nvim/server/tcl_lsp.lua`.
+1. Copy `tcl_lsp.lua` to `~/.config/nvim/lsp/tcl_lsp.lua`.
 2. Edit the `cmd` line to point at your server.
 3. Register the filetype and enable the server in your `init.lua`:
 

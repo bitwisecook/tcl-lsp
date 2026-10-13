@@ -7,7 +7,7 @@
 
 return {
   -- Native Rust server (default). Build it with `make rust-server` (or
-  -- `cargo build -p tcl-lsp-server`) and point at the binary:
+  -- `cargo build --release -p tcl-lsp-server`) and point at the binary:
   cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },
 
   filetypes = { 'tcl', 'tcl-apl' },
