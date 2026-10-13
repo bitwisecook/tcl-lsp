@@ -135,11 +135,12 @@ fn scan_tokens_for_tcl_version(script: &str, depth: u8) -> Option<String> {
 /// recursed into regardless of the command; this gate applies only to braced /
 /// quoted words, so inert data such as `set msg {package require Tcl 8.4}` is
 /// never mis-tokenised as a script and used to select a bogus dialect. The name
-/// is matched with any leading `::` stripped so fully-qualified builtins
-/// (`::if`, `::namespace`) are recognised too.
+/// uses written-name geometry so fully qualified builtins are recognised.
 fn is_script_body_command(name: &str) -> bool {
     matches!(
-        name.trim_start_matches("::"),
+        tcl_syntax::naming::unroot_rooted_key(
+            &tcl_syntax::naming::canonical_written_command(name),
+        ).unwrap_or(name),
         "if" | "while"
             | "for"
             | "foreach"
@@ -1082,6 +1083,18 @@ mod detect_tests {
     use super::{detect_dialect, detect_dialect_directive};
 
     const DEF: &str = "tcl9.0";
+
+    #[test]
+    fn version_scan_recognises_written_root_separator_runs() {
+        for head in ["if", "::if", ":::if", "::::if"] {
+            let source = format!("{head} 1 {{package require Tcl 8.5}}");
+            assert_eq!(detect_dialect(&source, None, DEF), "tcl8.5");
+        }
+        for head in [":if", "::::if:", "vendor::if"] {
+            let source = format!("{head} 1 {{package require Tcl 8.5}}");
+            assert_eq!(detect_dialect(&source, None, DEF), DEF);
+        }
+    }
 
     #[test]
     fn directive_wins() {

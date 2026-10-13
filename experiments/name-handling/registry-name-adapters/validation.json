@@ -1,0 +1,74 @@
+{
+  "scope": "129 distinct Registry libtest controls; no full workspace gate or original native consumer acceptance",
+  "initial_mathfunc": "13 passed / 1 failed from incorrect new software-contract expectation; mathfunc-initial-failed.log retained",
+  "source_manifests": [
+    "source-inputs.json",
+    "source-current.json"
+  ],
+  "source_delta": "source-refresh.json",
+  "initial_binary_sha256": "2df21918d6ede8ca8fe2bcc4c5cbe0dbcd202df1b70912ddf7576000e8654033",
+  "corrected_binary_sha256": "b227618c402ac195c8a1f9fc8f3db68f3697819fa9e9e993a23114f5c14741fa",
+  "filters": [
+    {
+      "selector": "private_tcl_namespaces::",
+      "exit_code": 0,
+      "stdout": "private_tcl_namespaces.stdout",
+      "stderr": "private_tcl_namespaces.stderr"
+    },
+    {
+      "selector": "dialects::detect_tests::",
+      "exit_code": 0,
+      "stdout": "dialects-detect_tests.stdout",
+      "stderr": "dialects-detect_tests.stderr"
+    },
+    {
+      "selector": "value_transfer::reference_body::",
+      "exit_code": 0,
+      "stdout": "value_transfer-reference_body.stdout",
+      "stderr": "value_transfer-reference_body.stderr"
+    },
+    {
+      "selector": "native_compilation::",
+      "exit_code": 0,
+      "stdout": "native_compilation.stdout",
+      "stderr": "native_compilation.stderr"
+    },
+    {
+      "selector": "native_string_compilation::",
+      "exit_code": 0,
+      "stdout": "native_string_compilation.stdout",
+      "stderr": "native_string_compilation.stderr"
+    },
+    {
+      "selector": "native_tcloo_registration::",
+      "exit_code": 0,
+      "stdout": "native_tcloo_registration.stdout",
+      "stderr": "native_tcloo_registration.stderr"
+    },
+    {
+      "selector": "native_registration",
+      "exit_code": 0,
+      "stdout": "native_registration.stdout",
+      "stderr": "native_registration.stderr"
+    },
+    {
+      "selector": "private_registration_facts",
+      "exit_code": 0,
+      "stdout": "private_registration_facts.stdout",
+      "stderr": "private_registration_facts.stderr"
+    },
+    {
+      "selector": "mathfunc::",
+      "exit_code": 0,
+      "stdout": "mathfunc-corrected.log",
+      "stderr": "mathfunc-corrected.log",
+      "passed": 14,
+      "source_manifest": "source-current.json"
+    }
+  ],
+  "build_warnings": [
+    "VM namespace_child_token dead_code",
+    "Registry native_command_creation/native_command_literal test imports unused"
+  ],
+  "required_oracle_environment": "TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1; TCL_LSP_REQUIRE_JIM_ORACLE=1"
+}

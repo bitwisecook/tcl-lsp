@@ -1,0 +1,10 @@
+
+running 5 tests
+test mathfunc::tests::fixed_scalar_math_requires_native_registration_identity_and_arity ... ok
+test registry::tests::native_registration_intrinsics_are_member_metadata_without_placeholder_arguments ... ok
+test registry::tests::native_registration_compilation_keeps_private_member_and_version ... ok
+test registry::tests::native_registration_cache_preserves_every_dialect_and_frozen_generation ... ok
+test commands::tcl::file_::tests::file_compiler_roster_matches_all_190_native_registration_windows ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 1758 filtered out; finished in 1.65s
+

@@ -1,0 +1,17 @@
+
+running 12 tests
+test value_transfer::reference_body::tests::a_command_the_scan_does_not_list_derives_nothing ... ok
+test value_transfer::reference_body::tests::a_body_nested_past_the_limit_derives_nothing ... ok
+test value_transfer::reference_body::tests::a_body_that_reaches_outside_its_own_frame_through_a_name_derives_nothing ... ok
+test value_transfer::reference_body::tests::a_pure_value_body_becomes_a_fold_of_its_value ... ok
+test value_transfer::reference_body::tests::a_derived_implementation_is_told_from_one_a_pack_wrote ... ok
+test value_transfer::reference_body::tests::only_one_proc_with_plain_parameters_defines_the_command ... ok
+test value_transfer::reference_body::tests::reference_descriptor_rooting_preserves_all_remaining_bytes ... ok
+test value_transfer::reference_body::tests::control_flow_and_substitutions_are_followed ... ok
+test value_transfer::reference_body::tests::the_declaration_names_one_input_per_parameter_and_the_text_it_runs ... ok
+test value_transfer::reference_body::tests::what_the_scan_cannot_read_to_the_end_derives_nothing ... ok
+test value_transfer::reference_body::tests::a_callback_is_found_under_any_abbreviation_the_command_accepts ... ok
+test value_transfer::reference_body::tests::every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 1751 filtered out; finished in 0.05s
+

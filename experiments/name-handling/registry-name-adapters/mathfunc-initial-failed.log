@@ -1,0 +1,78 @@
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+warning: method `namespace_child_token` is never used
+     --> rust/tcl-vm/src/interp.rs:18328:8
+      |
+11372 | impl Vm {
+      | ------- method in this implementation
+...
+18328 |     fn namespace_child_token(&self, parent: NsId, simple: impl AsRef<[u8]>) -> Option<NsId> {
+      |        ^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-vm` (lib) generated 1 warning
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_creation.rs:256:9
+    |
+256 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> rust/tcl-registry/src/native_command_literal.rs:390:9
+    |
+390 |     use super::*;
+    |         ^^^^^^^^
+
+warning: `tcl-registry` (lib test) generated 2 warnings (run `cargo fix --lib -p tcl-registry --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 51s
+     Running unittests src/lib.rs (/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-8e0ff7c95496b68a)
+
+running 14 tests
+test mathfunc::tests::constructed_math_function_labels_preserve_literal_colons ... FAILED
+test mathfunc::tests::command_wrappers_start_at_tcl85 ... ok
+test mathfunc::tests::expr_availability_follows_the_expr_grammar_axis ... ok
+test mathfunc::tests::global_command_bare_name_accepts_only_direct_global_members ... ok
+test mathfunc::tests::double_scalar_protocol_requires_selected_c_implementation_and_exact_operand ... ok
+test mathfunc::tests::mathfunc_namespace_membership_covers_global_and_namespace_local ... ok
+test mathfunc::tests::native_dispatch_uses_actual_engine_instead_of_assistance_profile ... ok
+test mathfunc::tests::original_function_command_names_keep_checked_expression_lineage ... ok
+test mathfunc::tests::qualified_name_uses_the_absolute_namespace ... ok
+test mathfunc::tests::restricted_expression_inventory_uses_shared_roster_and_stateful_policy ... ok
+test mathfunc::tests::fixed_scalar_math_requires_native_registration_identity_and_arity ... ok
+test mathfunc::tests::selected_fixed_math_metadata_survives_command_surface_projection ... ok
+test mathfunc::tests::math_function_spec_serves_registry_hover_data_under_the_expr_gate ... ok
+test mathfunc::tests::math_function_names_are_bare_sorted_and_gated ... ok
+
+failures:
+
+---- mathfunc::tests::constructed_math_function_labels_preserve_literal_colons stdout ----
+
+thread 'mathfunc::tests::constructed_math_function_labels_preserve_literal_colons' (42433) panicked at rust/tcl-registry/src/mathfunc.rs:926:9:
+assertion `left == right` failed
+  left: None
+ right: Some(":f")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    mathfunc::tests::constructed_math_function_labels_preserve_literal_colons
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 1749 filtered out; finished in 0.16s
+
+error: test failed, to rerun pass `-p tcl-registry --lib`

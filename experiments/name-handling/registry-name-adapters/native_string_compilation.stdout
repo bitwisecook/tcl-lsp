@@ -1,0 +1,8 @@
+
+running 3 tests
+test native_string_compilation::tests::private_match_registration_does_not_reparse_invoked_name_or_binary_pattern ... ok
+test native_string_compilation::tests::original_string_match_selection_preserves_all_60_native_compiler_windows ... ok
+test native_string_compilation::tests::monolithic_match_member_projection_preserves_registration_and_original_token_scope ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1760 filtered out; finished in 0.05s
+

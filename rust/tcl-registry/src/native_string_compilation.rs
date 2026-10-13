@@ -99,8 +99,10 @@ impl crate::CommandRegistry {
         }
         let member = core::str::from_utf8(words.literal(operand_from)?).ok()?;
         let query = dialect.authoring_query()?;
-        let registration =
-            self.get_for_surface(identity.strip_prefix("::").unwrap_or(identity), Some(query))?;
+        let registration = self.get_for_surface(
+            tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity),
+            Some(query),
+        )?;
         let selected = registration
             .resolve_subcommand_for_dialect(member, Some(query))?
             .native_compilation?;

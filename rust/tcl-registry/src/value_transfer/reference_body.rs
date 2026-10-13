@@ -273,7 +273,9 @@ fn definition_parts(command: &str, definition: &str) -> Option<Definition> {
         return None;
     }
     let defined = literal(name)?;
-    if defined.trim_start_matches("::") != command.trim_start_matches("::") {
+    if tcl_syntax::naming::unroot_rooted_key(&defined).unwrap_or(&defined)
+        != tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command)
+    {
         return None;
     }
     if params.kind != WordKind::Braced || body.kind != WordKind::Braced {
@@ -845,7 +847,13 @@ fn declared_for(command: &str, hook: &ReferenceHook) -> &'static DeclaredSemanti
         .collect();
     let identity = ImplementationIdentity {
         pack: "",
-        id: Box::leak(format!("{}.reference", command.trim_start_matches("::")).into_boxed_str()),
+        id: Box::leak(
+            format!(
+                "{}.reference",
+                tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command)
+            )
+            .into_boxed_str(),
+        ),
         content_hash: crate::implementation_hash::content_hash(&(&hook.params, &hook.body)),
     };
     let capability = EvaluatorCapability {
@@ -1210,6 +1218,25 @@ mod tests {
         assert_eq!(
             hook_of("vendor::f", &nested(40)),
             Err(Inexpressible::Unreadable)
+        );
+    }
+
+    #[test]
+    fn reference_descriptor_rooting_preserves_all_remaining_bytes() {
+        let body = "proc vendor::f {x} {set x}";
+        assert!(hook_of("::vendor::f", body).is_ok());
+        assert_eq!(
+            hook_of("::::vendor::f", body),
+            Err(Inexpressible::NotOneProc)
+        );
+        assert_eq!(
+            hook_of("vendor::f", "proc ::::vendor::f {x} {set x}"),
+            Err(Inexpressible::NotOneProc),
+        );
+        assert!(hook_of(":::f", "proc :f {x} {set x}").is_ok());
+        assert_eq!(
+            hook_of("::::", "proc {} {x} {set x}"),
+            Err(Inexpressible::NotOneProc)
         );
     }
 

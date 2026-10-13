@@ -1,0 +1,14 @@
+{
+  "differences": {
+    "rust/tcl-compiler/src/native_lowering/tests.rs": {
+      "before": "59f3bdfb37d0322a2c0c99ece5df1b658f1e969804f82b68687760dfac135073",
+      "after": "638ff74376f959f1f68d3f1e4cfee31b2b9cf62f28adf9622f84a72be6e6ecd5"
+    },
+    "rust/tcl-registry/src/mathfunc.rs": {
+      "before": "14cf3a942f2f6ff5c009df953a35443e9e6b15c5a82a671abc59e1e59067234e",
+      "after": "df89779db098dd10c464f4cb065916594adc446a5c154c3fdf9686370819374a"
+    }
+  },
+  "interpretation": "Registry mathfunc test expectation corrected; unrelated Compiler test-only imports corrected. Registry production and lib dependency closure unchanged.",
+  "current_manifest": "source-current.json"
+}

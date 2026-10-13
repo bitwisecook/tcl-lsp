@@ -1,0 +1,19 @@
+lookup adapter::f 0 winner
+lookup ::adapter::f 0 winner
+lookup :::adapter::f 0 winner
+lookup ::::adapter::f 0 winner
+lookup adapter:::f 0 winner
+lookup adapter::::f 0 winner
+lookup :adapter::f 1 {invalid command name ":adapter::f"}
+lookup adapter::f: 1 {invalid command name "adapter::f:"}
+private tcl::dict::create 0 ::tcl::dict::create
+private ::tcl::dict::create 0 ::tcl::dict::create
+private :::tcl:::dict:::create 0 ::tcl::dict::create
+private ::::tcl::::dict::::create 0 ::tcl::dict::create
+private tcl::dictionary::create 0 {}
+script if 0 reached
+script ::if 0 reached
+script :::if 0 reached
+script ::::if 0 reached
+script :if 1 {invalid command name ":if"}
+script ::::if: 1 {invalid command name "::::if:"}

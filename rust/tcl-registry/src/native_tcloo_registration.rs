@@ -193,7 +193,7 @@ pub fn definition_identity(
 #[must_use]
 pub fn compilation(identity: &str, dialect: InvocationDialect) -> Option<NativeCompilationSpec> {
     let version = version(dialect)?;
-    let identity = identity.strip_prefix("::").unwrap_or(identity);
+    let identity = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
     let definition = DEFINITIONS.iter().any(|row| {
         version >= row.first && (row.class == Some(identity) || row.object == Some(identity))
     });

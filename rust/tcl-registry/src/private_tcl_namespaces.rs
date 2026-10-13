@@ -178,12 +178,21 @@ pub fn classify_private_tcl_namespace_call(
     registry: &crate::CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<PrivateTclNamespaceCall> {
-    let rest = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
-    let rest = rest.strip_prefix("tcl::")?;
-    let (namespace, tail) = rest.split_once("::")?;
-    if tail.is_empty() {
+    if dialect.is_some_and(|query| {
+        query
+            .core
+            .nearest()
+            .is_some_and(|(family, _)| family == tcl_dialect::model::Family::Jim)
+    }) {
         return None;
     }
+    let mut components = tcl_syntax::naming::qualifier_component_extents(cmd_name.as_bytes());
+    let root = components.next()?;
+    if &cmd_name[root] != "tcl" {
+        return None;
+    }
+    let namespace = &cmd_name[components.next()?];
+    let tail = &cmd_name[components.next()?.start..];
     let entry = PRIVATE_TCL_NAMESPACES
         .iter()
         .find(|ns| ns.namespace == namespace)?;
@@ -194,7 +203,10 @@ pub fn classify_private_tcl_namespace_call(
     // [`crate::spec::CommandSpec::implementation_namespace`]; tcllib's
     // `tcl::chan::memchan` and friends are registered without one.
     if registry
-        .get_for_surface(cmd_name, dialect)
+        .get_for_surface(
+            &tcl_syntax::naming::canonical_written_command(cmd_name),
+            dialect,
+        )
         .is_some_and(|spec| spec.implementation_namespace.is_none())
     {
         return None;
@@ -293,6 +305,26 @@ mod tests {
         let call = classify("::tcl::chan::truncate").unwrap();
         assert_eq!(call.public_command, "chan");
         assert_eq!(call.suggestion.as_deref(), Some("chan truncate"));
+    }
+
+    #[test]
+    fn written_separator_runs_use_the_selected_source_namespace_geometry() {
+        for head in [":::tcl:::dict:::create", "::::tcl::::dict::::create"] {
+            let call = classify(head).unwrap();
+            assert_eq!(call.suggestion.as_deref(), Some("dict create"));
+        }
+        assert_eq!(classify(":::tcl:::dictionary:::create"), None);
+        assert_eq!(classify(":::tcl:::dict::"), None);
+        assert_eq!(classify(":::tcl:::chan:::memchan"), None);
+        let registry = crate::model::ingress::static_context_for("jim").commands();
+        assert_eq!(
+            classify_private_tcl_namespace_call(
+                "::tcl::dict::create",
+                &registry,
+                Some(SurfaceQuery::core(Family::Jim, "0.84")),
+            ),
+            None,
+        );
     }
 
     #[test]

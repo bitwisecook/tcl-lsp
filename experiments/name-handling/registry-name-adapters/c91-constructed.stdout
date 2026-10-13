@@ -1,0 +1,4 @@
+local-colon ::tcl::mathfunc :f colon-simple
+holder-colon ::tcl::mathfunc: f colon-holder
+equal-display 1
+written-relookup 1 {invalid command name "::tcl::mathfunc:::f"}

@@ -1,0 +1,30 @@
+{
+  "input_sha256": "103007a7044fc8edf57802534a8d08c44cbed5d23e3015c1884ba9911aa77daf",
+  "original_toolchain_capture": "capture.json",
+  "results": [
+    {
+      "oracle": "c84",
+      "exit_code": 1
+    },
+    {
+      "oracle": "c85",
+      "exit_code": 1
+    },
+    {
+      "oracle": "c86",
+      "exit_code": 0
+    },
+    {
+      "oracle": "c90",
+      "exit_code": 0
+    },
+    {
+      "oracle": "c91",
+      "exit_code": 0
+    },
+    {
+      "oracle": "jim",
+      "exit_code": 0
+    }
+  ]
+}

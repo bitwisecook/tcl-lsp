@@ -1,0 +1,16 @@
+
+running 11 tests
+test private_tcl_namespaces::tests::genuine_chan_ensemble_backing_still_classifies ... ok
+test private_tcl_namespaces::tests::ordinary_public_command_not_flagged ... ok
+test private_tcl_namespaces::tests::public_documented_tcl_namespaces_not_flagged ... ok
+test private_tcl_namespaces::tests::public_tcllib_channel_packages_are_never_private ... ok
+test private_tcl_namespaces::tests::qualified_and_bare_spellings_both_classify ... ok
+test private_tcl_namespaces::tests::users_own_tcl_scoped_namespace_not_flagged ... ok
+test private_tcl_namespaces::tests::whole_namespace_flags_a_non_subcommand_tail_without_a_suggestion ... ok
+test private_tcl_namespaces::tests::every_whole_namespace_classifies ... ok
+test private_tcl_namespaces::tests::near_miss_namespace_not_flagged ... ok
+test private_tcl_namespaces::tests::bare_namespace_with_no_tail_not_flagged ... ok
+test private_tcl_namespaces::tests::written_separator_runs_use_the_selected_source_namespace_geometry ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 1752 filtered out; finished in 0.16s
+

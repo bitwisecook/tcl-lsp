@@ -1,0 +1,55 @@
+{
+  "command": "built libtest harness, original source capture",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-8e0ff7c95496b68a",
+  "binary_sha256": "2df21918d6ede8ca8fe2bcc4c5cbe0dbcd202df1b70912ddf7576000e8654033",
+  "filters": [
+    {
+      "selector": "private_tcl_namespaces::",
+      "exit_code": 0,
+      "stdout": "private_tcl_namespaces.stdout",
+      "stderr": "private_tcl_namespaces.stderr"
+    },
+    {
+      "selector": "dialects::detect_tests::",
+      "exit_code": 0,
+      "stdout": "dialects-detect_tests.stdout",
+      "stderr": "dialects-detect_tests.stderr"
+    },
+    {
+      "selector": "value_transfer::reference_body::",
+      "exit_code": 0,
+      "stdout": "value_transfer-reference_body.stdout",
+      "stderr": "value_transfer-reference_body.stderr"
+    },
+    {
+      "selector": "native_compilation::",
+      "exit_code": 0,
+      "stdout": "native_compilation.stdout",
+      "stderr": "native_compilation.stderr"
+    },
+    {
+      "selector": "native_string_compilation::",
+      "exit_code": 0,
+      "stdout": "native_string_compilation.stdout",
+      "stderr": "native_string_compilation.stderr"
+    },
+    {
+      "selector": "native_tcloo_registration::",
+      "exit_code": 0,
+      "stdout": "native_tcloo_registration.stdout",
+      "stderr": "native_tcloo_registration.stderr"
+    },
+    {
+      "selector": "native_registration",
+      "exit_code": 0,
+      "stdout": "native_registration.stdout",
+      "stderr": "native_registration.stderr"
+    },
+    {
+      "selector": "private_registration_facts",
+      "exit_code": 0,
+      "stdout": "private_registration_facts.stdout",
+      "stderr": "private_registration_facts.stderr"
+    }
+  ]
+}

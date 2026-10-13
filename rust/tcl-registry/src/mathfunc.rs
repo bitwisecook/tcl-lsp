@@ -245,11 +245,9 @@ pub fn qualified_name(bare: &str) -> String {
 /// enumerators never need to reconstruct the namespace prefix themselves.
 #[must_use]
 pub fn global_command_bare_name(qualified: &str) -> Option<&str> {
-    let bare = qualified
-        .trim_start_matches("::")
-        .strip_prefix(MATHFUNC_NAMESPACE_RELATIVE)?
-        .strip_prefix("::")?;
-    (!bare.is_empty() && !bare.contains("::")).then_some(bare)
+    let (holder, bare) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    let holder = tcl_syntax::naming::unroot_rooted_key(holder).unwrap_or(holder);
+    (holder == MATHFUNC_NAMESPACE_RELATIVE && !bare.is_empty()).then_some(bare)
 }
 
 /// Whether an authenticated stock registration is an expression worker retained
@@ -273,12 +271,9 @@ pub fn restricted_expression_command_identity(identity: &str) -> bool {
 /// reach into it.
 #[must_use]
 pub fn is_in_mathfunc_namespace(qualified: &str) -> bool {
-    let Some((ns, _tail)) = qualified.rsplit_once("::") else {
-        return false;
-    };
-    ns == MATHFUNC_NAMESPACE
-        || ns.ends_with(&format!("::{MATHFUNC_NAMESPACE_RELATIVE}"))
-        || ns == MATHFUNC_NAMESPACE_RELATIVE
+    let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qualified);
+    let segments = tcl_syntax::naming::key_segments(namespace);
+    segments.ends_with(&["tcl".to_owned(), "mathfunc".to_owned()])
 }
 
 /// The newest math-function release `profile`'s `expr` grammar exposes, or
@@ -609,8 +604,8 @@ impl CommandRegistry {
     pub fn math_function_names(&self, profile: &'static DialectProfile) -> Vec<&str> {
         let mut out: Vec<&str> = self
             .command_names()
-            .filter_map(|name| name.strip_prefix(MATHFUNC_NAMESPACE)?.strip_prefix("::"))
-            .filter(|bare| !bare.contains("::") && available_in_expr(bare, profile))
+            .filter_map(global_command_bare_name)
+            .filter(|bare| available_in_expr(bare, profile))
             .collect();
         out.sort_unstable();
         out.dedup();
@@ -924,6 +919,18 @@ mod tests {
             None
         );
         assert_eq!(global_command_bare_name("::tcl::mathop::sin"), None);
+    }
+
+    #[test]
+    fn constructed_math_function_labels_preserve_literal_colons() {
+        assert_eq!(global_command_bare_name("::tcl::mathfunc:::f"), None);
+        assert_eq!(global_command_bare_name("::::tcl::mathfunc::sin"), None);
+        assert_eq!(global_command_bare_name("::tcl::mathfunc::"), None);
+        assert!(!is_in_mathfunc_namespace("::tcl::mathfunc:::f"));
+        assert!(!is_in_mathfunc_namespace("::tcl::mathfunc:::nested::f"));
+        assert!(!restricted_expression_command_identity(
+            "::tcl::mathfunc:::sin"
+        ));
     }
 
     #[test]

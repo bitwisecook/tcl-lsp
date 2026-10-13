@@ -17,7 +17,7 @@ authorised while red; every required gate must be green before PR.
 | Naming issues | Open/closed scoped mapping in [issues](issues.md). | Resolve every entirely naming-related issue within supported provider evidence; bounded non-naming dependencies remain explicitly separate. |
 | Oracles | Original C5 proc/rename0fail; immutable library/tests checks7pass; current pinned Jim confirmed latest. | Reproducible naming experiments, actual expectations/provenance; original matching init.tcl/tcltest.tcl if used. |
 | F5 | Original and supplemental statuses remain separate. | Reuse returned answers, repair owned fixtures/prove context, unanswered-only BIG-IP requests and same-branch answer documents; no invented observations. |
-| Proof and repository gates | No fresh full gate pass; maintained checker296 digest errors on99 records. | Substantive acceptance/review and narrow source currency only, owner-resolution, resolution drift, strict proof checker, rust-check/prep-pr, required editor checks. |
+| Proof and repository gates | No fresh full gate pass; fresh strict checker1739 errors including769 evidence bindings and952 scrub census hashes. | Substantive acceptance/review and narrow source currency only, owner-resolution, resolution drift, strict proof checker, rust-check/prep-pr, required editor checks. |
 | Documentation/comments | Durable owner contract plus temporary prompt/plan/inventory. | Whole-repository current-state audit, minimal how/why comments, remove process/history material and references/generated copies, preserve experiments/tests/legal attribution. |
 
 [Current state](current-state.md) records exact scoped evidence, provider limits,

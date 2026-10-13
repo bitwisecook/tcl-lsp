@@ -3725,9 +3725,9 @@ impl CommandRegistry {
         identity: &str,
         dialect: crate::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
-        let key = identity.strip_prefix("::").unwrap_or(identity);
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
-        let rooted = format!("::{key}");
+        let rooted = tcl_syntax::naming::root_unrooted_key(key);
         if let Some(spec) = self
             .get_for_surface(key, Some(query))
             .or_else(|| self.get_for_surface(&rooted, Some(query)))

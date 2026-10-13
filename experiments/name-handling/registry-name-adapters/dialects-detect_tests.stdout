@@ -1,0 +1,26 @@
+
+running 21 tests
+test dialects::detect_tests::content_signals_beat_extension ... ok
+test dialects::detect_tests::a_bigip_config_basename_routes_by_name ... ok
+test dialects::detect_tests::eda_and_f5_content_signatures ... ok
+test dialects::detect_tests::eda_extension_and_filename_conventions ... ok
+test dialects::detect_tests::eda_proprietary_content_signatures ... ok
+test dialects::detect_tests::directive_wins ... ok
+test dialects::detect_tests::a_wish_shebang_names_the_tk_shell_or_its_tcl_version ... ok
+test dialects::detect_tests::a_jimsh_shebang_names_jim ... ok
+test dialects::detect_tests::extension_is_the_fallback_for_generic_content ... ok
+test dialects::detect_tests::expect_content_without_shebang ... ok
+test dialects::detect_tests::irules_when_detected ... ok
+test dialects::detect_tests::plain_tcl_falls_back_to_default ... ok
+test dialects::detect_tests::multibyte_comment_before_directive_key_does_not_panic ... ok
+test dialects::detect_tests::shebang_detected ... ok
+test dialects::detect_tests::the_long_extension_spellings_are_indexed_source ... ok
+test dialects::detect_tests::the_shebang_tier_sits_between_the_directive_and_the_content_tiers ... ok
+test dialects::detect_tests::the_two_pack_source_views_agree ... ok
+test dialects::detect_tests::the_shebang_interpreter_is_the_program_the_line_runs ... ok
+test dialects::detect_tests::shared_sdc_verbs_do_not_misclassify_as_a_vendor ... ok
+test dialects::detect_tests::version_scan_recognises_written_root_separator_runs ... ok
+test dialects::detect_tests::late_signal_in_large_script_is_caught ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 1742 filtered out; finished in 0.01s
+

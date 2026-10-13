@@ -1,0 +1,7 @@
+
+running 2 tests
+test native_tcloo_registration::tests::definition_registration_absence_requires_exact_native_context_and_release ... ok
+test native_tcloo_registration::tests::private_dispatch_registration_keeps_null_hooks_separate_from_helper_compilers ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1761 filtered out; finished in 0.07s
+

@@ -1,0 +1,68 @@
+{
+  "captured_at": "2026-10-13T13:38:10.743281+00:00",
+  "probe_sha256": "a87d33d18c128d52680fbf8b6771e4a8c43404b0baff549d22cc746225c62046",
+  "oracles": [
+    {
+      "oracle": "c84",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "shell_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "patchlevel": "8.4.20",
+      "version_exit_code": 0,
+      "stdout_sha256": "c087dc74ffa08cb8868b3b519ad15cb9114da122058f6a567889a11ec695e610",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "oracle": "c85",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "shell_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "patchlevel": "8.5.19",
+      "version_exit_code": 0,
+      "stdout_sha256": "0a3918654f6488dc2e645b93949dcdd80e2096c2ca8dfac7b7a09de69baa4a29",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "oracle": "c86",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "shell_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "patchlevel": "8.6.18",
+      "version_exit_code": 0,
+      "stdout_sha256": "0a3918654f6488dc2e645b93949dcdd80e2096c2ca8dfac7b7a09de69baa4a29",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "oracle": "c90",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "shell_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "patchlevel": "9.0.4",
+      "version_exit_code": 0,
+      "stdout_sha256": "0a3918654f6488dc2e645b93949dcdd80e2096c2ca8dfac7b7a09de69baa4a29",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "oracle": "c91",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "shell_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "patchlevel": "9.1.0",
+      "version_exit_code": 0,
+      "stdout_sha256": "0a3918654f6488dc2e645b93949dcdd80e2096c2ca8dfac7b7a09de69baa4a29",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "oracle": "jim",
+      "shell": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "shell_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 0,
+      "patchlevel": "0.84-9-g5bac7c9",
+      "version_exit_code": 0,
+      "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "stdout_sha256": "dc33ea63eaf0f417a2e650cb1d82f723f07a05c09ea9ab70c287a5d0ed9d4299",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "toolchain_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+}

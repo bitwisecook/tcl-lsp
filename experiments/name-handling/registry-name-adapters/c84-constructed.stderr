@@ -1,0 +1,10 @@
+can't create procedure ":f" in non-global namespace with name starting with ":"
+    while executing
+"proc :f {} {return colon-simple}"
+    (in namespace eval "::tcl::mathfunc" script line 2)
+    invoked from within
+"namespace eval ::tcl::mathfunc {
+    proc :f {} {return colon-simple}
+    puts [list local-colon [namespace current] [info procs :f] [:f]]
+}"
+    (file "/workspace/tcl-lsp/experiments/name-handling/registry-name-adapters/constructed-display.tcl" line 1)

@@ -3274,8 +3274,8 @@ impl NativeCompilationSpec {
             let private = dialect.and_then(|dialect| self.implementation_lookup(dialect));
             if private.is_some_and(|lookup| {
                 words.head_literal().is_some_and(|head| {
-                    head.strip_prefix("::").unwrap_or(head)
-                        == lookup.slot.strip_prefix("::").unwrap_or(lookup.slot)
+                    tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+                        == tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot)
                 })
             }) {
                 0
@@ -4340,11 +4340,8 @@ fn namespace_code_grammar(
         };
     }
     if words.head_literal().is_some_and(|head| {
-        head.strip_prefix("::").unwrap_or(head)
-            == NAMESPACE_CODE_IMPLEMENTATION
-                .slot
-                .strip_prefix("::")
-                .unwrap()
+        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+            == tcl_syntax::naming::unroot_rooted_key(NAMESPACE_CODE_IMPLEMENTATION.slot).unwrap()
     }) {
         NativeCompilationSelection::Generic
     } else {
@@ -4372,11 +4369,8 @@ fn namespace_origin_grammar(
         };
     }
     if words.head_literal().is_some_and(|head| {
-        head.strip_prefix("::").unwrap_or(head)
-            == NAMESPACE_ORIGIN_IMPLEMENTATION
-                .slot
-                .strip_prefix("::")
-                .unwrap()
+        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+            == tcl_syntax::naming::unroot_rooted_key(NAMESPACE_ORIGIN_IMPLEMENTATION.slot).unwrap()
     }) {
         NativeCompilationSelection::Generic
     } else {
@@ -4404,11 +4398,8 @@ fn namespace_current_grammar(
         };
     }
     if words.head_literal().is_some_and(|head| {
-        head.strip_prefix("::").unwrap_or(head)
-            == NAMESPACE_CURRENT_IMPLEMENTATION
-                .slot
-                .strip_prefix("::")
-                .unwrap()
+        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+            == tcl_syntax::naming::unroot_rooted_key(NAMESPACE_CURRENT_IMPLEMENTATION.slot).unwrap()
     }) {
         NativeCompilationSelection::Generic
     } else {
@@ -4435,10 +4426,9 @@ fn info_level_grammar(
             guard: NativeCompilationGuard::BeforeArguments,
         };
     }
-    if words
-        .head_literal()
-        .is_some_and(|head| head.strip_prefix("::").unwrap_or(head) == "tcl::info::level")
-    {
+    if words.head_literal().is_some_and(|head| {
+        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head) == "tcl::info::level"
+    }) {
         NativeCompilationSelection::Generic
     } else {
         NativeCompilationSelection::NamedInvocation {
@@ -4463,8 +4453,8 @@ fn array_compilation_grammar(
         return Selection::Generic;
     }
     let private = words.head_literal().is_some_and(|head| {
-        head.strip_prefix("::").unwrap_or(head)
-            == lookup.slot.strip_prefix("::").unwrap_or(lookup.slot)
+        tcl_syntax::naming::unroot_rooted_key(head).unwrap_or(head)
+            == tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot)
     });
     array_compilation_grammar_for(
         (operation, command, lookup, private),

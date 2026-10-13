@@ -90,6 +90,16 @@ an earlier binding is absent. There is no implicit ancestor search. Tcl 8.4
 excludes namespace-path entries under its original naming protocol.
 See [command-resolution.md](command-resolution.md).
 
+Registry descriptor adapters remove one optional root marker through
+`naming::unroot_rooted_key` and preserve the remaining exact bytes. Their labels
+identify selected metadata; original binding, compiler hooks, generations and
+operation currency remain independent prerequisites. Math-function reporting
+labels use the shared constructed-key decomposition; the resulting simple name
+cannot establish an interpreter allocation. Private implementation-namespace
+source diagnostics use shared written component extents and registry package
+exclusions, and decline Jim's absent C implementation namespace. The dialect
+scanner uses shared written-name geometry only to produce a bounded source hint.
+
 Variable lookup needs the frame kind, selected release, lookup operation,
 namespace, array syntax and alias links. `n::x` is qualified even without a
 leading `::`; an unqualified variable in a proc is ordinarily frame-local.
