@@ -1,177 +1,138 @@
 # Original procedure argv transport
 
-The scratch implementation is [implementation.patch](implementation.patch).
-It is unapplied, uncompiled and unexecuted. It changes seven implementation
-files; existing tests and ABI expectations listed below still need integration.
-The proposed controls are [compiler-controls.rs](compiler-controls.rs).
+Status: **UNAPPLIED / UNCOMPILED / UNEXECUTED**. The implementation and controls
+are proposed software changes. They establish no Runtime/compiler pass or
+emitted-WASM result. Original CLI evidence remains in the parent directory.
+
+## Semantic transport
 
 `NativeOp::DefineProc` becomes `{entry_key: String, argv: Vec<NativeValueId>}`.
 `lower_invoke` supplies its existing evaluated argv to `lower_definition`.
-All current literal/vector/procedure-span/dispatch and native-compilation gates
-remain in place; this does not broaden admission to a substituted name.
-`argv[1]` is the already evaluated publication-name object, not a string rebuilt
-from `Procedure.name` or `Procedure.qualified_name`. Internal table binding keeps
-`entry_key`. The retained formals/body argument objects use the same single argv.
+The actual name argument is `argv[1]`; it is not reconstructed from `Procedure.name`
+or `Procedure.qualified_name`. The internal entry key only selects the compiled
+body's table slot. Original formals and body use the same complete argument vector.
+
+Current literal/vector/procedure-span/dispatch and native compilation admission
+checks remain independent. Substituted names do not gain definition eligibility.
+The fixed C86/C9 compiler control must require a real `DefineProc` instruction;
+a declined source cannot pass by merely comparing a QName formula. If the actual
+retained entry/admission setup refuses it, that failure stays explicit. A default
+Native frame or entry cannot force the control through.
 
 One additive `CodegenAbiImportId::ProcDefineOriginalArgv` imports
 `tcl_codegen_proc_define_original_argv(argv, argc, entry, out) -> status`.
-On wasm all four parameters are i32; `entry=0` supplies source-only publication.
-Old `ProcRegister` and `ProcDefineNative` signatures and exports stay intact.
-The descriptor is added to `ALL`; the existing derived ABI fingerprint changes
-through that actual descriptor. Default host-refusal classification includes it.
+All four parameters are i32 on wasm; `entry=0` supplies source-only publication.
+Both old `ProcRegister` and `ProcDefineNative` signatures and exports stay intact.
+The descriptor is in `ALL` and retains default Host refusal checks.
 
-Native emission reuses its borrowed argv frame and completion-adoption machinery.
-The argv frame sizing walker must include DefineProc. It passes only the internal
-key to `push_entry_index`, never to the runtime's name parser. The returned status
-is treated with the same host-refusal checks as Invoke, and the exact completion
-triple is adopted through the existing cleanup path.
+The native emitter reuses its borrowed argv frame and completion-adoption code.
+Frame sizing includes `DefineProc`; only the internal key reaches `push_entry_index`.
+The Runtime entry reuses `tcl_invoke_argv`'s input validation, `BorrowedArgv`,
+`AbiActivation` and `CodegenOperation::settle` conventions, but invokes the shared
+original procedure handler with the independently checked optional compiled entry.
 
-The Runtime implementation copies the existing tcl_invoke_argv entry/argc/null/
-BorrowedArgv/AbiActivation/CodegenOperation::settle structure, but calls the
-shared procedure handler with an independently checked optional NativeProcEntry.
-The stock handler and the additive ABI both enter OriginalArguments and call
-`proc_cmd_original`. Its only semantic change is supplying that optional entry
-at its existing install_proc_chosen_storage_with_original_key call. The actual
-original name object, Jim key preparation, selected name validation, formals/body
-order, result convention, body choice and operation checks remain shared.
+The object-aware owner is `cmd_proc::proc_cmd_original`, not the lower-level byte
+installer. The stock handler and additive ABI both enter `OriginalArguments`.
+The shared handler retains actual name objects, Jim key preparation, selected
+namespace/name validation, formals/body order, body choice, result convention and
+operation checks. Its existing `install_proc_chosen_storage_with_original_key`
+call receives the optional compiled entry. No header or holder is recreated from
+source metadata or reporting text.
 
-There is no existing object-valued lower-level installer: install_proc_original_storage
-accepts bytes. The existing object-aware owner is proc_cmd_original (cmd_proc.rs:105),
-which obtains the original name from argv, checks native namespace/name grammar,
-and retains the actual Jim key before its installer call at line 305. The new
-helper exposes this owner instead of reimplementing the original name handling.
-The actual namespace is the live current namespace under the entered Runtime
-operation. A rendered source/QName cannot create or substitute that holder.
-Current compile-time binding/context/admission obligations must remain independent;
-a changed or unavailable source context continues its existing typed decline or
-ordinary generic invocation. This patch creates no original object or holder from
-source metadata and does not make a captured VM registration a Native compiler pass.
+The publication namespace is the actual live current namespace under the entered
+Runtime operation. A rendered source/QName cannot substitute for it. Independent
+source binding/context/admission requirements remain mandatory; absent or changed
+ownership keeps the existing generic invocation or typed refusal.
 
-The general WASM emitter declines its direct ProcRegister specialization as a
-whole, so its existing leaf plan evaluates the complete original argument vector
-once and invokes the runtime normally. This stays source-only and avoids a second
-literal-name facts structure or an argv reevaluation. The old import can remain
-for compatibility while subsequent cleanup determines whether its unused generated
-import needs removal. No root-colon special case is introduced.
+## General backend and cleanup
 
-Implementation owners in the scratch patch:
-- native_lowering/ir.rs: DefineProc operand shape.
-- native_lowering/lower.rs: evaluated argv argument and preserved admission gates.
-- codegen/wasm/native_emit.rs: import, argv frame sizing, borrowed call/completion.
-- codegen/wasm/backend.rs: general direct-definition decline; collect_defined_procs
-  reads entry_key rather than the publication operand.
-- tcl-runtime-api/src/codegen_abi.rs: additive ID, ALL and exact descriptor.
-- runtime/rust/src/cmd_proc.rs: original handler's optional compiled-entry parameter.
-- runtime/rust/src/codegen_abi.rs: additive borrowed-argv entry.
+The general emitter invokes the existing complete once-evaluated leaf argv path
+for procedure declarations. The former `ProcRegister` shortcut always forwarded
+`entry=None`; it did not install a compiled NativeProcEntry. Native installation
+continues through the separate `DefineProc` set and internal table key.
+General procedure planning and exports remain; the generic path changes dispatch,
+argument-object creation and parser work. It can expose original validation and
+admission that the byte-registration shortcut omitted. Performance and full
+provider equivalence remain unmeasured.
 
-Current consumers and test updates still required (not covered by a build claim):
-- native_lowering/tests.rs: the ordinary greet exact DefineProc struct assertion
-  must instead verify entry key plus the existing evaluated argv values; retain
-  existing redefinition/materialized-body/substituted-body decline tests.
-- codegen/wasm/native_emit.rs: result_source already handles DefineProc as whole
-  completion; can_fail already treats it as fallible. Neither needs weakened
-  classification. Its direct variant match is in the scratch patch.
-- codegen/wasm/backend.rs: collect_defined_procs is the other direct field consumer;
-  table_install and entry maps keep their internal keys.
-- codegen/wasm/pipeline.rs: new-import counters and the lazy-source definition
-  allowance must include ProcDefineOriginalArgv; original admission-refusal test
-  must assert zero new-import calls as well as the old import's zero calls.
-- tests/wasm_codegen.rs: three ProcDefineNative counter sites at current lines
-  1442/1708/1725 become the additive ID; the old generic ProcRegister expectation
-  near line 201 becomes once-evaluated InvokeArgv behavior.
-- tests/wasm_real_link.rs: compile_native_bound near line 1164 checks the additive
-  definition call; its real table and runtime-entry checks remain mandatory.
-- tcl-runtime-api/src/codegen_abi.rs: add four-i32-to-i32 descriptor and default
-  refusal check assertions; preserve seven-i32 old-import compatibility assertions.
-- runtime/rust/src/codegen_abi.rs: actual borrowed-object publication tests with
-  current real namespace IDs, completion cleanup, no-entry and compiled-entry
-  binding/replacement; retain existing old-import compatibility tests.
-- runtime/rust/src/interp.rs comments mentioning the old import's sole provenance
-  need wording encompassing both imports, without implying new identity evidence.
-- Production WASM linking/export visibility must be checked on the actual build;
-  no explicit hand-maintained export list was found for this import. runtime/rust/
-  build.rs owns shared table linking; no extra table ABI change is proposed.
+The always-false direct-definition emitter, its private operation/literal maps,
+recording helper and span-to-Procedure copies are removed within the backend owner.
+The independent native `definition_words_are_written_out` check stays unchanged.
+Existing backend tests now inspect the actual leaf argument plan: a substituted
+body is a scalar read; a literal body stays inert data; a root-colon name remains
+its original operand. Actual real-link controls separately check materialized
+body text, once-only effects and inert body text. No dead-code suppression is added.
 
-The fixed C86/C9 compiler test must require an actual DefineProc instruction;
-a completely refused source cannot pass by comparing a QName formula. It checks
-its evaluated argv[1] against NativeNameProtocol::command_publication_slot(root)
-and separately proves that the entry key selects a different slot as fresh text.
-If the existing actual entry/admission setup refuses this source, preserve that
-failure and establish the applicable entry from its owner before changing the
-control. Do not insert a default Native entry/frame to force a green assertion.
-Dynamic counting, unknown read and shadowed-definer inputs separately keep generic
-argv behavior; only real Runtime/WASM execution can establish once-only effects.
-The current original CLI capture supplies public publication distinction only.
+## Lifetime and completion boundary
 
+Native `Invoke` already drops the transport status after its checked call.
+`NativeEmitter::call` checks `host_refusal_pending` before returning to adoption
+and branches to `Label::Exit`, which releases owned locals and call-frame storage.
+The additive import is not exempted by either transport-only allowlist. Host
+refusal therefore leaves the completion out triple unread. Only the non-Host path
+adopts code/result/options into owned locals through `adopt_frame_completion`.
+Runtime `settle` captures while activation owns Guest state, drops activation,
+validates currency and publishes out. These are inspected code paths, not a run
+of the proposed ABI.
 
-## Review evidence and compatibility limit
+## ABI compatibility
 
-The general fallback is a real behavior/performance change, not a measured
-no-op. Its old ProcRegister call (backend.rs:759) forwards entry=None
-(Runtime codegen_abi.rs:1701), so that particular call never installed a
-compiled NativeProcEntry. Native table entries are collected from native
-DefineProc opcodes at backend.rs:2435; their separate entry_key and installation
-remain. General procedure_plan/direct export generation is unchanged. Existing
-direct_calls facts are populated/tested but are not read to invoke a compiled
-callee in this current backend. The generic fallback now enters the original
-handler with evaluated objects and may reach validation/admission that the old
-registration shortcut omitted; actual lazy-body/frame tests must validate this.
-No benchmark or all-provider equivalence is asserted. If general leaf formation
-cannot establish the original full argv/context, keep its existing typed source
-rung/Native admission requirement rather than force a lookup or default frame.
+`CODEGEN_ABI_VERSION` is derived from all descriptors and transport layout.
+`ArtefactIdentityManifest` records that fingerprint and strictly compares it with
+the actual Runtime's identity. Old import symbols remain callable, but a module
+with the prior fingerprint is refused. The proposal does not widen this gate.
+New compiler and Runtime artifacts must use the same descriptor table.
 
-The dropped additive ABI status follows the existing Native Invoke sequence
-(native_emit.rs:1642). NativeEmitter::call (line 775) checks
-host_refusal_pending before returning to the emitter and branches to Label::Exit,
-which releases owned locals and call-frame storage. A Host refusal leaves the
-out triple unread. Only the reached non-Host path drops the transport status and
-calls adopt_frame_completion (line 1256), which moves code/result/options into
-owned completion locals. The new descriptor is not exempted by the transport
-allowlist, and its new import index is not in NativeImports' transport-only list.
-Thus its Host path retains the actual existing check, rather than treating a
-Host status as a Tcl code. Runtime CodegenOperation::settle (line 438) captures
-while activation owns Guest state, drops activation, validates currency and then
-writes out. This is source inspection, not a run of the proposed ABI.
+[abi-layout.json](abi-layout.json) retains the exact source preimage, descriptor
+order and layout values. Its source-derived fingerprints are 0x034bab19 for the
+63-descriptor table and 0x4dc7e147 after the proposed additive descriptor. This
+arithmetic is not an executed old Runtime/module result. The proposed real-link
+control checks actual loader refusal for that prior fingerprint, accepts the
+current manifest and executes the new four-i32 import signature. Existing
+arbitrary-foreign-ABI refusal and old-signature checks remain.
 
-CODEGEN_ABI_VERSION is explicitly derived at tcl-runtime-api/codegen_abi.rs:600
-from every ALL descriptor and layout. Adding this descriptor changes the hash.
-ArtefactIdentityManifest::from_environment retains that version (manifest.rs:252);
-its comparison at manifest.rs:277 records AbiVersion mismatch on strict inequality.
-Runtime tcl_runtime_identity (codegen_abi.rs:580) reports the actual fingerprint;
-existing wasm_real_link mismatched-manifest test near line 728 must remain.
-Old import signatures/exports are retained, but artefacts bearing the old
-fingerprint are refused by the existing identity gate. This proposal does not
-waive the gate or claim acceptance of old fingerprinted modules. Compiler and
-Runtime must be rebuilt together for new artefacts. Existing derived-table tests
-verify added descriptors perturb the fingerprint; no manual version number or
-compatibility table is proposed. No generated ABI report was located in the
-bounded docs/generated + xtask search. If packaging generates one outside that
-surface, regenerate it from the actual new descriptor, not a hand-written hash.
+No generated ABI report was found in the bounded `docs/generated` and `xtask`
+surfaces. Actual Runtime export/build/manifest checks remain required. A generated
+report outside those surfaces must come from the actual table, not a manual hash.
 
-Runtime named-holder and missing-holder software control sources are in
-runtime-controls.rs; they use actual Runtime native
-core construction and current live NsIds, with no rendered holder reparse.
-The colon-holder ordinary-name controls share scope with the C86/C9 original
-publication proof; a Jim run needs its own selected original key/caller controls.
+## Owners and controls
 
+The seven implementation owners in [implementation.patch](implementation.patch):
 
-Scratch test-update diff: test-updates.patch.
-It updates the original greet operand assertion, appends the fixed C86/C9
-controls, requires zero new-definition calls in BOTH original compiler-admission
-refusal cases, includes the lazy-body source-only allowance, adjusts the three
-native-definition counters and real-link import check, and checks the additive
-descriptor/refusal/fingerprint. The general analysed-add case now expects three
-once-evaluated invocations (proc, nested add, puts), and zero ProcRegister calls.
-The opaque rebound test already expects four generic invocations and stays so.
-Other explicit generic counters in that file cover sources without a literal
-procedure definition and are not mechanically incremented.
+- `native_lowering/ir.rs`: evaluated argv and internal entry key.
+- `native_lowering/lower.rs`: existing evaluated vector and preserved admission.
+- `codegen/wasm/native_emit.rs`: additive import, borrowed frame and completion.
+- `codegen/wasm/backend.rs`: general argv route, private cleanup, internal table key.
+- `tcl-runtime-api/src/codegen_abi.rs`: additive descriptor and `ALL`.
+- `runtime/rust/src/cmd_proc.rs`: original handler's optional compiled entry.
+- `runtime/rust/src/codegen_abi.rs`: additive borrowed-argv entry.
 
-The seven implementation owners are prepared separately from those five existing
-test files. Runtime controls are a separate proposed source, not a executed suite
-or a complete replacement for existing callback/admission coverage. The shipping
-wasm-codegen contract's old name/text definition call description near line 326
-must be rewritten to describe original evaluated argv, internal entry keys,
-original handler ownership and retained legacy imports. Existing native proc
-comments in interp.rs should likewise reference both definition imports.
-No hand-maintained ABI export report was found in the bounded current surfaces;
-the actual Runtime build/export and manifest checks are still required.
+[test-updates.patch](test-updates.patch) updates existing definition assertions,
+private backend-plan tests, native import counters and actual link-import checks.
+Both original compilation-admission refusal controls require zero new-definition
+calls. The lazy source-body allowance includes the new import. The general add
+case now expects three generic invocations; its opaque rebound case remains four.
+
+[compiler-controls.rs](compiler-controls.rs) requires actual C86/C9 definition
+selection and compares the evaluated original operand through the shared
+publication owner, independently of the compiled entry key. Counting substitutions,
+unknown reads, replaced definers and missing vectors must keep the correct fallback.
+
+[runtime-controls.rs](runtime-controls.rs) uses actual Runtime construction and
+live namespace IDs for root, named, colon and missing holders, caller-owned
+argument objects and completion cleanup. Its `Some(stub_body)` callable is
+explicitly Rust software ABI coverage; it grants no Native provenance.
+
+[wasm-controls.rs](wasm-controls.rs) uses the actual linked Runtime/Wasmtime
+harness. The root-colon test requires two installed compiled bodies, two actual
+native dispatches, distinct results and absence of the plain name. Additional
+controls check strict manifest refusal/current signature, a body substitution
+executed once, stored materialized body text and inert braced body text. None is
+executed here, and no oracle conformance result is attributed to these sources.
+
+Before acceptance, integrate and run these controls with the actual Runtime,
+retaining registration, replacement, lazy-body, frame, callback and cleanup checks.
+The shipping WASM contract must describe evaluated original argv and internal keys,
+with both legacy imports retained. Source preimages and artifact hashes are in
+[provenance.json](provenance.json); preparation scripts produce temporary diffs
+and never apply them to production files.

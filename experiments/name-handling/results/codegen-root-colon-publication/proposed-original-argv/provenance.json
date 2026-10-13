@@ -47,37 +47,45 @@
     }
   },
   "artifacts": {
+    "abi-layout.json": {
+      "sha256": "47e5a5f2bbf156cd83ecc0b3f2ca4fad5155d99cd66a0d4d1af36388a442c2a9",
+      "bytes": 7926
+    },
     "compiler-controls.rs": {
       "sha256": "a40cba54364256c48393968b7e4b8357cd2a3df153a61938b4026d7fc306293d",
       "bytes": 6609
     },
     "design.md": {
-      "sha256": "5865d002ccdf170a74962c3b0fc732f9ee5dc7ef580241d9ee00632169e32148",
-      "bytes": 12154
+      "sha256": "c3f4f79f0ef0ebb78844e81f60e8336014fac9d89fbfc05a290d6bcd9f7f49d6",
+      "bytes": 8440
     },
     "implementation.patch": {
-      "sha256": "c1385b5281bdcbc160310d14225fde1649d5e971a269b48197eba55f9123b3b6",
-      "bytes": 13405
+      "sha256": "1528212d2a1ff2cdc550cd24ffc23c1b7bd65e517d43b4d62ccbc1cd9ce10eae",
+      "bytes": 22354
     },
     "prepare-implementation.py": {
-      "sha256": "8169617304bf504d351cd0392f26567722cdeef5b50a2543d7d9c9605c2475f5",
-      "bytes": 7599
+      "sha256": "1cc30836be00e46cff21202631aea7fc7450c504466bda967c56e0d3c045d917",
+      "bytes": 9297
     },
     "prepare-test-updates.py": {
-      "sha256": "1aee7a35dc761d75c9c9ccb2eaffa8142cff104b8d0f699e18fdc19652ca3552",
-      "bytes": 6316
+      "sha256": "19d02e1d82fe641f394c4f933d0ddb80d9dfa674641c340594a505a13ae45b59",
+      "bytes": 10271
     },
     "question.md": {
-      "sha256": "ec36e861a4e24f820865dc1fd7ec89b755bde255308bc53507bfbc2dcba68391",
-      "bytes": 3233
+      "sha256": "7aabb9d5b74e56ffa351fa77e5769e9f43e8276b89a9f5c2193ed420dadb97ee",
+      "bytes": 3949
     },
     "runtime-controls.rs": {
-      "sha256": "6a7e77fd46d070c2fa8dec722d57e0313bf3840b92eb17c776098e48cc4b151b",
-      "bytes": 4464
+      "sha256": "92952709aa20b18249855543f431d6e0c55c93e5a2ad23ac3a78d80bdf1f631a",
+      "bytes": 5846
     },
     "test-updates.patch": {
-      "sha256": "5a99ede5ed05b8587ff5ddc9073a8c2ae0c947dd672f61ae4b8e9ec25c923793",
-      "bytes": 14292
+      "sha256": "9f1aae5102bde4b72a7a163eb5efcd79bf96c65f8e788ef4893405d65a10dccb",
+      "bytes": 20414
+    },
+    "wasm-controls.rs": {
+      "sha256": "f02c7cb6445cc2f2c443221ac7eba590619003790897f4bbfd1349ffc28d476f",
+      "bytes": 4572
     }
   },
   "scope": "Proposed software implementation and test sources only; original CLI captures remain separate in the parent directory."

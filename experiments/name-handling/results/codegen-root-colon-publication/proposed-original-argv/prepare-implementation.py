@@ -12,7 +12,7 @@ def transform(path, edits):
     old=(root/path).read_text(); new=old
     preimages[path]={'sha256':hashlib.sha256(old.encode()).hexdigest(),'bytes':len(old.encode())}
     for before,after in edits:
-        assert new.count(before)==1,(path,before[:90],new.count(before))
+        assert new.count(before) in (1,2) if 'procedures_by_span: HashMap::new()' in before else new.count(before)==1,(path,before[:90],new.count(before))
         new=new.replace(before,after)
     changes.extend(difflib.unified_diff(old.splitlines(True),new.splitlines(True),fromfile='a/'+path,tofile='b/'+path))
 transform('rust/tcl-compiler/src/native_lowering/ir.rs',[(
@@ -71,16 +71,29 @@ transform('rust/tcl-compiler/src/codegen/wasm/native_emit.rs',[
                 self.release_scratch();
             }''')])
 backend=(root/'rust/tcl-compiler/src/codegen/wasm/backend.rs').read_text()
-start=backend.index('            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {',backend.index('fn try_emit_direct_operation'))
-end=backend.index('            // There is no `puts` fast path',start)
+def source_region(start, end):
+    return backend[backend.index(start):backend.index(end, backend.index(start))]
+direct = source_region('    /// The narrow direct specialisations', "    /// The general tier's normal leaf-command path")
+statement = source_region('            Statement::Call { span, .. } => {', '            _ => false,')
+record = source_region('/// Record the semantic operation a proven statement resolves to', 'const fn abi_value_type')
+producer = source_region('            let (Statement::Call {\n                command, tokens, ..', '            // Generic prebuilt-argv invocation is the normal leaf-command path')
+literal_field = source_region('    /// Spans of `proc` definitions', '\n}\n\n#[derive(Clone, Copy, PartialEq, Eq)]')
 transform('rust/tcl-compiler/src/codegen/wasm/backend.rs',[
-(backend[start:end],'''            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => false,
-'''),
-('''                NativeOp::DefineProc { qualified_name, .. } => {
-                    out.insert(qualified_name.clone());
-                }''','''                NativeOp::DefineProc { entry_key, .. } => {
-                    out.insert(entry_key.clone());
-                }''')])
+(direct,''),
+(statement,'            Statement::Call { span, .. } => self.try_emit_leaf_invocation(*span),\n'),
+(record,''),
+(producer,''),
+('    operations: HashMap<(u32, u32), SemanticOperationId>,\n',''),
+(literal_field,''),
+('                NativeOp::DefineProc { qualified_name, .. } => {\n                    out.insert(qualified_name.clone());\n                }','                NativeOp::DefineProc { entry_key, .. } => {\n                    out.insert(entry_key.clone());\n                }'),
+('    procedures_by_span: HashMap<(u32, u32), Procedure>,\n',''),
+('            direct_procs: HashSet::new(),\n            procedures_by_span: HashMap::new(),\n            facts: FunctionFacts::default(),','            direct_procs: HashSet::new(),\n            facts: FunctionFacts::default(),'),
+('        direct_procs: HashSet::new(),\n        procedures_by_span: HashMap::new(),\n        facts: FunctionFacts::default(),','        direct_procs: HashSet::new(),\n        facts: FunctionFacts::default(),'),
+('    by_span: HashMap<(u32, u32), Procedure>,\n',''),
+('    let by_span = procs\n        .iter()\n        .map(|proc| (span_key(proc.span), (*proc).clone()))\n        .collect();\n',''),
+('        arity,\n        by_span,\n        direct,','        arity,\n        direct,'),
+('        by_span: procedures_by_span,\n',''),
+('        direct_procs,\n        procedures_by_span,\n        facts: top_facts,','        direct_procs,\n        facts: top_facts,')])
 transform('rust/tcl-runtime-api/src/codegen_abi.rs',[
 ('''    ProcDefineNative,
     /// Log one''','''    ProcDefineNative,

@@ -250,6 +250,133 @@
          .count(),
          1,
          "only one of the two statements binds"
+--- a/rust/tcl-compiler/src/codegen/wasm/backend.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+@@ -3438,21 +3438,6 @@
+         found
+     }
+ 
+-    /// A definition whose body word is a substitution must not be registered
+-    /// by this tier.
+-    ///
+-    /// `Procedure` records the *written* word
+-    /// `${body}` while the body this module compiled came from `return hello`,
+-    /// so registering it would report that word as `info body`, and any later
+-    /// run of the source body would evaluate the substitution in `p`'s own
+-    /// frame, where `body` does not exist.
+-    ///
+-    /// Asserted against the rule rather than against the emitted module,
+-    /// because the emit path is unreachable today: every substituted word in a
+-    /// definition also defeats the enclosing function's binding proof, so no
+-    /// `StructuredLowering(Proc)` operation is recorded to gate. That is a
+-    /// coincidence of two independent proofs, not a design — the point of the
+-    /// guard is that it already holds when procedure bodies become proven.
+     #[test]
+     fn host_script_admission_boxes_the_complete_original_byte_image() {
+         use crate::command_binding::{ExecutedScriptSource, SourceOriginId};
+@@ -3491,22 +3476,27 @@
+             .into_iter()
+             .find(|(span, _)| *span == procedure.span)
+             .expect("the inner `proc` statement kept its tokens");
+-        assert!(
+-            !proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
+-            "a substituted body word must keep the generic invocation",
++        let facts = function_facts(
++            enclosing,
++            &unit.ir_module,
++            &registry,
++            &unit.command_mutations,
++            false,
+         );
+-    }
+-
+-    /// The same proof, on a body that *is* written out, still binds — so the
+-    /// rule is about substitution rather than a blanket refusal to register
+-    /// anything defined inside a procedure.
++        let plan = facts.leaf_invocations.get(&span_key(definition.0))
++            .expect("the original variable word has a generic argv plan");
++        let [_, _, _, body] = plan.root.words.as_slice() else {
++            panic!("the original four-word vector survives: {:?}", plan.root.words);
++        };
++        assert!(matches!(body, WasmWordPlan::Scalar { name, .. } if name == "body"));
++        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
++    }
++
+     #[test]
+-    fn a_written_out_definition_body_still_binds() {
++    fn a_written_out_definition_body_keeps_original_generic_argv() {
+         let context =
+             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+         let registry = context.commands();
+-        // A called original body supplies its reached binding separately from
+-        // the uncalled declaration preview and from availability metadata.
+         let unit = retained_source_unit(
+             std::sync::Arc::clone(&context),
+             "proc make {} { proc p {x} {return $x} }; make\n",
+@@ -3517,13 +3507,7 @@
+         let definition = proc_statement_tokens(enclosing)
+             .into_iter()
+             .find(|(span, _)| *span == procedure.span)
+-            .expect("the inner `proc` statement kept its tokens");
+-        assert!(
+-            proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
+-            "a written-out definition is exactly what this tier may register",
+-        );
+-
+-        // And the reachable end of it: the fact the emitter consults is set.
++            .expect("the original definition keeps its own span");
+         let facts = function_facts(
+             enclosing,
+             &unit.ir_module,
+@@ -3531,26 +3515,29 @@
+             &unit.command_mutations,
+             false,
+         );
+-        assert!(
+-            facts
+-                .literal_proc_definitions
+-                .contains(&span_key(procedure.span)),
+-            "the guard must not refuse a definition it should register: {:?}",
+-            facts.literal_proc_definitions,
+-        );
+-    }
+-
+-    /// A top-level written-out definition is registered too — the guard is
+-    /// about the words, not about where the definition sits.
++        let plan = facts.leaf_invocations.get(&span_key(definition.0))
++            .expect("the original literal definition retains its generic argv");
++        let [head, name, parameters, body] = plan.root.words.as_slice() else {
++            panic!("one complete original vector: {:?}", plan.root.words);
++        };
++        assert!(matches!(head, WasmWordPlan::Literal { text, .. } if text == "proc"));
++        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == "p"));
++        assert!(matches!(parameters, WasmWordPlan::Literal { text, .. } if text == "x"));
++        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
++        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
++    }
++
+     #[test]
+-    fn a_top_level_written_out_definition_is_registered() {
+-        let facts = top_level_facts("proc p {x} {return $x}\n");
+-        assert_eq!(
+-            facts.literal_proc_definitions.len(),
+-            1,
+-            "{:?}",
+-            facts.literal_proc_definitions,
+-        );
++    fn a_top_level_written_out_definition_retains_original_name_operand() {
++        let facts = top_level_facts("proc :audit {x} {return $x}\n");
++        assert_eq!(facts.leaf_invocations.len(), 1);
++        let plan = facts.leaf_invocations.values().next().expect("one original argv plan");
++        let [_, name, _, body] = plan.root.words.as_slice() else {
++            panic!("one complete original vector: {:?}", plan.root.words);
++        };
++        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == ":audit"));
++        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
++        assert!(facts.leaf_declines.is_empty());
+     }
+ 
+     /// A leaf command whose words all compile selects a plan and records no
 --- a/rust/tcl-compiler/tests/wasm_real_link.rs
 +++ b/rust/tcl-compiler/tests/wasm_real_link.rs
 @@ -1161,7 +1161,7 @@

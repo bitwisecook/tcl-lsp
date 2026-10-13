@@ -88,3 +88,29 @@ fn original_definition_argv_does_not_create_a_missing_holder() {
 //   while borrowed argv and callback-held originals release after mutable scope;
 // - complete original CLI comparison uses the independently retained records,
 //   not this test's generated object bytes to claim an original compiler pass.
+
+#[test]
+fn original_root_name_object_retains_the_installed_software_entry() {
+    // This callable is an existing Rust software ABI stub, not Native evidence.
+    leak_free(|| unsafe {
+        for environment in ["tcl8.6", "tcl9.0"] {
+            let mut interp = scalar_interpreter(environment);
+            tcl_runtime_set_current_interp(&mut interp);
+            stub_argv(&[b"return", b"compiled"]);
+            let words = [owned_word(b"proc"), owned_word(b":audit"), owned_word(b""), owned_word(b"return source")];
+            let before = tcl_codegen_native_proc_dispatches();
+            let mut completion = define_original_words(&words, Some(stub_body));
+            assert_eq!(completion.code, i32::try_from(Code::Ok.as_int()).unwrap());
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            assert_eq!(interp.eval_str(b":audit"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"compiled");
+            assert_eq!(tcl_codegen_native_proc_dispatches(), before + 1);
+            assert_eq!(interp.eval_str(b"info body :audit"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"return source");
+            assert_eq!(interp.eval_str(b"info commands audit"), Code::Ok);
+            assert!(interp.result_bytes().is_empty());
+            tcl_runtime_set_current_interp(ptr::null_mut());
+        }
+    });
+}

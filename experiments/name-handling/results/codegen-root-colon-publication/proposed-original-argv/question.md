@@ -35,6 +35,8 @@ Artifacts are separate:
 | [test-updates.patch](test-updates.patch) | Proposed existing-test, import-counter and descriptor checks |
 | [compiler-controls.rs](compiler-controls.rs) | Fixed C86/C9 control requiring an actual `DefineProc`, plus original operand/shared-slot checks and adverse inputs |
 | [runtime-controls.rs](runtime-controls.rs) | Proposed actual Runtime object/current-holder and missing-holder controls |
+| [wasm-controls.rs](wasm-controls.rs) | Proposed actual compiled-table invocation and strict manifest-loader/signature controls |
+| [abi-layout.json](abi-layout.json) | Source-derived prior/additive fingerprint inputs and values, with no Runtime execution claim |
 | [provenance.json](provenance.json) | Exact source preimage and artifact byte hashes |
 | [prepare-implementation.py](prepare-implementation.py), [prepare-test-updates.py](prepare-test-updates.py) | Read source and prepare temporary diffs without applying them; required source shapes are asserted |
 
@@ -45,3 +47,10 @@ a default Native frame/entry cannot force the control through. Counting
 substitution, a replaced definer, missing evaluated argv and changed namespace
 ownership independently require the correct fallback. Actual Runtime/WASM
 execution must establish call results and once-only effects separately.
+
+The real-link control requires two installed compiled bodies and actual runtime
+dispatch counts, distinct body results and absence of plain `audit`. A separate
+loader control rejects the prior source-table fingerprint and executes the
+current additive signature against the actual Runtime. A Rust callable stub
+control remains explicitly software coverage; it cannot substitute for emitted
+WASM execution. All these proposed controls are unexecuted.

@@ -89,6 +89,84 @@ def wasm(s):
     // declaration, nested add call and puts dispatch with original evaluated argv.
     assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");''')
 change('rust/tcl-compiler/tests/wasm_codegen.rs',wasm)
+def backend_tests(s):
+    start=s.index('    /// A definition whose body word is a substitution must not be registered')
+    end=s.index('    #[test]\n    fn host_script_admission_boxes_the_complete_original_byte_image',start)
+    s=s[:start]+s[end:]
+    before='''        assert!(
+            !proc_definition_is_written_out(&unit.ir_module, definition.0, definition.1),
+            "a substituted body word must keep the generic invocation",
+        );'''
+    after='''        let facts = function_facts(
+            enclosing,
+            &unit.ir_module,
+            &registry,
+            &unit.command_mutations,
+            false,
+        );
+        let plan = facts.leaf_invocations.get(&span_key(definition.0))
+            .expect("the original variable word has a generic argv plan");
+        let [_, _, _, body] = plan.root.words.as_slice() else {
+            panic!("the original four-word vector survives: {:?}", plan.root.words);
+        };
+        assert!(matches!(body, WasmWordPlan::Scalar { name, .. } if name == "body"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));'''
+    assert s.count(before)==1
+    s=s.replace(before,after)
+    start=s.index('    /// The same proof, on a body that *is* written out, still binds')
+    end=s.index('    /// A leaf command whose words all compile selects a plan',start)
+    replacement='''    #[test]
+    fn a_written_out_definition_body_keeps_original_generic_argv() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let unit = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc make {} { proc p {x} {return $x} }; make\\n",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
+        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let definition = proc_statement_tokens(enclosing)
+            .into_iter()
+            .find(|(span, _)| *span == procedure.span)
+            .expect("the original definition keeps its own span");
+        let facts = function_facts(
+            enclosing,
+            &unit.ir_module,
+            registry,
+            &unit.command_mutations,
+            false,
+        );
+        let plan = facts.leaf_invocations.get(&span_key(definition.0))
+            .expect("the original literal definition retains its generic argv");
+        let [head, name, parameters, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(head, WasmWordPlan::Literal { text, .. } if text == "proc"));
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == "p"));
+        assert!(matches!(parameters, WasmWordPlan::Literal { text, .. } if text == "x"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(!facts.leaf_declines.contains_key(&span_key(definition.0)));
+    }
+
+    #[test]
+    fn a_top_level_written_out_definition_retains_original_name_operand() {
+        let facts = top_level_facts("proc :audit {x} {return $x}\\n");
+        assert_eq!(facts.leaf_invocations.len(), 1);
+        let plan = facts.leaf_invocations.values().next().expect("one original argv plan");
+        let [_, name, _, body] = plan.root.words.as_slice() else {
+            panic!("one complete original vector: {:?}", plan.root.words);
+        };
+        assert!(matches!(name, WasmWordPlan::Literal { text, .. } if text == ":audit"));
+        assert!(matches!(body, WasmWordPlan::Literal { text, .. } if text == "return $x"));
+        assert!(facts.leaf_declines.is_empty());
+    }
+
+'''
+    return s[:start]+replacement+s[end:]
+change('rust/tcl-compiler/src/codegen/wasm/backend.rs',backend_tests)
+
 change('rust/tcl-compiler/tests/wasm_real_link.rs',lambda s:s.replace('CodegenAbiImportId::ProcDefineNative','CodegenAbiImportId::ProcDefineOriginalArgv').replace('`tcl_codegen_proc_define_native`','`tcl_codegen_proc_define_original_argv`'))
 def api(s):
  before='''    #[test]
