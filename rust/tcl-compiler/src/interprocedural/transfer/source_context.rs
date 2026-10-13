@@ -118,6 +118,7 @@ impl<'a> SourceSummaryContext<'a> {
     }
 
     pub(super) fn procedure(&self, id: &crate::ir::ProcedureId) -> Option<&'a Procedure> {
+        self.module.procedure_ids.owns(*id).then_some(())?;
         let procedure = self.module.procedures.get(id)?;
         (self
             .module
@@ -459,6 +460,8 @@ impl<'a> SourceSummaryContext<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     #[test]
@@ -827,23 +830,34 @@ mod tests {
                 .is_none()
         );
         let mut changed = module.clone();
-        changed
-            .procedures
-            .get_mut("::p")
-            .unwrap()
-            .params_raw
-            .push_str(" injected");
+        {
+            let id = fixture_id(&changed.procedures, "::p");
+            changed.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .params_raw
+        .push_str(" injected");
         let source =
             SourceSummaryContext::for_module(&changed, context.commands(), changed.lexer_config)
                 .unwrap();
-        assert!(source.procedure("::p").is_none());
+        assert!(
+            source
+                .procedure(&fixture_id(&changed.procedures, "::p"))
+                .is_none()
+        );
         let mut moved = module.clone();
-        let procedure = moved.procedures.remove("::p").unwrap();
-        moved.procedures.insert("::other".into(), procedure);
+        let procedure = {
+            let id = fixture_id(&moved.procedures, "::p");
+            moved.procedures.remove(&id)
+        }
+        .unwrap();
+        let mut foreign_module = crate::ir::Module::default();
+        let foreign_id = foreign_module.retain_procedure(procedure.clone());
+        moved.procedures.insert(foreign_id, procedure);
         let source =
             SourceSummaryContext::for_module(&moved, context.commands(), moved.lexer_config)
                 .unwrap();
-        assert!(source.procedure("::other").is_none());
+        assert!(source.procedure(&foreign_id).is_none());
     }
 
     #[test]

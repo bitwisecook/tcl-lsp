@@ -100,6 +100,176 @@ fn source_variable_label(raw: &str) -> String {
         .to_owned()
 }
 
+/// Original hosted variable substitutions and independently bounded source coverage.
+#[derive(Debug, Clone)]
+pub struct OriginalHostedSourceVariableReferences {
+    /// Complete original substitution spans, without cells or runtime frames.
+    pub references: Vec<Span>,
+    /// A closed flat source region; nested, unknown and computed entry declines.
+    pub complete: bool,
+}
+
+fn word_variable_reference_spans(word: &tcl_lexer::NativeWord) -> Vec<Span> {
+    word.executable_parts()
+        .all_parts()
+        .filter_map(|part| {
+            matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }).then_some(part.span)
+        })
+        .collect()
+}
+
+fn source_variable_reference_spans(
+    words: &OriginalRegistryWords,
+    source: &str,
+    config: LexerConfig,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Vec<Span> {
+    let mut references = Vec::new();
+    for operand in words.operands().iter().flatten() {
+        if let Some(word) = operand.word() {
+            references.extend(word_variable_reference_spans(word));
+        }
+    }
+    for &(index, role) in words.roles().unwrap_or_default() {
+        if role != tcl_registry::ArgRole::Expr {
+            continue;
+        }
+        let Some(word) = words
+            .operands()
+            .get(index)
+            .and_then(Option::as_ref)
+            .and_then(|operand| operand.word())
+        else {
+            continue;
+        };
+        let Some(token) = word.tokens().first() else {
+            continue;
+        };
+        if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+            || token.content_offset != 1
+        {
+            continue;
+        }
+        let Ok(span) = word.content_span() else {
+            continue;
+        };
+        let Some(expression) = source.get(span.as_range()) else {
+            continue;
+        };
+        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile);
+        let substitutions = tcl_syntax::expr::live_expression_substitutions(
+            expression,
+            profile,
+            config,
+            |parsed| surface.validate(parsed).is_ok(),
+        );
+        references.extend(substitutions.variables.into_iter().filter_map(|variable| {
+            Some(Span::new(
+                span.start().checked_add(variable.start())?,
+                span.start().checked_add(variable.end())?,
+            ))
+        }));
+    }
+    references.sort_by_key(|span| (span.start(), span.end()));
+    references.dedup();
+    references
+}
+
+/// Original hosted source components under independently selected Registry roles.
+/// Unknown source entry stays partial; appliance frames and cells are independent.
+#[must_use]
+pub fn original_hosted_source_variable_references(
+    source: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+    context: Arc<ContextRegistry>,
+    config: LexerConfig,
+) -> Option<OriginalHostedSourceVariableReferences> {
+    let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+    let analysis = Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, profile.name);
+    let (image, retained_config) = tcl_compiler::source_graph::current_analysis(source, &analysis)?;
+    if retained_config != config || analysis.analysis_context_unavailable.is_some() {
+        return None;
+    }
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    let vectors = source_vectors_from_analysis(source, &analysis, &image, config, &context)?;
+    let mut references = Vec::new();
+    for occurrence in analysis.original_vendor_source_names() {
+        if !occurrence.name_input().matches_source(&image, config)
+            || occurrence.original_words().first() != Some(occurrence.name_input().original_word())
+        {
+            continue;
+        }
+        for word in occurrence.original_words() {
+            references.extend(word_variable_reference_spans(word));
+        }
+    }
+    for (_, words) in &vectors {
+        references.extend(source_variable_reference_spans(
+            words, source, config, profile,
+        ));
+    }
+    let plan = tcl_lexer::native_script_words_in(
+        image,
+        Span::new(0, u32::try_from(source.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    for command in &plan.commands {
+        for word in &command.words {
+            references.extend(word_variable_reference_spans(word));
+        }
+    }
+    references.sort_by_key(|span| (span.start(), span.end()));
+    references.dedup();
+    let complete = plan.fatal_tail.is_none()
+        && analysis.dynamic_variable_names.is_empty()
+        && plan.commands.len() == vectors.len()
+        && plan.commands.iter().all(|command| {
+            !command.words.iter().any(|word| {
+                word.executable_parts().all_parts().any(|part| {
+                    matches!(
+                        part.part,
+                        tcl_lexer::ExecutablePart::Command { .. }
+                            | tcl_lexer::ExecutablePart::Expression { .. }
+                            | tcl_lexer::ExecutablePart::ParseError(_)
+                    )
+                })
+            }) && vectors
+                .iter()
+                .find(|(span, _)| span.start() == command.span.start())
+                .is_some_and(|(_, words)| {
+                    use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
+                    words
+                        .source_script_bodies_for_mutation_coverage(&context)
+                        .is_some_and(|bodies| bodies.is_empty())
+                        && words.roles().is_some_and(|roles| {
+                            !roles
+                                .iter()
+                                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+                        })
+                        && words.with_source_schema(&context, |schema| {
+                            matches!(
+                                schema.semantics.value.route(),
+                                Some(EvalRoute::Direct {
+                                    id: NativeEvalId::CellWrite
+                                        | NativeEvalId::CellIncrement
+                                        | NativeEvalId::CellAppend
+                                        | NativeEvalId::CellListAppend
+                                        | NativeEvalId::ConstWrite,
+                                })
+                            )
+                        }) == Some(true)
+                })
+        });
+    Some(OriginalHostedSourceVariableReferences {
+        references,
+        complete,
+    })
+}
+
 fn source_vectors_from_analysis(
     source: &str,
     analysis: &AnalysisResult,
@@ -516,68 +686,16 @@ impl OriginalIrulesSourceContext {
                             .unwrap_or_default()
                     })
                     .collect();
-                let mut variable_names = Vec::new();
-                for operand in command.words.operands().iter().flatten() {
-                    if let Some(word) = operand.word() {
-                        for token in word
-                            .tokens()
-                            .iter()
-                            .filter(|token| token.kind == tcl_lexer::TokenType::Var)
-                        {
-                            let start = token
-                                .span
-                                .start()
-                                .saturating_add(u32::from(token.content_offset));
-                            if let Some(raw) = source.get(start as usize..token.span.end() as usize)
-                            {
-                                variable_names.push(source_variable_label(raw));
-                            }
-                        }
-                    }
-                }
-                for &(index, role) in command.words.roles().unwrap_or_default() {
-                    if role != tcl_registry::ArgRole::Expr {
-                        continue;
-                    }
-                    let Some(word) = command
-                        .words
-                        .operands()
-                        .get(index)
-                        .and_then(Option::as_ref)
-                        .and_then(|operand| operand.word())
-                    else {
-                        continue;
-                    };
-                    let Some(token) = word.tokens().first() else {
-                        continue;
-                    };
-                    if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-                        || token.content_offset != 1
-                    {
-                        continue;
-                    }
-                    let Ok(span) = word.content_span() else {
-                        continue;
-                    };
-                    let Some(expression) = source.get(span.as_range()) else {
-                        continue;
-                    };
-                    let surface =
-                        tcl_registry::expr_surface::RuntimeExprSurface::for_profile(self.profile);
-                    let substitutions = tcl_syntax::expr::live_expression_substitutions(
-                        expression,
-                        self.profile,
-                        self.config,
-                        |parsed| surface.validate(parsed).is_ok(),
-                    );
-                    for variable in substitutions.variables {
-                        let start = span.start().saturating_add(variable.start());
-                        let end = span.start().saturating_add(variable.end());
-                        if let Some(raw) = source.get(start as usize..end as usize) {
-                            variable_names.push(source_variable_label(raw));
-                        }
-                    }
-                }
+                let variable_names = source_variable_reference_spans(
+                    &command.words,
+                    source,
+                    self.config,
+                    self.profile,
+                )
+                .into_iter()
+                .filter_map(|span| source.get(span.as_range()))
+                .map(source_variable_label)
+                .collect();
                 crate::IrulesExecutableCommand {
                     span: command.span,
                     command: command.words.command().to_owned(),

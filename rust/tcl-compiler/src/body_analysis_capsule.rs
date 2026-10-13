@@ -17,17 +17,20 @@ use tcl_registry::CommandRegistry;
 pub struct BodyAnalysisCapsule {
     unit: Arc<CompilationUnit>,
     body: ProcedureId,
-    neutral: Option<Arc<NativeClosedBodyProjection>>,
+    neutral: Option<Arc<ClosedBodyProjection>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct NativeClosedBodyProjection {
+struct ClosedBodyProjection {
     declaration: NeutralDeclaration,
     body: crate::ir::Script,
     function: FunctionUnit,
     summary: Option<crate::interprocedural::ProcSummary>,
     instance_classes: Option<crate::taint::InstanceClassState>,
     tainted_global_writes: Option<std::collections::HashSet<String>>,
+    analytical: Option<crate::command_binding::AnalyticalBodyCorrespondence>,
+    module_facts: BodyModuleFacts,
+    original_semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,6 +45,40 @@ struct NeutralDeclaration {
     kind: crate::ir::ProcedureBodyKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BodyModuleFacts {
+    mutations: crate::command_binding::ModuleCommandMutations,
+    redefined: std::collections::HashSet<String>,
+    namespace_imports: Vec<(String, String)>,
+    namespace_exports: Vec<(String, String)>,
+    traced_commands: std::collections::BTreeSet<String>,
+    dynamic_trace: bool,
+    traced_variables: std::collections::BTreeSet<String>,
+    dynamic_variable_trace: bool,
+    deferred_writes: crate::ir::DeferredWrites,
+    declared_frame_effects: crate::ir::DeclaredFrameEffects,
+    oo_evidence: crate::ir::OoDefinitionEvidence,
+}
+
+impl BodyModuleFacts {
+    fn retain(unit: &CompilationUnit) -> Self {
+        let module = &unit.ir_module;
+        Self {
+            mutations: unit.command_mutations.clone(),
+            redefined: module.redefined_procedures.clone(),
+            namespace_imports: module.namespace_imports.clone(),
+            namespace_exports: module.namespace_exports.clone(),
+            traced_commands: module.traced_commands.clone(),
+            dynamic_trace: module.has_dynamic_trace,
+            traced_variables: module.traced_variables.clone(),
+            dynamic_variable_trace: module.has_dynamic_variable_trace,
+            deferred_writes: module.deferred_writes.clone(),
+            declared_frame_effects: module.declared_frame_effects.clone(),
+            oo_evidence: module.oo_evidence,
+        }
+    }
+}
+
 impl BodyAnalysisCapsule {
     /// Retain a source-corresponding body without deriving an identity from its name.
     #[must_use]
@@ -51,6 +88,9 @@ impl BodyAnalysisCapsule {
         registry: &CommandRegistry,
     ) -> Option<Self> {
         let module = &unit.ir_module;
+        if !module.procedure_ids.owns(body) {
+            return None;
+        }
         let procedure = module.procedures.get(&body)?;
         let function = unit.procedures.get(&body)?;
         let retained = module.retained_source_bindings.as_deref()?;
@@ -63,7 +103,9 @@ impl BodyAnalysisCapsule {
         {
             return None;
         }
-        let neutral = native_closed_projection(&unit, body, registry).map(Arc::new);
+        let neutral = native_closed_projection(&unit, body, registry)
+            .or_else(|| analytical_closed_projection(&unit, body, registry))
+            .map(Arc::new);
         Some(Self {
             unit,
             body,
@@ -86,7 +128,16 @@ impl BodyAnalysisCapsule {
     /// Whether original Native closure and injective source relocation certify reuse.
     /// The certificate supplies analysis data equivalence, never Native execution.
     #[must_use]
-    pub const fn has_closed_native_correspondence(&self) -> bool {
+    pub fn has_closed_native_correspondence(&self) -> bool {
+        match &self.neutral {
+            Some(projection) => projection.analytical.is_none(),
+            None => false,
+        }
+    }
+
+    /// Original closed registry-only lookups exclude document-summary dependencies.
+    #[must_use]
+    pub const fn has_closed_analysis_correspondence(&self) -> bool {
         self.neutral.is_some()
     }
 
@@ -176,7 +227,7 @@ fn native_closed_projection(
     unit: &CompilationUnit,
     body_id: ProcedureId,
     registry: &CommandRegistry,
-) -> Option<NativeClosedBodyProjection> {
+) -> Option<ClosedBodyProjection> {
     let module = &unit.ir_module;
     let procedure = module.procedures.get(&body_id)?;
     let publication = procedure.publication.as_ref()?;
@@ -252,7 +303,10 @@ fn native_closed_projection(
                 Some(defined_at.checked_sub(procedure.declaration_site.as_ref()?.offset)?);
         }
     }
-    Some(NativeClosedBodyProjection {
+    Some(ClosedBodyProjection {
+        module_facts: BodyModuleFacts::retain(unit),
+        original_semantic_facts: function.semantic_facts.clone(),
+        analytical: None,
         declaration,
         body: template.body,
         function: normalized,
@@ -270,9 +324,268 @@ fn native_closed_projection(
     })
 }
 
+fn analytical_closed_projection(
+    unit: &CompilationUnit,
+    body_id: ProcedureId,
+    registry: &CommandRegistry,
+) -> Option<ClosedBodyProjection> {
+    let module = &unit.ir_module;
+    let procedure = module.procedures.get(&body_id)?;
+    if procedure.definition_scope.is_some()
+        || !unit.methods.is_empty()
+        || !unit.body_units.is_empty()
+        || unit.connection_scope.is_some()
+        || !module.class_relations.is_empty()
+        || !module.oo_unanalysed_classes.is_empty()
+        || !module.redefined_methods.is_empty()
+        || module.reference_bodies != crate::ir::ReferenceBodies::default()
+    {
+        return None;
+    }
+    let publication = procedure.publication.as_ref()?;
+    if module
+        .procedures
+        .values()
+        .filter(|candidate| candidate.publication.as_ref() == Some(publication))
+        .count()
+        != 1
+    {
+        return None;
+    }
+    let declaration = NeutralDeclaration {
+        publication: publication.clone(),
+        namespace: procedure.body.namespace_context.as_deref()?.clone(),
+        written_name: procedure.name.clone(),
+        display: procedure.qualified_name.clone(),
+        parameters: procedure.params.clone(),
+        parameters_text: procedure.params_raw.clone(),
+        body_text: procedure.body_source.clone()?,
+        kind: procedure.body_kind,
+    };
+    let function = unit.procedures.get(&body_id)?;
+    let mut body = procedure.body.clone();
+    crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+    let bindings = crate::command_binding::ModuleCommandBindings::analyse(module, registry);
+    let correspondence = bindings.prepare_analytical_body_correspondence(
+        &body,
+        crate::command_binding::BodyProofScope {
+            source: &unit.source,
+            body_source: &declaration.body_text,
+            original_body_offset: procedure.span.start(),
+            executable_body_offset: procedure.body_offset,
+            metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                function.source_metadata_input(),
+            ),
+            config: function.source_lexer_config(),
+        },
+        registry,
+    )?;
+    let mut normalized = function.clone();
+    crate::lattice_rebase::rebase_function_unit(
+        &mut normalized,
+        -i64::from(procedure.span.start()),
+    );
+    let mut normalized = normalized
+        .relocated_variable_proofs(&correspondence.relocation)?
+        .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
+            &correspondence.body,
+        ))?;
+    // This comparison-only ID is protected by the original declaration and
+    // every authentic closed registry lookup; no returned unit is rewritten.
+    normalized.body_id = None;
+    let mut summary = unit
+        .interproc
+        .as_ref()
+        .and_then(|analysis| analysis.procedures.get(&body_id))
+        .cloned();
+    if let Some(summary) = &mut summary {
+        if !summary.calls.is_empty()
+            || !summary.direct_calls.is_empty()
+            || !summary.defined_callees.is_empty()
+        {
+            return None;
+        }
+        if let Some(offset) = summary.defined_at {
+            summary.defined_at =
+                Some(offset.checked_sub(procedure.declaration_site.as_ref()?.offset)?);
+        }
+    }
+    Some(ClosedBodyProjection {
+        body: correspondence.body.clone(),
+        analytical: Some(correspondence),
+        declaration,
+        function: normalized,
+        summary,
+        module_facts: BodyModuleFacts::retain(unit),
+        original_semantic_facts: function.semantic_facts.clone(),
+        instance_classes: unit
+            .interproc
+            .as_ref()
+            .and_then(|analysis| analysis.global_instance_classes.get(&body_id))
+            .cloned(),
+        tainted_global_writes: unit
+            .interproc
+            .as_ref()
+            .and_then(|analysis| analysis.tainted_global_writes.get(&body_id))
+            .cloned(),
+    })
+}
+
+/// Genuine fixpoint inputs with a certified registry-only independence case.
+#[derive(Debug, Clone)]
+pub struct BodySummaryInputs {
+    capsule: BodyAnalysisCapsule,
+    known: Vec<ProcedureId>,
+    summaries: Vec<(ProcedureId, crate::taint_interproc::ProcTaintSummary)>,
+}
+
+impl BodySummaryInputs {
+    #[must_use]
+    pub fn retain(
+        capsule: BodyAnalysisCapsule,
+        known: &std::collections::HashSet<ProcedureId>,
+        summaries: &std::collections::HashMap<
+            ProcedureId,
+            crate::taint_interproc::ProcTaintSummary,
+        >,
+    ) -> Option<Self> {
+        if known
+            .iter()
+            .any(|id| !capsule.unit().ir_module.procedures.contains_key(id))
+            || summaries.iter().any(|(id, summary)| {
+                capsule
+                    .unit()
+                    .ir_module
+                    .procedures
+                    .get(id)
+                    .is_none_or(|procedure| procedure.params != summary.params)
+            })
+        {
+            return None;
+        }
+        let mut known: Vec<_> = known.iter().copied().collect();
+        known.sort_unstable();
+        let mut summaries: Vec<_> = summaries
+            .iter()
+            .map(|(id, summary)| (*id, summary.clone()))
+            .collect();
+        summaries.sort_by_key(|(id, _)| *id);
+        Some(Self {
+            capsule,
+            known,
+            summaries,
+        })
+    }
+
+    #[must_use]
+    pub fn capsule(&self) -> &BodyAnalysisCapsule {
+        &self.capsule
+    }
+
+    #[must_use]
+    pub fn known(&self) -> &[ProcedureId] {
+        &self.known
+    }
+
+    #[must_use]
+    pub fn summaries(&self) -> &[(ProcedureId, crate::taint_interproc::ProcTaintSummary)] {
+        &self.summaries
+    }
+}
+
+impl PartialEq for BodySummaryInputs {
+    fn eq(&self, other: &Self) -> bool {
+        self.capsule == other.capsule
+            && (self.capsule.has_closed_analysis_correspondence()
+                || (self.known == other.known && self.summaries == other.summaries))
+    }
+}
+impl Eq for BodySummaryInputs {}
+
+impl Hash for BodySummaryInputs {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.capsule.hash(state);
+        if !self.capsule.has_closed_analysis_correspondence() {
+            self.known.hash(state);
+            self.summaries.hash(state);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn current_source_unit(
+        source: &str,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Arc<CompilationUnit> {
+        let registry = input.borrowed_context_registry().commands();
+        Arc::new(
+            CompilationUnit::build_with_analysis_input(
+                source,
+                crate::compilation_unit::UnitBuildOptions {
+                    registry,
+                    defer_top_level: false,
+                    config: input.lexer_config(),
+                    dialect: Some(input.unit_profile()),
+                    external_call_sites: None,
+                    declared_commands: None,
+                },
+                None,
+                input,
+            )
+            .with_interprocedural(registry, Some(input.unit_profile())),
+        )
+    }
+
+    #[test]
+    fn logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
+        for body in ["set x 11111", "puts 11111"] {
+            let left = current_source_unit(
+                &format!("proc a {{}} {{{body}}}\nproc b {{}} {{set y 22}}"),
+                &input,
+            );
+            let right = current_source_unit(
+                &format!("\nproc a {{}} {{{body}}}\nproc b {{}} {{set y 999999}}"),
+                &input,
+            );
+            let left_id = *left.ir_module.procedures.unique_display("::a").unwrap().0;
+            let right_id = *right.ir_module.procedures.unique_display("::a").unwrap().0;
+            let a = BodyAnalysisCapsule::retain(Arc::clone(&left), left_id, context.commands())
+                .unwrap();
+            let b = BodyAnalysisCapsule::retain(Arc::clone(&right), right_id, context.commands())
+                .unwrap();
+            assert_ne!(left_id, right_id);
+            assert!(a.has_closed_analysis_correspondence(), "source: {body}");
+            assert!(!a.has_closed_native_correspondence());
+            assert_eq!(a, b, "unchanged exact Logical body: {body}");
+            assert!(std::ptr::eq(b.unit(), right.as_ref()));
+            assert_eq!(b.body_id(), right_id);
+        }
+    }
+
+    #[test]
+    fn original_document_target_keeps_its_actual_summary_dependencies() {
+        let (context, actual) = unit("proc helper {} {return SAFE}\nproc caller {} {helper}");
+        let caller = *actual
+            .ir_module
+            .procedures
+            .unique_display("::caller")
+            .unwrap()
+            .0;
+        let capsule = BodyAnalysisCapsule::retain(actual, caller, context.commands()).unwrap();
+        assert!(!capsule.has_closed_analysis_correspondence());
+    }
 
     fn unit(
         source: &str,

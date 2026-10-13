@@ -3018,6 +3018,8 @@ pub fn selected_vendor_registry_words_at(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
@@ -3318,7 +3320,10 @@ mod tests {
             crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
                 .with_resolved_analysis_input(input.clone());
         let module = lowerer.lower(source);
-        let body = &module.procedures.get("::f").unwrap().body;
+        let body = &fixture_id_if_present(&module.procedures, "::f")
+            .and_then(|id| module.procedures.get(&id))
+            .unwrap()
+            .body;
         let tokens = body
             .retained_source_tokens_for_statement(&body.statements[0])
             .unwrap();
@@ -4378,6 +4383,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_procedure_argument_tests {
+
     use super::*;
     use crate::analyser::Analyser;
     use tcl_syntax::formal_params::FormalByteArgumentBinding;
@@ -4488,6 +4494,7 @@ mod original_procedure_argument_tests {
 
 #[cfg(test)]
 mod source_lookup_boundary_tests {
+
     use super::*;
 
     #[test]
@@ -4532,6 +4539,7 @@ mod source_lookup_boundary_tests {
 
 #[cfg(test)]
 mod source_word_dialect_tests {
+
     use super::*;
 
     #[test]
@@ -4655,6 +4663,7 @@ set x 1
 
 #[cfg(test)]
 mod retained_image_geometry_tests {
+
     use super::{matching_document_image, retained_document_image, source_registry_words};
 
     #[test]
@@ -4705,6 +4714,7 @@ mod retained_image_geometry_tests {
 
 #[cfg(test)]
 mod original_selected_command_purpose_tests {
+
     use super::*;
 
     #[test]
@@ -4803,6 +4813,7 @@ mod original_selected_command_purpose_tests {
 
 #[cfg(test)]
 mod member_source_catalogue_tests {
+
     use super::{OriginalRegistrySource, source_registry_words_at};
     use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
     use crate::command_binding::SourceCommandTransitionObligation;

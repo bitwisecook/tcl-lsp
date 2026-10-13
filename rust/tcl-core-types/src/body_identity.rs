@@ -80,6 +80,12 @@ impl ProcedureIdIssuer {
         ProcedureModuleId(self.0.id)
     }
 
+    /// Whether this retained issuer allocated the analytical coordinate.
+    #[must_use]
+    pub fn owns(&self, id: ProcedureId) -> bool {
+        id.scope == self.0.id && id.ordinal < self.0.next.load(Ordering::Relaxed)
+    }
+
     /// Opaque output scope shared by clones, including their top-level reports.
     #[must_use]
     pub fn reporting_scope(&self) -> String {
@@ -108,8 +114,14 @@ mod tests {
 
     #[test]
     fn equal_ordinals_from_separate_issuers_do_not_join() {
-        let left = ProcedureIdIssuer::default().allocate();
-        let right = ProcedureIdIssuer::default().allocate();
+        let left_issuer = ProcedureIdIssuer::default();
+        let right_issuer = ProcedureIdIssuer::default();
+        let left = left_issuer.allocate();
+        let right = right_issuer.allocate();
+        assert!(left_issuer.owns(left));
+        assert!(right_issuer.owns(right));
+        assert!(!left_issuer.owns(right));
+        assert!(!right_issuer.owns(left));
         assert_eq!(left.ordinal(), right.ordinal());
         assert_ne!(left, right);
         assert_ne!(left.reporting_key(), right.reporting_key());
@@ -127,6 +139,8 @@ mod tests {
         let first = issuer.allocate();
         let second = clone.allocate();
         let third = issuer.allocate();
+        assert!(issuer.owns(first) && issuer.owns(second) && issuer.owns(third));
+        assert!(clone.owns(first) && clone.owns(second) && clone.owns(third));
         assert_eq!(
             (first.ordinal(), second.ordinal(), third.ordinal()),
             (0, 1, 2)

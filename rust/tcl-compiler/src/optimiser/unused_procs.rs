@@ -179,23 +179,42 @@ fn comment_out(text: &str, proc_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{edge_labels, fixture_id};
     use std::collections::HashMap;
 
     use super::*;
     use crate::interprocedural::{InterproceduralAnalysis, ProcSummary};
 
-    fn summary_with_calls(name: &str, calls: &[&str], barrier: bool) -> ProcSummary {
+    fn summary_with_calls(
+        name: &str,
+        calls: &[crate::ir::ProcedureId],
+        barrier: bool,
+    ) -> ProcSummary {
         let mut s = ProcSummary::unknown(name);
-        s.calls = calls.iter().map(|c| (*c).to_owned()).collect();
+        s.calls = calls.to_vec();
         s.has_barrier = barrier;
         s
     }
 
     fn ip_with(procs: &[(&str, &[&str], bool)]) -> InterproceduralAnalysis {
+        let issuer = crate::ir::Module::default().procedure_ids;
+        let ids: HashMap<_, _> = procs
+            .iter()
+            .map(|(name, _, _)| (*name, issuer.allocate()))
+            .collect();
+        assert_eq!(
+            ids.len(),
+            procs.len(),
+            "synthetic analytical fixture labels are unique"
+        );
         let mut ip = InterproceduralAnalysis::default();
         for (name, calls, barrier) in procs {
+            let edges: Vec<_> = calls
+                .iter()
+                .map(|name| *ids.get(name).expect("fixture callee declared"))
+                .collect();
             ip.procedures
-                .insert((*name).into(), summary_with_calls(name, calls, *barrier));
+                .insert(ids[name], summary_with_calls(name, &edges, *barrier));
         }
         ip
     }
@@ -218,12 +237,14 @@ mod tests {
             ("::b", &[], false),
             ("::unused", &[], false),
         ]);
-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
+        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
+            .into_iter()
+            .collect();
         let reached = reachable_procs(&roots, &ip);
-        assert!(reached.contains("::when::HTTP_REQUEST"));
-        assert!(reached.contains("::a"));
-        assert!(reached.contains("::b"));
-        assert!(!reached.contains("::unused"));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::when::HTTP_REQUEST")));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::a")));
+        assert!(reached.contains(&fixture_id(&ip.procedures, "::b")));
+        assert!(!reached.contains(&fixture_id(&ip.procedures, "::unused")));
     }
 
     #[test]
@@ -233,7 +254,9 @@ mod tests {
             ("::a", &["::b"], false),
             ("::b", &["::a"], false),
         ]);
-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
+        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
+            .into_iter()
+            .collect();
         let reached = reachable_procs(&roots, &ip);
         assert_eq!(reached.len(), 3);
     }
@@ -289,7 +312,17 @@ mod tests {
         )
         .commands();
         let cu = CompilationUnit::build_for(source, registry, false);
-        let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
+        let mut actual = InterproceduralAnalysis::default();
+        for (id, summary) in &ip.procedures {
+            let body_id = fixture_id(&cu.ir_module.procedures, &summary.qualified_name);
+            let mut bound = summary.clone();
+            bound.calls = edge_labels(&ip, &ip.procedures[id].calls)
+                .iter()
+                .map(|label| fixture_id(&cu.ir_module.procedures, label))
+                .collect();
+            actual.procedures.insert(body_id, bound);
+        }
+        let mut ctx = PassContext::with_dialect(&cu.source, actual, dialect);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -438,6 +471,9 @@ mod tests {
     // + `has_barrier`).
     #[test]
     fn param_traits_ignored_by_pass() {
+        let issuer = crate::ir::Module::default().procedure_ids;
+        let foo_id = issuer.allocate();
+        let event_id = issuer.allocate();
         let mut ip = InterproceduralAnalysis::default();
         let mut s = summary_with_calls("::foo", &[], false);
         s.param_traits.insert(
@@ -446,13 +482,13 @@ mod tests {
                 .into_iter()
                 .collect(),
         );
-        ip.procedures.insert("::foo".into(), s);
+        ip.procedures.insert(foo_id, s);
         // Force-use the HashMap import the outer module expects.
         let _scratch = HashMap::<&str, i32>::new();
 
         let source = "proc ::foo {x} { return $x }\nwhen HTTP_REQUEST { set x 0 }\n";
         ip.procedures.insert(
-            "::when::HTTP_REQUEST".into(),
+            event_id,
             summary_with_calls("::when::HTTP_REQUEST", &[], false),
         );
         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);

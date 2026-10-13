@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::command_binding::{ExecutedScriptSource, SourceNamespaceKey, SourceOriginId};
+use crate::interprocedural::test_body_identity::fixture_id;
 use std::sync::Arc;
 
 fn native_module(source: &str) -> (tcl_vm::Vm, Module) {
@@ -133,7 +134,11 @@ fn original_event_body_keeps_conditional_frame_without_claiming_entry() {
         .with_dialect(Some(profile)),
         source,
     );
-    let body = &module.procedures["::when::HTTP_REQUEST"].body;
+    let body = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
+        .expect("authored fixture body")
+        .body;
     assert_eq!(body.statements.len(), 2);
     assert_eq!(
         body.namespace_context.as_deref(),

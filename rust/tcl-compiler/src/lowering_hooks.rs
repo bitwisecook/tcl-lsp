@@ -1200,6 +1200,8 @@ fn parse_decimal_int(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     /// The statement `src` lowers to under `dialect` — the configuration a
@@ -1754,7 +1756,12 @@ mod tests {
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
                 source, registry, false, profile,
             );
-            let body = &unit.ir_module.procedures["::add"].body;
+            let body = unit
+                .ir_module
+                .procedures
+                .get(&fixture_id(&unit.ir_module.procedures, "::add"))
+                .expect("authored fixture body")
+                .body;
             assert!(
                 matches!(
                     &body.statements[0],
@@ -1790,7 +1797,13 @@ mod tests {
             );
             assert!(
                 !matches!(
-                    &changed.ir_module.procedures["::add"].body.statements[0],
+                    changed
+                        .ir_module
+                        .procedures
+                        .get(&fixture_id(&changed.ir_module.procedures, "::add"))
+                        .expect("authored fixture body")
+                        .body
+                        .statements[0],
                     Statement::Return { expr: Some(_), .. }
                 ),
                 "{name}"

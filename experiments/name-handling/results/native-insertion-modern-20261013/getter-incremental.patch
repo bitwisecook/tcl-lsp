@@ -1,0 +1,54 @@
+--- a/runtime/rust/src/interp/native_body_artifact/native_list_operations.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_list_operations.rs
+@@ -314,14 +314,27 @@
+                         current()?;
+                         headers.check_for(&actual)
+                     };
+-                    let members = crate::list::list_elements_native_using(
+-                        original.as_ptr(),
+-                        protocol,
+-                        &entered,
+-                        &|error| variable_original.refuse(error),
++                    let length = crate::value_ops::list_length_using(
++                        self,
++                        &original.as_ptr(),
++                        &mut |actual, _| {
++                            variable_original.check(actual)?;
++                            headers.check_for(actual)
++                        },
++                        |actual, original| {
++                            crate::list::list_elements_native_using(
++                                *original,
++                                protocol,
++                                &|| {
++                                    variable_original.check(actual)?;
++                                    headers.check_for(actual)
++                                },
++                                &|error| variable_original.refuse(error),
++                            )
++                        },
+                     )
+                     .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+-                    let length = i64::try_from(members.len()).expect("native compiled list length");
++                    let end = i64::try_from(length).expect("native compiled list length");
+                     let index_guard = |actual: &Interp| {
+                         variable_original.check(actual)?;
+                         headers.check_for(actual)
+@@ -329,7 +342,7 @@
+                     let position = tcl_cmd_core::native_list_index::original_index_using(
+                         self,
+                         &index.as_ptr(),
+-                        length,
++                        end,
+                         true,
+                         Some(&index_guard),
+                     )
+@@ -339,7 +352,7 @@
+                         .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                     let position = usize::try_from(position.max(0))
+                         .unwrap_or(usize::MAX)
+-                        .min(members.len());
++                        .min(length);
+                     let replacements = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                     let reached = crate::list::replace_prepared_native_range_original_using(
+                         original.as_ptr(),

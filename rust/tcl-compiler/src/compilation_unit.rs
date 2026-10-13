@@ -3534,7 +3534,7 @@ impl CompilationUnit {
             .collect()
     }
 
-    /// Build the cross-event scope from the `::when::*` procedures.
+    /// Build cross-event facts for every retained event body.
     ///
     /// `None` lets non-iRules consumers skip the empty sweep.
     fn build_connection_scope(
@@ -3542,10 +3542,10 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         module: &crate::ir::Module,
     ) -> Option<crate::connection_scope::ConnectionScope> {
-        let when_procs: HashMap<String, FunctionUnit> = procedures
+        let when_procs: HashMap<crate::ir::ProcedureId, FunctionUnit> = procedures
             .iter()
             .filter(|(_, unit)| unit.irules_event_body.is_some())
-            .map(|(_, unit)| (unit.name.clone(), unit.clone()))
+            .map(|(id, unit)| (*id, unit.clone()))
             .collect();
         (!when_procs.is_empty()).then(|| {
             crate::connection_scope::build_connection_scope_for_module(
@@ -3690,7 +3690,7 @@ impl CompilationUnit {
         let Some(cs) = connection_scope else {
             return;
         };
-        for fu in procedures.values_mut() {
+        for (body_id, fu) in procedures.iter_mut() {
             let Some(event) = &fu.irules_event_body else {
                 continue;
             };
@@ -3721,7 +3721,7 @@ impl CompilationUnit {
                 let context = points.before_terminator(*id);
                 !crate::place_bridge::terminator_read_places(terminator, context, registry)
                     .iter()
-                    .any(|place| cs.observes_cross_event_place(&fu.name, place))
+                    .any(|place| cs.observes_cross_event_place(body_id, place))
             });
         }
     }
@@ -4578,6 +4578,8 @@ pub fn decode_param_constants(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     fn fixture_method<'a>(unit: &'a CompilationUnit, label: &str) -> Option<&'a FunctionUnit> {
         let (id, _) = unit.ir_module.methods.unique_display(label)?;
         unit.methods.get(&id)
@@ -5142,16 +5144,22 @@ mod tests {
         );
         assert_eq!(requests, 1);
         assert!(semantic_bundle_has_selected_invocation(
-            &unit.procedures["::p"]
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
         ));
         assert!(
-            unit.procedures["::p"]
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
                 .invocation_metadata_context_for_module(registry, &unit.ir_module)
                 .is_some()
         );
         let deep = unit.with_retained_deep_semantic_analysis(registry);
         assert!(semantic_bundle_has_selected_invocation(
-            &deep.procedures["::p"]
+            deep.procedures
+                .get(&fixture_id(&deep.procedures, "::p"))
+                .expect("authored fixture body")
         ));
     }
 
@@ -5189,7 +5197,7 @@ mod tests {
             Some(&input)
         );
         assert!(unit.ir_module.source_entry.native_entry.is_none());
-        assert!(unit.procedures.contains_key("::aliaser"));
+        assert!(fixture_id_if_present(&unit.procedures, "::aliaser").is_some());
         let explicit = crate::command_binding::SourceAnalysisEntry::default();
         let unknown = CompilationUnit::build_with_analysis_input(
             "proc aliaser {} {global ::n::shared; set shared 1}",
@@ -5520,7 +5528,9 @@ mod tests {
         let src = "proc p {a} { return $a }\nset x 1\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         assert!(cu.top_level.method_facts.is_none());
-        let fu = cu.procedures.get("::p").expect("proc unit built");
+        let fu = fixture_id_if_present(&cu.procedures, "::p")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc unit built");
         assert!(fu.method_facts.is_none());
     }
 
@@ -5678,7 +5688,8 @@ mod tests {
             );
         }
         let mut fast = deep.clone();
-        fast.procedures.insert("::p".to_owned(), fast_p);
+        let p_id = fixture_id(&deep.ir_module.procedures, "::p");
+        fast.procedures.insert(p_id, fast_p);
 
         let found = lifecycle(deep);
         assert!(
@@ -6026,8 +6037,8 @@ mod tests {
                 .is_some()
         );
         assert!(
-            deep.procedures
-                .get("::p")
+            fixture_id_if_present(&deep.procedures, "::p")
+                .and_then(|id| deep.procedures.get(&id))
                 .unwrap()
                 .semantic_facts
                 .executable()
@@ -6081,7 +6092,9 @@ mod tests {
                 [Widget new] go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::helper").expect("helper analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 !knows_condition_mentioning(f, "mode"),
                 "helper is called with both \"a\" (external) and \"b\" (from the method body); must not fold: {:?}",
@@ -6112,7 +6125,9 @@ mod tests {
                 ::app::go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 !knows_condition_mentioning(f, "mode"),
                 "helper is called with both \"a\" (direct) and \"b\" (via the ::app import); must not fold: {:?}",
@@ -6168,7 +6183,9 @@ mod tests {
             );
             assert_eq!(imported.evaluated_written_argument_value(0), Some("prod"));
             assert_eq!(direct.evaluated_written_argument_value(0), Some("prod"));
-            let function = cu.procedures.get("::lib::helper").expect("helper analysed");
+            let function = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(!knows_condition_mentioning(function, "mode"));
             assert_eq!(
                 function.sccp.constant_branches,
@@ -6215,7 +6232,9 @@ mod tests {
                 CompilationUnit::build_for(&exported, &reg, false),
                 build_closed_world(&exported, &reg),
             ] {
-                let f = cu.procedures.get("::lib::helper").expect("helper analysed");
+                let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(f, "mode"),
                     "`namespace export *` publishes helper beyond any enumerable project: {:?}",
@@ -6256,7 +6275,9 @@ mod tests {
                 CompilationUnit::build_for(src, &reg, false),
                 build_closed_world(src, &reg),
             ] {
-                let f = cu.procedures.get("::helper").expect("helper analysed");
+                let f = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(f, "mode"),
                     "`myens go dev` reaches helper with \"dev\" (tclsh8.6/9.0-confirmed), \
@@ -6300,10 +6321,11 @@ mod tests {
                 [::foo::Widget new] go
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
-            let ns_helper = cu
-                .procedures
-                .get("::foo::Widget::helper")
+            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
+            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::Widget::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::Widget::helper analysed");
             assert!(
                 !knows_condition_mentioning(global_helper, "mode"),
@@ -6357,10 +6379,11 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
-            let ns_helper = cu
-                .procedures
-                .get("::foo::helper")
+            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
+            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
                 !knows_condition_mentioning(global_helper, "mode"),
@@ -6400,9 +6423,8 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
@@ -6434,9 +6456,8 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
@@ -6466,7 +6487,9 @@ mod tests {
                 runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("::helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
                 "::helper is called with both \"a\" and \"b\" (the conditionally-defined \
@@ -6502,9 +6525,8 @@ mod tests {
                 runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::other::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::other::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::other::helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
@@ -6544,9 +6566,8 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
@@ -6577,9 +6598,8 @@ mod tests {
                 ::foo::runIt
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu
-                .procedures
-                .get("::foo::helper")
+            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
+                .and_then(|id| cu.procedures.get(&id))
                 .expect("::foo::helper analysed");
             assert!(
                 knows_condition_mentioning(helper, "mode"),
@@ -6622,7 +6642,9 @@ mod tests {
             let reg = registry();
             let source = "proc helper {n} {if {$n + 0 == 7} {set result yes} else {set result no}}; helper 007";
             let unit = CompilationUnit::build_for(source, &reg, false);
-            let function = unit.procedures.get("::helper").expect("helper analysed");
+            let function = fixture_id_if_present(&unit.procedures, "::helper")
+                .and_then(|id| unit.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 knows_condition_mentioning(function, "n"),
                 "caller_scope={:?} names={:?} preparations={} branch_bindings={} semantic_expressions={}",
@@ -6676,7 +6698,9 @@ mod tests {
                 ::graph::dfs 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
+            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("dfs analysed");
             assert!(
                 !knows_condition_mentioning(dfs, "count"),
                 "recursive parity check on `count` must not fold to a constant: {:?}",
@@ -6698,7 +6722,9 @@ mod tests {
                 count_up 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::count_up").expect("count_up analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::count_up")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("count_up analysed");
             assert!(
                 !knows_condition_mentioning(f, "n"),
                 "recursive parity check on `n` must not fold to a constant: {:?}",
@@ -6724,7 +6750,9 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let go = cu.procedures.get("::a::go").expect("go analysed");
+            let go = fixture_id_if_present(&cu.procedures, "::a::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("go analysed");
             assert!(
                 knows_condition_mentioning(go, "mode"),
                 "two same-namespace callers passing the identical literal should still fold: caller_scope={:?}, contents={:?}, preparations={}, condition_bindings={}",
@@ -6764,8 +6792,12 @@ mod tests {
                 ::b::go different
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let a_go = cu.procedures.get("::a::go").expect("::a::go analysed");
-            let b_go = cu.procedures.get("::b::go").expect("::b::go analysed");
+            let a_go = fixture_id_if_present(&cu.procedures, "::a::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::a::go analysed");
+            let b_go = fixture_id_if_present(&cu.procedures, "::b::go")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("::b::go analysed");
             assert!(
                 knows_condition_mentioning(a_go, "mode"),
                 "::a::go's sole caller passes a uniform literal, should fold: {:?}",
@@ -6803,7 +6835,9 @@ mod tests {
                 rename other helper
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
                 "a callee whose name is later rebound must not fold on stale call-site evidence: {:?}",
@@ -6834,7 +6868,9 @@ mod tests {
                 $cmd prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 knows_condition_mentioning(helper, "mode"),
                 "an unrelated dynamic call site must not disqualify helper's own uniform-literal seed: {:?}",
@@ -6863,7 +6899,9 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::is_even")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("is_even analysed");
             assert!(
                 !knows_condition_mentioning(f, "n"),
                 "is_even is called with both 3 and 4 (the latter inside `catch`); must not fold: {:?}",
@@ -6887,7 +6925,9 @@ mod tests {
                 }
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
+            let f = fixture_id_if_present(&cu.procedures, "::is_even")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("is_even analysed");
             assert!(
                 !knows_condition_mentioning(f, "n"),
                 "is_even is called with both 3 and 4 (the latter inside `uplevel`); must not fold: {:?}",
@@ -6915,7 +6955,9 @@ mod tests {
                 noisy
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 knows_condition_mentioning(helper, "mode"),
                 "an unrelated catch body must not disqualify helper's own uniform-literal seed: {:?}",
@@ -6935,7 +6977,9 @@ mod tests {
                 noisy
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(!knows_condition_mentioning(helper, "mode"));
             assert_eq!(
                 helper.sccp.constant_branches,
@@ -6959,7 +7003,9 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
                 "a package-providing file must not seed from locally-visible call sites: {:?}",
@@ -6982,7 +7028,9 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 knows_condition_mentioning(helper, "mode"),
                 "no package-provide in this file, seed should still fold: {:?}",
@@ -7006,7 +7054,9 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 knows_condition_mentioning(helper, "mode"),
                 "a comment merely mentioning the phrase must not disqualify: {:?}",
@@ -7030,7 +7080,9 @@ mod tests {
                 helper prod
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let helper = cu.procedures.get("::helper").expect("helper analysed");
+            let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("helper analysed");
             assert!(
                 !knows_condition_mentioning(helper, "mode"),
                 "a real (if oddly-spelled) package provide must still disqualify: {:?}",
@@ -7156,7 +7208,9 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from(MAIN, &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(helper, "mode"),
                     "main.tcl calls helper with \"dev\"; lib.tcl must not fold on \"prod\": {:?}",
@@ -7182,7 +7236,9 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("source lib.tcl\nhelper prod\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     knows_condition_mentioning(helper, "mode"),
                     "every caller in the project passes \"prod\"; the seed is sound: {:?}",
@@ -7209,7 +7265,9 @@ mod tests {
                     "an unrelated file supplies no caller of ::helper: {evidence:?}",
                 );
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     knows_condition_mentioning(helper, "mode"),
                     "an unrelated file must not retract a sound fold: {:?}",
@@ -7226,7 +7284,9 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("set m dev\nhelper $m\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(helper, "mode"),
                     "a cross-file caller with a non-literal argument must retract the fold: {:?}",
@@ -7243,7 +7303,9 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("after 0 {helper $::runtime_mode}\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(helper, "mode"),
                     "a deferred cross-file callback reads an unknown argument: {:?}",
@@ -7260,7 +7322,9 @@ mod tests {
                 let reg = registry();
                 let evidence = evidence_from("rename helper legacy_helper\n", &reg);
                 let cu = build_with_evidence(LIB, &reg, &evidence);
-                let helper = cu.procedures.get("::helper").expect("helper analysed");
+                let helper = fixture_id_if_present(&cu.procedures, "::helper")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("helper analysed");
                 assert!(
                     !knows_condition_mentioning(helper, "mode"),
                     "another file renamed helper; its binding has moved: {:?}",
@@ -7285,7 +7349,9 @@ mod tests {
                     local prod
                 ";
                 let cu = build_with_source_evidence(src, &reg, None);
-                let f = cu.procedures.get("::local").expect("local analysed");
+                let f = fixture_id_if_present(&cu.procedures, "::local")
+                    .and_then(|id| cu.procedures.get(&id))
+                    .expect("local analysed");
                 assert!(
                     !knows_condition_mentioning(f, "mode"),
                     "the sourced file's script can call ::local with anything: {:?}",
@@ -7294,7 +7360,9 @@ mod tests {
                 // …and with a workspace view that says otherwise, it folds.
                 let empty = CallSiteEvidence::default();
                 let closed = build_with_evidence(src, &reg, &empty);
-                let f = closed.procedures.get("::local").expect("local analysed");
+                let f = fixture_id_if_present(&closed.procedures, "::local")
+                    .and_then(|id| closed.procedures.get(&id))
+                    .expect("local analysed");
                 assert!(
                     knows_condition_mentioning(f, "mode"),
                     "with the project enumerated, the boundary is no longer a blind spot: {:?}",
@@ -7322,7 +7390,9 @@ mod tests {
                 ::graph::dfs 0
             ";
             let cu = CompilationUnit::build_for(src, &reg, false);
-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
+            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
+                .and_then(|id| cu.procedures.get(&id))
+                .expect("dfs analysed");
             // Incoming activation alternatives do not manufacture one scalar
             // SSA symbol. If a physical template slot exists, its entry value
             // must still refuse a recursive caller's constant seed.
@@ -7353,6 +7423,8 @@ mod tests {
 
 #[cfg(test)]
 mod smoke {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use tcl_registry::CommandRegistry;
 
     use super::CompilationUnit;
@@ -7366,7 +7438,7 @@ mod smoke {
         let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
         let unit = CompilationUnit::build_for(src, &registry, false);
         assert!(
-            unit.procedures.contains_key("::double"),
+            fixture_id_if_present(&unit.procedures, "::double").is_some(),
             "expected a lowered ::double procedure, got {:?}",
             unit.procedures.keys().collect::<Vec<_>>()
         );
@@ -7382,6 +7454,7 @@ mod smoke {
 /// the name `tcl`, which would bypass the centralised resolution entirely.
 #[cfg(test)]
 mod jim_ingress_tests {
+
     use super::*;
 
     #[test]
@@ -7413,6 +7486,8 @@ mod jim_ingress_tests {
 
 #[cfg(test)]
 mod original_receiver_method_facts_tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     #[test]
@@ -7422,10 +7497,8 @@ mod original_receiver_method_facts_tests {
         let source = r"oo::class create C {variable state; method m {arg\uD800} {return ${arg\uD800}}}; oo::define C variable later";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
-        let method = unit
-            .ir_module
-            .methods
-            .get("::C::m")
+        let method = fixture_id_if_present(&unit.ir_module.methods, "::C::m")
+            .and_then(|id| unit.ir_module.methods.get(&id))
             .expect("original method");
         assert!(method.body.executed_source.is_some());
         let facts = MethodBodyFacts::from_method(method);
@@ -7477,6 +7550,7 @@ mod original_receiver_method_facts_tests {
 
 #[cfg(test)]
 mod conditional_original_body_tests {
+
     use super::*;
 
     fn supplied(
@@ -7905,6 +7979,7 @@ mod conditional_original_body_tests {
 
 #[cfg(test)]
 mod selected_class_roster_tests {
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
 

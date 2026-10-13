@@ -1,0 +1,20 @@
+{
+  "patch_sha256": "06ade9365a379bd6413d1f76c56b5becd12b1ee902464adfa7db64dd86b32549",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "e0a97f4d8e97b4fd7161ab44989baadc24eeb9efc270aef91b6657369ac9ec3e",
+      "after_sha256": "ac3edc16469170835cd5c96138f1631590575fc5fcd9586f7b7c55728074af33"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "64db915f27f2dc4ff21bce63a66d5a3cfcb76eba397116b44df76b5acab5b7bc",
+      "after_sha256": "af4a38b1f97f8f3696aa1b58467a725769ec686321d36743be3f125725e56358"
+    }
+  ],
+  "dependencies": [
+    "remaining value draft d835bc15"
+  ],
+  "rust_status": "unexecuted",
+  "oracle": "oracles/results.json"
+}

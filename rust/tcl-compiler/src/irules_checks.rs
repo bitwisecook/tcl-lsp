@@ -2277,6 +2277,7 @@ fn check_generic_static(
 
 #[cfg(test)]
 mod tests {
+
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::*;
@@ -3893,6 +3894,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_getter_source_config_tests {
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::compilation_unit::UnitBuildOptions;
@@ -4003,6 +4005,7 @@ mod original_getter_source_config_tests {
 
 #[cfg(test)]
 mod original_collection_source_tests {
+
     use super::*;
     use crate::compilation_unit::UnitBuildOptions;
     use std::sync::Arc;
@@ -4141,6 +4144,8 @@ mod original_collection_source_tests {
 
 #[cfg(test)]
 mod original_event_owner_tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
     use crate::compilation_unit::UnitBuildOptions;
     use std::sync::Arc;
@@ -4226,7 +4231,7 @@ mod original_event_owner_tests {
             HTTP::respond 200; HTTP::header insert X-Test yes; drop;\n\
             set static::debug 1; set svc foo; HTTP::payload\n}";
         let (unit, context) = supplied(text, false);
-        assert!(unit.procedures.contains_key("::when::HTTP_REQUEST"));
+        assert!(fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST").is_some());
         let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
         assert_eq!(events(&source), Some(Vec::new()));
         assert_eq!(event_mutation_counts(&source), Some(HashMap::new()));

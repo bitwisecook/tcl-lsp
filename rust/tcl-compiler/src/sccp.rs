@@ -5014,6 +5014,8 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
@@ -7134,7 +7136,9 @@ mod tests {
             &registry,
             false,
         );
-        let fu = cu.procedures.get("::p").expect("proc");
+        let fu = fixture_id_if_present(&cu.procedures, "::p")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc");
         let explained: Vec<(String, String)> = fu
             .sccp
             .explanations

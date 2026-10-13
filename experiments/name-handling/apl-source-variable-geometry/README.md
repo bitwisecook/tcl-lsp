@@ -1,0 +1,9 @@
+# APL source variable geometry
+
+`source-variable-geometry.tcl` measures original Tcl variable substitutions independently of APL field publication. C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and JimTcl 0.84-9-g5bac7c9 all exit 0. Their raw status/stdout/stderr and selected executable, original version source-tree library files and filesystem dynamic-library inventories are retained. Every before/after file hash agrees. No tcltest is used; Tcl 9's embedded ZIPFS library bytes are covered by its executable hash.
+
+All six providers return ROOT for the absolute, repeated-root, quoted and nested reads, LITERAL for the lone-colon scalar, QUALIFIED for the explicit namespace variable, ELEMENT for both braced and unbraced array references, literal data for braced/escaped dollars, 1 for the expression read, DONE for the comment case, and a missing-variable error for the trailing empty root. These are source/variable observations, not appliance convention or export evidence.
+
+`namespace-fallback-setup` retains a distinct source experiment in which `namespace eval ns {set basic__addr QUALIFIED}` is used after the root variable exists. C Tcl 8.x updates the existing global under namespace-variable fallback, while C Tcl 9.x creates the namespace variable; the experiment records this observed setup dependency. The direct qualified setup in the main input establishes independent cells on every provider. Neither experiment donates an appliance namespace/frame receipt.
+
+The Rust controls use shared counted-root geometry, whole-reference root extraction and original Registry-selected source roles. All Rust test execution remains a separate validation obligation. Inert/comment/source-region controls are grounded in the measured script outcomes; APL dotted-name and double-underscore projection remains an explicit domain convention pending the appliance questions.

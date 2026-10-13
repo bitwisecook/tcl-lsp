@@ -6544,6 +6544,8 @@ fn contains_word_followed_by_ws(source: &str, word: &str) -> bool {
 
 #[cfg(test)]
 mod body_cache_eligible_tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::body_cache_eligible;
 
     #[test]
@@ -6624,7 +6626,10 @@ mod body_cache_eligible_tests {
         // the actual withdrawal and retained dispatch instead of equating the
         // debug serialization of two different physical worlds.
         for module in [&cached, &fresh] {
-            let procedure = &module.procedures["::f"];
+            let procedure = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::f"))
+                .expect("authored fixture body");
             assert_eq!(procedure.params, ["x"]);
             let mut retained_target = false;
             crate::ir::for_each_statement(&procedure.body, &mut |statement| {
@@ -7124,6 +7129,8 @@ fn walk_for_trace(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     fn fixture_method<'a>(
         methods: &'a crate::ir::MethodInventory,
         label: &str,
@@ -7422,7 +7429,11 @@ mod tests {
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             );
             assert_eq!(
-                module.procedures["::when::HTTP_REQUEST"].base_priority,
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
+                    .expect("authored fixture body")
+                    .base_priority,
                 expected
             );
         }
@@ -7450,7 +7461,13 @@ mod tests {
             "::when::HTTP_REQUEST#3",
         ]
         .into_iter()
-        .map(|name| module.procedures[name].base_priority)
+        .map(|name| {
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, name))
+                .expect("authored fixture body")
+                .base_priority
+        })
         .collect();
         assert_eq!(priorities, [700, 400, 200, 400]);
     }
@@ -7474,19 +7491,27 @@ mod tests {
         );
 
         assert!(
-            module.procedures.contains_key("::when::NOT_A_REAL_EVENT"),
+            fixture_id_if_present(&module.procedures, "::when::NOT_A_REAL_EVENT").is_some(),
             "a syntactically valid unknown event is lowered so the XC translator can report it"
         );
         for name in ["::when::CLIENT_DATA", "::bare_proc", "::quoted_proc"] {
             assert!(
-                !module.procedures.contains_key(name),
+                !fixture_id_if_present(&module.procedures, name).is_some(),
                 "a non-braced declaration body must not open {name}"
             );
         }
-        assert!(module.procedures.contains_key("::valid_proc"));
+        assert!(fixture_id_if_present(&module.procedures, "::valid_proc").is_some());
         let request = [
-            module.procedures["::when::HTTP_REQUEST"].base_priority,
-            module.procedures["::when::HTTP_REQUEST#1"].base_priority,
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
+                .expect("authored fixture body")
+                .base_priority,
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST#1"))
+                .expect("authored fixture body")
+                .base_priority,
         ];
         assert_eq!(request, [200, 500], "valid repeated handlers keep priority");
     }
@@ -7531,8 +7556,8 @@ mod tests {
                 "nested declaration must remain inert: {absent}"
             );
         }
-        assert!(module.procedures.contains_key("::when::HTTP_REQUEST"));
-        assert!(module.procedures.contains_key("::helper"));
+        assert!(fixture_id_if_present(&module.procedures, "::when::HTTP_REQUEST").is_some());
+        assert!(fixture_id_if_present(&module.procedures, "::helper").is_some());
     }
 
     #[test]
@@ -8264,12 +8289,12 @@ mod tests {
                    proc toplevel {} { return 3 }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.procedures.contains_key("::toplevel"),
+            fixture_id_if_present(&m.procedures, "::toplevel").is_some(),
             "procs: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !m.procedures.contains_key("::helper"),
+            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
             "nested method proc must not be registered: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -8292,12 +8317,12 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.procedures.contains_key("::helper"),
+            fixture_id_if_present(&m.procedures, "::helper").is_some(),
             "apply body proc must register in the global namespace: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !m.procedures.contains_key("::foo::helper"),
+            !fixture_id_if_present(&m.procedures, "::foo::helper").is_some(),
             "apply body proc must NOT inherit the caller namespace: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -8309,7 +8334,7 @@ mod tests {
         let src = "apply {{} { proc helper {} { return 1 } } ::bar}\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.procedures.contains_key("::bar::helper"),
+            fixture_id_if_present(&m.procedures, "::bar::helper").is_some(),
             "explicit lambda namespace must be honoured: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -8325,12 +8350,12 @@ mod tests {
         let src = "proc ::caller::p {} { apply {{} { proc helper {} { return 1 } } sub} }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.procedures.contains_key("::sub::helper"),
+            fixture_id_if_present(&m.procedures, "::sub::helper").is_some(),
             "relative lambda ns must resolve against ::: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
         assert!(
-            !m.procedures.contains_key("::caller::sub::helper"),
+            !fixture_id_if_present(&m.procedures, "::caller::sub::helper").is_some(),
             "relative lambda ns must NOT pin against the caller: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -8347,8 +8372,11 @@ mod tests {
     fn proc_definition() {
         let m = lower_to_ir("proc greet {name} {puts $name}", &reg());
         // proc emits a Statement::Call + registers a procedure.
-        assert!(m.procedures.contains_key("::greet"));
-        let p = &m.procedures["::greet"];
+        assert!(fixture_id_if_present(&m.procedures, "::greet").is_some());
+        let p = m
+            .procedures
+            .get(&fixture_id(&m.procedures, "::greet"))
+            .expect("authored fixture body");
         assert_eq!(p.params, vec!["name"]);
     }
 
@@ -8459,7 +8487,7 @@ mod tests {
         let r = reg();
         let m = lower_to_ir("set x 1\nproc foo {} {return 1}", &r);
         assert_eq!(m.top_level.statements.len(), 2);
-        assert!(m.procedures.contains_key("::foo"));
+        assert!(fixture_id_if_present(&m.procedures, "::foo").is_some());
     }
 
     // A proc body homes nested definitions to the proc's *defining*
@@ -8488,12 +8516,12 @@ mod tests {
             &reg(),
         );
         assert!(
-            m.procedures.contains_key("::a::helper"),
+            fixture_id_if_present(&m.procedures, "::a::helper").is_some(),
             "nested proc must home to ::a, got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
         assert!(
-            !m.procedures.contains_key("::helper"),
+            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
             "nested proc must NOT home lexically to ::",
         );
     }
@@ -8506,13 +8534,13 @@ mod tests {
             "namespace eval ::g {}\nproc g::o7 {} { proc o7b {} { proc h7 {u} { return $u } } }\n",
             &reg(),
         );
-        assert!(m.procedures.contains_key("::g::o7b"));
+        assert!(fixture_id_if_present(&m.procedures, "::g::o7b").is_some());
         assert!(
-            m.procedures.contains_key("::g::h7"),
+            fixture_id_if_present(&m.procedures, "::g::h7").is_some(),
             "third level must stay in ::g, got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
-        assert!(!m.procedures.contains_key("::h7"));
+        assert!(!fixture_id_if_present(&m.procedures, "::h7").is_some());
     }
 
     #[test]
@@ -8524,12 +8552,12 @@ mod tests {
             &reg(),
         );
         assert!(
-            m.procedures.contains_key("::e::h3"),
+            fixture_id_if_present(&m.procedures, "::e::h3").is_some(),
             "got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
-        assert!(!m.procedures.contains_key("::d::h3"));
-        assert!(!m.procedures.contains_key("::h3"));
+        assert!(!fixture_id_if_present(&m.procedures, "::d::h3").is_some());
+        assert!(!fixture_id_if_present(&m.procedures, "::h3").is_some());
     }
 
     #[test]
@@ -8537,14 +8565,14 @@ mod tests {
         // TN. The common shape: lexical and defining namespace agree, so
         // homing changes nothing. Both at top level…
         let m = lower_to_ir("proc outer {} { proc inner {} { return 1 } }\n", &reg());
-        assert!(m.procedures.contains_key("::inner"));
+        assert!(fixture_id_if_present(&m.procedures, "::inner").is_some());
         // …and inside a `namespace eval`, where both are `::ns`.
         let m = lower_to_ir(
             "namespace eval ::ns {\n    proc outer {} { proc inner {} { return 1 } }\n}\n",
             &reg(),
         );
         assert!(
-            m.procedures.contains_key("::ns::inner"),
+            fixture_id_if_present(&m.procedures, "::ns::inner").is_some(),
             "got {:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
@@ -8558,8 +8586,8 @@ mod tests {
             "namespace eval ::a {}\nproc a::outer4 {} { proc ::abs {q} { return $q } }\n",
             &reg(),
         );
-        assert!(m.procedures.contains_key("::abs"));
-        assert!(!m.procedures.contains_key("::a::abs"));
+        assert!(fixture_id_if_present(&m.procedures, "::abs").is_some());
+        assert!(!fixture_id_if_present(&m.procedures, "::a::abs").is_some());
     }
 
     #[test]
@@ -8699,8 +8727,8 @@ mod tests {
     /// Parameter names recorded for `::p` when `src` is lowered.
     fn proc_params(src: &str) -> Vec<String> {
         let m = lower_to_ir(src, &reg());
-        m.procedures
-            .get("::p")
+        fixture_id_if_present(&m.procedures, "::p")
+            .and_then(|id| m.procedures.get(&id))
             .unwrap_or_else(|| panic!("::p registered for {src:?}"))
             .params
             .clone()
@@ -8739,7 +8767,7 @@ mod tests {
         ] {
             let m = lower_to_ir(src, &reg());
             assert!(
-                !m.procedures.contains_key("::p"),
+                !fixture_id_if_present(&m.procedures, "::p").is_some(),
                 "no ::p for {src:?}: {:?}",
                 m.procedures.keys().collect::<Vec<_>>(),
             );
@@ -8940,7 +8968,9 @@ mod tests {
         // proc — the const-map records ``body`` and the uplevel
         // folds in the literal as an UpFrame.
         let m = lower_to_ir("proc f {} { set body {set x 1}\n uplevel 1 $body }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         // proc body: [AssignConst(body), UpFrame { body: [...] }]
         let last = proc.body.statements.last().expect("body has statements");
         match last {
@@ -8956,7 +8986,9 @@ mod tests {
         // ``eval $body`` with const-mapped body folds to a
         // Statement::Block.
         let m = lower_to_ir("proc f {} { set body {set x 1}\n eval $body }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         let last = proc.body.statements.last().expect("body has statements");
         match last {
             Statement::Block { body, .. } => {
@@ -8970,7 +9002,9 @@ mod tests {
     fn const_prop_eval_brace_body_emits_block() {
         // ``eval {body}`` in a proc context lowers to Block.
         let m = lower_to_ir("proc f {} { eval {set x 1} }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
     }
 
@@ -8997,7 +9031,9 @@ mod tests {
             "proc f {} { set body {a}\n set body $other\n uplevel 1 $body }",
             &reg(),
         );
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         let last = proc.body.statements.last().expect("body");
         assert!(
             !matches!(last, Statement::UpFrame { .. }),
@@ -9009,7 +9045,9 @@ mod tests {
     fn const_prop_eval_list_literal() {
         // ``eval [list set x 42]`` recognised as static body.
         let m = lower_to_ir("proc f {} { eval [list set x 42] }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
     }
 
@@ -9018,7 +9056,9 @@ mod tests {
         // ``eval [list set x $v]`` — dynamic ``\$v`` rejects the
         // list-literal shape. Falls back to runtime barrier.
         let m = lower_to_ir("proc f {} { eval [list set x $v] }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
     }
 
@@ -9027,7 +9067,9 @@ mod tests {
         // ``eval [foo arg]`` — inner command isn't ``list``;
         // can't synthesise a body. Falls back to runtime barrier.
         let m = lower_to_ir("proc f {} { eval [foo arg] }", &reg());
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
     }
 
@@ -9040,7 +9082,9 @@ mod tests {
             "proc outer {} {\n  set body {set x 1}\n  proc inner {} { uplevel 1 $body }\n}",
             &reg(),
         );
-        let inner = m.procedures.get("::inner").expect("inner registered");
+        let inner = fixture_id_if_present(&m.procedures, "::inner")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("inner registered");
         // The inner uplevel must remain a Call/Barrier — NOT an
         // UpFrame. If the const-map leaked, the inner body would
         // be folded as UpFrame { body: [set x 1], .. }.
@@ -9094,7 +9138,7 @@ mod tests {
             &reg(),
         );
         assert!(
-            m.procedures.contains_key("::Verbose"),
+            fixture_id_if_present(&m.procedures, "::Verbose").is_some(),
             "expected ::Verbose in {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9104,7 +9148,9 @@ mod tests {
     fn proc_dynamic_name_no_binding_stays_barrier() {
         // ``proc \$name`` with no const-map entry — bail to barrier.
         let m = lower_to_ir("proc factory {} { proc $name {} { puts hi } }", &reg());
-        let factory = m.procedures.get("::factory").expect("factory registered");
+        let factory = fixture_id_if_present(&m.procedures, "::factory")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("factory registered");
         let last = factory.body.statements.last().expect("body");
         assert!(
             matches!(last, Statement::Barrier { .. }),
@@ -9125,9 +9171,9 @@ mod tests {
         // ``::ns`` (which is what the bug would produce) or any
         // empty-key variant.
         assert!(
-            !m.procedures.contains_key("::ns")
-                && !m.procedures.contains_key("::ns::")
-                && !m.procedures.contains_key(""),
+            !fixture_id_if_present(&m.procedures, "::ns").is_some()
+                && !fixture_id_if_present(&m.procedures, "::ns::").is_some()
+                && !fixture_id_if_present(&m.procedures, "").is_some(),
             "trailing-:: proc should not be AOT-registered; got {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9163,7 +9209,11 @@ mod tests {
         );
         // ``::factory`` registered; the inner proc must NOT be
         // registered under any literal name (``::x...``).
-        assert!(!m.procedures.keys().any(|k| k.contains("suffix")));
+        assert!(
+            !m.procedures
+                .values()
+                .any(|body| body.qualified_name.contains("suffix"))
+        );
     }
 
     #[test]
@@ -9175,7 +9225,9 @@ mod tests {
             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nocommands {return $default}] }",
             &reg(),
         );
-        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
+        let inner = fixture_id_if_present(&m.procedures, "::Verbose")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("::Verbose registered");
         // Body should contain a Return statement (or at least be
         // non-empty — the materialised body lowers to a real
         // statement, not a Barrier).
@@ -9251,7 +9303,9 @@ mod tests {
             "proc factory {} { set name {Greeter}\n set body {return hi}\n proc $name {} $body }",
             &reg(),
         );
-        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        let inner = fixture_id_if_present(&m.procedures, "::Greeter")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("::Greeter registered");
         // The body was const-resolved to "return hi"; lowering it
         // produces a Return statement.
         assert!(
@@ -9269,7 +9323,9 @@ mod tests {
             "proc factory {} { set name {Greeter}\n proc $name {} $body }",
             &reg(),
         );
-        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
+        let inner = fixture_id_if_present(&m.procedures, "::Greeter")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("::Greeter registered");
         assert_eq!(
             inner.body.statements.len(),
             0,
@@ -9291,7 +9347,7 @@ mod tests {
         // No inner procedure should be registered — params couldn't
         // be parsed statically.
         assert!(
-            !m.procedures.contains_key("::x"),
+            !fixture_id_if_present(&m.procedures, "::x").is_some(),
             "dynamic-params shape must not AOT-register: {:?}",
             m.procedures.keys().collect::<Vec<_>>()
         );
@@ -9312,7 +9368,9 @@ mod tests {
         // We allow either no entry or an empty-body entry; the key
         // assertion is that the literal source text isn't compiled
         // as a script.
-        if let Some(inner) = m.procedures.get("::inner") {
+        if let Some(inner) =
+            fixture_id_if_present(&m.procedures, "::inner").and_then(|id| m.procedures.get(&id))
+        {
             assert_eq!(
                 inner.body.statements.len(),
                 0,
@@ -9337,7 +9395,8 @@ mod tests {
         // the proc IS registered with whatever the body lowering
         // produces; the assertion is that it's NOT the materialised
         // form.
-        let inner = m.procedures.get("::Verbose");
+        let inner =
+            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id));
         if let Some(p) = inner {
             // The body should not contain a Return whose value is
             // the literal "0" — that would be the materialised
@@ -9368,7 +9427,9 @@ mod tests {
             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -variables -backslashes {return $default}] }",
             &reg(),
         );
-        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
+        let inner = fixture_id_if_present(&m.procedures, "::Verbose")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("::Verbose registered");
         assert!(
             !inner.body.statements.is_empty(),
             "expected lowered body, got empty"
@@ -9388,7 +9449,9 @@ mod tests {
             "proc factory {opt} { set name {Verbose}\n set default {0}\n proc $name {x} [subst $opt {return $default}] }",
             &reg(),
         );
-        if let Some(p) = m.procedures.get("::Verbose") {
+        if let Some(p) =
+            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id))
+        {
             assert!(
                 p.body.statements.is_empty()
                     || matches!(
@@ -9409,7 +9472,8 @@ mod tests {
             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nobackslashes -nocommands {return $default}] }",
             &reg(),
         );
-        let inner = m.procedures.get("::Verbose");
+        let inner =
+            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id));
         if let Some(p) = inner {
             // Body did not materialise — should be empty or have
             // a fallback shape.
@@ -9430,8 +9494,8 @@ mod tests {
             "proc factory {} { set name {First}\n set name {Second}\n proc $name {} { puts hi } }",
             &reg(),
         );
-        assert!(m.procedures.contains_key("::Second"));
-        assert!(!m.procedures.contains_key("::First"));
+        assert!(fixture_id_if_present(&m.procedures, "::Second").is_some());
+        assert!(!fixture_id_if_present(&m.procedures, "::First").is_some());
     }
 
     #[test]
@@ -9581,7 +9645,9 @@ mod tests {
             "proc f {} { set body {set x 1}\n catch { uplevel 1 $body } }",
             &reg(),
         );
-        let proc = m.procedures.get("::f").expect("proc registered");
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .expect("proc registered");
         // Look for a Catch wrapping an UpFrame.
         let catch_stmt = proc
             .body
@@ -10240,7 +10306,7 @@ mod tests {
             .with_resolved_analysis_input(input.clone());
         current.lower(source);
         let module = current.finish_module(source);
-        assert!(module.procedures.contains_key("::subject"));
+        assert!(fixture_id_if_present(&module.procedures, "::subject").is_some());
         // Upstream keeps non-numeric bare literals as AssignValue so escape
         // spelling survives. This assertion covers IR/source ownership only.
         let statement = module.top_level.statements.iter().find(|statement| {
@@ -10269,7 +10335,7 @@ mod tests {
         let mut stale = Lowerer::with_config(context.commands(), input.lexer_config());
         stale.config.strict_quoting = !stale.config.strict_quoting;
         stale = stale.with_resolved_analysis_input(input.clone());
-        assert!(!stale.lower(source).procedures.contains_key("::subject"));
+        assert!(!fixture_id_if_present(&stale.lower(source).procedures, "::subject").is_some());
         let foreign = crate::analyser::ResolvedAnalysisInput::new(
             profile,
             profile,
@@ -10278,7 +10344,7 @@ mod tests {
         );
         let mut foreign = Lowerer::with_config(context.commands(), foreign.lexer_config())
             .with_resolved_analysis_input(foreign);
-        assert!(!foreign.lower(source).procedures.contains_key("::subject"));
+        assert!(!fixture_id_if_present(&foreign.lower(source).procedures, "::subject").is_some());
 
         let native_profile = context.commands().profile().unwrap();
         let native = crate::analyser::ResolvedAnalysisInput::new(
@@ -10290,7 +10356,7 @@ mod tests {
         let mut absent = Lowerer::with_config(context.commands(), native.lexer_config())
             .with_resolved_analysis_input(native);
         let module = absent.lower(source);
-        assert!(!module.procedures.contains_key("::subject"));
+        assert!(!fixture_id_if_present(&module.procedures, "::subject").is_some());
         assert!(module.source_entry.logical_source_input.is_none());
         assert!(module.source_entry.native_entry.is_none());
         assert!(module.source_entry.unknown_entry);
@@ -10320,7 +10386,10 @@ mod tests {
             let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
                 .with_resolved_analysis_input(input.clone());
             let module = lowerer.lower(source);
-            assert!(module.procedures.contains_key("::subject"), "{source}");
+            assert!(
+                fixture_id_if_present(&module.procedures, "::subject").is_some(),
+                "{source}"
+            );
             assert!(module.source_entry.native_entry.is_none());
             assert!(module.source_entry.execution_name_policy.is_none());
             assert_eq!(
@@ -10335,9 +10404,8 @@ mod tests {
             let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
                 .with_resolved_analysis_input(input.clone());
             let module = lowerer.lower(source);
-            let procedure = module
-                .procedures
-                .get("::subject")
+            let procedure = fixture_id_if_present(&module.procedures, "::subject")
+                .and_then(|id| module.procedures.get(&id))
                 .expect("captured source declaration");
             assert!(procedure.params.is_empty());
             assert_eq!(procedure.params_raw, "");
@@ -10346,7 +10414,7 @@ mod tests {
         let source = "rename proc ::α; ::α ::α args {return PAYLOAD}; ::α subject {} {}";
         let mut replaced = Lowerer::with_config(context.commands(), input.lexer_config())
             .with_resolved_analysis_input(input);
-        assert!(!replaced.lower(source).procedures.contains_key("::subject"));
+        assert!(!fixture_id_if_present(&replaced.lower(source).procedures, "::subject").is_some());
     }
 
     #[test]
@@ -10533,7 +10601,7 @@ mod tests {
             other => panic!("expected Call via registry hook, got {other:?}"),
         }
         assert!(
-            m.procedures.contains_key("::greet"),
+            fixture_id_if_present(&m.procedures, "::greet").is_some(),
             "expected ::greet to be registered in module.procedures, got keys={:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
@@ -10553,7 +10621,7 @@ mod tests {
             "expected Call via lower_default fallback, got {stmt:?}",
         );
         assert!(
-            !m.procedures.contains_key("::greet"),
+            !fixture_id_if_present(&m.procedures, "::greet").is_some(),
             "expected ::greet NOT to be registered when arity is wrong",
         );
     }
@@ -10667,7 +10735,7 @@ mod tests {
             other => panic!("expected Call via registry hook, got {other:?}"),
         }
         assert!(
-            m.procedures.contains_key("::when::HTTP_REQUEST"),
+            fixture_id_if_present(&m.procedures, "::when::HTTP_REQUEST").is_some(),
             "expected ::when::HTTP_REQUEST procedure to be registered, got keys={:?}",
             m.procedures.keys().collect::<Vec<_>>(),
         );
@@ -10695,7 +10763,9 @@ mod tests {
             other => panic!("expected Call via lower_default, got {other:?}"),
         }
         assert!(
-            !m.procedures.keys().any(|k| k.starts_with("::when::")),
+            !m.procedures
+                .values()
+                .any(|body| body.qualified_name.starts_with("::when::")),
             "expected NO ::when::* procedure registered without iRules loaded",
         );
     }
@@ -10935,6 +11005,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_script_purpose_tests {
+
     use super::*;
 
     fn first_invocation(script: &Script) -> &CommandTokens {

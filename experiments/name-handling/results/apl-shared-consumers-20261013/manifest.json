@@ -1,0 +1,295 @@
+{
+  "files": [
+    {
+      "path": "docs/work/name-handling/apl-name-consumers.md",
+      "before_sha256": null,
+      "after_sha256": "b027886c4e3ebee666a5511452a563cbb1ab16707916ad86fad2ad1e39a276d5"
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/src/model.rs",
+      "before_sha256": "62b80d74deebc0cf45eb1a7bfb520c29271f504a3a5de1d9288480592d5583bc",
+      "after_sha256": "ac863bb49baba35063f05533026c83251bf9071518240b431ef558d4be9d3307"
+    },
+    {
+      "path": "rust/tcl-bigip/src/apl/iapp_diagnostics.rs",
+      "before_sha256": "51c1a2a215ef5179a3db27d53e715ae9ac1015780ede7ce4913b70711b3e6c8b",
+      "after_sha256": "4042e45f707c6ca2b6a2bbb1f7464624788e6ec7d46eee53be0d01e77e0f5a23"
+    },
+    {
+      "path": "rust/tcl-bigip/src/apl/iapp_vars.rs",
+      "before_sha256": "3514794de0e7a6fd3b83c58e17453f4bc00d965fe420f73ca6df1d0dc3782f4d",
+      "after_sha256": "75aa40fafd2ecab0882cef6b9ee6ac77d9eb878b9cc907b4e77789eee67d7301"
+    },
+    {
+      "path": "rust/tcl-bigip/src/apl/mod.rs",
+      "before_sha256": "4edcb8e06a986f82593918737773fb5964bd72689aea208899acef2e8a9cb4a1",
+      "after_sha256": "7227dae7afae1ca018e7843cd131727cb3d253c5e47305cf1c496d70124e1a64"
+    },
+    {
+      "path": "rust/tcl-bigip/src/apl/model.rs",
+      "before_sha256": "76f2654db5b3a424bc40bbcecaa45db76c8c659f7097ecb04f8c779d9fbae025",
+      "after_sha256": "1fa81a29f9dd06680f8bac98c1e1a9890455edd172ba7c076be9ba9a3aeaf7ac"
+    },
+    {
+      "path": "rust/tcl-bigip/src/apl/variable_names.rs",
+      "before_sha256": null,
+      "after_sha256": "10589de0240164b693281bf3f003c06ccfc768a5ff065335ee99b3ce8997820f"
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "before_sha256": "84b2e4e45a4b1220d70285f4b584458e89e273faf8fbf19ff799a7291ab9473b",
+      "after_sha256": "5833cdea5b8c15086b44b7ec23eef509949b88488285cabcd3ea45036b0de92b"
+    },
+    {
+      "path": "rust/tcl-irules/src/source_context.rs",
+      "before_sha256": "ae087950d2efa1e96b5e247d5dd8ab45e48e4a35b9b615c23c424c9db83ac47f",
+      "after_sha256": "af7ff3c968646417956d9e9cda9a54f69a404a762d8625a352fa3fbf5d597577"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "5afe78f7ecd27e4f85334263a74b3af98912560136c6d62ad802fd862c4dfd50",
+      "after_sha256": "51156e4761ed08584d748617d21350e572c1ee55d4bba413d1965a35078b508e"
+    }
+  ],
+  "patch_sha256": "9298e0112b4a96bcf6b149d5e1d59391398ba2f3621a276cdf0c7b41bf90d112",
+  "experiment_files": [
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/README.md",
+      "sha256": "d264bb954638efc026ac3758d85bf08925779c2f32618b11357ce1c52371a1fd"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_JIMSH.after.json",
+      "sha256": "2277ec030a09cba3d98d47d79b7a3497a7bd9b3c04b90d885bf57d2eb9879a3d"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_JIMSH.before.json",
+      "sha256": "2277ec030a09cba3d98d47d79b7a3497a7bd9b3c04b90d885bf57d2eb9879a3d"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_JIMSH.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_JIMSH.stdout",
+      "sha256": "4a271971eb965e6c8824f188d04e2966b9019c292f89ab0573092825f86cf305"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH84.after.json",
+      "sha256": "8868d6661644326ec7b8f0ebbb6fd7972110210babb685255d9eebcef7ebbbfd"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH84.before.json",
+      "sha256": "8868d6661644326ec7b8f0ebbb6fd7972110210babb685255d9eebcef7ebbbfd"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH84.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH84.stdout",
+      "sha256": "3e9aab9b6f80553e48ec4ed04c35e2b4284528b38fe2235daf682249c810f6d5"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH85.after.json",
+      "sha256": "6fe1ab3877f14c8482a08cd51ae03fc9b9919083f16c80f63e4cc0e56838cc7a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH85.before.json",
+      "sha256": "6fe1ab3877f14c8482a08cd51ae03fc9b9919083f16c80f63e4cc0e56838cc7a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH85.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH85.stdout",
+      "sha256": "fd35cae43d3e1aca182045453613fce46f34cfac04efa223302dee7a59d858c9"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH86.after.json",
+      "sha256": "86308bb08d539224a21ba304b0d74a44e802f63cf1aef679e738eb5c1d19f676"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH86.before.json",
+      "sha256": "86308bb08d539224a21ba304b0d74a44e802f63cf1aef679e738eb5c1d19f676"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH86.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH86.stdout",
+      "sha256": "b52dda4be82c97204c9b8428b5978b9ea68c8695e16f12c7992fbf7be75b5d37"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH90.after.json",
+      "sha256": "b1b744ccad5faf2bdc3e782b8b27f92280e2b172cb1bda393616edec88cde63a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH90.before.json",
+      "sha256": "b1b744ccad5faf2bdc3e782b8b27f92280e2b172cb1bda393616edec88cde63a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH90.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH90.stdout",
+      "sha256": "d4e5fe4f1c5fea831510addb3730012012ca69f1388aa8ecaea955abfd8f997a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH91.after.json",
+      "sha256": "7cddef895daa5e607b8523c7b00d6a62f18bd0d29bd4414f6dfbbce866e1830e"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH91.before.json",
+      "sha256": "7cddef895daa5e607b8523c7b00d6a62f18bd0d29bd4414f6dfbbce866e1830e"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH91.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/TCL_LSP_TCLSH91.stdout",
+      "sha256": "372e20ad29bc9d77102a81c50cccfc019ef6bf6d8f2219a55a750ff3136863c3"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/f5-questions.md",
+      "sha256": "e72610c18b8a007d1218f4b304595634c2b9e0be6a3f6ce9746cc2a0d55b4c43"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_JIMSH.after.json",
+      "sha256": "2277ec030a09cba3d98d47d79b7a3497a7bd9b3c04b90d885bf57d2eb9879a3d"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_JIMSH.before.json",
+      "sha256": "2277ec030a09cba3d98d47d79b7a3497a7bd9b3c04b90d885bf57d2eb9879a3d"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_JIMSH.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_JIMSH.stdout",
+      "sha256": "37cfee877c6505bfdd926634555390e1b78a5f8bcb2ea054d37075e8dfc59dea"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH84.after.json",
+      "sha256": "8868d6661644326ec7b8f0ebbb6fd7972110210babb685255d9eebcef7ebbbfd"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH84.before.json",
+      "sha256": "8868d6661644326ec7b8f0ebbb6fd7972110210babb685255d9eebcef7ebbbfd"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH84.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH84.stdout",
+      "sha256": "84a9d97cf6ede931ab22d911f81d76a0ce604d80decba419d552a7911a4757a5"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH85.after.json",
+      "sha256": "6fe1ab3877f14c8482a08cd51ae03fc9b9919083f16c80f63e4cc0e56838cc7a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH85.before.json",
+      "sha256": "6fe1ab3877f14c8482a08cd51ae03fc9b9919083f16c80f63e4cc0e56838cc7a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH85.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH85.stdout",
+      "sha256": "7c07f64d09aee128a5ddd668a6fcda6720a319079a2fd0cd694e19ece3cc4fb9"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH86.after.json",
+      "sha256": "86308bb08d539224a21ba304b0d74a44e802f63cf1aef679e738eb5c1d19f676"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH86.before.json",
+      "sha256": "86308bb08d539224a21ba304b0d74a44e802f63cf1aef679e738eb5c1d19f676"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH86.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH86.stdout",
+      "sha256": "b38bfc67033e6021c68a31c95e83830803bebe6712c712f0153b9f5c633dbe5c"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH90.after.json",
+      "sha256": "b1b744ccad5faf2bdc3e782b8b27f92280e2b172cb1bda393616edec88cde63a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH90.before.json",
+      "sha256": "b1b744ccad5faf2bdc3e782b8b27f92280e2b172cb1bda393616edec88cde63a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH90.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH90.stdout",
+      "sha256": "d4e5fe4f1c5fea831510addb3730012012ca69f1388aa8ecaea955abfd8f997a"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH91.after.json",
+      "sha256": "7cddef895daa5e607b8523c7b00d6a62f18bd0d29bd4414f6dfbbce866e1830e"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH91.before.json",
+      "sha256": "7cddef895daa5e607b8523c7b00d6a62f18bd0d29bd4414f6dfbbce866e1830e"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH91.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/TCL_LSP_TCLSH91.stdout",
+      "sha256": "372e20ad29bc9d77102a81c50cccfc019ef6bf6d8f2219a55a750ff3136863c3"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/results.json",
+      "sha256": "23d9e02e71be5a5cd09aac7fab93b573d45565b64e6fabb63411f3923491250d"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/run.py",
+      "sha256": "7816b8f34b1ef9ce701b84de8d339fc1904ef8dbc893c8d52e2780be1f033a96"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/namespace-fallback-setup/source-variable-geometry.tcl",
+      "sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/providers.json",
+      "sha256": "41e622b44bad787678174f607a314cf888b07bc2f86db0fce7b44fabf23bdc48"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/results.json",
+      "sha256": "a3b9f75852d1c9b2437ed0a32ce62cdb19009d5e3f89b109cfe1a86988f1b4bc"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/run.py",
+      "sha256": "c3c5d21c6608443f90b4e611cd36455dffdde6a3f2f6e26821fad192282ed872"
+    },
+    {
+      "path": "experiments/name-handling/apl-source-variable-geometry/source-variable-geometry.tcl",
+      "sha256": "df81370175c5e10023c299623022d42a4c13dc985598963d6854505beb0a370a"
+    }
+  ],
+  "validation": "Nine source files parsed with Rustfmt edition2024; eight owned source files formatted, LSP emitstdout parse only. No cargo/build/test execution. All existing assertions retained. Original C Tcl 8.4-9.1/latest Jim scripts executed with original version libraries and stable before/after executable/library seals; no tcltest. BIG-IP questions unanswered.",
+  "source_tests": [
+    "variable_convention_uses_shared_root_geometry",
+    "original_source_components_exclude_comments_and_inert_data",
+    "original_root_geometry_preserves_literal_colons_and_array_forms",
+    "selected_body_roles_keep_positive_candidates_without_absence_coverage",
+    "expression_and_command_source_keep_their_original_substitutions",
+    "relative_convention_labels_cannot_supply_a_global_reference",
+    "iapp_source_obligations_withdraw_unused_field_claims"
+  ]
+}

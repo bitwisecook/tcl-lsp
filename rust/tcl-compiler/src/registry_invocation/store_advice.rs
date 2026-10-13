@@ -312,6 +312,8 @@ fn original_gap_is_empty(first: &CommandTokens, next: &CommandTokens) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     fn standalone_context() -> Option<super::InvocationMetadataContext<'static>> {
         Some(tcl_registry::model::ingress::static_context_for("tcl8.6").into())
     }
@@ -333,7 +335,11 @@ mod tests {
             false,
             registry.profile().unwrap(),
         );
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let bindings =
             crate::command_binding::SourceCommandBindings::analyse(source, config, registry);

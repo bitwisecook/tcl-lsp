@@ -306,31 +306,17 @@ pub enum BodyFrame<'a> {
     Method(&'a crate::ir::MethodDef),
 }
 
-/// The two connection-scope name sets an iRule event handler inherits, as
-/// `(dead-store / unused suppression, read-before-set suppression)`.
-///
-/// The first is `cross_event_defs | cross_event_imports`: a variable another
-/// event on the same connection reads is not a dead store here.  The second is
-/// `cross_event_imports` alone: a variable another event *defines* (and the
-/// event registry's scope gate accepted the pair) is already set by the time
-/// this event reads it — `set g 1` in `HTTP_REQUEST` feeds `set x $g` in
-/// `HTTP_RESPONSE`, so that read is not read-before-set.
-///
-/// Both are empty for anything that is not a `::when::*` procedure, and for
-/// any unit with no connection scope at all.
+/// Source protection sets selected by this exact retained event body.
 fn when_proc_cross_event_names(
     cu: &crate::compilation_unit::CompilationUnit,
-    qname: &str,
+    body_id: &crate::ir::ProcedureId,
 ) -> (HashSet<String>, HashSet<String>) {
-    let Some(scope) = cu.connection_scope.as_ref().filter(|_| {
-        // `crate::ir::when_event_name`'s prefix — an iRule event handler.
-        qname.starts_with("::when::")
-    }) else {
+    let Some(scope) = cu.connection_scope.as_ref() else {
         return (HashSet::new(), HashSet::new());
     };
     (
-        scope.handler_source_names(qname, false),
-        scope.handler_source_names(qname, true),
+        scope.handler_source_names(body_id, false),
+        scope.handler_source_names(body_id, true),
     )
 }
 
@@ -732,7 +718,7 @@ impl Analyser {
             // diagnostics suppress vars that may be read in a
             // different iRule event.
             let (mut cross_event_vars, mut extra_known_defined) =
-                when_proc_cross_event_names(cu, qname);
+                when_proc_cross_event_names(cu, id);
             extra_known_defined.extend(
                 crate::interprocedural::collect_positioned_opaque_callee_name_args(
                     &fu.cfg,
@@ -760,15 +746,15 @@ impl Analyser {
             );
             self.emit_channel_diagnostics(fu);
             self.emit_irules_cell_diagnostics(fu, qname, registry);
-            if qname.starts_with("::when::")
+            if let Some(event) = fu.irules_event_body.as_ref()
                 && let Some(concerns) = cu
                     .connection_scope
                     .as_ref()
-                    .and_then(|scope| scope.scope_concerns.get(qname))
+                    .and_then(|scope| scope.scope_concerns.get(id))
             {
                 self.emit_connection_scope_concerns(
                     fu,
-                    crate::ir::when_event_name(qname),
+                    event.event(),
                     concerns,
                     registry,
                     &cu.ir_module,

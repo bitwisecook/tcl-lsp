@@ -1,0 +1,42 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/class_lattice.rs",
+      "before_sha256": "059e8bc490dac0070706e6a3fba214f94b8b39bc1d43353a5772ed048d3af246",
+      "after_sha256": "f928da6253f73dcfef75e958e0bf3c1df7fa0e4c461ab3659934bdbf762447a6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs",
+      "before_sha256": "6b3b98c54e58e065a70fd289e50fe9443c082e2d4e8e0f896c2357d0f942339e",
+      "after_sha256": "688e7f8a5597fed984832d7092364869491867723a002ae70011d450e29e0721"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg.rs",
+      "before_sha256": "606022a8bd663aea8af089c43e04eecabf53ee014c585d05dbabd43ded6ecb7c",
+      "after_sha256": "4e1a8d8c7ce03ec2014afa8c89342b3a108b3d48f03309b1b662db704181b1e0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "before_sha256": "f37e272acec0895241a38e7b224ea1ff84aa48c4a4558c725f1fe56fda901216",
+      "after_sha256": "c734b02fd47230ac01169f160076b2808bc91ccfcecedf3f11d898573148fdb0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "fefa50843d0cdfc542c393fa52889641f4d3336d33a0e47591fa452af357632b",
+      "after_sha256": "2150c4679d4c3912b01dfa1f8a4e626c3f1c585d57cd08a1b93d9d47310309f1"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/value_transfer_witnesses.rs",
+      "before_sha256": "95d1aa29faf50c56778e73970d3c363fd7bfe470d6d46c1989151b371133f5fd",
+      "after_sha256": "5e06b2895763f99dfa42fd5c05fb1b069b42e993be7786ccc7e86593794fddeb"
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint_interproc.rs",
+      "before_sha256": "fa0640059c1865661e689d052b77e2fd655911eaa96049450946a88a03517462",
+      "after_sha256": "0742d6ecaac59317f4b8e149db1d893ec4ee33683173985499afb86d4e0c982e"
+    }
+  ],
+  "patch_sha256": "c59706ab3575a39cd6b4f91fe2e34010a28076afb16d4a4c896b5af213885316",
+  "status": "test-only no build/execution",
+  "semantics": "Original source and expected assertions retained; pre-existing taint fixture display projection now asserts unique labels; temporary CFG/compiled results selected by original module-issued IDs; synthetic CFG fixture issuer supplies analytical coordinates only."
+}

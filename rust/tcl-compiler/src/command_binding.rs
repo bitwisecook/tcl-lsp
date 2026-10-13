@@ -187,6 +187,8 @@ mod source_file;
 mod substitution_template;
 pub use executed_expression_source::ExecutedExpressionSource;
 pub use executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
+mod analysis_body_correspondence;
+pub(crate) use analysis_body_correspondence::AnalyticalBodyCorrespondence;
 mod body_template;
 pub use body_template::{BodyProofScope, BodySourceProofs, NativeBodyTemplate};
 mod command_publication;
@@ -19770,6 +19772,8 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
 
@@ -21965,7 +21969,10 @@ Animal new",
              rename ::set ::saved_set",
         );
         assert!(
-            cu.ir_module.procedures["::uses_set"]
+            cu.ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, "::uses_set"))
+                .expect("authored fixture body")
                 .body
                 .command_binding_sites
                 .iter()
@@ -22153,7 +22160,11 @@ Animal new",
              } }",
         );
         assert_eq!(
-            cu.ir_module.methods["::n::C::mutate"].execution_namespace,
+            cu.ir_module
+                .methods
+                .get(&fixture_id(&cu.ir_module.methods, "::n::C::mutate"))
+                .expect("authored fixture body")
+                .execution_namespace,
             crate::ir::ExecutionNamespace::RuntimeSelected
         );
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
@@ -22595,6 +22606,7 @@ Animal new",
 
 #[cfg(test)]
 mod source_variable_access_tests {
+
     use super::*;
 
     fn analyse(source: &str) -> (SourceCommandBindings, Arc<CommandRegistry>) {
@@ -22938,6 +22950,7 @@ mod source_variable_access_tests {
 
 #[cfg(test)]
 mod source_callable_static_tests {
+
     use super::*;
 
     fn analyse(source: &str) -> SourceCommandBindings {
@@ -22992,6 +23005,7 @@ mod source_callable_static_tests {
 
 #[cfg(test)]
 mod source_alias_lookup_tests {
+
     use super::*;
 
     #[test]
@@ -23047,6 +23061,7 @@ fn source_call_arguments<'a>(
 
 #[cfg(test)]
 mod compiled_variable_policy_tests {
+
     use super::SourceAnalysisOptions;
     use tcl_registry::{
         InvocationDialect, native_compiled_variables::LogicalCompiledVariableProvider,
@@ -23117,6 +23132,7 @@ mod compiled_variable_policy_tests {
 
 #[cfg(test)]
 mod hosted_storage_entry_tests {
+
     use super::*;
 
     #[test]
@@ -23172,6 +23188,7 @@ mod hosted_storage_entry_tests {
 
 #[cfg(test)]
 mod selected_replay_formal_tests {
+
     use super::*;
 
     fn invocation(parameters: &str) -> ResolvedBindingInvocation {
@@ -23243,6 +23260,7 @@ fn definition_body_command_tokens(
 
 #[cfg(test)]
 mod original_definition_body_purpose_tests {
+
     use super::*;
 
     #[test]
@@ -23298,6 +23316,7 @@ mod original_definition_body_purpose_tests {
 
 #[cfg(test)]
 mod shared_noop_source_join_tests {
+
     use super::*;
 
     fn original(source: &str) -> SourceCommandBindings {
@@ -23441,6 +23460,7 @@ mod shared_noop_source_join_tests {
 
 #[cfg(test)]
 mod original_explicit_script_purpose_tests {
+
     use super::*;
 
     fn input() -> crate::analyser::ResolvedAnalysisInput {
@@ -23555,6 +23575,7 @@ mod original_explicit_script_purpose_tests {
 
 #[cfg(test)]
 mod original_logical_source_layout_tests {
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::registry_invocation::InvocationMetadataContext;

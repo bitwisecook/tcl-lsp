@@ -31058,11 +31058,27 @@ fn is_apl_source(uri: &Uri, language_id: &str) -> bool {
 /// reflected), then falls back to reading a sibling from disk.  The sibling
 /// is named `implementation` or carries a `.iapp` / `.iappimpl` / `.impl`
 /// extension.
+async fn configured_iapp_source_references(
+    source: String,
+) -> Option<tcl_bigip::apl::IappSourceReferences> {
+    crate::rt::spawn_blocking(move || {
+        let environment = tcl_registry::model::ingress::resolve_environment(IAPPS_DIALECT);
+        tcl_bigip::apl::extract_iapp_var_refs_with_context(
+            &source,
+            environment.analyser_profile(),
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::from_grammar(environment.grammar()),
+        )
+    })
+    .await
+    .ok()
+}
+
 async fn find_sibling_impl_vars(
     uri: &Uri,
     documents: &DocumentStore,
     store: &dyn vfs::SourceStore,
-) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
+) -> Option<tcl_bigip::apl::IappSourceReferences> {
     let path = uri.to_file_path()?;
     let dir = path.parent()?.to_path_buf();
     let is_impl_name = |p: &Path| {
@@ -31080,22 +31096,19 @@ async fn find_sibling_impl_vars(
     // 1. Prefer an open implementation buffer in the same directory: an unsaved
     //    edit to the implementation must drive the presentation's cross-file
     //    diagnostics, not a stale on-disk copy.
-    {
+    let open_source = {
         let docs = documents.lock("find_sibling_impl_vars").await;
-        for (doc_uri, doc) in docs.iter() {
+        docs.iter().find_map(|(doc_uri, doc)| {
             if doc_uri == uri {
-                continue;
+                return None;
             }
-            let Some(doc_path) = doc_uri.to_file_path() else {
-                continue;
-            };
-            if doc_path.parent() != Some(dir.as_path()) {
-                continue;
-            }
-            if is_impl_name(&doc_path) {
-                return Some(tcl_bigip::apl::extract_iapp_var_refs(&doc.text));
-            }
-        }
+            let doc_path = doc_uri.to_file_path()?;
+            (doc_path.parent() == Some(dir.as_path()) && is_impl_name(&doc_path))
+                .then(|| doc.text.to_string())
+        })
+    };
+    if let Some(source) = open_source {
+        return configured_iapp_source_references(source).await;
     }
 
     // 2. Fall back to a sibling on disk — the literal `implementation` file
@@ -31105,7 +31118,7 @@ async fn find_sibling_impl_vars(
     if store.is_file(&impl_path)
         && let Ok(content) = store.read_to_string(&impl_path)
     {
-        return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
+        return configured_iapp_source_references(content).await;
     }
     let mut ext_candidates: Vec<PathBuf> = store
         .read_dir(&dir)
@@ -31125,7 +31138,7 @@ async fn find_sibling_impl_vars(
     ext_candidates.sort();
     for cand in ext_candidates {
         if let Ok(content) = store.read_to_string(&cand) {
-            return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
+            return configured_iapp_source_references(content).await;
         }
     }
     None
@@ -31155,10 +31168,16 @@ async fn f5_dialect_diagnostics(
     if is_apl_source(uri, language_id) {
         let impl_refs = find_sibling_impl_vars(uri, documents, store).await;
         let t = text.to_owned();
-        let diags =
-            crate::rt::spawn_blocking(move || apl_presentation_findings(&t, impl_refs.as_deref()))
-                .await
-                .unwrap_or_default();
+        let diags = crate::rt::spawn_blocking(move || {
+            apl_presentation_findings(
+                &t,
+                impl_refs
+                    .as_ref()
+                    .and_then(tcl_bigip::apl::IappSourceReferences::complete_references),
+            )
+        })
+        .await
+        .unwrap_or_default();
         return Some(diags);
     }
     None

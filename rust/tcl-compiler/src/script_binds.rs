@@ -430,6 +430,8 @@ pub(crate) fn authored_procedure_read_advice(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::{Ownership, script_binds_name};
 
     fn binds(script: &str, name: &str) -> bool {
@@ -629,7 +631,11 @@ mod tests {
             None,
             input,
         );
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let image = tcl_lexer::SourceImage::document(source);
         let realm = analysis.retained_command_realm().unwrap();
         let binding = realm.invocation_at_source("", procedure.span.start());

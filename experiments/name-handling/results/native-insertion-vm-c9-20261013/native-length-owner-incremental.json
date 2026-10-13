@@ -1,0 +1,7 @@
+{
+  "path": "rust/tcl-vm/src/exec/native_list_insertion.rs",
+  "before": "cbfa19c3cff78699cbc8166c60471a6aaa2d013fe021a6fdaf89fe5ccdee9994",
+  "after": "957dbcbbc2271a3b2debcb543e982356bab860934631bfe1538372a2d094fa6b",
+  "why": "Cpp worker reaches Tcl_ListObjLength, which has its own canonical-empty/abstract-value policy; GetElements would donate an earlier List conversion",
+  "status": "uncompiled"
+}

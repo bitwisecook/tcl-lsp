@@ -2202,6 +2202,8 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     /// The default document's `${…}` close rule — these unit tests build no
@@ -4628,7 +4630,9 @@ mod tests {
             false,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
-        let procedure = cu.procedures.get("::p").expect("the proc unit is built");
+        let procedure = fixture_id_if_present(&cu.procedures, "::p")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("the proc unit is built");
         assert!(
             !find_redundancies(
                 &registry,

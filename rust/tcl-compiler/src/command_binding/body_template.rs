@@ -337,7 +337,7 @@ fn retain_source_mapping<K: Ord>(
         .or_insert_with(|| source.cloned());
 }
 
-fn normalize_script_source(
+pub(super) fn normalize_script_source(
     script: &mut Script,
     scope: BodyProofScope<'_>,
     origin: &Arc<SourceOriginId>,
@@ -519,7 +519,7 @@ impl ModuleCommandBindings {
     }
 }
 
-fn collect_body_offset(
+pub(super) fn collect_body_offset(
     relocation: &mut crate::var_resolve::VariableProofRelocation,
     scope: BodyProofScope<'_>,
     relative: u32,
@@ -529,7 +529,7 @@ fn collect_body_offset(
     }
 }
 
-fn collect_token_activations(
+pub(super) fn collect_token_activations(
     relocation: &mut crate::var_resolve::VariableProofRelocation,
     tokens: &crate::ir::CommandTokens,
 ) {
@@ -562,7 +562,7 @@ fn collect_token_activations(
     }
 }
 
-fn collect_body_activation(
+pub(super) fn collect_body_activation(
     relocation: &mut crate::var_resolve::VariableProofRelocation,
     context: &crate::var_resolve::ResolveContext,
 ) {
@@ -726,7 +726,7 @@ fn native_facts_closed(facts: &InvocationFacts, proof: &SourceInvocationBinding)
         })
 }
 
-fn normalize_native_tokens(
+pub(super) fn normalize_native_tokens(
     tokens: &mut crate::ir::CommandTokens,
     scope: BodyProofScope<'_>,
     origin: &Arc<SourceOriginId>,
@@ -812,13 +812,17 @@ fn relocate_allocation_site(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
 
     fn prepare(source: &str) -> Option<NativeBodyTemplate> {
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
-        let procedure = unit.ir_module.procedures.get("::p").unwrap();
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .unwrap();
         let mut body = procedure.body.clone();
         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
         ModuleCommandBindings::analyse(&unit.ir_module, &registry).prepare_native_body_template(
@@ -878,7 +882,11 @@ mod tests {
             Some(&entry),
             &input,
         );
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let bindings = ModuleCommandBindings::analyse(&unit.ir_module, context.commands());
         let mut body = procedure.body.clone();
         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
@@ -1004,7 +1012,11 @@ mod tests {
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let bindings = ModuleCommandBindings::analyse(&unit.ir_module, &registry);
         let mut body = procedure.body.clone();
         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
@@ -1065,7 +1077,9 @@ mod tests {
         let registry = CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
-        let procedure = unit.ir_module.procedures.get("::p").unwrap();
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .unwrap();
         let mut actual = procedure.body.clone();
         crate::lattice_rebase::rebase_script(&mut actual, -i64::from(procedure.span.start()));
         let template = prepare(source).unwrap();

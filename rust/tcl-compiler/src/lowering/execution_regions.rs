@@ -888,6 +888,8 @@ fn possible_body_operands(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::command_binding::SourceAnalysisOptions;
     use crate::ir::Statement;
@@ -984,9 +986,8 @@ mod tests {
     }
 
     fn region(module: &crate::ir::Module) -> Option<&EvaluatedBodyRegion> {
-        module
-            .procedures
-            .get("::p")?
+        fixture_id_if_present(&module.procedures, "::p")
+            .and_then(|id| module.procedures.get(&id))?
             .body
             .statements
             .iter()
@@ -1053,7 +1054,13 @@ mod tests {
         let source = "proc p {mode} {switch -- $mode {a {for {set j 0} {$j < 3} {incr j} {puts $j}} default {puts $missing}}}";
         let module = lower(source, false);
         if region(&module).is_none() {
-            for statement in &module.procedures["::p"].body.statements {
+            for statement in module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body
+                .statements
+            {
                 let Some(tokens) = statement.tokens() else {
                     continue;
                 };
@@ -1455,7 +1462,11 @@ mod tests {
                 &source, &registry, false, "tcl8.6",
             );
             assert!(region(&unit.ir_module).is_some());
-            let ssa = &unit.procedures["::p"].ssa;
+            let ssa = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .ssa;
             let read_versions = |name: &str| {
                 let mut versions = Vec::new();
                 for (block, body) in &ssa.blocks {

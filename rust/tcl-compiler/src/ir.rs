@@ -3002,6 +3002,7 @@ impl Module {
                         .matches_source_declaration_image(&self.source, procedure.span.start())
                 });
         let (id, procedure) = matching.next()?;
+        self.procedure_ids.owns(*id).then_some(())?;
         matching.next().is_none().then_some((*id, procedure))
     }
 

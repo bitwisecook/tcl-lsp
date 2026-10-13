@@ -3291,15 +3291,11 @@ pub fn taint_cascade<'db>(
     Arc::new(taints)
 }
 
-/// Genuine current summary-fixpoint inputs for one retained body.
+/// Original fixpoint inputs with independently certified body correspondence.
 #[salsa::interned]
 pub struct SummaryDepsKey<'db> {
     #[returns(ref)]
-    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
-    #[returns(ref)]
-    pub known_procs: Vec<tcl_compiler::ir::ProcedureId>,
-    #[returns(ref)]
-    pub callee_summaries: Vec<(tcl_compiler::ir::ProcedureId, ReturnTaintSummary)>,
+    pub inputs: tcl_compiler::body_analysis_capsule::BodySummaryInputs,
     #[returns(ref)]
     pub dialect: String,
 }
@@ -3311,20 +3307,10 @@ fn summary_deps_key<'db>(
     known: &HashSet<tcl_compiler::ir::ProcedureId>,
     dialect: &str,
 ) -> SummaryDepsKey<'db> {
-    let mut known_procs: Vec<_> = known.iter().copied().collect();
-    known_procs.sort_unstable();
-    let mut callee_summaries: Vec<_> = summaries
-        .iter()
-        .map(|(id, summary)| (*id, summary.clone()))
-        .collect();
-    callee_summaries.sort_by_key(|(id, _)| *id);
-    SummaryDepsKey::new(
-        db,
-        capsule,
-        known_procs,
-        callee_summaries,
-        dialect.to_owned(),
-    )
+    let inputs =
+        tcl_compiler::body_analysis_capsule::BodySummaryInputs::retain(capsule, known, summaries)
+            .expect("the solver supplies current original procedure coordinates and formals");
+    SummaryDepsKey::new(db, inputs, dialect.to_owned())
 }
 
 #[salsa::tracked(lru = 512, returns(clone))]
@@ -3333,9 +3319,10 @@ pub fn proc_summary_cascade<'db>(
     lattice_key: FnLatticeKey<'db>,
     deps_key: SummaryDepsKey<'db>,
 ) -> Arc<ReturnTaintSummary> {
-    let capsule = deps_key.capsule(db);
-    let known = deps_key.known_procs(db).iter().copied().collect();
-    let summaries = deps_key.callee_summaries(db).iter().cloned().collect();
+    let inputs = deps_key.inputs(db);
+    let capsule = inputs.capsule();
+    let known = inputs.known().iter().copied().collect();
+    let summaries = inputs.summaries().iter().cloned().collect();
     let registry = lattice_registry(db, lattice_key);
     Arc::new(
         tcl_compiler::taint_interproc::infer_proc_summary(
@@ -8170,7 +8157,8 @@ p\uD801 ordinary";
             caller_body: body,
             provider,
             dependencies: dependencies
-                .callee_summaries(db)
+                .inputs(db)
+                .summaries()
                 .iter()
                 .map(|(_, summary)| summary.clone())
                 .collect(),

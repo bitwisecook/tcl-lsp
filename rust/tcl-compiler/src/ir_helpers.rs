@@ -2239,6 +2239,8 @@ fn word_substitutes(word: &WordExpr) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::ir::{ForeachIterator, IfClause, Script};
     use tcl_lexer::Span;
@@ -2979,61 +2981,128 @@ what it writes, got {got:?}"
             registry,
         );
         assert!(!requires_runtime_command_namespace(
-            &module.methods["::C::helper"].body,
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::helper"))
+                .expect("authored fixture body")
+                .body,
             registry
         ));
         assert!(
-            requires_runtime_command_namespace(&module.methods["::C::m"].body, registry),
+            requires_runtime_command_namespace(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::m"))
+                    .expect("authored fixture body")
+                    .body,
+                registry
+            ),
             "the receiver namespace can shadow TclOO's injected `my` command"
         );
         assert!(
-            !requires_runtime_command_namespace(&module.methods["::C::dynamic"].body, registry),
+            !requires_runtime_command_namespace(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::dynamic"))
+                    .expect("authored fixture body")
+                    .body,
+                registry
+            ),
             "a computed head is already an opaque CFG barrier, not a lexical fallback dependency"
         );
         assert!(
-            !requires_runtime_command_namespace(&module.methods["::C::global_body"].body, registry),
+            !requires_runtime_command_namespace(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::global_body"))
+                    .expect("authored fixture body")
+                    .body,
+                registry
+            ),
             "uplevel #0 selects the exact global namespace for its nested body"
         );
         for name in ["::C::exact", "::C::exact_info", "::C::exact_regex"] {
-            let body = &module.methods[name].body;
+            let body = &module
+                .methods
+                .get(&fixture_id(&module.methods, name))
+                .expect("authored fixture body")
+                .body;
             assert!(
                 !requires_runtime_command_namespace(body, registry),
                 "absolute-only method {name} must remain analysable: {body:#?}"
             );
         }
         assert!(
-            requires_runtime_command_namespace(&module.methods["::C::nested_alias"].body, registry),
+            requires_runtime_command_namespace(
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::nested_alias"))
+                    .expect("authored fixture body")
+                    .body,
+                registry
+            ),
             "a relative nested binding consumed by typed lowering can be shadowed by the object namespace"
         );
         assert!(
             matches!(
-                module.methods["::C::exact"].body.statements.first(),
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
                 Some(Statement::Return { expr: Some(_), .. })
             ),
             "absolute nested expr must retain typed return IR: {:#?}",
-            module.methods["::C::exact"].body
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact"))
+                .expect("authored fixture body")
+                .body
         );
         assert!(
             matches!(
-                module.methods["::C::exact_info"].body.statements.first(),
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact_info"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
                 Some(Statement::If { .. })
             ),
             "absolute if must retain typed control IR: {:#?}",
-            module.methods["::C::exact_info"].body
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact_info"))
+                .expect("authored fixture body")
+                .body
         );
         assert!(
             matches!(
-                module.methods["::C::exact_regex"].body.statements.first(),
+                module
+                    .methods
+                    .get(&fixture_id(&module.methods, "::C::exact_regex"))
+                    .expect("authored fixture body")
+                    .body
+                    .statements
+                    .first(),
                 Some(Statement::AssignConst { .. })
             ),
             "absolute set must retain typed assignment IR: {:#?}",
-            module.methods["::C::exact_regex"].body
+            module
+                .methods
+                .get(&fixture_id(&module.methods, "::C::exact_regex"))
+                .expect("authored fixture body")
+                .body
         );
     }
 }
 
 #[cfg(test)]
 mod original_recovered_source_purpose_tests {
+
     use super::*;
 
     #[test]
@@ -3116,6 +3185,7 @@ mod original_recovered_source_purpose_tests {
 
 #[cfg(test)]
 mod original_written_source_tests {
+
     use super::*;
 
     #[test]

@@ -1612,6 +1612,8 @@ fn statement_span(stmt: &Statement) -> Option<Span> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use crate::analyser::Analyser;
 
     fn context_test_unit(
@@ -1675,7 +1677,10 @@ mod tests {
                 .with_command_store(Arc::new(registry)),
         );
         let unit = context_test_unit(source, &context);
-        let function = &unit.procedures["::f"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::f"))
+            .expect("authored fixture body");
         let original = function
             .ssa
             .blocks
@@ -1728,7 +1733,16 @@ mod tests {
             "proc lset {args} {}; proc f {i} {lset values $i NEW}",
             &context,
         );
-        assert!(context_test_candidates(&replaced.procedures["::f"], selected).is_empty());
+        assert!(
+            context_test_candidates(
+                replaced
+                    .procedures
+                    .get(&fixture_id(&replaced.procedures, "::f"))
+                    .expect("authored fixture body"),
+                selected
+            )
+            .is_empty()
+        );
         let mut missing = original.clone();
         missing.source_binding = None;
         assert!(

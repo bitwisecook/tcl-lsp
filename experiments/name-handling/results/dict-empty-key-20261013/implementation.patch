@@ -1,0 +1,31 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -2169,9 +2169,6 @@
+         };
+         for pair in elements.chunks_exact(2) {
+             let name = pair[0].to_string();
+-            if name.is_empty() {
+-                continue;
+-            }
+             scope.readonly_dictionary_keys.insert(
+                 name.clone(),
+                 ReadonlyDictionaryKeyVariable {
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -12420,6 +12420,16 @@
+     }
+ 
+     #[test]
++    fn logical_dictionary_metadata_retains_an_empty_variable_name() {
++        let source = "set d {{} EMPTY}; dict with d {puts ${}}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let scope = &analyser.result.global_scope;
++        assert!(scope.readonly_dictionary_keys.contains_key(""));
++        assert!(!scope.variables.contains_key(""));
++    }
++
++    #[test]
+     fn logical_dictionary_write_invalidates_the_previous_constant_value() {
+         let source = "set x OLD; set d {x NEW}; dict with d {puts $x}; puts $x";
+         let mut analyser = Analyser::new();

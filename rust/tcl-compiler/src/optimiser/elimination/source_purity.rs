@@ -79,6 +79,8 @@ fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> b
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -295,12 +297,12 @@ mod tests {
             &summary
         ));
         let mut changed = original.clone();
-        changed
-            .ir_module
-            .procedures
-            .get_mut("::pure")
-            .unwrap()
-            .params_raw = "{x DEFAULT}".into();
+        {
+            let id = fixture_id(&changed.ir_module.procedures, "::pure");
+            changed.ir_module.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .params_raw = "{x DEFAULT}".into();
         assert!(!check_with_procedure_summary(
             &changed,
             context.commands(),

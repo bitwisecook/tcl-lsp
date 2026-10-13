@@ -393,6 +393,8 @@ pub enum Op {
     UPLEVEL,
     NSUPVAR,
     LREPLACE4,
+    /// C9.1 original List replacement with counted operands and flags.
+    LREPLACE,
     OVER,
     LSET_FLAT,
     LSET_LIST,
@@ -674,6 +676,7 @@ impl Op {
             Self::LSET_FLAT => "lsetFlat",
             Self::LSET_LIST => "lsetList",
             Self::LREPLACE4 => "lreplace4",
+            Self::LREPLACE => "lreplace",
             Self::LOAD_SCALAR1 => "loadScalar1",
             Self::LOAD_SCALAR4 => "loadScalar4",
             Self::STORE_SCALAR1 => "storeScalar1",
@@ -1089,7 +1092,11 @@ impl Op {
             | Self::EXPAND_STKTOP => 5,
 
             // 6-byte
-            Self::INVOKE_REPLACE | Self::LREPLACE4 | Self::UNSET_SCALAR | Self::UNSET_ARRAY => 6,
+            Self::INVOKE_REPLACE
+            | Self::LREPLACE4
+            | Self::LREPLACE
+            | Self::UNSET_SCALAR
+            | Self::UNSET_ARRAY => 6,
 
             // 9-byte: opcode + 2× 4-byte operands
             Self::LIST_RANGE_IMM
@@ -1321,6 +1328,9 @@ pub struct Instruction {
     pub native_list_index: Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>,
     /// Original C inclusive range coordinates, independent of portable `INDEX_END`.
     pub native_list_range: Option<tcl_syntax::native_compiled_index::NativeCompiledListRange>,
+    /// Original C9 insertion worker, distinct from logical List replacement.
+    pub native_list_insertion:
+        Option<tcl_runtime_api::native_list_insertion::NativeListInsertionInstruction>,
     /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
     /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
     /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
@@ -1409,6 +1419,7 @@ impl Instruction {
             native_each: None,
             native_list_index: None,
             native_list_range: None,
+            native_list_insertion: None,
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
@@ -3150,6 +3161,7 @@ mod tests {
                 Op::UPLEVEL => (Op::UPLEVEL.mnemonic(), Op::UPLEVEL.size()),
                 Op::NSUPVAR => (Op::NSUPVAR.mnemonic(), Op::NSUPVAR.size()),
                 Op::LREPLACE4 => (Op::LREPLACE4.mnemonic(), Op::LREPLACE4.size()),
+                Op::LREPLACE => (Op::LREPLACE.mnemonic(), Op::LREPLACE.size()),
                 Op::OVER => (Op::OVER.mnemonic(), Op::OVER.size()),
                 Op::LSET_FLAT => (Op::LSET_FLAT.mnemonic(), Op::LSET_FLAT.size()),
                 Op::LSET_LIST => (Op::LSET_LIST.mnemonic(), Op::LSET_LIST.size()),
@@ -3396,6 +3408,7 @@ mod tests {
             Op::UPLEVEL,
             Op::NSUPVAR,
             Op::LREPLACE4,
+            Op::LREPLACE,
             Op::OVER,
             Op::LSET_FLAT,
             Op::LSET_LIST,

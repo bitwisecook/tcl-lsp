@@ -772,6 +772,8 @@ impl CfgModule {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     /// Intern `name` into `func` and insert a fresh block for it, returning
@@ -919,9 +921,10 @@ mod tests {
             .unwrap()
             .statements
             .push(barrier_stmt());
+        let issuer = crate::ir::Module::default().procedure_ids;
         let mut procedures = HashMap::new();
-        procedures.insert("::p".to_string(), p);
-        procedures.insert("::q".to_string(), Function::new("::q", "entry"));
+        procedures.insert(issuer.allocate(), p);
+        procedures.insert(issuer.allocate(), Function::new("::q", "entry"));
         let m = CfgModule {
             top_level: Function::new("::top", "entry"),
             procedures,
@@ -1102,7 +1105,7 @@ mod tests {
             procedures: HashMap::from([("::greet".into(), proc)]),
         };
         assert_eq!(module.top_level.name, "::top");
-        assert!(module.procedures.contains_key("::greet"));
+        assert!(fixture_id_if_present(&module.procedures, "::greet").is_some());
     }
 
     // Clone and equality

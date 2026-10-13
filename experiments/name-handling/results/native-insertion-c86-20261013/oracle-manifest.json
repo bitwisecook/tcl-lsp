@@ -1,0 +1,33 @@
+{
+  "captured_utc": "2026-10-13T23:28:13.655517+00:00",
+  "scope": "Original C Tcl native insertion bytecode stack/operands and result bytes only. No tcltest or adapted oracle source. Native representation/header assertions additionally use retained original probe.c release-specific tables in repository.",
+  "runs": [
+    {
+      "engine": "8.6.18",
+      "tool": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "tool_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "script_sha256": "b19ce0bc6d9146595622d050d873fa886b62ede5f8c17e30aa8fe3f8c2bb0129",
+      "exit_code": 0,
+      "stdout_sha256": "940b0f1571b2527934d54f230931c48547fb7e93eb70610ce0c1b1dca51df57f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.0.4",
+      "tool": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "tool_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "script_sha256": "b19ce0bc6d9146595622d050d873fa886b62ede5f8c17e30aa8fe3f8c2bb0129",
+      "exit_code": 0,
+      "stdout_sha256": "e036cd21cf4ebf4d286cb4ce965c89a7d62104b22f76ddf7855cee311c2ae90d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "engine": "9.1.0",
+      "tool": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "tool_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "script_sha256": "b19ce0bc6d9146595622d050d873fa886b62ede5f8c17e30aa8fe3f8c2bb0129",
+      "exit_code": 0,
+      "stdout_sha256": "8f3c3d81bf9deeefd792cd90d9a0afc6037d68aaaecdc4c738bfe0ebdc6750de",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

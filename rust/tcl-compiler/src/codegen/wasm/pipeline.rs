@@ -792,6 +792,8 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::super::{ValType, WasmOp};
     use super::*;
     use crate::common_aot_plan::{
@@ -931,7 +933,11 @@ mod tests {
         );
         assert!(
             crate::native_compilation_admission::script_requires_admission(
-                &unit.ir_module.procedures["::bad"].body
+                unit.ir_module
+                    .procedures
+                    .get(&fixture_id(&unit.ir_module.procedures, "::bad"))
+                    .expect("authored fixture body")
+                    .body
             )
         );
         let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());

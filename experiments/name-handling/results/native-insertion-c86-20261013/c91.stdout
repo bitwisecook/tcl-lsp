@@ -1,0 +1,117 @@
+INDEX 0 RESULT {X Y A B C}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name 0 X Y"
+  Cmds 1, src 19, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af9125b0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-18
+  Command 1: "linsert $name 0 X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "0"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+INDEX end RESULT {A B C X Y}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name end X Y"
+  Cmds 1, src 21, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af9127b0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-20
+  Command 1: "linsert $name end X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "end"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+INDEX 1 RESULT {A X Y B C}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name 1 X Y"
+  Cmds 1, src 19, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af912630, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-18
+  Command 1: "linsert $name 1 X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "1"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+INDEX end-1 RESULT {A B X Y C}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name end-1 X Y"
+  Cmds 1, src 23, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af912730, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-22
+  Command 1: "linsert $name end-1 X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "end-1"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+INDEX -8 RESULT {X Y A B C}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name -8 X Y"
+  Cmds 1, src 20, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af9125b0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-19
+  Command 1: "linsert $name -8 X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "-8"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+INDEX 2147483647 RESULT {A B C X Y}
+ByteCode 0x5604af8eedc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $name 2147483647 X Y"
+  Cmds 1, src 28, inst 27, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x5604af9127b0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-25, src 0-27
+  Command 1: "linsert $name 2147483647 X Y"
+    (0) loadScalar %v0 	# var "name"
+    (5) push 0 	# "2147483647"
+    (10) push 1 	# "X"
+    (15) push 2 	# "Y"
+    (20) lreplace 4 singleIdx 
+    (26) done 
+
+ByteCode 0x5604af8eebc0, refCt 1, epoch 24, interp 0x5604af87ba10 (epoch 24)
+  Source "linsert $args 0 interp alias {} $name {}"
+  File "/tmp/name-native-insert-20261013/probe.tcl" Line 6
+  Cmds 1, src 40, inst 42, litObjs 4, aux 0, stkDepth 7, code/src 0.00
+  Proc 0x5604af9126b0, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-40, src 0-39
+  Command 1: "linsert $args 0 interp alias {} $name {}"
+    (0) loadScalar %v0 	# var "args"
+    (5) push 0 	# "0"
+    (10) push 1 	# "interp"
+    (15) push 2 	# "alias"
+    (20) push 3 	# ""
+    (25) loadScalar %v1 	# var "name"
+    (30) push 3 	# ""
+    (35) lreplace 7 singleIdx 
+    (41) done 
+
+HELPER {interp alias {} original {} one two}

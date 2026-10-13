@@ -110,14 +110,14 @@ pub struct EventVarSummary {
 /// Cross-event variable scope analysis result.
 ///
 /// Built once from
-/// the ``::when::*`` subset of `CompilationUnit::procedures`
+/// the source-owned event bodies in `CompilationUnit::procedures`
 /// and cached on `CompilationUnit::connection_scope`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionScope {
-    /// Per-event summaries keyed by event name.
+    /// Reporting union for every handler with this retained event metadata.
     pub summaries: HashMap<String, EventVarSummary>,
-    /// Individual handlers retained separately; priority order is not a union.
-    pub handlers: HashMap<String, EventVarSummary>,
+    /// Actual body summaries retained separately; priority order is not a union.
+    pub handlers: HashMap<crate::ir::ProcedureId, EventVarSummary>,
     /// Reporting labels for variables defined here and read in another event.
     /// Consumers obtain protection labels through `handler_source_names`;
     /// this presentation set does not identify storage.
@@ -131,18 +131,22 @@ pub struct ConnectionScope {
     pub racy_static_defs: HashSet<String>,
     /// Exact worker namespace roots read across event boundaries.
     pub racy_static_cells: HashSet<EventCell>,
-    cross_event_def_keys: HashMap<String, VariableCellSet>,
-    cross_event_import_keys: HashMap<String, VariableCellSet>,
-    cross_event_cells: HashMap<String, HashSet<EventCell>>,
+    cross_event_def_keys: HashMap<crate::ir::ProcedureId, VariableCellSet>,
+    cross_event_import_keys: HashMap<crate::ir::ProcedureId, VariableCellSet>,
+    cross_event_cells: HashMap<crate::ir::ProcedureId, HashSet<EventCell>>,
     /// Per-handler connection cells whose readers can precede their writers.
-    pub scope_concerns: HashMap<String, HashMap<EventCell, HashSet<String>>>,
+    pub scope_concerns: HashMap<crate::ir::ProcedureId, HashMap<EventCell, HashSet<String>>>,
 }
 
 impl ConnectionScope {
     /// Project written labels only after matching this handler's exact keys.
     /// These labels protect source-walking passes; they never select cells.
     #[must_use]
-    pub fn handler_source_names(&self, handler: &str, imports_only: bool) -> HashSet<String> {
+    pub fn handler_source_names(
+        &self,
+        handler: &crate::ir::ProcedureId,
+        imports_only: bool,
+    ) -> HashSet<String> {
         let Some(summary) = self.handlers.get(handler) else {
             return HashSet::new();
         };
@@ -174,7 +178,11 @@ impl ConnectionScope {
 
     /// Whether this resolved operation touches a proved cross-event root.
     #[must_use]
-    pub fn observes_cross_event_place(&self, handler: &str, place: &crate::place::Place) -> bool {
+    pub fn observes_cross_event_place(
+        &self,
+        handler: &crate::ir::ProcedureId,
+        place: &crate::place::Place,
+    ) -> bool {
         cell_from_place(place).is_some_and(|cell| {
             self.cross_event_cells
                 .get(handler)
@@ -219,74 +227,64 @@ pub fn event_resolve_context(event: &str) -> crate::var_resolve::ResolveContext 
     entry
 }
 
-/// Build a [`ConnectionScope`] from compiled ``when``
-/// procedures.
-///
-/// `when_procedures`
-/// should be the subset of `CompilationUnit::procedures` whose
-/// qualified names start with ``::when::``.
-///
-/// Actual command and condition reads come from the shared place bridge.
-/// Array elements project to their root storage cell for possible liveness;
-/// the element-sensitive cell SSA owns value and existence proofs.
+/// Build cross-event facts through this actual compilation unit's retained bodies.
 #[must_use]
-pub fn build_connection_scope<S: std::hash::BuildHasher>(
-    when_procedures: &HashMap<String, FunctionUnit, S>,
-) -> ConnectionScope {
-    if let Some(input) = when_procedures
-        .values()
-        .find_map(FunctionUnit::source_metadata_input)
-    {
-        return build_connection_scope_with_registry(
-            when_procedures,
-            input.borrowed_context_registry().commands(),
-        );
-    }
-    // Explicit standalone compatibility only. A supplied-missing source owner
-    // still refuses at the shared FU/point guards below.
-    let registry =
-        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules());
-    build_connection_scope_with_registry(when_procedures, &registry)
+pub fn build_connection_scope(unit: &crate::compilation_unit::CompilationUnit) -> ConnectionScope {
+    let registry = unit.ir_module.resolved_registry();
+    build_connection_scope_for_module(&unit.procedures, registry, &unit.ir_module)
 }
 
-/// Resolve cross-event cells through the document's shared registry and bindings.
+/// Resolve source-owned handlers under the same Module and Registry generation.
+/// This source projection issues no executing event, frame or worker receipt.
 #[must_use]
 pub fn build_connection_scope_with_registry<S: std::hash::BuildHasher>(
-    when_procedures: &HashMap<String, FunctionUnit, S>,
-    commands: &CommandRegistry,
-) -> ConnectionScope {
-    build_connection_scope_in(when_procedures, commands, None)
-}
-
-/// Resolve the source-owned handlers under the same actual Module and FU input.
-/// This does not issue event execution, physical frame or worker-cell receipts.
-#[must_use]
-pub(crate) fn build_connection_scope_for_module<S: std::hash::BuildHasher>(
-    when_procedures: &HashMap<String, FunctionUnit, S>,
+    when_procedures: &HashMap<crate::ir::ProcedureId, FunctionUnit, S>,
     commands: &CommandRegistry,
     module: &crate::ir::Module,
 ) -> ConnectionScope {
-    build_connection_scope_in(when_procedures, commands, Some(module))
+    build_connection_scope_in(when_procedures, commands, module)
+}
+
+pub(crate) fn build_connection_scope_for_module<S: std::hash::BuildHasher>(
+    when_procedures: &HashMap<crate::ir::ProcedureId, FunctionUnit, S>,
+    commands: &CommandRegistry,
+    module: &crate::ir::Module,
+) -> ConnectionScope {
+    build_connection_scope_with_registry(when_procedures, commands, module)
 }
 
 fn build_connection_scope_in<S: std::hash::BuildHasher>(
-    when_procedures: &HashMap<String, FunctionUnit, S>,
+    when_procedures: &HashMap<crate::ir::ProcedureId, FunctionUnit, S>,
     commands: &CommandRegistry,
-    module: Option<&crate::ir::Module>,
+    module: &crate::ir::Module,
 ) -> ConnectionScope {
     let events = EventRegistry::build();
     let mut summaries: HashMap<String, EventVarSummary> = HashMap::new();
     let mut handlers = HashMap::new();
-    for (qname, fu) in when_procedures {
+    for (id, fu) in when_procedures {
         let Some(body) = &fu.irules_event_body else {
             continue;
         };
-        if function_metadata(fu, commands, module).is_none() {
+        if !module.procedure_ids.owns(*id)
+            || fu.body_id != Some(*id)
+            || function_metadata(fu, commands, Some(module)).is_none()
+        {
+            continue;
+        }
+        let Some(procedure) = module.procedures.get(id) else {
+            continue;
+        };
+        let Some(original) =
+            crate::source_graph::event_body_for_procedure(module, id, procedure, commands)
+        else {
+            continue;
+        };
+        if !std::ptr::eq(original, body.as_ref()) {
             continue;
         }
         let event = body.event();
-        let summary = extract_event_summary(event, fu, commands, module);
-        handlers.insert(qname.clone(), summary.clone());
+        let summary = extract_event_summary(event, fu, commands, Some(module));
+        handlers.insert(*id, summary.clone());
         if let Some(previous) = summaries.get_mut(event) {
             previous.defs.extend(summary.defs);
             previous.uses_before_def.extend(summary.uses_before_def);
@@ -314,10 +312,11 @@ fn build_connection_scope_in<S: std::hash::BuildHasher>(
     let cross_imports = HashSet::new();
     let racy_statics = HashSet::new();
     let racy_static_cells = HashSet::new();
-    let cross_event_def_keys: HashMap<String, VariableCellSet> = HashMap::new();
-    let cross_event_import_keys: HashMap<String, VariableCellSet> = HashMap::new();
-    let cross_event_cells: HashMap<String, HashSet<EventCell>> = HashMap::new();
-    let scope_concerns: HashMap<String, HashMap<EventCell, HashSet<String>>> = HashMap::new();
+    let cross_event_def_keys: HashMap<crate::ir::ProcedureId, VariableCellSet> = HashMap::new();
+    let cross_event_import_keys: HashMap<crate::ir::ProcedureId, VariableCellSet> = HashMap::new();
+    let cross_event_cells: HashMap<crate::ir::ProcedureId, HashSet<EventCell>> = HashMap::new();
+    let scope_concerns: HashMap<crate::ir::ProcedureId, HashMap<EventCell, HashSet<String>>> =
+        HashMap::new();
     let mut scope = ConnectionScope {
         summaries,
         handlers,
@@ -358,7 +357,7 @@ fn collect_handler_relations(events: &EventRegistry, scope: &mut ConnectionScope
                         && let Some(note) = events.variable_scope_note(&writer.event, &reader.event)
                     {
                         scope_concerns
-                            .entry(writer_name.clone())
+                            .entry(*writer_name)
                             .or_default()
                             .entry(cell.clone())
                             .or_default()
@@ -379,19 +378,19 @@ fn collect_handler_relations(events: &EventRegistry, scope: &mut ConnectionScope
                     continue;
                 };
                 cross_event_def_keys
-                    .entry(writer_name.clone())
+                    .entry(*writer_name)
                     .or_default()
                     .extend(names.iter().cloned());
                 cross_event_import_keys
-                    .entry(reader_name.clone())
+                    .entry(*reader_name)
                     .or_default()
                     .extend(read_names.iter().cloned());
                 cross_event_cells
-                    .entry(writer_name.clone())
+                    .entry(*writer_name)
                     .or_default()
                     .insert(cell.clone());
                 cross_event_cells
-                    .entry(reader_name.clone())
+                    .entry(*reader_name)
                     .or_default()
                     .insert(cell.clone());
                 for key in names {
@@ -891,6 +890,8 @@ fn propagate_definite_cells(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     #[test]
     fn cross_event_namespace_cells_keep_native_incarnations_separate() {
         use crate::{
@@ -938,7 +939,9 @@ mod tests {
         let recreated_key = crate::var_resolve::cell_key(&native(2))
             .with_lifetime(4)
             .with_index("k");
-        let handler = "::when::HTTP_REQUEST".to_owned();
+        let fixture = cu("when HTTP_REQUEST {}\nwhen HTTP_RESPONSE {}");
+        let handler = fixture_id(&fixture.ir_module, "::when::HTTP_REQUEST");
+        let other = fixture_id(&fixture.ir_module, "::when::HTTP_RESPONSE");
         let summary = EventVarSummary {
             event: "HTTP_REQUEST".to_owned(),
             defs: HashSet::new(),
@@ -966,13 +969,13 @@ mod tests {
             .collect(),
         };
         let mut scope = ConnectionScope::default();
-        scope.handlers.insert(handler.clone(), summary);
+        scope.handlers.insert(handler, summary);
         scope
             .cross_event_import_keys
-            .insert(handler.clone(), [original_key].into());
+            .insert(handler, [original_key].into());
         scope
             .cross_event_cells
-            .insert(handler.clone(), HashSet::from([original]));
+            .insert(handler, HashSet::from([original]));
         // Public labels cannot donate a cell or an imported source binding.
         scope.cross_event_imports.insert("forged_label".to_owned());
         assert_eq!(
@@ -991,7 +994,7 @@ mod tests {
                 &crate::place::scalar("x", "::static", false)
             )
         );
-        assert!(!scope.observes_cross_event_place("::when::HTTP_RESPONSE", &native(1)));
+        assert!(!scope.observes_cross_event_place(&other, &native(1)));
     }
 
     use super::*;
@@ -1011,11 +1014,22 @@ mod tests {
         CompilationUnit::build_for(source, &registry, false)
     }
 
-    fn when_procs(cu: &CompilationUnit) -> HashMap<String, FunctionUnit> {
+    fn fixture_id(module: &crate::ir::Module, label: &str) -> crate::ir::ProcedureId {
+        let ids = module
+            .procedures
+            .iter()
+            .filter(|(_, procedure)| procedure.qualified_name == label)
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids.len(), 1, "fixture must retain exactly one {label}");
+        ids[0]
+    }
+
+    fn when_procs(cu: &CompilationUnit) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
         cu.procedures
             .iter()
             .filter(|(_, unit)| unit.irules_event_body.is_some())
-            .map(|(qn, fu)| (qn.clone(), fu.clone()))
+            .map(|(id, fu)| (*id, fu.clone()))
             .collect()
     }
 
@@ -1268,6 +1282,43 @@ mod tests {
     }
 
     #[test]
+    fn original_event_bodies_with_equal_reporting_labels_remain_independent() {
+        let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
+        let context = environment.default_context_registry();
+        let (unit, _owner) = supplied_unit(
+            "when HTTP_REQUEST {set first 1}\nwhen HTTP_REQUEST {set second 2}",
+            environment.unit_profile(),
+            &context,
+            false,
+        );
+        let mut handlers = when_procs(&unit);
+        assert_eq!(handlers.len(), 2);
+        for function in handlers.values_mut() {
+            function.name = "equal display label".to_owned();
+        }
+        let scope =
+            build_connection_scope_with_registry(&handlers, context.commands(), &unit.ir_module);
+        assert_eq!(scope.handlers.len(), 2);
+        for id in handlers.keys() {
+            assert!(scope.handlers.contains_key(id));
+        }
+        assert_eq!(scope.summaries.len(), 1);
+        assert!(scope.summaries.contains_key("HTTP_REQUEST"));
+        let foreign = crate::lowering::lower_to_ir("proc other {} {}", context.commands());
+        let foreign_id = *foreign.procedures.keys().next().unwrap();
+        let mut moved = handlers.clone();
+        let actual_id = *moved.keys().next().unwrap();
+        let mut function = moved.remove(&actual_id).unwrap();
+        function.body_id = Some(foreign_id);
+        moved.insert(foreign_id, function);
+        let rejected =
+            build_connection_scope_with_registry(&moved, context.commands(), &unit.ir_module);
+        assert_eq!(rejected.handlers.len(), 1);
+        assert!(!rejected.handlers.contains_key(&foreign_id));
+        assert!(!rejected.handlers.contains_key(&actual_id));
+    }
+
+    #[test]
     fn original_connection_summary_requires_the_hosted_module_and_function_owner() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -1320,7 +1371,9 @@ mod tests {
             .project_for_profile(tcl_dialect::DialectProfile::irules());
         let source = "when HTTP_REQUEST {set local 1}";
         let unit = CompilationUnit::build_for(source, &registry, false);
-        let event = unit.procedures.get("::when::HTTP_REQUEST").unwrap();
+        let event = fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST")
+            .and_then(|id| unit.procedures.get(&id))
+            .unwrap();
         let body = event
             .irules_event_body
             .as_ref()
@@ -1369,9 +1422,11 @@ mod tests {
         );
         assert_eq!(entry.execution, None);
         assert!(entry.constant_values.is_empty());
-        let handlers =
-            HashMap::from([("report label unrelated to event".to_owned(), event.clone())]);
-        let scope = build_connection_scope_with_registry(&handlers, &registry);
+        let mut renamed = event.clone();
+        renamed.name = "report label unrelated to event".to_owned();
+        let id = fixture_id(&unit.ir_module, "::when::HTTP_REQUEST");
+        let handlers = HashMap::from([(id, renamed)]);
+        let scope = build_connection_scope_with_registry(&handlers, &registry, &unit.ir_module);
         assert!(scope.summaries.contains_key("HTTP_REQUEST"));
         assert!(
             !scope
@@ -1381,8 +1436,9 @@ mod tests {
         let mut unowned = event.clone();
         unowned.irules_event_body = None;
         let scope = build_connection_scope_with_registry(
-            &HashMap::from([("::when::RULE_INIT".to_owned(), unowned)]),
+            &HashMap::from([(id, unowned)]),
             &registry,
+            &unit.ir_module,
         );
         assert!(
             scope.summaries.is_empty(),
@@ -1406,11 +1462,11 @@ mod tests {
         );
         let source = "when HTTP_REQUEST {set local 1}";
         let module = crate::lowering::lower_to_ir(source, &registry);
-        let body = module
-            .irules_event_bodies
-            .get("::when::HTTP_REQUEST")
+        let id = fixture_id(&module, "::when::HTTP_REQUEST");
+        let body = module.irules_event_bodies.get(&id).unwrap();
+        let procedure = fixture_id_if_present(&module.procedures, "::when::HTTP_REQUEST")
+            .and_then(|id| module.procedures.get(&id))
             .unwrap();
-        let procedure = module.procedures.get("::when::HTTP_REQUEST").unwrap();
         assert!(body.owns_procedure(procedure, &module.source, module.lexer_config, &registry));
         let mut changed = procedure.clone();
         changed.span = tcl_lexer::Span::new(procedure.span.start() + 1, procedure.span.end());
@@ -1577,7 +1633,7 @@ mod tests {
     #[test]
     fn build_connection_scope_empty_when_no_when_procs() {
         let cu = cu("proc foo {} {}");
-        let cs = build_connection_scope(&when_procs(&cu));
+        let cs = build_connection_scope(&cu);
         assert!(cs.summaries.is_empty());
         assert!(cs.cross_event_defs.is_empty());
         assert!(cs.cross_event_imports.is_empty());
@@ -1594,7 +1650,7 @@ mod tests {
             when HTTP_REQUEST { log local0. \"$ip\" }
         ";
         let cu = cu(source);
-        let cs = build_connection_scope(&when_procs(&cu));
+        let cs = build_connection_scope(&cu);
         // Each handler keeps its own captured SSA proof key, while the
         // lifecycle joins their common physical connection cell.
         let cell = EventCell::Connection("ip".into());
@@ -1638,7 +1694,7 @@ mod tests {
             when HTTP_RESPONSE { log local0. \"$static::counter\" }
         ";
         let cu = cu(source);
-        let cs = build_connection_scope(&when_procs(&cu));
+        let cs = build_connection_scope(&cu);
         assert!(cs.racy_static_defs.contains("::static::counter"));
     }
 
@@ -1651,7 +1707,7 @@ mod tests {
             when HTTP_REQUEST { log local0. \"$static::config\" }
         ";
         let cu = cu(source);
-        let cs = build_connection_scope(&when_procs(&cu));
+        let cs = build_connection_scope(&cu);
         assert!(!cs.racy_static_defs.contains("::static::config"));
     }
 
@@ -1662,7 +1718,7 @@ mod tests {
         // qualified spelling and mistakes the unset for a live def.
         let unsets_for = |source: &str| {
             let cu = cu(source);
-            build_connection_scope(&when_procs(&cu))
+            build_connection_scope(&cu)
                 .summaries
                 .get("HTTP_REQUEST")
                 .expect("HTTP_REQUEST summary")
@@ -1688,7 +1744,7 @@ mod tests {
             when HTTP_REQUEST { log local0. \"$a $b\" }
         ";
         let cu = cu(source);
-        let cs = build_connection_scope(&when_procs(&cu));
+        let cs = build_connection_scope(&cu);
         let s = cs
             .summaries
             .get("CLIENT_ACCEPTED")
@@ -1702,7 +1758,7 @@ mod tests {
     #[test]
     fn initialisation_globals_do_not_define_connection_locals() {
         let unit = cu("when RULE_INIT {set config 1}\nwhen HTTP_REQUEST {log local0. $config}");
-        let scope = build_connection_scope(&when_procs(&unit));
+        let scope = build_connection_scope(&unit);
         assert!(!scope.cross_event_imports.contains("config"));
         assert!(
             scope.summaries["RULE_INIT"]
@@ -1716,7 +1772,7 @@ mod tests {
         let unit = cu(
             "when RULE_INIT {set static::app_flag 1}\nwhen HTTP_REQUEST {log local0. $::static::app_flag}",
         );
-        let scope = build_connection_scope(&when_procs(&unit));
+        let scope = build_connection_scope(&unit);
         assert!(scope.cross_event_defs.contains("::static::app_flag"));
         assert!(scope.cross_event_imports.contains("::static::app_flag"));
     }
@@ -1726,7 +1782,7 @@ mod tests {
         let unit = cu(
             "when CLIENT_ACCEPTED {if {[IP::client_addr] eq {x}} {set flag 1}}\nwhen HTTP_REQUEST {log local0. $flag}",
         );
-        let scope = build_connection_scope(&when_procs(&unit));
+        let scope = build_connection_scope(&unit);
         let summary = &scope.summaries["CLIENT_ACCEPTED"];
         assert!(
             summary
@@ -1748,7 +1804,7 @@ mod tests {
         ];
         for source in sources {
             let unit = cu(source);
-            let scope = build_connection_scope(&when_procs(&unit));
+            let scope = build_connection_scope(&unit);
             let debug = EventCell::Connection("debug".into());
             assert!(
                 scope.summaries["CLIENT_ACCEPTED"]
@@ -1786,7 +1842,8 @@ mod tests {
     fn possible_body_dispatch_evidence(unit: &CompilationUnit) -> Vec<String> {
         let registry = unit.ir_module.resolved_registry();
         let mut evidence = Vec::new();
-        for (name, function) in &unit.procedures {
+        for function in unit.procedures.values() {
+            let name = &function.name;
             for block in function.cfg.blocks.values() {
                 for statement in &block.statements {
                     let Some(tokens) = statement.tokens() else {
@@ -1832,7 +1889,7 @@ mod tests {
         let unit = cu(
             "when CLIENT_ACCEPTED {set value 1}\nwhen HTTP_REQUEST {log local0. {info exists value}}",
         );
-        let scope = build_connection_scope(&when_procs(&unit));
+        let scope = build_connection_scope(&unit);
         assert!(!scope.cross_event_defs.contains("value"));
     }
 }

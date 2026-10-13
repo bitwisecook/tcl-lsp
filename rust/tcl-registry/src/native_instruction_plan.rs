@@ -1050,7 +1050,7 @@ fn selected_container_and_string_instruction_plan(
             .map(NativeInstructionPlan::ListOperations)
             .map_err(|_| Unavailable::OperandGeometry)
         }
-        NativeCompilationGrammar::ListInsertion if version == TclVersion::V8_6 => {
+        NativeCompilationGrammar::ListInsertion if version >= tcl_dialect::TclVersion::V8_6 => {
             crate::native_list_operations_compilation::compile_native_list_operation(
                 words,
                 operand_from,
@@ -1936,15 +1936,37 @@ mod tests {
     }
 
     #[test]
-    fn descriptor_without_portable_instruction_cannot_become_generic() {
-        assert_eq!(
-            project(
-                b"linsert value 0 X",
-                NativeCompilationGrammar::ListInsertion,
-                TclVersion::V9_0
+    fn original_c9_insertion_retains_each_release_instruction_and_original_index() {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
+        use crate::native_list_operations_compilation::{
+            NativeListInsertionIndex, NativeListInsertionInstruction,
+            NativeListOperationInstruction,
+        };
+        for (version, expected) in [
+            (
+                TclVersion::V9_0,
+                NativeListInsertionInstruction::ReplaceFour,
             ),
-            Err(NativeInstructionPlanUnavailable::Operation)
-        );
+            (TclVersion::V9_1, NativeListInsertionInstruction::Replace),
+        ] {
+            let plan = project(
+                b"linsert $args $index X",
+                NativeCompilationGrammar::ListInsertion,
+                version,
+            )
+            .unwrap();
+            assert_eq!(
+                plan,
+                NativeInstructionPlan::ListOperations(NativeListOperationInstruction::Insert {
+                    list: Operand::Original(1),
+                    index: NativeListInsertionIndex::Original {
+                        operand: Operand::Original(2),
+                        instruction: expected
+                    },
+                    elements: vec![Operand::Original(3)],
+                })
+            );
+        }
     }
 
     #[test]

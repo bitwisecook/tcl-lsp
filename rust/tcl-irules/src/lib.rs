@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! F5 iRules BIG-IP object-reference extractor.
+//! F5 original source projections and iRules BIG-IP object references.
 //!
 //! Two layers:
 //!
@@ -48,7 +48,8 @@ pub use event_handlers::{IrulesEventHandler, extract_irules_event_handlers};
 
 mod source_context;
 pub use source_context::{
-    IrulesSourceObligation, OriginalIrulesSourceCommand, OriginalIrulesSourceContext,
+    IrulesSourceObligation, OriginalHostedSourceVariableReferences, OriginalIrulesSourceCommand,
+    OriginalIrulesSourceContext, original_hosted_source_variable_references,
 };
 mod source_object;
 pub use source_object::{
@@ -73,8 +74,7 @@ pub use ilx::{
     extension_registrations, ilx_method_calls,
 };
 
-/// This crate's dialect ingress: every walk here reads **iRules** text, so
-/// its grammar is the `f5-irules` environment's, taken from
+/// The iRules object/event walks use the `f5-irules` source grammar, taken from
 /// [`tcl_registry::model::resolve_environment`] rather than re-derived from a
 /// dialect name at each lexer site.
 ///

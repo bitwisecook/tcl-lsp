@@ -1,0 +1,647 @@
+[
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "function_consumers_keep_the_actual_generation_and_grammar",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "semantic_bundle_requires_retained_availability_and_source_grammar",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "retained_deep_sidecars_keep_availability_and_refuse_missing_function_input",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "retained_deep_sidecars_require_the_module_source_owner",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "retained_memory_facts_require_matching_module_and_function_owners",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "memoised_source_facts_retain_nested_bom_and_lexer_overlays",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "supplied_source_input_retains_axes_and_independent_logical_entry",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "supplied_source_producer_refuses_changed_profile_and_lexer_metadata",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "supplied_hosted_source_entry_retains_advice_without_activation",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "semantic_value_projection_uses_actual_jim_entry_over_c_catalogue",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "prepare_cfg_context_short_name_collision_is_deterministic",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "build_for_empty_source",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "prepared_binding_mutation_projection_matches_compatibility_scan",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "method_units_carry_the_single_method_facts_carrier",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "non_method_units_carry_no_method_facts",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "build_for_single_statement",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "top_level_var_touched_by_callee_global_is_overdefined",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "top_level_dual_ported_var_touched_by_callee_global_is_overdefined",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "top_level_var_untouched_by_any_callee_still_folds",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "existence_is_unavailable_at_the_fast_tier",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "complexity_guard_flags_byte_huge_proc",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "build_for_captures_procedures",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "colliding_method_reports_keep_independent_analysis_units",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "build_for_lowers_oo_methods_to_function_units",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "runtime_selected_method_commands_guard_deep_cfg_analysis",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "switch_subject_counts_as_param_use",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "switch_glob_arm_body_read_counts_as_param_use",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "return_type_infers_int_literal",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "return_type_infers_string_literal",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "return_type_follows_local_var",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "return_type_joins_branches_to_common_int",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "return_type_partial_return_widens_via_fallthrough",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "with_memory_ssa_populates_optional",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "semantic_bundle_keeps_dialect_and_defers_unneeded_world_state",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "deep_semantic_analysis_materialises_every_retained_body_sidecar",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "functions_iterator_yields_top_plus_procs",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "call_site_inside_tcloo_method_body_is_not_missed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "call_site_via_namespace_import_alias_is_not_missed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "wildcard_namespace_import_preserves_actual_identity_and_open_callers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "wildcard_import_without_export_does_not_manufacture_a_caller",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "exported_namespace_declines_the_seed_even_with_a_workspace_view",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "ensemble_map_redirected_caller_does_not_fold_issue_979",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "method_body_bare_call_resolves_against_global_not_class_namespace",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "uplevel_zero_body_resolves_against_global_not_enclosing_namespace",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "uplevel_bare_zero_body_resolves_against_the_enclosing_namespace",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "uplevel_relative_body_keeps_the_enclosing_units_namespace",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "conditionally_defined_proc_body_call_sites_are_still_counted",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "apply_with_a_namespace_element_resolves_the_body_against_it",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "apply_without_a_namespace_element_still_resolves_globally",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "caller_contents_do_not_license_erasing_retained_parameter_coercions",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "namespaced_recursive_proc_parity_check_is_not_constant_folded",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "top_level_recursive_proc_parity_check_is_not_constant_folded",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "two_same_namespace_callers_with_uniform_literal_still_folds",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "sibling_namespace_procs_with_same_leaf_name_are_not_conflated",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "rename_onto_callee_name_disqualifies_call_site_seed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "call_site_inside_catch_body_is_not_missed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "call_site_inside_uplevel_body_is_not_missed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "unrelated_catch_body_does_not_disqualify_a_different_proc",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "caught_unresolved_command_keeps_its_callback_mutation_boundary",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "package_provide_file_disqualifies_every_seed",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "non_package_file_is_unaffected_by_package_provide_guard",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "package_provide_mentioned_only_in_a_comment_does_not_disqualify",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "package_provide_with_unusual_spelling_still_disqualifies",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "sourcing_file_with_a_differing_literal_retracts_the_fold",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "cross_file_scan_attributes_the_call_to_the_library_proc",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "sourcing_file_agreeing_on_the_literal_still_folds",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "unrelated_workspace_file_contributes_nothing",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "cross_file_dynamic_argument_poisons_the_position",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "cross_file_command_prefix_callback_poisons_every_position",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "cross_file_rename_poisons_the_callee",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "a_file_that_sources_another_declines_the_seed_on_its_own",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "recursive_param_version_zero_is_never_const_in_lattice",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "smoke_compile_canonical_snippet",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "a_jim_unit_is_built_as_jim_end_to_end",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "jim_aliases_build_the_same_unit",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "nested_original_children_share_the_actual_root_function_owner",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "original_child_withdraws_missing_foreign_and_changed_complete_owners",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "genuine_roster_retains_empty_classes_and_refuses_owner_donation",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "conditional_original_child_inherits_unknown_presence_and_refines_local_stores",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "selected_roster_preserves_changed_definition_and_captured_prefix_refusals",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "class_source_producer_withdraws_foreign_missing_and_changed_full_owners",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "retained_roster_projection_shares_empty_custom_and_selected_source_classes",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "name": "retained_roster_projection_withdraws_changed_cu_module_input_and_store",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_expression_fused_top_level_retains_its_existing_parent_record",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_expression_receipts_join_actual_literal_operand_and_child_extent",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_expression_receipts_refuse_cooked_and_foreign_producers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_expression_receipts_refuse_captured_and_shadowed_producers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_transfer_call_keeps_selected_procedure_and_captured_operands_together",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_transfer_child_and_body_require_the_genuine_parent_word",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_transfer_source_refuses_missing_foreign_config_and_changed_headers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "name": "original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "a_callee_counts_as_defined_only_where_its_definition_surely_ran",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "a_word_the_release_rejects_never_completes",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "a_body_of_commands_that_complete_completes",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "a_body_that_may_raise_does_not_complete",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "a_rebound_or_declared_head_states_no_completion",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "the_ir_only_summary_states_no_completion",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "original_completion_keeps_alias_prefixes_defaults_and_child_horizons",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "original_completion_keeps_selected_scalar_reference_and_element_obligations",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "original_completion_declines_missing_foreign_native_and_mutated_headers",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "original_completion_retains_selected_jim_formal_binding_strategy",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "name": "original_module_completion_uses_actual_native_or_logical_entry_purpose",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "summaries_compose_through_two_callees",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "a_barrier_has_no_summary",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "a_call_names_its_omitted_parameters_default",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "a_name_argument_naming_an_outer_place_is_a_global_write",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "a_cycle_that_does_not_converge_is_may_bind",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "a_rename_or_a_redefinition_moves_the_revision",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "transfer_formals_keep_selected_tcl_and_jim_binders_separate",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+    "name": "transfer_unused_formals_use_actual_variable_roots_and_metadata",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "library_irule_detected_when_only_rule_init_events",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "reachable_procs_follows_call_chain",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "reachable_procs_handles_cycles",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "comment_out_prefixes_every_line",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "dialect_gate_rejects_non_irules",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "non_irules_dialect_produces_nothing",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "library_irule_produces_nothing",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "reachable_proc_not_flagged",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "barrier_in_reachable_proc_suppresses_pass",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "unused_proc_reported_with_o124",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "irules_alias_dialect_accepted",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "unused_procs_reported_in_qualified_name_order",
+    "executed": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+    "name": "param_traits_ignored_by_pass",
+    "executed": false
+  }
+]

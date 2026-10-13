@@ -1,0 +1,4 @@
+[
+  "analyser::handlers::tests::logical_dictionary_write_invalidates_the_previous_constant_value",
+  "analyser::handlers::tests::logical_dictionary_metadata_masks_an_outer_procedure_name"
+]

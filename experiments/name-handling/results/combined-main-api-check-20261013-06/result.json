@@ -1,0 +1,47 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "-p",
+    "tcl-bigip",
+    "-p",
+    "tcl-irules",
+    "-p",
+    "tcl-lsp-server",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:33:45.431392+00:00",
+  "finished_utc": "2026-10-13T23:34:34.770164+00:00",
+  "exit_code": 101,
+  "seconds": 49.33877091100294,
+  "source_paths": 34655,
+  "changed_sources": {},
+  "errors": [
+    "error[E0614]: type `tcl_lexer::Token` cannot be dereferenced\n    --> rust/tcl-compiler/src/analyser/handlers.rs:1166:77\n     |\n1166 |                     self.set_original_logical_interp_var_binding(name, key, *value_tok, scope_path);\n     |                                                                             ^^^^^^^^^^ can't be dereferenced\n\n",
+    "error[E0614]: type `tcl_lexer::Token` cannot be dereferenced\n    --> rust/tcl-compiler/src/analyser/handlers.rs:1172:63\n     |\n1172 |                 self.try_fold_const_cmd_subst_rhs(value_text, *value_tok, scope_path)\n     |                                                               ^^^^^^^^^^ can't be dereferenced\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

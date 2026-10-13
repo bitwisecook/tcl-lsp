@@ -101,6 +101,19 @@ impl CodegenCtx<'_> {
             }
             Plan::Insert {
                 list,
+                index: tcl_registry::native_list_operations_compilation::NativeListInsertionIndex::Original { operand, instruction },
+                elements,
+            } => {
+                let count = elements.len().checked_add(2).expect("native insertion operand count");
+                for operand in std::iter::once(list).chain(std::iter::once(operand)).chain(elements) {
+                    if !Self::list_operand(command, operand, operations) {
+                        return false;
+                    }
+                }
+                operations.push(Task::NativeListInsertion(instruction, count));
+            }
+            Plan::Insert {
+                list,
                 index,
                 elements,
             } => {

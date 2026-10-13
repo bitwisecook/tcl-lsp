@@ -1,0 +1,35 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -1979,25 +1979,18 @@
+         candidates.next().is_none().then_some(value)
+     }
+ 
+-    /// A scalar substitution retains its original braced-name form.
++    /// A scalar substitution retains its complete original word and braced-name form.
+     pub(super) fn lookup_logical_const_substitution(&self, token: Token) -> Option<(&str, Span)> {
+         if token.kind != TokenType::Var {
+             return None;
+         }
+-        let map = Self::source_map(
+-            &self.source,
+-            &self.cached_line_index,
+-            self.cached_line_index_source_len,
+-        );
+-        let name = map.token_text(token);
+-        if token.content_offset != 2
+-            && crate::naming::split_array_name_braced(name, false)
+-                .1
+-                .is_some()
+-        {
++        let word = self.retained_value_word(token)?;
++        let arena = word.executable_parts();
++        let [component] = arena.list(arena.root()) else {
+             return None;
+-        }
+-        self.lookup_logical_const_string_at(name, token.span)
++        };
++        let (name, span) = self.logical_variable_value_component(&arena, component)?;
++        self.lookup_logical_const_string_at(&name, span)
+     }
+ 
+     pub(super) fn retained_value_word(&self, token: Token) -> Option<tcl_lexer::NativeWord> {

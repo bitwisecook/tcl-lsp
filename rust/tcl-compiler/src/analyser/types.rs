@@ -4102,37 +4102,16 @@ impl NamespaceRef {
     }
 }
 
-/// One variable-name argument whose word is **computed at run time** — a
-/// registry [`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`]
-/// position holding a `$`/`[…]` substitution (`set $n 2`, `variable $n`,
-/// `namespace upvar ::ns $n local`) — together with what the analyser could
-/// prove about the value.
-///
-/// The proof is analyser *state*: `Scope::lookup_dominating_const_string`
-/// knows, while the walk is in progress, that the `$n` in `set n other; set
-/// $n 2` is `other` and can never be anything else at that site.  Nothing
-/// per-site survived into [`AnalysisResult`], so a post-analysis consumer —
-/// the namespace-variable rename gate, which has to be exhaustive about which
-/// cells a document can name — had only the word's own text to reason from
-/// and refused on every bare `$n`, which is a lone wildcard.
-///
-/// Recording the site is what lets that gate ask the *value* question as well
-/// as the textual one.  Abstain-toward-refuse is unchanged: a site whose
-/// resolution is [`None`] proves nothing, and a site the walk never reached
-/// leaves no row at all, so a consumer that only *narrows* on a
-/// [`Some`] resolution can never widen what it accepts.
-///
-/// A **brace-quoted** word is not here: `set {$n} 1` names the variable
-/// literally called `$n` and substitutes nothing (tclsh 8.6.14: `set {$n} v;
-/// info exists {$n}` -> 1 while `info exists n` -> 0), so it is not a dynamic
-/// name at all.
+/// An original variable-name argument containing substitutions.
+/// The resolved value requires dominating Logical declaration and source provenance;
+/// an unresolved site cannot narrow the set of variable names it might reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicVariableNameSite {
     /// Byte span of the name word as written.
     pub span: Span,
     /// The name the word evaluates to when every substitution in it has a
     /// value that **dominates** this site — the straight-line constant
-    /// `Scope::lookup_dominating_const_string` proves.
+    /// retained original declaration and value provenance proves.
     ///
     /// [`None`] when it does not: a branch-dependent binding, a parameter, a
     /// command substitution, or any variable the constant lattice does not

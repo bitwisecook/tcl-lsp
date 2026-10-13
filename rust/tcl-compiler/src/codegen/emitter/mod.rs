@@ -669,6 +669,8 @@ pub(super) fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactId
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::emit_profile;
 
     /// Only an *unnamed* compile may reach the readers as `None`.
@@ -723,7 +725,11 @@ mod tests {
             // token, original dispatch or compiler-admission receipt.
             let source = "proc p {} {return}";
             let mut ir = crate::lowering::lower_to_ir(source, &registry);
-            let mut procedure = ir.procedures.remove("::p").unwrap();
+            let mut procedure = {
+                let id = fixture_id(&ir.procedures, "::p");
+                ir.procedures.remove(&id)
+            }
+            .unwrap();
             procedure.qualified_name = "::a:::b::p".to_owned();
             procedure.body = Script::new();
             procedure.body.namespace_context = Some(Box::new(SourceNamespaceKey::Allocated {
@@ -757,7 +763,11 @@ mod tests {
                 context,
                 tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(_)
             ));
-            let instructions = &module.procedures["::a:::b::p"].instructions;
+            let instructions = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::a:::b::p"))
+                .expect("authored fixture body")
+                .instructions;
             let source_instructions: Vec<_> = instructions
                 .iter()
                 .filter(|instruction| !instruction.source_cmd_text.is_empty())

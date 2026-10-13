@@ -4896,6 +4896,8 @@ fn coerce_scalar(text: &str) -> crate::tcl_expr_eval::EnvValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::ir::{ForeachIterator, IfClause, Script, SwitchArm, SwitchMode};
     use tcl_lexer::Span;
@@ -4907,7 +4909,10 @@ mod tests {
             "proc p {} {eval {set later CHILD}; set later PARENT; return $later}",
             &registry,
         );
-        let procedure = &module.procedures["::p"];
+        let procedure = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body");
         let block = procedure
             .body
             .statements
@@ -4926,7 +4931,10 @@ mod tests {
             .expect("folded logical eval body");
         let original = block.tokens().expect("original invocation");
         let executable = build_cfg_codegen_with_registry(&module, false, &registry);
-        let function = &executable.procedures["::p"];
+        let function = executable
+            .procedures
+            .get(&fixture_id(&executable.procedures, "::p"))
+            .expect("authored fixture body");
         let boundary = function
             .blocks
             .values()
@@ -4946,7 +4954,10 @@ mod tests {
             .any(|statement| matches!(statement, Statement::AssignConst { value, .. } if value == "CHILD")));
         let analysis = build_cfg_with_registry(&module, false, &registry);
         assert!(
-            analysis.procedures["::p"]
+            analysis
+                .procedures
+                .get(&fixture_id(&analysis.procedures, "::p"))
+                .expect("authored fixture body")
                 .blocks
                 .values()
                 .flat_map(|block| &block.statements)
@@ -6105,7 +6116,10 @@ mod tests {
         );
         let context = prepare_cfg_context_with_registry(&module, &registry);
         let build = |name: &str| {
-            let method = &module.methods[name];
+            let method = &module
+                .methods
+                .get(&fixture_id(&module.methods, name))
+                .expect("authored fixture body");
             build_cfg_method_function_with_upvars(
                 name,
                 &method.body,
@@ -6164,7 +6178,13 @@ mod tests {
         let summaries = detect_upvar_procs(&module);
         assert!(summaries["::p"].caller_frame_barrier().writes);
         let cfg = build_cfg(&module, false);
-        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
+        assert!(
+            cfg.procedures
+                .get(&fixture_id(&cfg.procedures, "::caller"))
+                .expect("authored fixture body")
+                .caller_frame_barrier
+                .writes
+        );
     }
 
     #[test]
@@ -6173,9 +6193,15 @@ mod tests {
             "namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]\n\
              proc caller {} {::n::writer}",
         );
-        assert!(!module.procedures.contains_key("::n::writer"));
+        assert!(!fixture_id_if_present(&module.procedures, "::n::writer").is_some());
         let cfg = build_cfg(&module, false);
-        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
+        assert!(
+            cfg.procedures
+                .get(&fixture_id(&cfg.procedures, "::caller"))
+                .expect("authored fixture body")
+                .caller_frame_barrier
+                .writes
+        );
     }
 
     // A wrapper proc
@@ -6419,9 +6445,8 @@ mod tests {
         ] {
             let module = lower_module(source);
             let cfg = build_cfg(&module, false);
-            let outer = cfg
-                .procedures
-                .get("::outer")
+            let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+                .and_then(|id| cfg.procedures.get(&id))
                 .expect("outer proc CFG should exist");
             let defs = find_call_defs(outer, "assign").expect("alias call should be in outer CFG");
             assert!(
@@ -6597,9 +6622,8 @@ mod tests {
              proc outer {} { inner }",
         );
         let cfg = build_cfg(&module, false);
-        let outer = cfg
-            .procedures
-            .get("::outer")
+        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+            .and_then(|id| cfg.procedures.get(&id))
             .expect("outer proc CFG should exist");
         let defs = find_call_defs(outer, "inner").expect("inner call should be in outer CFG");
         assert!(
@@ -6617,9 +6641,8 @@ mod tests {
              interp alias {} call_mutate {} mutate",
         );
         let cfg = build_cfg(&module, false);
-        let outer = cfg
-            .procedures
-            .get("::outer")
+        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+            .and_then(|id| cfg.procedures.get(&id))
             .expect("outer proc CFG should exist");
         let defs =
             find_call_defs(outer, "call_mutate").expect("late alias call should be in outer CFG");
@@ -6760,7 +6783,9 @@ mod tests {
         ] {
             let module = lower_module(&format!("proc p {{}} {{ set x 1; set r 5; {body} }}"));
             let cfg = build_cfg(&module, false);
-            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let p = fixture_id_if_present(&cfg.procedures, "::p")
+                .and_then(|id| cfg.procedures.get(&id))
+                .expect("::p CFG");
             let (defs, reads) = defs_and_reads(p, carrier).expect(body);
             assert!(defs.iter().any(|name| name == "x"), "{body}: {defs:?}");
             assert!(reads.iter().any(|name| name == "x"), "{body}: {reads:?}");
@@ -6787,7 +6812,9 @@ mod tests {
                 "proc p {{fd}} {{ set x 1; set r 5; set line {{}}; {body} }}"
             ));
             let cfg = build_cfg(&module, false);
-            let p = cfg.procedures.get("::p").expect("::p CFG");
+            let p = fixture_id_if_present(&cfg.procedures, "::p")
+                .and_then(|id| cfg.procedures.get(&id))
+                .expect("::p CFG");
             let (defs, reads) = defs_and_reads(p, carrier).expect(body);
             assert!(defs.iter().any(|name| name == place), "{body}: {defs:?}");
             assert!(!reads.iter().any(|name| name == place), "{body}: {reads:?}");
@@ -6840,7 +6867,9 @@ mod tests {
              proc p {} {\n set go 1\n catch { if {1} { zero go } }\n puts $go\n}\n",
         );
         let cfg = build_cfg(&module, false);
-        let p = cfg.procedures.get("::p").expect("::p CFG");
+        let p = fixture_id_if_present(&cfg.procedures, "::p")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::p CFG");
         let calls = calls_in_order(p);
         assert_eq!(calls[position_of(&calls, "<arm-writes>")].1, ["go"]);
     }
@@ -6869,7 +6898,11 @@ mod tests {
         let top = |src: &str| build_cfg(&lower_module(src), false).top_level;
         let in_proc = |src: &str| {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
-            build_cfg(&module, false).procedures["::p"].clone()
+            build_cfg(&module, false)
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .clone()
         };
         for src in [
             "catch {foo}",
@@ -6982,7 +7015,14 @@ mod tests {
         for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
-            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
+            assert!(
+                unseen(
+                    cfg.procedures
+                        .get(&fixture_id(&cfg.procedures, "::p"))
+                        .expect("authored fixture body")
+                ),
+                "proc: {src}"
+            );
         }
     }
 
@@ -7010,7 +7050,11 @@ mod tests {
                     .with_declared_commands(Some(&declared)),
                 &src,
             );
-            build_cfg_with_registry(&module, false, registry).procedures["::p"].clone()
+            build_cfg_with_registry(&module, false, registry)
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .clone()
         };
         let unseen = |func: &Function| {
             calls_in_order(func)
@@ -7143,7 +7187,14 @@ mod tests {
         ] {
             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
             let cfg = build_cfg(&module, false);
-            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
+            assert!(
+                unseen(
+                    cfg.procedures
+                        .get(&fixture_id(&cfg.procedures, "::p"))
+                        .expect("authored fixture body")
+                ),
+                "proc: {src}"
+            );
         }
     }
 
@@ -7172,7 +7223,9 @@ mod tests {
              proc outer {} { return [setter] }",
         );
         let cfg = build_cfg(&module, false);
-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::outer CFG");
         assert_eq!(
             find_call_with_def(outer, "caller_x"),
             Some("<word-effects>")
@@ -7196,7 +7249,9 @@ mod tests {
              }",
         );
         let cfg = build_cfg(&module, false);
-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::outer CFG");
         let boundary = outer
             .blocks
             .values()
@@ -7246,7 +7301,9 @@ mod tests {
              }",
         );
         let cfg = build_cfg(&module, false);
-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
+        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::outer CFG");
         assert_eq!(find_call_with_def(outer, "subject"), None);
         assert_eq!(find_call_with_def(outer, "pattern"), None);
     }
@@ -7326,7 +7383,9 @@ mod tests {
              proc p {} {set x 1; set y [via]; return $x}",
         );
         let cfg = build_cfg(&module, false);
-        let p = cfg.procedures.get("::p").expect("::p CFG");
+        let p = fixture_id_if_present(&cfg.procedures, "::p")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::p CFG");
         assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
     }
 
@@ -7342,7 +7401,9 @@ mod tests {
              }",
         );
         let namespace_cfg = build_cfg(&namespace_module, false);
-        let p = namespace_cfg.procedures.get("::a::p").expect("::a::p CFG");
+        let p = fixture_id_if_present(&namespace_cfg.procedures, "::a::p")
+            .and_then(|id| namespace_cfg.procedures.get(&id))
+            .expect("::a::p CFG");
         assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
         assert_eq!(find_call_with_def(p, "y"), None);
 
@@ -7351,7 +7412,9 @@ mod tests {
              proc p {} {set missing 1; set y [missing]; return $missing}",
         );
         let unknown_cfg = build_cfg(&unknown_module, false);
-        let p = unknown_cfg.procedures.get("::p").expect("::p CFG");
+        let p = fixture_id_if_present(&unknown_cfg.procedures, "::p")
+            .and_then(|id| unknown_cfg.procedures.get(&id))
+            .expect("::p CFG");
         assert_eq!(find_call_with_def(p, "missing"), Some("<word-effects>"));
     }
 
@@ -7541,7 +7604,9 @@ mod tests {
         let module =
             lower_module("proc f {} { try { set a 1 } on error {} { return -code error boom } }");
         let cfg = build_cfg(&module, false);
-        let func = cfg.procedures.get("::f").expect("::f cfg");
+        let func = fixture_id_if_present(&cfg.procedures, "::f")
+            .and_then(|id| cfg.procedures.get(&id))
+            .expect("::f cfg");
         let handler = func
             .blocks
             .values()
@@ -7634,12 +7699,13 @@ mod tests {
              namespace eval b {proc p {name} {upvar 1 $name local}}",
         );
         let mut changed = module.clone();
-        changed
-            .procedures
-            .get_mut("::b::p")
-            .unwrap()
-            .params_raw
-            .push_str(" extra");
+        {
+            let id = fixture_id(&changed.procedures, "::b::p");
+            changed.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .params_raw
+        .push_str(" extra");
         let (summaries, params, _, _) = prepare_cfg_context(&changed);
         assert!(!params.contains_key("p"));
         assert!(params.contains_key("::a::p"));

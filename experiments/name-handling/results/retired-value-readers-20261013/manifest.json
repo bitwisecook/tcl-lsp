@@ -1,0 +1,31 @@
+{
+  "patch_sha256": "d24f5ee85eecda287b27638a71a476e3dcda4082a795a7bd50892925d2b09ba0",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "ac3edc16469170835cd5c96138f1631590575fc5fcd9586f7b7c55728074af33",
+      "after_sha256": "ea7d45f2436966980deaee69ff1ded8ded4d5267b6cdc7a1c1cf15acc38e19db"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "af4a38b1f97f8f3696aa1b58467a725769ec686321d36743be3f125725e56358",
+      "after_sha256": "33cc2c3ccd2b2bd38a90e13aadb1c3d4ed8502ce50e4ff6dce7d8afff2a37e11"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "3b3189651a477eba347500fcb46520f4fd9bbd6c38fed1d3db221501dfc8d731",
+      "after_sha256": "eee5ef908205ed7c5b5947720c22deb253e46497c5a7c12816a455696b3c0f08"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "d8bca102a9c27ae3af7766fe80133e3b627d5bfa34ff9bef3fb5b14f9baeabc9",
+      "after_sha256": "9b8d3e8e0f663b04381c3d471f828b662e15ef43dc1c8f9ff9afb9de5fa857e2"
+    }
+  ],
+  "dependencies": [
+    "remaining draft d835bc15",
+    "dictionary write follow-up06ade936"
+  ],
+  "rust_status": "unexecuted",
+  "scope": "Delete zero-production-call ancestor value readers and unused expansion helper; retain exact-table storage tests; current-state comments"
+}

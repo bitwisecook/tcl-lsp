@@ -95,7 +95,7 @@ impl AplModel {
         let mut out: Vec<String> = self
             .all_fields
             .iter()
-            .map(|(q, _)| format!("::{}", q.replace('.', "__")))
+            .map(|(q, _)| apl_name_to_tcl_var(q))
             .collect();
         out.sort();
         out.dedup();
@@ -103,21 +103,4 @@ impl AplModel {
     }
 }
 
-/// Convert a Tcl iApp variable name to its APL qualified name
-/// (`::basic__addr` -> `basic.addr`); `None` when it isn't the iApp
-/// convention.
-#[must_use]
-pub fn tcl_var_to_apl_name(tcl_var: &str) -> Option<String> {
-    let name = tcl_var.trim_start_matches(':');
-    if !name.contains("__") {
-        return None;
-    }
-    Some(name.replace("__", "."))
-}
-
-/// Convert an APL qualified name to the Tcl global variable name
-/// (`basic.addr` -> `::basic__addr`).
-#[must_use]
-pub fn apl_name_to_tcl_var(apl_name: &str) -> String {
-    format!("::{}", apl_name.replace('.', "__"))
-}
+pub use super::variable_names::{apl_name_to_tcl_var, tcl_var_to_apl_name};

@@ -676,6 +676,8 @@ fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     fn beyond_values(text: &str) -> bool {
@@ -698,7 +700,13 @@ mod tests {
             let (context, module) = crate::inlining::tests::logical_module_for(source);
             let selected = SourceContext::for_module(&module, context.commands()).unwrap();
             assert!(
-                reads_only_bound_names(&module.procedures["::p"], selected),
+                reads_only_bound_names(
+                    module
+                        .procedures
+                        .get(&fixture_id(&module.procedures, "::p"))
+                        .expect("authored fixture body"),
+                    selected
+                ),
                 "{source}"
             );
         }
@@ -712,7 +720,13 @@ mod tests {
             let (context, module) = crate::inlining::tests::logical_module_for(source);
             let selected = SourceContext::for_module(&module, context.commands()).unwrap();
             assert!(
-                !reads_only_bound_names(&module.procedures["::p"], selected),
+                !reads_only_bound_names(
+                    module
+                        .procedures
+                        .get(&fixture_id(&module.procedures, "::p"))
+                        .expect("authored fixture body"),
+                    selected
+                ),
                 "{source}"
             );
         }
@@ -726,7 +740,10 @@ mod tests {
             crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p 1");
         let selected = SourceContext::for_module(&original, context.commands()).unwrap();
         assert!(reads_only_bound_names(
-            &original.procedures["::p"],
+            original
+                .procedures
+                .get(&fixture_id(&original.procedures, "::p"))
+                .expect("authored fixture body"),
             selected
         ));
         let foreign =
@@ -741,7 +758,11 @@ mod tests {
         let mut stale_source = original.clone();
         stale_source.source = tcl_lexer::SourceImage::document("proc p {x} {return $missing}; p 1");
         assert!(SourceContext::for_module(&stale_source, context.commands()).is_none());
-        let mut cooked = original.procedures["::p"].clone();
+        let mut cooked = original
+            .procedures
+            .get(&fixture_id(&original.procedures, "::p"))
+            .expect("authored fixture body")
+            .clone();
         cooked.body.command_binding_sites = Default::default();
         let Statement::Return { tokens, .. } = &mut cooked.body.statements[0] else {
             panic!("genuine original return fixture");
@@ -759,7 +780,10 @@ mod tests {
         let (context, module) =
             crate::inlining::tests::logical_module_for("proc p {café} {return ${café}}; p VALUE");
         let source = SourceContext::for_module(&module, context.commands()).unwrap();
-        let original = &module.procedures["::p"];
+        let original = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body");
         assert!(reads_only_bound_names(original, source));
         let mutations: &[fn(&mut Procedure)] = &[
             |procedure| procedure.name = "other".into(),
@@ -901,7 +925,11 @@ mod tests {
         );
         let selected = SourceContext::for_module(&logical.ir_module, registry).unwrap();
         assert!(reads_only_bound_names(
-            &logical.ir_module.procedures["::p"],
+            logical
+                .ir_module
+                .procedures
+                .get(&fixture_id(&logical.ir_module.procedures, "::p"))
+                .expect("authored fixture body"),
             selected
         ));
     }

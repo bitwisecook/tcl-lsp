@@ -1,0 +1,193 @@
+diff --git a/rust/tcl-compiler/src/analyser/class_lattice.rs b/rust/tcl-compiler/src/analyser/class_lattice.rs
+--- a/rust/tcl-compiler/src/analyser/class_lattice.rs
++++ b/rust/tcl-compiler/src/analyser/class_lattice.rs
+@@ -965,6 +965,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     fn source_name(written: &str) -> Option<crate::signature_scan::scope::SignatureSourceCommand> {
+@@ -1479,7 +1481,13 @@
+             collect_assign_kinds(unit, &index, &namespace, input.lexer_config())
+         };
+         assert_eq!(query(&unit)["target"], vec![AssignKind::Introspection]);
+-        let original = unit.ir_module.procedures["::owner"].body.clone();
++        let original = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
++            .expect("authored fixture body")
++            .body
++            .clone();
+         let older = std::sync::Arc::new(
+             tcl_registry::model::ingress::static_context_for("tcl8.4")
+                 .with_command_store(std::sync::Arc::clone(registry)),
+@@ -1506,7 +1514,14 @@
+         ] {
+             unit.ir_module.source_metadata_input = withheld;
+             assert!(query(&unit).is_empty());
+-            assert_eq!(unit.ir_module.procedures["::owner"].body, original);
+-        }
+-    }
+-}
++            assert_eq!(
++                unit.ir_module
++                    .procedures
++                    .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
++                    .expect("authored fixture body")
++                    .body,
++                original
++            );
++        }
++    }
++}
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs b/rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs
+--- a/rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/fp/bnd.rs
+@@ -23,6 +23,7 @@
+ use crate::analyser::Analyser;
+ use crate::compilation_unit::CompilationUnit;
+ use crate::compiler_checks::run_all_checks;
++use crate::interprocedural::test_body_identity::fixture_id;
+ use tcl_registry::model::ingress::static_context_for;
+ 
+ /// Full `(code, message)` diagnostics for `src`, mirroring `tcl diag` (analyser
+@@ -78,7 +79,9 @@
+         let profile = registry.profile().unwrap();
+         let unit = CompilationUnit::build_for_profile(FP_BND_01_REPRO, registry, false, profile);
+         crate::interval_bounds::report_interval_operand_gates(
+-            &unit.procedures["::f"],
++            unit.procedures
++                .get(&fixture_id(&unit.ir_module.procedures, "::f"))
++                .expect("authored fixture body"),
+             crate::interval_bounds::BoundsSemantics {
+                 registry,
+                 context: Some(static_context_for(D).into()),
+diff --git a/rust/tcl-compiler/src/cfg.rs b/rust/tcl-compiler/src/cfg.rs
+--- a/rust/tcl-compiler/src/cfg.rs
++++ b/rust/tcl-compiler/src/cfg.rs
+@@ -921,9 +921,10 @@
+             .unwrap()
+             .statements
+             .push(barrier_stmt());
++        let issuer = crate::ir::Module::default().procedure_ids;
+         let mut procedures = HashMap::new();
+-        procedures.insert("::p".to_string(), p);
+-        procedures.insert("::q".to_string(), Function::new("::q", "entry"));
++        procedures.insert(issuer.allocate(), p);
++        procedures.insert(issuer.allocate(), Function::new("::q", "entry"));
+         let m = CfgModule {
+             top_level: Function::new("::top", "entry"),
+             procedures,
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -6898,7 +6898,11 @@
+         let top = |src: &str| build_cfg(&lower_module(src), false).top_level;
+         let in_proc = |src: &str| {
+             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+-            build_cfg(&module, false).procedures["::p"].clone()
++            build_cfg(&module, false)
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .clone()
+         };
+         for src in [
+             "catch {foo}",
+@@ -7046,7 +7050,11 @@
+                     .with_declared_commands(Some(&declared)),
+                 &src,
+             );
+-            build_cfg_with_registry(&module, false, registry).procedures["::p"].clone()
++            build_cfg_with_registry(&module, false, registry)
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .clone()
+         };
+         let unseen = |func: &Function| {
+             calls_in_order(func)
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -10335,7 +10335,7 @@
+         let mut stale = Lowerer::with_config(context.commands(), input.lexer_config());
+         stale.config.strict_quoting = !stale.config.strict_quoting;
+         stale = stale.with_resolved_analysis_input(input.clone());
+-        assert!(!stale.lower(source).procedures.contains_key("::subject"));
++        assert!(!fixture_id_if_present(&stale.lower(source).procedures, "::subject").is_some());
+         let foreign = crate::analyser::ResolvedAnalysisInput::new(
+             profile,
+             profile,
+@@ -10344,7 +10344,7 @@
+         );
+         let mut foreign = Lowerer::with_config(context.commands(), foreign.lexer_config())
+             .with_resolved_analysis_input(foreign);
+-        assert!(!foreign.lower(source).procedures.contains_key("::subject"));
++        assert!(!fixture_id_if_present(&foreign.lower(source).procedures, "::subject").is_some());
+ 
+         let native_profile = context.commands().profile().unwrap();
+         let native = crate::analyser::ResolvedAnalysisInput::new(
+@@ -10414,7 +10414,7 @@
+         let source = "rename proc ::α; ::α ::α args {return PAYLOAD}; ::α subject {} {}";
+         let mut replaced = Lowerer::with_config(context.commands(), input.lexer_config())
+             .with_resolved_analysis_input(input);
+-        assert!(!replaced.lower(source).procedures.contains_key("::subject"));
++        assert!(!fixture_id_if_present(&replaced.lower(source).procedures, "::subject").is_some());
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/tests/value_transfer_witnesses.rs b/rust/tcl-compiler/tests/value_transfer_witnesses.rs
+--- a/rust/tcl-compiler/tests/value_transfer_witnesses.rs
++++ b/rust/tcl-compiler/tests/value_transfer_witnesses.rs
+@@ -9027,7 +9027,8 @@
+         let registry = static_context_for(dialect).commands();
+         let profile = resolve_environment(dialect).analyser_profile();
+         let mut unit = summarised_unit(source, dialect);
+-        unit.procedures.remove("::p");
++        let p_id = fixture_id(&unit.ir_module.procedures, "::p");
++        unit.procedures.remove(&p_id);
+         let folds = optimise_unit(&unit, registry, Some(profile));
+         assert!(
+             folds.iter().any(|fold| fold.code == DiagCode::O103
+diff --git a/rust/tcl-compiler/src/taint_interproc.rs b/rust/tcl-compiler/src/taint_interproc.rs
+--- a/rust/tcl-compiler/src/taint_interproc.rs
++++ b/rust/tcl-compiler/src/taint_interproc.rs
+@@ -1811,20 +1811,19 @@
+     fn summaries_for(src: &str) -> HashMap<String, ProcTaintSummary> {
+         let reg = CommandRegistry::build_default();
+         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
+-        summaries_for_unit(&cu, &reg)
+-            .into_iter()
+-            .map(|(id, summary)| {
+-                (
+-                    cu.ir_module
+-                        .procedures
+-                        .get(&id)
+-                        .unwrap()
+-                        .qualified_name
+-                        .clone(),
+-                    summary,
+-                )
+-            })
+-            .collect()
++        let mut shown = HashMap::new();
++        for (id, summary) in summaries_for_unit(&cu, &reg) {
++            let body = cu
++                .ir_module
++                .procedures
++                .get(&id)
++                .expect("actual taint fixture body");
++            assert!(
++                shown.insert(body.qualified_name.clone(), summary).is_none(),
++                "authored taint fixture labels must be unique"
++            );
++        }
++        shown
+     }
+ 
+     #[test]

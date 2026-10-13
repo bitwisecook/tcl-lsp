@@ -156,6 +156,10 @@ enum NativeEmissionTask {
     Operation(Op, Vec<Operand>),
     NativeListIndex(tcl_syntax::native_compiled_index::NativeCompiledListIndex),
     NativeListRange(tcl_syntax::native_compiled_index::NativeCompiledListRange),
+    NativeListInsertion(
+        tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction,
+        usize,
+    ),
     ErrorReturn,
     SwitchOperation(Op, Vec<Operand>, tcl_dialect::TclVersion),
     SwitchTable(
@@ -1841,6 +1845,7 @@ impl CodegenCtx<'_> {
                 | Task::Operation(..)
                 | Task::NativeListIndex(..)
                 | Task::NativeListRange(..)
+                | Task::NativeListInsertion(..)
                 | Task::Literal(..)
                 | Task::PrivateReturnOptions(..)
                 | Task::PoolLiteral(..)
@@ -1930,6 +1935,18 @@ impl CodegenCtx<'_> {
             Task::ErrorReturn => self.emit_native_error_return(""),
             Task::Operation(op, operands) => {
                 self.emit(op, operands);
+            }
+            Task::NativeListInsertion(recipe, count) => {
+                use tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction;
+                let opcode = match recipe {
+                    NativeListInsertionInstruction::ReplaceFour => Op::LREPLACE4,
+                    NativeListInsertionInstruction::Replace => Op::LREPLACE,
+                };
+                let index = self.emit(
+                    opcode,
+                    vec![Operand::Imm(super::bytecode_imm(count)), Operand::Imm(2)],
+                );
+                self.instructions[index].native_list_insertion = Some(recipe);
             }
             Task::NativeListRange(range) => {
                 let instruction = self.emit(

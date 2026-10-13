@@ -23,6 +23,7 @@ use super::D;
 use crate::analyser::Analyser;
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
+use crate::interprocedural::test_body_identity::fixture_id;
 use tcl_registry::model::ingress::static_context_for;
 
 /// Full `(code, message)` diagnostics for `src`, mirroring `tcl diag` (analyser
@@ -78,7 +79,9 @@ fn fp_bnd_01_loop_index_past_append_slot_fires() {
         let profile = registry.profile().unwrap();
         let unit = CompilationUnit::build_for_profile(FP_BND_01_REPRO, registry, false, profile);
         crate::interval_bounds::report_interval_operand_gates(
-            &unit.procedures["::f"],
+            unit.procedures
+                .get(&fixture_id(&unit.ir_module.procedures, "::f"))
+                .expect("authored fixture body"),
             crate::interval_bounds::BoundsSemantics {
                 registry,
                 context: Some(static_context_for(D).into()),

@@ -62,25 +62,7 @@ pub enum NativeListVariableOperand {
     },
 }
 
-/// Actual C9 insertion instruction selected by the native release.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NativeListInsertionInstruction {
-    /// C9.0 consumes list, first, last and replacement List objects.
-    ReplaceFour,
-    /// C9.1 consumes the original list/index and counted replacement objects.
-    Replace,
-}
-
-impl NativeListInsertionInstruction {
-    /// Exact native disassembly operation; this does not grant execution.
-    #[must_use]
-    pub const fn opcode_name(self) -> &'static str {
-        match self {
-            Self::ReplaceFour => "lreplace4",
-            Self::Replace => "lreplace",
-        }
-    }
-}
+pub use tcl_runtime_api::native_list_insertion::NativeListInsertionInstruction;
 
 /// Native insertion evaluates its index only on C9 and later.
 #[derive(Debug, Clone, PartialEq, Eq)]

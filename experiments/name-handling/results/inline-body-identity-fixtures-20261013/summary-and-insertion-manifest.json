@@ -1,0 +1,37 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "b5622997829eaafef6a27b23d42c04101eda2a40886b3d5f70d2c42716d8d590",
+      "after_sha256": "30c05f8fb93511aa0f1132b884985266801e214e0fec7d971a41295538974bf3",
+      "production_prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+      "before_sha256": "18ec138543fceae70eb2b1d541bb8d51015679d1293fe24fc58c57c22e7d1eee",
+      "after_sha256": "64d946a87d18476abdae5b2900a2071cde595bca6e0ffb980bcf70e16af53d24",
+      "production_prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+      "before_sha256": "ed3476484c8bfcff9eab32008d733143b4617f123e5602b15a34cdaea52574cc",
+      "after_sha256": "88d29c80e1371fba803f2b4e4cfb2d136f5efeb865ff4d0a50631c3887e8188d",
+      "production_prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+      "before_sha256": "77e4417b7e7687e25e97bd0f481d8359742e5f504fdf7b76d16385a6957f04e6",
+      "after_sha256": "cd1a73c094ae0b6a1b0fe0241ad80533ddf1665a41612b75702343b6db214992",
+      "production_prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+      "before_sha256": "bd1fddf4c2ea17fec1bcd5bbd96f9cc5902119eeac3c42c942f3ae6cd7808274",
+      "after_sha256": "def01f90dc61b3dcc4ef6e77737a5b521eabb9bb4e83d8749e916b0c72925d4c",
+      "production_prefix_unchanged": true
+    }
+  ],
+  "sha256": "c297c06855bd5ad0f63ab9a7aaa0fe52f9087734277838291755065d014035bd",
+  "status": "syntax and sparse patch checks only; no build/test execution",
+  "guards": "Original wrong-String-key refusal becomes foreign-Module-issued body ID with identical original body/header bytes. Root must integrate actual issuer ownership guard separately. Synthetic analytical graph tests rebind to actual CU-issued IDs before calling the production unused-proc pass."
+}

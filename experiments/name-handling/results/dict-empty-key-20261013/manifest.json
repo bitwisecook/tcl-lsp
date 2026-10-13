@@ -1,0 +1,18 @@
+{
+  "patch_sha256": "1071d7aab8e967f221166850363d0ca69ea530d132188395cefbedbeeb0e193b",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "67f47629a6748da74a504c6410e0046ab09591cea6c1ca19a67a62e5dad77c1f",
+      "after_sha256": "8f15f4838717575d02ac82a94c62de75e692a19e209e1016560ceeed4eaf63f1"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "9ab25139d88f13ba54ab89ededb68badeee687b5697cb00b5e5e98de2035cd45",
+      "after_sha256": "4b28226f4b5b7c20d2f61c65c8366362119348efb3b61e8e4ad26cfb353cdf00"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "oracle": "oracles/results.json",
+  "test": "analyser::handlers::tests::logical_dictionary_metadata_retains_an_empty_variable_name"
+}

@@ -984,6 +984,8 @@ fn byte_script_command_plan(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::lowering::{
         lower_proc_body_module_for_bytecode, lower_to_ir_for_bytecode_with_dialect,
@@ -1816,7 +1818,7 @@ mod tests {
     fn explicit_whole_module_artifact_keeps_procedure_inventory() {
         let source = "proc child {} {return KEPT}; set marker ENTERED";
         let module = BytecodeCompileService::default().compile(source).unwrap();
-        assert!(module.procedures.contains_key("::child"));
+        assert!(fixture_id_if_present(&module.procedures, "::child").is_some());
         assert_eq!(module.procedure_provenance["::child"].body, "return KEPT");
     }
 
@@ -2136,7 +2138,10 @@ mod tests {
                         dispatch,
                     )
                     .unwrap();
-                let static_proc = &static_module.procedures["::matrix::p"];
+                let static_proc = static_module
+                    .procedures
+                    .get(&fixture_id(&static_module.procedures, "::matrix::p"))
+                    .expect("authored fixture body");
                 let direct_proc = &direct_module.top_level;
 
                 if dispatch == ProcedureDispatch::Optimised {
@@ -2228,7 +2233,7 @@ mod tests {
             direct_ir.namespace_exports,
             [(":::".to_owned(), "exposed".to_owned())]
         );
-        assert!(direct_ir.procedures.contains_key(":::::child"));
+        assert!(fixture_id_if_present(&direct_ir.procedures, ":::::child").is_some());
         assert!(direct_module.procedures.is_empty());
         assert!(direct_module.procedure_provenance.is_empty());
 
@@ -2245,9 +2250,8 @@ mod tests {
             config,
             Some(profile),
         );
-        let namespace_proofs: Vec<_> = static_ir
-            .procedures
-            .get(":::::p")
+        let namespace_proofs: Vec<_> = fixture_id_if_present(&static_ir.procedures, ":::::p")
+            .and_then(|id| static_ir.procedures.get(&id))
             .into_iter()
             .flat_map(|procedure| &procedure.body.statements)
             .filter_map(|statement| statement.tokens())
@@ -2274,7 +2278,7 @@ mod tests {
             static_ir.procedures.keys().collect::<Vec<_>>(),
             static_ir.body_units.keys().collect::<Vec<_>>()
         );
-        assert!(static_ir.procedures.contains_key(":::::p"));
+        assert!(fixture_id_if_present(&static_ir.procedures, ":::::p").is_some());
     }
 
     #[test]
@@ -2691,7 +2695,10 @@ mod tests {
         let source = "proc p {} {mutate; catch {error x} msg; return $msg}";
         let catch_source = "catch {error x} msg";
         let module = BytecodeCompileService::default().compile(source).unwrap();
-        let procedure = &module.procedures["::p"];
+        let procedure = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body");
 
         assert!(
             procedure
@@ -2720,7 +2727,11 @@ mod tests {
             .unwrap();
 
         for procedure in ["::ret", "::caught", "::tried"] {
-            let bindings = &module.procedures[procedure].command_bindings;
+            let bindings = &module
+                .procedures
+                .get(&fixture_id(&module.procedures, procedure))
+                .expect("authored fixture body")
+                .command_bindings;
             assert!(
                 bindings
                     .iter()
@@ -2729,14 +2740,20 @@ mod tests {
             );
         }
         assert!(
-            module.procedures["::tried"]
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::tried"))
+                .expect("authored fixture body")
                 .command_bindings
                 .iter()
                 .any(|binding| binding.name == "try" && binding.identity == "try"),
             "the catch-body try specialisation must retain its own dependency",
         );
         assert!(
-            module.procedures["::tried"]
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::tried"))
+                .expect("authored fixture body")
                 .command_bindings
                 .iter()
                 .any(|binding| binding.name == "set" && binding.identity == "set"),
@@ -2748,7 +2765,11 @@ mod tests {
             ("::breaking", "break"),
             ("::continuing", "continue"),
         ] {
-            let bindings = &module.procedures[procedure].command_bindings;
+            let bindings = &module
+                .procedures
+                .get(&fixture_id(&module.procedures, procedure))
+                .expect("authored fixture body")
+                .command_bindings;
             assert!(
                 bindings.iter().any(|binding| {
                     binding.name == dependency && binding.identity == dependency
@@ -2813,7 +2834,10 @@ mod tests {
                     "proc target {{}} {{}}; proc p {{}} {{set result [{command}]}}"
                 ))
                 .unwrap();
-            let operation = module.procedures["::p"]
+            let operation = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
                 .instructions
                 .iter()
                 .flat_map(|instruction| &instruction.native_operation_selections)
@@ -2826,13 +2850,27 @@ mod tests {
             let operation = operation.unwrap_or_else(|| {
                 panic!(
                     "{name}: proved inline hook retains its operation range; requirements={:?}",
-                    module.procedures["::p"].command_bindings
+                    module
+                        .procedures
+                        .get(&fixture_id(&module.procedures, "::p"))
+                        .expect("authored fixture body")
+                        .command_bindings
                 )
             });
             assert_eq!(operation.source, command);
-            assert!(module.procedures["::p"].labels.contains_key(&operation.end));
             assert!(
-                module.procedures["::p"]
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
+                    .labels
+                    .contains_key(&operation.end)
+            );
+            assert!(
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
                     .command_bindings
                     .iter()
                     .any(|binding| binding.name == name && binding.identity == name),
@@ -2860,21 +2898,30 @@ mod tests {
                 ))
                 .unwrap();
             assert!(
-                module.procedures["::p"]
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
                     .instructions
                     .iter()
                     .any(|instruction| instruction.op == expected_op),
                 "{name} lost its inline specialisation"
             );
             assert!(
-                module.procedures["::p"]
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
                     .command_bindings
                     .iter()
                     .any(|binding| binding.name == name && binding.identity == name),
                 "{name} lost its runtime-validated command binding"
             );
             assert!(
-                module.procedures["::p"]
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
                     .instructions
                     .iter()
                     .all(|instruction| {
@@ -2894,12 +2941,19 @@ mod tests {
             .compile("interp alias {} e {} expr; proc p {} {return [e {1 + 2}]}")
             .unwrap();
         assert!(
-            module.procedures["::p"]
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
                 .command_bindings
                 .iter()
                 .any(|binding| binding.name == "e" && binding.identity == "expr"),
             "a fused return dependency belongs to the alias source spelling: {:?}",
-            module.procedures["::p"].command_bindings,
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .command_bindings,
         );
     }
 
@@ -3027,7 +3081,14 @@ mod tests {
             .top_level
             .instructions
             .iter()
-            .chain(module.procedures["::p"].instructions.iter())
+            .chain(
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
+                    .instructions
+                    .iter(),
+            )
             .filter(|instruction| instruction.op == tcl_bytecode::Op::START_CMD)
             .map(|instruction| {
                 instruction
@@ -3097,7 +3158,10 @@ mod tests {
             )
             .unwrap();
 
-        let static_proc = &static_module.procedures["::p"];
+        let static_proc = static_module
+            .procedures
+            .get(&fixture_id(&static_module.procedures, "::p"))
+            .expect("authored fixture body");
         let direct_proc = &procedure_module.top_level;
         for (path, procedure) in [("static", static_proc), ("direct", direct_proc)] {
             let owners: Vec<_> = procedure
@@ -3172,7 +3236,13 @@ mod tests {
                     ProcedureDispatch::Optimised,
                 )
                 .unwrap();
-            for procedure in [&static_module.procedures["::p"], &direct_module.top_level] {
+            for procedure in [
+                static_module
+                    .procedures
+                    .get(&fixture_id(&static_module.procedures, "::p"))
+                    .expect("authored fixture body"),
+                &direct_module.top_level,
+            ] {
                 assert!(
                     procedure.instructions.iter().all(|instruction| {
                         instruction.op != tcl_bytecode::Op::START_CMD

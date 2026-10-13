@@ -1109,6 +1109,8 @@ fn parse_caller_integer(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::common_aot_plan::CommonAotEnvironment;
     use tcl_registry::model::semantic::SemanticContext;
@@ -1201,12 +1203,14 @@ mod tests {
             .first()
             .unwrap()
             .clone();
-        unit.procedures
-            .get_mut("::add")
-            .unwrap()
-            .cfg
-            .required_math_invocations
-            .push(proof);
+        {
+            let id = fixture_id(&unit.procedures, "::add");
+            unit.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .cfg
+        .required_math_invocations
+        .push(proof);
         let plan = CommonAotProofPlan::build(
             &unit,
             registry,

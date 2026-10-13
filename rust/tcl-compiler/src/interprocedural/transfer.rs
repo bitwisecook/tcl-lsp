@@ -2495,10 +2495,26 @@ mod tests {
     /// The transfer summaries the build of `source` computes under the
     /// `environment` profile.
     fn summaries(source: &str, environment: &str) -> HashMap<String, TransferSummary> {
-        crate::interprocedural::logical_completion_unit(source, environment)
-            .1
-            .transfers
-            .0
+        let (_, unit) = crate::interprocedural::logical_completion_unit(source, environment);
+        fixture_transfer_labels(&unit.ir_module, unit.transfers.0)
+    }
+
+    fn fixture_transfer_labels(
+        module: &crate::ir::Module,
+        rows: HashMap<crate::ir::ProcedureId, TransferSummary>,
+    ) -> HashMap<String, TransferSummary> {
+        let mut shown = HashMap::new();
+        for (id, summary) in rows {
+            let body = module
+                .procedures
+                .get(&id)
+                .expect("actual transfer fixture body");
+            assert!(
+                shown.insert(body.qualified_name.clone(), summary).is_none(),
+                "authored transfer fixture labels must be unique"
+            );
+        }
+        shown
     }
 
     /// The summaries of `source` with a cycle given at most `rounds` rounds.
@@ -2511,7 +2527,7 @@ mod tests {
             &unit.command_mutations,
             registry,
         );
-        ModuleProcedures::with_rounds(
+        let summaries = ModuleProcedures::with_rounds(
             ModuleInputs {
                 ir: &unit.ir_module,
                 cfg: &unit.cfg_module,
@@ -2525,7 +2541,8 @@ mod tests {
             rounds,
         )
         .into_summaries()
-        .0
+        .0;
+        fixture_transfer_labels(&unit.ir_module, summaries)
     }
 
     const CALLEES: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\

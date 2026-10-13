@@ -1,0 +1,26 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "before_sha256": "dbdc8cf68f3e8723c58649e24a8c7886d8f55411eaaa52bf6355cfde3fff7245",
+      "after_sha256": "2b1de2d9c416b1b8a9ef5f2b192bbd46e066913568646ac9b6882f3fd9a14a8d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "1bb52d766af9909a4dbbb490d38466d11bff8b16ea95dbfc73b6ee3f27aa7302",
+      "after_sha256": "b5622997829eaafef6a27b23d42c04101eda2a40886b3d5f70d2c42716d8d590"
+    },
+    {
+      "path": "rust/tcl-compiler/src/connection_scope.rs",
+      "before_sha256": "c37b358e913535175859f1e9e4bcb65605de2c7efad3222aea032cb5bef0b1ff",
+      "after_sha256": "adaf06cfe94e935a4864ef07b617abfe3edd56f5fbbd5ace6d2ff33954f6453c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+      "before_sha256": "f5be1db39ba8d1617aa7855f69ab98161fb5a55bc8c8e72891aa27278b12640c",
+      "after_sha256": "fc9ff235211c993c0790cb14cf543af78d408e14655837d2b082fabe822368c1"
+    }
+  ],
+  "status": "Formatted/parsed scratch only, uncompiled. Actual Module IDs and pointer-identical original event bodies retain all handler rows; event metadata reporting union remains distinct.",
+  "regression": "Actual hosted two-body same-event inputs keep both actual IDs after FU display labels are deliberately made equal; foreign genuinely issued ID cannot select the moved original body."
+}

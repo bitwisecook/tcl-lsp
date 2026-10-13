@@ -660,6 +660,85 @@ fn resolve_call_flows(
     let Some(module) = source.module() else {
         return flows;
     };
+    let mut collect = |tokens: &crate::ir::CommandTokens,
+                       uses: &HashMap<Symbol, u32>,
+                       position: u32| {
+        let mut invocations = vec![tokens.clone()];
+        let lifted = source.metadata_context().and_then(|metadata| {
+            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                tokens,
+                source.lexer_config(),
+                registry,
+                metadata,
+            )
+        });
+        if let Some(lifted) = lifted {
+            invocations.extend(lifted.into_iter().filter_map(|call| call.tokens));
+        }
+        for invocation in invocations {
+            let Some(head) = original_head(&invocation) else {
+                continue;
+            };
+            let Some(calls) =
+                crate::registry_invocation::original_source_procedure_calls_for_word_for_module(
+                    &invocation,
+                    &head,
+                    module,
+                    registry,
+                )
+            else {
+                continue;
+            };
+            for call in calls {
+                if !known.contains(&call.id()) {
+                    continue;
+                }
+                let Some(summary) = summaries.get(&call.id()) else {
+                    continue;
+                };
+                let Some(count) = call.argument_count() else {
+                    flows.push((
+                        call.id(),
+                        vec![TaintLattice::tainted(); summary.params.len()],
+                    ));
+                    continue;
+                };
+                if !summary
+                    .arity
+                    .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+                {
+                    continue;
+                }
+                let effective = call.effective_arguments();
+                let arguments = effective.words.iter().skip(1).enumerate().map(|(argument, word)| {
+                        match effective.origins.get(argument + 1) {
+                            Some(crate::registry_invocation::InvocationWordOrigin::Written(index)) => {
+                                let Some(original) = invocation.words().get(*index) else { return TaintLattice::tainted(); };
+                                if matches!(original, crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }) {
+                                    return TaintLattice::clean();
+                                }
+                                let argument_context = TaintCtx {
+                                    source_tokens: Some(&invocation),
+                                    source_word: Some(original),
+                                    word_offset: Some(original.source().span.start()),
+                                    ..ctx.at(position)
+                                };
+                                word_taint(&word.legacy_text(), uses, taints, argument_context)
+                            }
+                            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(index)) => {
+                                match effective.binding_prefix.get(*index) {
+                                    Some(crate::registry_invocation::EffectiveInvocationWord::Literal(_)
+                                        | crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)) => TaintLattice::clean(),
+                                    _ => TaintLattice::tainted(),
+                                }
+                            }
+                            _ => TaintLattice::tainted(),
+                        }
+                    }).collect();
+                flows.push((call.id(), arguments));
+            }
+        }
+    };
     for bn in &fu.sccp.executable_blocks {
         let Some(block) = fu.cfg.blocks.get(bn) else {
             continue;
@@ -674,86 +753,23 @@ fn resolve_call_flows(
             let Some(tokens) = fu.cfg.source_input_tokens_at(*bn, index) else {
                 continue;
             };
-            let mut invocations = vec![tokens.clone()];
-            let lifted = source.metadata_context().and_then(|metadata| {
-                crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-                    tokens,
-                    source.lexer_config(),
-                    registry,
-                    metadata,
-                )
-            });
-            if let Some(lifted) = lifted {
-                invocations.extend(lifted.into_iter().filter_map(|call| call.tokens));
-            }
-            for invocation in invocations {
-                let Some(head) = original_head(&invocation) else {
-                    continue;
-                };
-                let Some(calls) =
-                    crate::registry_invocation::original_source_procedure_calls_for_word_for_module(
-                        &invocation,
-                        &head,
-                        module,
-                        registry,
-                    )
-                else {
-                    continue;
-                };
-                for call in calls {
-                    if !known.contains(&call.id()) {
-                        continue;
-                    }
-                    let Some(summary) = summaries.get(&call.id()) else {
-                        continue;
-                    };
-                    let Some(count) = call.argument_count() else {
-                        flows.push((
-                            call.id(),
-                            vec![TaintLattice::tainted(); summary.params.len()],
-                        ));
-                        continue;
-                    };
-                    if !summary
-                        .arity
-                        .accepts(u16::try_from(count).unwrap_or(u16::MAX))
-                    {
-                        continue;
-                    }
-                    let effective = call.effective_arguments();
-                    let arguments = effective.words.iter().skip(1).enumerate().map(|(argument, word)| {
-                        match effective.origins.get(argument + 1) {
-                            Some(crate::registry_invocation::InvocationWordOrigin::Written(index)) => {
-                                let Some(original) = invocation.words().get(*index) else { return TaintLattice::tainted(); };
-                                if matches!(original, crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }) {
-                                    return TaintLattice::clean();
-                                }
-                                let argument_context = TaintCtx {
-                                    source_tokens: Some(&invocation),
-                                    source_word: Some(original),
-                                    word_offset: Some(original.source().span.start()),
-                                    ..ctx.at(statement.span().start())
-                                };
-                                word_taint(&word.legacy_text(), &ssa_statement.uses, taints, argument_context)
-                            }
-                            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(index)) => {
-                                match effective.binding_prefix.get(*index) {
-                                    Some(crate::registry_invocation::EffectiveInvocationWord::Literal(_)
-                                        | crate::registry_invocation::EffectiveInvocationWord::ByteLiteral(_)) => TaintLattice::clean(),
-                                    _ => TaintLattice::tainted(),
-                                }
-                            }
-                            _ => TaintLattice::tainted(),
-                        }
-                    }).collect();
-                    flows.push((call.id(), arguments));
-                }
-            }
+            collect(tokens, &ssa_statement.uses, statement.span().start());
+        }
+        if let Some(Terminator::Return {
+            tokens: Some(tokens),
+            span,
+            ..
+        }) = &block.terminator
+        {
+            collect(
+                tokens,
+                &ssa_block.exit_versions,
+                span.map_or(0, tcl_lexer::Span::start),
+            );
         }
     }
     flows
 }
-
 fn original_head(tokens: &crate::ir::CommandTokens) -> Option<String> {
     let binding = tokens.source_binding.as_ref()?;
     let site = binding.invocation_site()?;
@@ -1641,6 +1657,22 @@ mod tests {
     }
 
     #[test]
+    fn original_return_substitution_flows_arguments_into_the_actual_callee() {
+        let source = "proc sink {argument} {eval $argument}\n\
+            proc wrapper {value} {return [sink $value]}\n\
+            set input [gets stdin]\nwrapper $input\n";
+        let findings = warnings(source);
+        assert!(
+            findings.iter().any(|finding| {
+                finding.code == DiagCode::T100
+                    && finding.variable == "argument"
+                    && finding.sink_command == "eval"
+            }),
+            "the original returned invocation must taint its actual callee's parameter: {findings:?}"
+        );
+    }
+
+    #[test]
     fn return_summary_carries_taint_through_callee() {
         // A proc returning its tainted parameter taints the caller's value,
         // which then reaches a sink: exercises the return-summary half.
@@ -1779,20 +1811,19 @@ mod tests {
     fn summaries_for(src: &str) -> HashMap<String, ProcTaintSummary> {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
-        summaries_for_unit(&cu, &reg)
-            .into_iter()
-            .map(|(id, summary)| {
-                (
-                    cu.ir_module
-                        .procedures
-                        .get(&id)
-                        .unwrap()
-                        .qualified_name
-                        .clone(),
-                    summary,
-                )
-            })
-            .collect()
+        let mut shown = HashMap::new();
+        for (id, summary) in summaries_for_unit(&cu, &reg) {
+            let body = cu
+                .ir_module
+                .procedures
+                .get(&id)
+                .expect("actual taint fixture body");
+            assert!(
+                shown.insert(body.qualified_name.clone(), summary).is_none(),
+                "authored taint fixture labels must be unique"
+            );
+        }
+        shown
     }
 
     #[test]

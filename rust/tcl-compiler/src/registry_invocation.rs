@@ -7624,6 +7624,8 @@ fn original_layout_body_topology_advice<'a>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use tcl_registry::StateTransition;
 
@@ -8160,7 +8162,11 @@ mod tests {
             );
             let mut count = 0;
             crate::ir::for_each_statement(
-                &unit.ir_module.procedures["::f"].body,
+                unit.ir_module
+                    .procedures
+                    .get(&fixture_id(&unit.ir_module.procedures, "::f"))
+                    .expect("authored fixture body")
+                    .body,
                 &mut |statement| {
                     for call in crate::word_subst::lifted_calls(
                         statement.tokens(),
@@ -8201,7 +8207,11 @@ mod tests {
                 false,
                 registry.profile().unwrap(),
             );
-            let procedure = &unit.ir_module.procedures["::make"];
+            let procedure = unit
+                .ir_module
+                .procedures
+                .get(&fixture_id(&unit.ir_module.procedures, "::make"))
+                .expect("authored fixture body");
             let mut values = Vec::new();
             crate::ir::for_each_statement(&procedure.body, &mut |statement| {
                 if let Some(tokens) = procedure
@@ -8717,7 +8727,13 @@ mod tests {
                 registry,
                 false,
             );
-            let statement = &cu.ir_module.procedures["::p"].body.statements[0];
+            let statement = cu
+                .ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body
+                .statements[0];
             let tokens = statement.tokens().unwrap();
             let normal = normal_representation_invocation(registry, None, tokens).unwrap();
             assert_eq!(
@@ -8755,7 +8771,11 @@ mod tests {
             ),
         ] {
             let cu = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
-            let statement = cu.ir_module.procedures["::p"]
+            let statement = cu
+                .ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, "::p"))
+                .expect("authored fixture body")
                 .body
                 .statements
                 .last()
@@ -10226,6 +10246,7 @@ mod tests {
 
 #[cfg(test)]
 mod original_argument_slice_purpose_tests {
+
     use super::*;
 
     #[test]
@@ -10282,6 +10303,7 @@ mod original_argument_slice_purpose_tests {
 
 #[cfg(test)]
 mod original_logical_body_topology_input_tests {
+
     use super::*;
 
     #[test]

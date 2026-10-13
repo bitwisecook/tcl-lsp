@@ -8791,6 +8791,8 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     #[test]
@@ -8931,7 +8933,9 @@ mod tests {
             )
         };
         let value = |unit: &crate::compilation_unit::CompilationUnit, i: usize| {
-            let function = unit.procedures.get("::p").expect("the procedure");
+            let function = fixture_id_if_present(&unit.procedures, "::p")
+                .and_then(|id| unit.procedures.get(&id))
+                .expect("the procedure");
             let symbol = function
                 .ssa
                 .var_symbol(&format!("a{i}"))
@@ -8939,8 +8943,8 @@ mod tests {
             function.sccp.values.get(&(symbol, 1)).cloned()
         };
         let answers = |unit: &crate::compilation_unit::CompilationUnit| -> Vec<String> {
-            unit.procedures
-                .get("::p")
+            fixture_id_if_present(&unit.procedures, "::p")
+                .and_then(|id| unit.procedures.get(&id))
                 .expect("the procedure")
                 .sccp
                 .explanations
@@ -9003,7 +9007,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         let value = |name: &str, version: u32| {
             let symbol = function.ssa.var_symbol(name).expect("the variable");
             function.sccp.values.get(&(symbol, version)).cloned()
@@ -9038,7 +9044,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         let last = |name: &str| {
             let symbol = function.ssa.var_symbol(name).expect("the variable");
             function
@@ -9073,7 +9081,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         // The span of `word` in the first place `call` is written.
         let word_at = |call: &str, word: &str| {
             let start = source.find(call).expect("the call") + call.find(word).expect("the word");
@@ -9120,7 +9130,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         let set_of = |texts: &[&str]| {
             LatticeValue::constset(
                 texts
@@ -9342,7 +9354,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         let records = &function.sccp.template_plans;
         let word = |text: &str| {
             let start = source.find(text).expect("the word");
@@ -9380,8 +9394,8 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, dialect,
         );
-        unit.procedures
-            .get("::p")
+        fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
             .expect("the procedure")
             .sccp
             .selections
@@ -9487,7 +9501,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         let facts = &function.sccp.constant_branches;
         assert!(
             facts
@@ -9532,7 +9548,9 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = unit.procedures.get("::p").expect("the procedure");
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the procedure");
         assert!(
             function
                 .ssa
@@ -10436,6 +10454,8 @@ mod tests {
 
 #[cfg(test)]
 mod original_child_script_purpose_tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -10486,7 +10506,11 @@ mod original_child_script_purpose_tests {
         let source = "\u{feff}interp alias {} \u{feff}emit {} list\nproc p {} {catch {\u{feff}emit VALUE}; return [\u{feff}emit VALUE]}";
         let (context, unit) = supplied(source);
         let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, context.commands());
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
         let config = input.lexer_config();
         let parents: Vec<_> = procedure
@@ -10523,7 +10547,13 @@ mod original_child_script_purpose_tests {
             FoldPolicy::for_profile(None, Some(input.unit_profile())),
             &HashSet::new(),
         )
-        .with_cfg_metadata(&unit.procedures["::p"].cfg.metadata_context)
+        .with_cfg_metadata(
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .cfg
+                .metadata_context,
+        )
         .in_module(
             "::p",
             crate::sccp::ModuleRun {
@@ -10535,7 +10565,11 @@ mod original_child_script_purpose_tests {
         );
         let uses = HashMap::<Symbol, Version>::new();
         let values = HashMap::<ValueKey, LatticeValue>::new();
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         for original in [&body, &child] {
             assert_eq!(original.text(), script);
             assert!(original.base() > 0);
@@ -10584,7 +10618,13 @@ mod original_child_script_purpose_tests {
             EvalAnswer::Declined(_)
         ));
         assert_eq!(driver.lexer_config, config);
-        assert_eq!(unit.procedures["::p"].source_lexer_config(), config);
+        assert_eq!(
+            unit.procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .source_lexer_config(),
+            config
+        );
         let mut changed = unit.clone();
         changed.ir_module.source_metadata_input = None;
         let missing =
@@ -10606,7 +10646,10 @@ mod original_child_script_purpose_tests {
                 "\u{feff}rename return {{\u{feff}back}}\nproc p {{}} {{\u{feff}back {argument}}}"
             );
             let (context, unit) = supplied(&source);
-            let function = &unit.procedures["::p"];
+            let function = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body");
             let config = function.source_lexer_config();
             let (&block, _) = function
                 .cfg

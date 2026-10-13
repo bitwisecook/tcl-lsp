@@ -1,0 +1,5 @@
+[
+  "rust/tcl-compiler/src/interprocedural/completion.rs",
+  "rust/tcl-compiler/src/interprocedural/transfer.rs",
+  "rust/tcl-compiler/src/optimiser/unused_procs.rs"
+]

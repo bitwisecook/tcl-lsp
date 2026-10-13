@@ -1,0 +1,6 @@
+{
+  "path": "rust/tcl-compiler/src/ir.rs",
+  "before_sha256": "04c81a1df6d7e783de76befe190afe42c818767eae595d30aefaa7fd361cb8c5",
+  "after_sha256": "6cf6c5936f07317bb4296b5766ce0252fc5a3d3c5ccdf840fccb73e342c88df8",
+  "status": "Uncompiled incremental; ownership gate follows candidate collection, preserving original ambiguous rows."
+}

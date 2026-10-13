@@ -1,0 +1,562 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -1904,11 +1904,7 @@
+             .entry(scope_path.to_vec())
+             .or_default()
+             .insert(var_name.to_string(), (value, value_span));
+-        // Track whether this binding's *current* value dominates uses after
+-        // an `if`/`try` join. A conditional write (`conditional_depth > 0`)
+-        // does not; a straight-line (depth-0) write does and re-establishes
+-        // dominance over any earlier conditional one (see
+-        // `nondominating_consts` / `lookup_dominating_const_string`).
++        // Conditional writes cannot establish a value after the branch joins.
+         if self.conditional_depth > 0 {
+             self.nondominating_consts
+                 .entry(scope_path.to_vec())
+@@ -1931,67 +1927,6 @@
+         if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
+             set.remove(var_name);
+         }
+-    }
+-
+-    /// Like [`Self::lookup_const_string`], but only returns a value that
+-    /// **dominates** this use site — i.e. whose nearest-enclosing-scope
+-    /// binding was last written straight-line (not inside an `if`/`try`
+-    /// body). A binding poisoned in [`Self::nondominating_consts`] at the
+-    /// scope where it is found yields `None`: the value is branch-dependent,
+-    /// so identity resolution (`source`/`rename` targets) must abstain
+-    /// rather than pick the last-written branch.
+-    /// The nearest binding still wins — a poisoned inner binding shadows an
+-    /// outer dominating one, exactly as Tcl variable scoping would.
+-    #[must_use]
+-    pub fn lookup_dominating_const_string(
+-        &self,
+-        var_name: &str,
+-        scope_path: &[usize],
+-    ) -> Option<&str> {
+-        for ancestor in ancestor_paths(scope_path) {
+-            if let Some(map) = self.const_strings.get(&ancestor)
+-                && let Some((value, _)) = map.get(var_name)
+-            {
+-                let poisoned = self
+-                    .nondominating_consts
+-                    .get(&ancestor)
+-                    .is_some_and(|s| s.contains(var_name));
+-                return if poisoned { None } else { Some(value.as_str()) };
+-            }
+-        }
+-        None
+-    }
+-
+-    /// Look up the constant string value for `var_name`, walking
+-    /// the scope chain from `scope_path` outwards.
+-    ///
+-    /// Returns the nearest enclosing scope's value, or `None` if the
+-    /// var isn't tracked anywhere on the chain.
+-    #[must_use]
+-    pub fn lookup_const_string(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
+-        self.lookup_const_string_with_span(var_name, scope_path)
+-            .map(|(value, _)| value)
+-    }
+-
+-    /// Look up the constant string value for `var_name` along
+-    /// with the source span recorded for the defining ``set``.
+-    /// Used by the regex-pattern emitters to also tag the
+-    /// defining ``set var "..."`` value as a `RegexPattern` so
+-    /// semantic-token highlighting fires on the literal.
+-    #[must_use]
+-    pub fn lookup_const_string_with_span(
+-        &self,
+-        var_name: &str,
+-        scope_path: &[usize],
+-    ) -> Option<(&str, Span)> {
+-        for ancestor in ancestor_paths(scope_path) {
+-            if let Some(map) = self.const_strings.get(&ancestor)
+-                && let Some((value, span)) = map.get(var_name)
+-            {
+-                return Some((value.as_str(), *span));
+-            }
+-        }
+-        None
+     }
+ 
+     /// A dominating value from the exact declaration selected by Logical source advice.
+@@ -2355,21 +2290,6 @@
+         if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
+             map.remove(var_name);
+         }
+-    }
+-
+-    /// Look up the interpreter-domain key `var_name` was bound to,
+-    /// walking the scope chain from `scope_path` outwards — the
+-    /// interpreter-value-flow analogue of [`Self::lookup_const_string`].
+-    #[must_use]
+-    pub fn lookup_interp_var_binding(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
+-        for ancestor in ancestor_paths(scope_path) {
+-            if let Some(map) = self.interp_var_bindings.get(&ancestor)
+-                && let Some(key) = map.get(var_name)
+-            {
+-                return Some(key.as_str());
+-            }
+-        }
+-        None
+     }
+ 
+     /// Namespace in which an *unqualified* command invoked at
+@@ -4264,27 +4184,37 @@
+     }
+ 
+     #[test]
+-    fn set_then_lookup_const_string() {
++    fn set_const_string_retains_the_value() {
+         let mut a = Analyser::new();
+         a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
+-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello"));
+-    }
+-
+-    #[test]
+-    fn lookup_const_string_walks_chain() {
+-        // x defined in global; lookup from a child scope finds it.
+-        let mut a = make_analyser_with_namespace("ns1");
+-        a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
+-        assert_eq!(a.lookup_const_string("x", &[0]), Some("hello"));
+-    }
+-
+-    #[test]
+-    fn lookup_const_string_inner_shadows_outer() {
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            Some("hello")
++        );
++    }
++
++    #[test]
++    fn const_string_tables_keep_independent_values() {
+         let mut a = make_analyser_with_namespace("ns1");
+         a.set_const_string("x", "outer".to_string(), span(0, 5), &[]);
+         a.set_const_string("x", "inner".to_string(), span(10, 15), &[0]);
+-        assert_eq!(a.lookup_const_string("x", &[0]), Some("inner"));
+-        assert_eq!(a.lookup_const_string("x", &[]), Some("outer"));
++        assert_eq!(
++            a.const_strings
++                .get(&vec![0])
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            Some("inner")
++        );
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            Some("outer")
++        );
+     }
+ 
+     #[test]
+@@ -4292,13 +4222,25 @@
+         let mut a = Analyser::new();
+         a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
+         a.clear_const_string("x", &[]);
+-        assert_eq!(a.lookup_const_string("x", &[]), None);
+-    }
+-
+-    #[test]
+-    fn lookup_const_string_returns_none_for_unknown() {
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            None
++        );
++    }
++
++    #[test]
++    fn const_string_table_starts_empty() {
+         let a = Analyser::new();
+-        assert_eq!(a.lookup_const_string("x", &[]), None);
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            None
++        );
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -1735,13 +1735,8 @@
+     /// arm here, so registering the next such command (a benchmark runner, a
+     /// custom test wrapper) is a one-line spec change.
+     ///
+-    /// The name is resolved through the analyser's constant-propagation lattice
+-    /// (`const_strings` / [`Self::lookup_const_string`]): a bare literal, a
+-    /// constant `$var`, or a quoted literal all resolve identically, and a
+-    /// genuinely dynamic name (`test $unknown …`) is skipped rather than
+-    /// recorded as the literal text `$unknown`.  This is a void handler — it
+-    /// records the symbol and returns, leaving the command's body recursion to
+-    /// the generic `ArgRole::Body` walk.
++    /// Names use original-word values and checked Logical declaration provenance.
++    /// Unresolved substitutions cannot supply outline identities.
+     pub(super) fn handle_defines_symbol(
+         &mut self,
+         advice: &crate::registry_invocation::OriginalSymbolDeclarationAdvice,
+@@ -2342,14 +2337,7 @@
+         true
+     }
+ 
+-    /// Resolve a single argument word to a constant string, or `None` when it is
+-    /// not statically constant.
+-    ///
+-    /// The analyser-level counterpart to the optimiser's SCCP: a plain literal
+-    /// word (its delimiters already stripped into `text`) is itself constant; a
+-    /// bare `$var` resolves through the constant-string lattice
+-    /// ([`Self::lookup_const_string`]); anything with embedded substitution or
+-    /// concatenation is not statically known.
++    /// Resolve a single literal or original scalar substitution through checked value provenance.
+     fn resolve_const_word(&self, text: &str, tok: Token, is_single: bool) -> Option<String> {
+         if !is_single {
+             return None;
+@@ -5461,9 +5449,8 @@
+     /// `-regexp` pattern recording: each non-`default`
+     /// pattern arm is recorded as a `RegexPattern` with
+     /// ``command = "switch"`` when its token is a literal
+-    /// (`Esc` / `Str`) or a `Var` token whose name resolves via
+-    /// `lookup_const_string_with_span` to a constant string set
+-    /// earlier in the same scope.  Command-substitution patterns
++    /// (`Esc` / `Str`) or a `Var` token whose original substitution resolves
++    /// through checked Logical declaration and value provenance.  Command-substitution patterns
+     /// are skipped (runtime-computed values can't be statically
+     /// resolved).
+     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Switch`].
+@@ -11932,9 +11919,8 @@
+     /// highlighting.
+     ///
+     /// Literal patterns (`Esc` / `Str` tokens) are recorded
+-    /// verbatim; `Var` tokens are resolved via the
+-    /// `const_strings` map (populated by `set var "..."`) so
+-    /// `regexp $p $line` records the literal stored in `p`.
++    /// verbatim; variable patterns use checked Logical declaration and value
++    /// provenance to retain the original value and its source geometry.
+     /// `Cmd`-substitution patterns are skipped — runtime-computed
+     /// patterns can't be statically resolved.
+     ///
+@@ -11964,9 +11950,8 @@
+     }
+ 
+     /// Record one regex-pattern token for `regexp` / `regsub` /
+-    /// `switch -regexp`.  Var tokens are resolved against
+-    /// `const_strings`; `Cmd` substitutions are skipped (no
+-    /// static resolution); literals are recorded verbatim.
++    /// `switch -regexp`. Variables use checked original value provenance;
++    /// command substitutions supply no static pattern, and literals retain their bytes.
+     fn record_regex_pattern_token(
+         &mut self,
+         text: &str,
+@@ -12044,58 +12029,6 @@
+         crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+             .into_iter()
+             .find_map(|qname| self.result.all_procs.get(&qname))
+-    }
+-
+-    /// Static element count for a `{*}`-expanded word.
+-    ///
+-    /// Used by the proc-call arity checker (which lives in
+-    /// `compiler_checks::arity_checks`) to decide whether a
+-    /// ``{*}``-expanded argument contributes a statically-known
+-    /// number of runtime arguments.
+-    ///
+-    /// - **Braced literal** (`Str` token, ``{a b c}``) — split
+-    ///   the token's inner text as a list and return its length.
+-    /// - **Pure variable reference** (`Var` token, ``$x``) — if
+-    ///   the variable has a known constant value in the current
+-    ///   scope chain, split that value and return its length.
+-    /// - **Anything else** — `None`: count not statically known.
+-    ///
+-    /// Refinement is only attempted when ``single_token`` is
+-    /// `true`; for concatenated words like ``{*}$x$y`` or
+-    /// ``{*}{a b}$suffix`` the segmenter exposes only the *first*
+-    /// token, which would otherwise be misinterpreted as a pure
+-    /// literal or pure var ref.  Token text is resolved via
+-    /// [`tcl_lexer::SourceMap::token_text`] — the same helper the
+-    /// rest of the analyser uses — so the inner-content stripping
+-    /// rules (kind-specific delimiter handling) stay in one
+-    /// place.
+-    #[must_use]
+-    pub fn resolve_expansion_count(
+-        &self,
+-        tok: Token,
+-        single_token: bool,
+-        scope_path: &[usize],
+-    ) -> Option<usize> {
+-        if !single_token {
+-            return None;
+-        }
+-        let sm = Analyser::source_map(
+-            &self.source,
+-            &self.cached_line_index,
+-            self.cached_line_index_source_len,
+-        );
+-        match tok.kind {
+-            TokenType::Str => {
+-                let inner = sm.token_text(tok);
+-                Some(crate::codegen::helpers::split_list_simple(inner).len())
+-            }
+-            TokenType::Var => {
+-                let var_name = sm.token_text(tok);
+-                let const_val = self.lookup_const_string(var_name, scope_path)?;
+-                Some(crate::codegen::helpers::split_list_simple(const_val).len())
+-            }
+-            _ => None,
+-        }
+     }
+ }
+ 
+@@ -12961,7 +12894,13 @@
+                 ("hello", esc_tok(span(6, 11)), true),
+             ],
+         );
+-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello"));
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            Some("hello")
++        );
+     }
+ 
+     #[test]
+@@ -12975,7 +12914,13 @@
+                 ("hello world", str_tok(span(6, 19)), true),
+             ],
+         );
+-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello world"));
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            Some("hello world")
++        );
+     }
+ 
+     #[test]
+@@ -12993,7 +12938,13 @@
+                 ("$other", esc_tok(span(6, 12)), false),
+             ],
+         );
+-        assert_eq!(a.lookup_const_string("x", &[]), None);
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            None
++        );
+     }
+ 
+     #[test]
+@@ -13017,7 +12968,14 @@
+                 ("x", esc_tok(span(4, 5)), true),
+             ],
+         );
+-        assert_eq!(read_only.lookup_const_string("x", &[]), None);
++        assert_eq!(
++            read_only
++                .const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("x"))
++                .map(|(value, _)| value.as_str()),
++            None
++        );
+     }
+ 
+     /// A literal value word is recorded as Tcl reads it: the
+@@ -13034,7 +12992,13 @@
+                 ("a\\\\d", esc_tok(span(6, 12)), true),
+             ],
+         );
+-        assert_eq!(a.lookup_const_string("p", &[]), Some("a\\d"));
++        assert_eq!(
++            a.const_strings
++                .get(&Vec::new())
++                .and_then(|values| values.get("p"))
++                .map(|(value, _)| value.as_str()),
++            Some("a\\d")
++        );
+     }
+ 
+     /// A computed target defines no variable: `set $n 1` writes
+@@ -16957,99 +16921,6 @@
+     fn resolve_proc_call_empty_name_returns_none() {
+         let a = Analyser::new();
+         assert!(a.resolve_proc_call("", &[]).is_none());
+-    }
+-
+-    // resolve_expansion_count
+-
+-    #[test]
+-    fn resolve_expansion_count_braced_literal() {
+-        // ``{a b c}`` — Str token; inner content "a b c" splits
+-        // to three elements.
+-        let mut a = Analyser::new();
+-        a.source = "{a b c}".to_string();
+-        // Span covers ``{a b c`` (5 inner chars + opening brace),
+-        // content_offset = 1 to skip ``{``.  Closing ``}`` is
+-        // OUTSIDE the span by lexer convention for non-degenerate
+-        // STR tokens.
+-        let tok = Token {
+-            kind: TokenType::Str,
+-            span: span(0, 6),
+-            content_offset: 1,
+-            in_quote: false,
+-        };
+-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+-    }
+-
+-    #[test]
+-    fn resolve_expansion_count_braced_empty_list() {
+-        // ``{}`` — degenerate Str case; span extended to include
+-        // ``}``, token_text returns empty string.
+-        let mut a = Analyser::new();
+-        a.source = "{}".to_string();
+-        let tok = Token {
+-            kind: TokenType::Str,
+-            span: span(0, 2),
+-            content_offset: 1,
+-            in_quote: false,
+-        };
+-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(0));
+-    }
+-
+-    #[test]
+-    fn resolve_expansion_count_var_with_const_value() {
+-        // ``$xs`` where xs has known constant ``a b c`` — splits
+-        // to three elements.
+-        let mut a = Analyser::new();
+-        a.source = "$xs".to_string();
+-        a.set_const_string("xs", "a b c".to_string(), span(0, 5), &[]);
+-        // Var token: span covers ``xs`` (after `$`) by lexer
+-        // convention; content_offset = 0 because the lexer's
+-        // ``_start`` for VAR is set after the ``$``.
+-        // For testing, place the var name at offset 1..3 in source.
+-        let tok = Token {
+-            kind: TokenType::Var,
+-            span: span(1, 3),
+-            content_offset: 0,
+-            in_quote: false,
+-        };
+-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
+-    }
+-
+-    #[test]
+-    fn resolve_expansion_count_var_without_const_value() {
+-        // Var with no known constant value → None.
+-        let mut a = Analyser::new();
+-        a.source = "$xs".to_string();
+-        let tok = Token {
+-            kind: TokenType::Var,
+-            span: span(1, 3),
+-            content_offset: 0,
+-            in_quote: false,
+-        };
+-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
+-    }
+-
+-    #[test]
+-    fn resolve_expansion_count_concatenated_word_returns_none() {
+-        // ``single_token = false`` short-circuits to None.
+-        let mut a = Analyser::new();
+-        a.source = "{a b c}".to_string();
+-        let tok = Token {
+-            kind: TokenType::Str,
+-            span: span(0, 6),
+-            content_offset: 1,
+-            in_quote: false,
+-        };
+-        assert_eq!(a.resolve_expansion_count(tok, false, &[]), None);
+-    }
+-
+-    #[test]
+-    fn resolve_expansion_count_other_token_kind_returns_none() {
+-        // Non-Str, non-Var token kinds aren't statically
+-        // resolvable.
+-        let a = Analyser::new();
+-        let tok = esc_tok(span(0, 4));
+-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
+     }
+ 
+     // handle_interp_alias
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -436,17 +436,8 @@
+         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
+     pub(super) logical_interp_path_provenance:
+         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalInterpreterPathProvenance>>,
+-    /// Per-scope set of const-string bindings whose *current* value was
+-    /// last written inside an ``if`` / ``try`` body (``conditional_depth >
+-    /// 0``) — a write that does **not** dominate code after the conditional
+-    /// join. [`Self::set_const_string`] adds a name here when the write is
+-    /// conditional and removes it on a later straight-line (depth-0) write;
+-    /// [`Self::lookup_dominating_const_string`] consults it so identity
+-    /// resolution (`source`/`rename` targets via
+-    /// [`Self::resolve_dynamic_word`]) abstains rather than pick a
+-    /// branch-dependent value. Kept as a side set
+-    /// so the many other `const_strings` readers (regex vars, expansion
+-    /// counts, …) keep their existing last-write-wins behaviour untouched.
++    /// Conditional writes whose values do not dominate uses after a branch joins.
++    /// A later unconditional assignment restores value eligibility.
+     pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
+     /// Variables known to contain regex patterns:
+     /// ``(scope_path, var_name)``.
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -4102,37 +4102,16 @@
+     }
+ }
+ 
+-/// One variable-name argument whose word is **computed at run time** — a
+-/// registry [`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`]
+-/// position holding a `$`/`[…]` substitution (`set $n 2`, `variable $n`,
+-/// `namespace upvar ::ns $n local`) — together with what the analyser could
+-/// prove about the value.
+-///
+-/// The proof is analyser *state*: `Scope::lookup_dominating_const_string`
+-/// knows, while the walk is in progress, that the `$n` in `set n other; set
+-/// $n 2` is `other` and can never be anything else at that site.  Nothing
+-/// per-site survived into [`AnalysisResult`], so a post-analysis consumer —
+-/// the namespace-variable rename gate, which has to be exhaustive about which
+-/// cells a document can name — had only the word's own text to reason from
+-/// and refused on every bare `$n`, which is a lone wildcard.
+-///
+-/// Recording the site is what lets that gate ask the *value* question as well
+-/// as the textual one.  Abstain-toward-refuse is unchanged: a site whose
+-/// resolution is [`None`] proves nothing, and a site the walk never reached
+-/// leaves no row at all, so a consumer that only *narrows* on a
+-/// [`Some`] resolution can never widen what it accepts.
+-///
+-/// A **brace-quoted** word is not here: `set {$n} 1` names the variable
+-/// literally called `$n` and substitutes nothing (tclsh 8.6.14: `set {$n} v;
+-/// info exists {$n}` -> 1 while `info exists n` -> 0), so it is not a dynamic
+-/// name at all.
++/// An original variable-name argument containing substitutions.
++/// The resolved value requires dominating Logical declaration and source provenance;
++/// an unresolved site cannot narrow the set of variable names it might reference.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct DynamicVariableNameSite {
+     /// Byte span of the name word as written.
+     pub span: Span,
+     /// The name the word evaluates to when every substitution in it has a
+     /// value that **dominates** this site — the straight-line constant
+-    /// `Scope::lookup_dominating_const_string` proves.
++    /// retained original declaration and value provenance proves.
+     ///
+     /// [`None`] when it does not: a branch-dependent binding, a parameter, a
+     /// command substitution, or any variable the constant lattice does not

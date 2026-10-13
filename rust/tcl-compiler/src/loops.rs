@@ -182,6 +182,8 @@ pub fn build_loop_forest<S: std::hash::BuildHasher>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::model::ingress::static_context_for;
@@ -195,7 +197,9 @@ mod tests {
         let fu = if qname == "::top" {
             &cu.top_level
         } else {
-            cu.procedures.get(qname).expect("proc must exist")
+            cu.procedures
+                .get(&fixture_id(&cu.ir_module.procedures, qname))
+                .expect("proc must exist")
         };
         build_loop_forest(&fu.cfg, &fu.ssa, &fu.sccp.executable_blocks)
     }
@@ -272,7 +276,9 @@ mod tests {
             registry,
             false,
         );
-        let fu = cu.procedures.get("::f").unwrap();
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .unwrap();
         let entry = fu.ssa.entry;
         // Entry dominates itself (base case).
         assert!(dominates(&fu.ssa, entry, entry));

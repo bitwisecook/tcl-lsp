@@ -1,0 +1,45 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations.rs",
+      "before_sha256": "1ec397c162b4d4c59953209a88af85638e03a370bdd442eb6ac611511197255e",
+      "after_sha256": "4109f65fdc1beb234690423dfac0f29729675d3be79001543fa573de1ab814c8"
+    },
+    {
+      "path": "runtime/rust/src/list.rs",
+      "before_sha256": "47142e893bb46e8651a314ccb45df9fc49406133bc1e6f7f53ab44a68ef82de7",
+      "after_sha256": "6f05141ade699d17e17fcb5bbc1bb72929bebabfff2e368924212587c140b071"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/native_list_operations.rs",
+      "before_sha256": "5463e3e619c7f5efec8f8abc1b223aaf996fcc71c6491f3388964dbcff222db5",
+      "after_sha256": "b4e5efd7ba349bb65a95a7cf2f87ec846404610dc08fbb8dd5ac2c237e4592f3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/statements.rs",
+      "before_sha256": "1819aceaf932194a5a2aafb9a5999ab4562a62019bf354983ee4a6bda20b0f86",
+      "after_sha256": "bf4d48400e6de57b7575f8903cc941c4e7c535e49260f96bd4ab8121363bd717"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+      "before_sha256": "92b93cdd804552ca855a29c20c1789d1a9d4c2c4689ea267839e4219575bdfbf",
+      "after_sha256": "fa79b5b2a025086381e2260777973b70741f241ad3ee9efff6141067dce022f7"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_list_operations_compilation.rs",
+      "before_sha256": "6d17edf99dd3edb842e063eb8fb4dd806345d271a52b1d372df912628fc51c09",
+      "after_sha256": "fc8b16235c11935572bb7968eaf4b0fc7efce7901d839441900bf44309ff86f4"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_list_operations_tests.rs",
+      "before_sha256": "973d0b516354333fb037aea2ac7938b82d6d80ac7115931490f4dc2f8bdca63e",
+      "after_sha256": "b171a91e129c4b093d3d5083847cd7fbdd8479ced40220edfea5937c07b19e1f"
+    }
+  ],
+  "status": "Uncompiled/parsed modern insertion follow-on after C86 patch. Requires vm_finish actual LREPLACE/marker owner. Exact list/index/elements once, original index at end=length after list getter, checked original raw header duplication/replacement, fourteen recorded actual result/header windows per backend. Registry instruction enum now reexports shared RuntimeAPI owner to match actual Bytecode marker, avoiding a dependency cycle. Raw Runtime list length uses actual shared list_length_using (canonical-empty/abstract-value purpose), not GetElements.len.",
+  "oracle_inputs": [
+    "rust/tcl-registry/tests/data/native_list_operations/9.0.4.txt",
+    "rust/tcl-registry/tests/data/native_list_operations/9.1.0.txt",
+    "rust/tcl-registry/tests/data/native_list_operations/probe.c"
+  ]
+}

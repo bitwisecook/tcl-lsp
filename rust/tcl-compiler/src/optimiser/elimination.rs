@@ -704,7 +704,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         }) {
             cu.connection_scope
                 .as_ref()
-                .map(|scope| scope.handler_source_names(&fu.name, false))
+                .map(|scope| scope.handler_source_names(qname, false))
                 .unwrap_or_default()
         } else {
             std::collections::HashSet::new()
@@ -1751,6 +1751,8 @@ pub(crate) fn scan_module_traced_globals_with_metadata_context(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
 
     use tcl_registry::CommandRegistry;
@@ -1945,8 +1947,20 @@ mod tests {
         let profile = unit.ir_module.dialect_profile;
         let unit = unit.with_interprocedural(context.commands(), profile);
         let interproc = unit.interproc.as_ref().unwrap();
-        assert!(interproc.procedures["::leaf"].pure);
-        assert!(interproc.procedures["::leaf"].completes);
+        assert!(
+            interproc
+                .procedures
+                .get(&fixture_id(&interproc.procedures, "::leaf"))
+                .expect("authored fixture body")
+                .pure
+        );
+        assert!(
+            interproc
+                .procedures
+                .get(&fixture_id(&interproc.procedures, "::leaf"))
+                .expect("authored fixture body")
+                .completes
+        );
         let statement = unit
             .top_level
             .cfg
@@ -1964,7 +1978,12 @@ mod tests {
         ctx.ir_module = Some(&unit.ir_module);
         assert!(RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
         let mut changed = unit.ir_module.clone();
-        changed.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into();
+        {
+            let id = fixture_id(&changed.procedures, "::leaf");
+            changed.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .params_raw = "{x DEFAULT}".into();
         ctx.ir_module = Some(&changed);
         assert!(!RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
         ctx.ir_module = None;
@@ -2396,7 +2415,9 @@ mod tests {
             let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
             let source = "proc f {} {global exported; set exported OLD; set first $exported; set unused $first; return OK}; f";
             let unit = CompilationUnit::build_for_dialect(source, registry, false, engine);
-            let function = unit.procedures.get("::f").unwrap();
+            let function = fixture_id_if_present(&unit.procedures, "::f")
+                .and_then(|id| unit.procedures.get(&id))
+                .unwrap();
             let offset = u32::try_from(source.find("set exported OLD").unwrap()).unwrap();
             let (&block, index, statement) = function
                 .cfg

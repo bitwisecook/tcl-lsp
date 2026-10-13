@@ -852,6 +852,8 @@ pub fn analyse_script_with_registry<I: IntoIterator<Item = String>>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
@@ -919,7 +921,11 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = lower_to_ir("proc p {} {global g}", registry);
         let summary = analyse_script_with_registry(
-            &module.procedures["::p"].body,
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body,
             std::iter::empty::<String>(),
             registry,
         );

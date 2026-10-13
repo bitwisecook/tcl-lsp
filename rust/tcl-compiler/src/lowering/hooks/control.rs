@@ -308,6 +308,8 @@ fn return_words<'c>(cmd: &'c LoweringCommand<'_>) -> Vec<tcl_registry::Invocatio
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_lexer::Span;
@@ -344,7 +346,14 @@ mod tests {
     fn nested_return_expression_retains_original_parser_source_base() {
         let source = "proc p {} {return [expr {abs(-3)}]}; p";
         let module = native_return_module(source);
-        let statement = module.procedures["::p"].body.statements.first().unwrap();
+        let statement = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body")
+            .body
+            .statements
+            .first()
+            .unwrap();
         let Statement::Return {
             expr: Some(_),
             expr_base: Some(base),
@@ -361,7 +370,10 @@ mod tests {
             Some("abs(-3)")
         );
         assert!(
-            module.procedures["::p"]
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
                 .body
                 .implicit_math_invocations
                 .iter()
@@ -455,7 +467,13 @@ mod tests {
         // `return [expr {$x + 1}]` should attach the parsed expression
         // so codegen can emit the value directly without re-eval.
         let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
-        match &m.procedures["::p"].body.statements[0] {
+        match m
+            .procedures
+            .get(&fixture_id(&m.procedures, "::p"))
+            .expect("authored fixture body")
+            .body
+            .statements[0]
+        {
             Statement::Return { expr, .. } => {
                 assert!(expr.is_some(), "expected expr attached, got None");
             }
@@ -471,7 +489,11 @@ mod tests {
             ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
         ] {
             let module = native_return_module(source);
-            let body = &module.procedures["::p"].body;
+            let body = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .expect("authored fixture body")
+                .body;
             assert!(body.implicit_math_invocations.is_empty());
             // Reached preparation precedes the missing-variable failure; it
             // supplies neither a normal result nor admission of the Return.
@@ -519,8 +541,8 @@ mod tests {
     fn lowered_in_p(source: &str, dialect: &str) -> Statement {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let m = lower_to_ir(source, registry);
-        m.procedures
-            .get("::p")
+        fixture_id_if_present(&m.procedures, "::p")
+            .and_then(|id| m.procedures.get(&id))
             .and_then(|p| p.body.statements.first())
             .cloned()
             .expect("the procedure's first statement")
@@ -562,7 +584,13 @@ mod tests {
             "tcl8.4"
         )));
         let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
-        assert!(barrier(&m.procedures["::p"].body.statements[0]));
+        assert!(barrier(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::p"))
+                .expect("authored fixture body")
+                .body
+                .statements[0]
+        ));
         match lowered_in_p("proc p {} {return -code}", "tcl8.6") {
             Statement::Return { value, .. } => assert_eq!(value.as_deref(), Some("-code")),
             other => panic!("expected Return, got {other:?}"),
@@ -613,8 +641,13 @@ mod tests {
         // The shared dispatcher in ``lowering_hooks::try_lower_hook``
         // must route ``return`` and ``expr`` to this module.
         let m = lower_to_ir("proc f {} { return 1 }\nexpr {1}", &reg());
-        assert!(m.procedures.contains_key("::f"));
-        let body = &m.procedures["::f"].body.statements;
+        assert!(fixture_id_if_present(&m.procedures, "::f").is_some());
+        let body = m
+            .procedures
+            .get(&fixture_id(&m.procedures, "::f"))
+            .expect("authored fixture body")
+            .body
+            .statements;
         assert!(body.iter().any(|s| matches!(s, Statement::Return { .. })));
         assert!(
             m.top_level

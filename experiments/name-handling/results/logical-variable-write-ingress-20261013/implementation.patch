@@ -1,0 +1,24 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -3104,6 +3104,21 @@
+         use crate::signature_scan::scope::SignatureSourceNameInput;
+         let policy = self.declaration_name_policy()?;
+         let config = self.file_lexer_config();
++        if !substitution && self.selected_logical_declaration_advice() {
++            let image = tcl_lexer::SourceImage::document(&self.source);
++            return self
++                .head_identities
++                .source_bindings_ref()
++                .original_written_word_at_span_in_source(&image, span, config)
++                .and_then(|(word, _)| {
++                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
++                        &word, self.word_rules(), policy,
++                    )
++                })
++                .map(SignatureSourceNameInput::OriginalWord)
++                .or_else(|| self.original_static_variable_operand_input(span))
++                .filter(|input| input.policy() == policy);
++        }
+         if !substitution {
+             return self
+                 .head_identities

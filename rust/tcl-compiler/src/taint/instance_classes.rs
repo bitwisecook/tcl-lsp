@@ -558,6 +558,8 @@ fn standalone_transfer_instance_lifecycle(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -812,7 +814,7 @@ mod tests {
         let context = receiver_context();
         let registry = context.commands();
         let mut unit = logical_unit("source_factory .w; proc callback {} {puts MARK}", &context);
-        assert!(unit.ir_module.procedures.contains_key("::callback"));
+        assert!(fixture_id_if_present(&unit.ir_module.procedures, "::callback").is_some());
         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
         assert_eq!(
             classes["::callback"].get(".w"),
@@ -824,7 +826,9 @@ mod tests {
             global_instance_class_owner: unit.ir_module.retained_source_bindings.clone(),
             ..crate::interprocedural::InterproceduralAnalysis::default()
         };
-        let function = unit.procedures.get("::callback").unwrap();
+        let function = fixture_id_if_present(&unit.procedures, "::callback")
+            .and_then(|id| unit.procedures.get(&id))
+            .unwrap();
         let facts = crate::taint::instance_classes_for_function(
             &function.cfg,
             registry,
@@ -851,7 +855,9 @@ mod tests {
             "source_factory .other; proc callback {} {puts MARK}",
             &context,
         );
-        let other_function = other.procedures.get("::callback").unwrap();
+        let other_function = fixture_id_if_present(&other.procedures, "::callback")
+            .and_then(|id| other.procedures.get(&id))
+            .unwrap();
         let mismatched = crate::taint::instance_classes_for_function(
             &other_function.cfg,
             registry,

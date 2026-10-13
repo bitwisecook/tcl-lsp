@@ -645,6 +645,8 @@ fn resolve_subject(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     use tcl_registry::CommandRegistry;
@@ -1147,7 +1149,15 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(!sccp_env_for(&local.procedures["::p"]).contains_key("x"));
+        assert!(
+            !sccp_env_for(
+                local
+                    .procedures
+                    .get(&fixture_id(&local.procedures, "::p"))
+                    .expect("authored fixture body")
+            )
+            .contains_key("x")
+        );
         let before = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
         assert!(sccp_env_for(&before.top_level).contains_key("x"));
     }
@@ -1159,7 +1169,11 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let source = "proc p {} {set firstcell OLD; set secondcell NEW; upvar 0 firstcell a; set observed $a; upvar 0 secondcell a; return $a}; p";
         let mut unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
-        let function = unit.procedures.get_mut("::p").unwrap();
+        let function = {
+            let id = fixture_id(&unit.procedures, "::p");
+            unit.procedures.get_mut(&id)
+        }
+        .unwrap();
         let mut reads = Vec::new();
         for (&block, body) in &function.ssa.blocks {
             for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {

@@ -1,0 +1,17 @@
+{
+  "patch_sha256": "232c6859fe9efb65de829f7851bddc029fa25414cde77cc54cd477f279a430eb",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "07c8195538c4652e5c72bb2405f5ace2dadc1c3e07e72458616b9cafe41ba4d5",
+      "after_sha256": "67f47629a6748da74a504c6410e0046ab09591cea6c1ca19a67a62e5dad77c1f"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "scope": "Original single-variable words reuse typed component/root owner, rather than re-deriving name/form from raw token flags",
+  "tests": [
+    "analyser::handlers::tests::logical_defined_symbol_word_uses_current_value_provenance",
+    "analyser::handlers::tests::dynamic_apply_value_uses_checked_logical_variable_declaration",
+    "analyser::handlers::tests::logical_regex_value_metadata_uses_original_scope_and_source_provenance"
+  ]
+}

@@ -3568,6 +3568,8 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     fn logical_callback_unit(
@@ -4333,7 +4335,11 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl9.0",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut seen = 0;
         for (&block, body) in &ssa.blocks {
             for (index, statement) in body.statements.iter().enumerate() {

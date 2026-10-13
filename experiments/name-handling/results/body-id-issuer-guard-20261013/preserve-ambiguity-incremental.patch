@@ -1,0 +1,19 @@
+--- a/rust/tcl-compiler/src/ir.rs
++++ b/rust/tcl-compiler/src/ir.rs
+@@ -2997,12 +2997,12 @@
+         let mut matching =
+             self.procedures
+                 .at_declaration(&allocation.site)
+-                .filter(|(id, procedure)| {
+-                    self.procedure_ids.owns(**id)
+-                        && allocation
+-                            .matches_source_declaration_image(&self.source, procedure.span.start())
++                .filter(|(_, procedure)| {
++                    allocation
++                        .matches_source_declaration_image(&self.source, procedure.span.start())
+                 });
+         let (id, procedure) = matching.next()?;
++        self.procedure_ids.owns(*id).then_some(())?;
+         matching.next().is_none().then_some((*id, procedure))
+     }
+ 

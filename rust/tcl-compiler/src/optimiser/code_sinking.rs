@@ -991,6 +991,8 @@ fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -1233,7 +1235,9 @@ mod tests {
         // The pin must exercise the Barrier arm of `statement_uses_var`, not
         // the dynamic-name whole-function gate — assert the barrier is clear.
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let fu = cu.procedures.get("::f").expect("::f built");
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("::f built");
         assert!(
             !fu.dynamic_barrier_blocks_value_motion(),
             "shape must not raise the dynamic-name barrier",

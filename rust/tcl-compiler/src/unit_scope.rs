@@ -3427,6 +3427,8 @@ pub(crate) fn params_constants_from_native_call_sites(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::cfg_builder::build_cfg;
 
@@ -4837,7 +4839,9 @@ mod tests {
             &reg,
         );
         let cfg_module = build_cfg(&ir, false);
-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
+        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
+            .and_then(|id| cfg_module.procedures.get(&id))
+            .expect("p lowered");
         let facts = collect_scope_var_facts(
             cfg,
             &surface(&reg),
@@ -4863,7 +4867,9 @@ mod tests {
         let reg = registry();
         let ir = retained_scope_fixture("proc p {n} {\n set a one\n set $n two\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
+        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
+            .and_then(|id| cfg_module.procedures.get(&id))
+            .expect("p lowered");
         assert!(
             collect_scope_var_facts(
                 cfg,
@@ -4882,7 +4888,9 @@ mod tests {
         let reg = registry();
         let ir = retained_scope_fixture("proc p {} {\n global cmd\n set other one\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
+        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
+            .and_then(|id| cfg_module.procedures.get(&id))
+            .expect("p lowered");
         let facts = collect_scope_var_facts(
             cfg,
             &surface(&reg),
@@ -5199,7 +5207,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
         let source = "proc helper {mode} {return $mode}\nhelper FIXED\nset result [expr {[helper DIFFERENT]}]";
         let module = original_caller_fixture(source, config);
-        assert!(module.procedures.contains_key("::helper"));
+        assert!(fixture_id_if_present(&module.procedures, "::helper").is_some());
         let cfg = crate::cfg_builder::build_cfg(&module, false);
         assert!(
             cfg.top_level.blocks.iter().any(|(&block, data)| {
@@ -5444,7 +5452,11 @@ mod tests {
         let (_, unit) = native_argument_caller_unit(
             "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5",
         );
-        let function = &unit.cfg_module.procedures["::add"];
+        let function = unit
+            .cfg_module
+            .procedures
+            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
+            .expect("authored fixture body");
         assert!(
             function.blocks.iter().any(|(&block, data)| {
                 data.statements.iter().enumerate().any(|(index, _)| {
@@ -5507,7 +5519,11 @@ mod tests {
         let (context, unit) = native_argument_caller_unit(source);
         let module = &unit.ir_module;
         let input = module.source_metadata_input.as_ref().unwrap();
-        let function = &unit.cfg_module.procedures["::add"];
+        let function = unit
+            .cfg_module
+            .procedures
+            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
+            .expect("authored fixture body");
         let phase = function
             .blocks
             .iter()
@@ -5653,7 +5669,11 @@ mod tests {
         );
         let module = &unit.ir_module;
         let input = module.source_metadata_input.as_ref().unwrap();
-        let function = &unit.cfg_module.procedures["::add"];
+        let function = unit
+            .cfg_module
+            .procedures
+            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
+            .expect("authored fixture body");
         let phase = function
             .blocks
             .iter()
@@ -6028,7 +6048,11 @@ mod tests {
         let (_, unit) = native_argument_caller_unit(
             "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
         );
-        let function = &unit.cfg_module.procedures["::add"];
+        let function = unit
+            .cfg_module
+            .procedures
+            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
+            .expect("authored fixture body");
         let returns = function
             .blocks
             .iter()

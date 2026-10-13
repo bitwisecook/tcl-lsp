@@ -91,22 +91,39 @@ pub fn collect_iapp_diagnostic_evidence(uri: &str, sources: &[Source]) -> J {
     } else {
         None
     };
-    match (presentation, implementation, peer.is_some()) {
-        (true, false, true) => serde_json::json!({
+    let implementation_source = if presentation {
+        peer
+    } else if implementation {
+        sources
+            .iter()
+            .find(|(source_uri, _)| source_uri == uri)
+            .map(|(_, source)| source.as_str())
+    } else {
+        None
+    };
+    let covered = implementation_source
+        .map(configured_iapp_source_references)
+        .is_some_and(|references| references.complete_references().is_some());
+    match (presentation, implementation, peer.is_some(), covered) {
+        (true, false, true, true) => serde_json::json!({
             "state": "complete",
             "message": "Presentation and implementation were supplied; cross-file iApp checks are complete.",
         }),
-        (true, false, false) => serde_json::json!({
+        (true, false, false, _) => serde_json::json!({
             "state": "presentation_only",
             "message": "Only the iApp presentation was supplied; implementation-reference checks (IAPP7001 and IAPP7002) could not be evaluated.",
         }),
-        (false, true, true) => serde_json::json!({
+        (false, true, true, true) => serde_json::json!({
             "state": "complete",
             "message": "Implementation and presentation were supplied; cross-file iApp checks are complete.",
         }),
-        (false, true, false) => serde_json::json!({
+        (false, true, false, _) => serde_json::json!({
             "state": "implementation_only",
             "message": "Only the iApp implementation was supplied; presentation-field checks (IAPP7001) could not be evaluated.",
+        }),
+        (_, _, true, false) => serde_json::json!({
+            "state": "partial_source",
+            "message": "Both files were supplied; unknown source entry or naming leaves unused-field checks unavailable.",
         }),
         _ => J::Null,
     }
@@ -146,23 +163,34 @@ pub fn collect_config_diagnostics(source: &str) -> J {
 /// every IAPP7001–7003 check offline; partial input remains explicit through
 /// [`collect_iapp_diagnostic_evidence`].
 #[must_use]
+fn configured_iapp_source_references(source: &str) -> tcl_bigip::apl::IappSourceReferences {
+    let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");
+    tcl_bigip::apl::extract_iapp_var_refs_with_context(
+        source,
+        environment.analyser_profile(),
+        environment.default_context_registry(),
+        tcl_lexer::LexerConfig::from_grammar(environment.grammar()),
+    )
+}
+
 pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -> J {
     let mut diagnostics = tcl_bigip::validator::validate_bigip_source(source, "Common");
     if is_iapp_presentation_uri(uri) {
         let model = tcl_bigip::apl::parse_apl(source);
-        let refs = iapp_peer(uri, sources, true).map(tcl_bigip::apl::extract_iapp_var_refs);
+        let refs = iapp_peer(uri, sources, true).map(configured_iapp_source_references);
         diagnostics.extend(tcl_bigip::apl::validate_iapp_presentation(
             &model,
-            refs.as_deref(),
+            refs.as_ref()
+                .and_then(tcl_bigip::apl::IappSourceReferences::complete_references),
             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         ));
     } else if is_iapp_implementation_uri(uri)
         && let Some(presentation) = iapp_peer(uri, sources, false)
     {
         let model = tcl_bigip::apl::parse_apl(presentation);
-        let refs = tcl_bigip::apl::extract_iapp_var_refs(source);
+        let refs = configured_iapp_source_references(source);
         diagnostics.extend(tcl_bigip::apl::validate_iapp_implementation(
-            &refs,
+            refs.references(),
             Some(&model),
             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         ));
@@ -2414,6 +2442,30 @@ mod config_diagnostic_tests {
                 .expect("object diagnostics")
                 .iter()
                 .any(|diagnostic| diagnostic["code"] == "BIGIP6013")
+        );
+    }
+
+    #[test]
+    fn iapp_source_obligations_withdraw_unused_field_claims() {
+        let sources = vec![
+            (
+                "memory://iapp/presentation.apl".to_owned(),
+                "section basic { string addr; string port }".to_owned(),
+            ),
+            (
+                "memory://iapp/implementation".to_owned(),
+                "eval $implementation\nset a $::basic__addr".to_owned(),
+            ),
+        ];
+        let evidence = collect_iapp_diagnostic_evidence(&sources[0].0, &sources);
+        assert_eq!(evidence["state"], "partial_source");
+        let diagnostics = collect_report_diagnostics(&sources[0].0, &sources[0].1, &sources);
+        assert!(
+            !diagnostics
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"] == "IAPP7002")
         );
     }
 

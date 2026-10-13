@@ -1,0 +1,9 @@
+version 0.84-9-g5bac7c9
+existing-during NEW Y
+existing-after NEW Y
+proc-during LOCAL
+proc-after LOCAL
+namespace-during NAMESPACE
+namespace-after NAMESPACE
+root-after ROOT
+namespace-exists 0

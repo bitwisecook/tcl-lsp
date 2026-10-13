@@ -795,6 +795,8 @@ impl CfgBuilder<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::execution_region::RegionSelection;
     use crate::ssa::build_ssa;
@@ -887,7 +889,10 @@ mod tests {
             ..crate::command_binding::SourceAnalysisOptions::default()
         });
         let mut module = crate::lowering::lower_to_ir_with(lowerer, source);
-        if let Some(procedure) = module.procedures.remove("::p") {
+        if let Some(procedure) = {
+            let id = fixture_id(&module.procedures, "::p");
+            module.procedures.remove(&id)
+        } {
             return entry.retain(procedure.body);
         }
         let original = module

@@ -1,0 +1,4354 @@
+diff --git a/rust/tcl-compiler/src/cfg.rs b/rust/tcl-compiler/src/cfg.rs
+--- a/rust/tcl-compiler/src/cfg.rs
++++ b/rust/tcl-compiler/src/cfg.rs
+@@ -772,6 +772,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     /// Intern `name` into `func` and insert a fresh block for it, returning
+@@ -1102,7 +1104,7 @@
+             procedures: HashMap::from([("::greet".into(), proc)]),
+         };
+         assert_eq!(module.top_level.name, "::top");
+-        assert!(module.procedures.contains_key("::greet"));
++        assert!(fixture_id_if_present(&module.procedures, "::greet").is_some());
+     }
+ 
+     // Clone and equality
+diff --git a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+--- a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
++++ b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+@@ -795,6 +795,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::execution_region::RegionSelection;
+     use crate::ssa::build_ssa;
+@@ -887,7 +889,10 @@
+             ..crate::command_binding::SourceAnalysisOptions::default()
+         });
+         let mut module = crate::lowering::lower_to_ir_with(lowerer, source);
+-        if let Some(procedure) = module.procedures.remove("::p") {
++        if let Some(procedure) = {
++            let id = fixture_id(&module.procedures, "::p");
++            module.procedures.remove(&id)
++        } {
+             return entry.retain(procedure.body);
+         }
+         let original = module
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -4896,6 +4896,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::ir::{ForeachIterator, IfClause, Script, SwitchArm, SwitchMode};
+     use tcl_lexer::Span;
+@@ -4907,7 +4909,10 @@
+             "proc p {} {eval {set later CHILD}; set later PARENT; return $later}",
+             &registry,
+         );
+-        let procedure = &module.procedures["::p"];
++        let procedure = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::p"))
++            .expect("authored fixture body");
+         let block = procedure
+             .body
+             .statements
+@@ -4926,7 +4931,10 @@
+             .expect("folded logical eval body");
+         let original = block.tokens().expect("original invocation");
+         let executable = build_cfg_codegen_with_registry(&module, false, &registry);
+-        let function = &executable.procedures["::p"];
++        let function = executable
++            .procedures
++            .get(&fixture_id(&executable.procedures, "::p"))
++            .expect("authored fixture body");
+         let boundary = function
+             .blocks
+             .values()
+@@ -4946,7 +4954,10 @@
+             .any(|statement| matches!(statement, Statement::AssignConst { value, .. } if value == "CHILD")));
+         let analysis = build_cfg_with_registry(&module, false, &registry);
+         assert!(
+-            analysis.procedures["::p"]
++            analysis
++                .procedures
++                .get(&fixture_id(&analysis.procedures, "::p"))
++                .expect("authored fixture body")
+                 .blocks
+                 .values()
+                 .flat_map(|block| &block.statements)
+@@ -6105,7 +6116,10 @@
+         );
+         let context = prepare_cfg_context_with_registry(&module, &registry);
+         let build = |name: &str| {
+-            let method = &module.methods[name];
++            let method = &module
++                .methods
++                .get(&fixture_id(&module.methods, name))
++                .expect("authored fixture body");
+             build_cfg_method_function_with_upvars(
+                 name,
+                 &method.body,
+@@ -6164,7 +6178,13 @@
+         let summaries = detect_upvar_procs(&module);
+         assert!(summaries["::p"].caller_frame_barrier().writes);
+         let cfg = build_cfg(&module, false);
+-        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
++        assert!(
++            cfg.procedures
++                .get(&fixture_id(&cfg.procedures, "::caller"))
++                .expect("authored fixture body")
++                .caller_frame_barrier
++                .writes
++        );
+     }
+ 
+     #[test]
+@@ -6173,9 +6193,15 @@
+             "namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]\n\
+              proc caller {} {::n::writer}",
+         );
+-        assert!(!module.procedures.contains_key("::n::writer"));
++        assert!(!fixture_id_if_present(&module.procedures, "::n::writer").is_some());
+         let cfg = build_cfg(&module, false);
+-        assert!(cfg.procedures["::caller"].caller_frame_barrier.writes);
++        assert!(
++            cfg.procedures
++                .get(&fixture_id(&cfg.procedures, "::caller"))
++                .expect("authored fixture body")
++                .caller_frame_barrier
++                .writes
++        );
+     }
+ 
+     // A wrapper proc
+@@ -6419,9 +6445,8 @@
+         ] {
+             let module = lower_module(source);
+             let cfg = build_cfg(&module, false);
+-            let outer = cfg
+-                .procedures
+-                .get("::outer")
++            let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++                .and_then(|id| cfg.procedures.get(&id))
+                 .expect("outer proc CFG should exist");
+             let defs = find_call_defs(outer, "assign").expect("alias call should be in outer CFG");
+             assert!(
+@@ -6597,9 +6622,8 @@
+              proc outer {} { inner }",
+         );
+         let cfg = build_cfg(&module, false);
+-        let outer = cfg
+-            .procedures
+-            .get("::outer")
++        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++            .and_then(|id| cfg.procedures.get(&id))
+             .expect("outer proc CFG should exist");
+         let defs = find_call_defs(outer, "inner").expect("inner call should be in outer CFG");
+         assert!(
+@@ -6617,9 +6641,8 @@
+              interp alias {} call_mutate {} mutate",
+         );
+         let cfg = build_cfg(&module, false);
+-        let outer = cfg
+-            .procedures
+-            .get("::outer")
++        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++            .and_then(|id| cfg.procedures.get(&id))
+             .expect("outer proc CFG should exist");
+         let defs =
+             find_call_defs(outer, "call_mutate").expect("late alias call should be in outer CFG");
+@@ -6760,7 +6783,9 @@
+         ] {
+             let module = lower_module(&format!("proc p {{}} {{ set x 1; set r 5; {body} }}"));
+             let cfg = build_cfg(&module, false);
+-            let p = cfg.procedures.get("::p").expect("::p CFG");
++            let p = fixture_id_if_present(&cfg.procedures, "::p")
++                .and_then(|id| cfg.procedures.get(&id))
++                .expect("::p CFG");
+             let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+             assert!(defs.iter().any(|name| name == "x"), "{body}: {defs:?}");
+             assert!(reads.iter().any(|name| name == "x"), "{body}: {reads:?}");
+@@ -6787,7 +6812,9 @@
+                 "proc p {{fd}} {{ set x 1; set r 5; set line {{}}; {body} }}"
+             ));
+             let cfg = build_cfg(&module, false);
+-            let p = cfg.procedures.get("::p").expect("::p CFG");
++            let p = fixture_id_if_present(&cfg.procedures, "::p")
++                .and_then(|id| cfg.procedures.get(&id))
++                .expect("::p CFG");
+             let (defs, reads) = defs_and_reads(p, carrier).expect(body);
+             assert!(defs.iter().any(|name| name == place), "{body}: {defs:?}");
+             assert!(!reads.iter().any(|name| name == place), "{body}: {reads:?}");
+@@ -6840,7 +6867,9 @@
+              proc p {} {\n set go 1\n catch { if {1} { zero go } }\n puts $go\n}\n",
+         );
+         let cfg = build_cfg(&module, false);
+-        let p = cfg.procedures.get("::p").expect("::p CFG");
++        let p = fixture_id_if_present(&cfg.procedures, "::p")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::p CFG");
+         let calls = calls_in_order(p);
+         assert_eq!(calls[position_of(&calls, "<arm-writes>")].1, ["go"]);
+     }
+@@ -6982,7 +7011,14 @@
+         for src in ["$cmd", "puts [$cmd]", "set x [$cmd]"] {
+             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+             let cfg = build_cfg(&module, false);
+-            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
++            assert!(
++                unseen(
++                    cfg.procedures
++                        .get(&fixture_id(&cfg.procedures, "::p"))
++                        .expect("authored fixture body")
++                ),
++                "proc: {src}"
++            );
+         }
+     }
+ 
+@@ -7143,7 +7179,14 @@
+         ] {
+             let module = lower_module(&format!("proc p {{}} {{\n{src}\n}}"));
+             let cfg = build_cfg(&module, false);
+-            assert!(unseen(&cfg.procedures["::p"]), "proc: {src}");
++            assert!(
++                unseen(
++                    cfg.procedures
++                        .get(&fixture_id(&cfg.procedures, "::p"))
++                        .expect("authored fixture body")
++                ),
++                "proc: {src}"
++            );
+         }
+     }
+ 
+@@ -7172,7 +7215,9 @@
+              proc outer {} { return [setter] }",
+         );
+         let cfg = build_cfg(&module, false);
+-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
++        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::outer CFG");
+         assert_eq!(
+             find_call_with_def(outer, "caller_x"),
+             Some("<word-effects>")
+@@ -7196,7 +7241,9 @@
+              }",
+         );
+         let cfg = build_cfg(&module, false);
+-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
++        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::outer CFG");
+         let boundary = outer
+             .blocks
+             .values()
+@@ -7246,7 +7293,9 @@
+              }",
+         );
+         let cfg = build_cfg(&module, false);
+-        let outer = cfg.procedures.get("::outer").expect("::outer CFG");
++        let outer = fixture_id_if_present(&cfg.procedures, "::outer")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::outer CFG");
+         assert_eq!(find_call_with_def(outer, "subject"), None);
+         assert_eq!(find_call_with_def(outer, "pattern"), None);
+     }
+@@ -7326,7 +7375,9 @@
+              proc p {} {set x 1; set y [via]; return $x}",
+         );
+         let cfg = build_cfg(&module, false);
+-        let p = cfg.procedures.get("::p").expect("::p CFG");
++        let p = fixture_id_if_present(&cfg.procedures, "::p")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::p CFG");
+         assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
+     }
+ 
+@@ -7342,7 +7393,9 @@
+              }",
+         );
+         let namespace_cfg = build_cfg(&namespace_module, false);
+-        let p = namespace_cfg.procedures.get("::a::p").expect("::a::p CFG");
++        let p = fixture_id_if_present(&namespace_cfg.procedures, "::a::p")
++            .and_then(|id| namespace_cfg.procedures.get(&id))
++            .expect("::a::p CFG");
+         assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
+         assert_eq!(find_call_with_def(p, "y"), None);
+ 
+@@ -7351,7 +7404,9 @@
+              proc p {} {set missing 1; set y [missing]; return $missing}",
+         );
+         let unknown_cfg = build_cfg(&unknown_module, false);
+-        let p = unknown_cfg.procedures.get("::p").expect("::p CFG");
++        let p = fixture_id_if_present(&unknown_cfg.procedures, "::p")
++            .and_then(|id| unknown_cfg.procedures.get(&id))
++            .expect("::p CFG");
+         assert_eq!(find_call_with_def(p, "missing"), Some("<word-effects>"));
+     }
+ 
+@@ -7541,7 +7596,9 @@
+         let module =
+             lower_module("proc f {} { try { set a 1 } on error {} { return -code error boom } }");
+         let cfg = build_cfg(&module, false);
+-        let func = cfg.procedures.get("::f").expect("::f cfg");
++        let func = fixture_id_if_present(&cfg.procedures, "::f")
++            .and_then(|id| cfg.procedures.get(&id))
++            .expect("::f cfg");
+         let handler = func
+             .blocks
+             .values()
+@@ -7634,12 +7691,13 @@
+              namespace eval b {proc p {name} {upvar 1 $name local}}",
+         );
+         let mut changed = module.clone();
+-        changed
+-            .procedures
+-            .get_mut("::b::p")
+-            .unwrap()
+-            .params_raw
+-            .push_str(" extra");
++        {
++            let id = fixture_id(&changed.procedures, "::b::p");
++            changed.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .params_raw
++        .push_str(" extra");
+         let (summaries, params, _, _) = prepare_cfg_context(&changed);
+         assert!(!params.contains_key("p"));
+         assert!(params.contains_key("::a::p"));
+diff --git a/rust/tcl-compiler/src/codegen/emitter/mod.rs b/rust/tcl-compiler/src/codegen/emitter/mod.rs
+--- a/rust/tcl-compiler/src/codegen/emitter/mod.rs
++++ b/rust/tcl-compiler/src/codegen/emitter/mod.rs
+@@ -669,6 +669,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::emit_profile;
+ 
+     /// Only an *unnamed* compile may reach the readers as `None`.
+@@ -723,7 +725,11 @@
+             // token, original dispatch or compiler-admission receipt.
+             let source = "proc p {} {return}";
+             let mut ir = crate::lowering::lower_to_ir(source, &registry);
+-            let mut procedure = ir.procedures.remove("::p").unwrap();
++            let mut procedure = {
++                let id = fixture_id(&ir.procedures, "::p");
++                ir.procedures.remove(&id)
++            }
++            .unwrap();
+             procedure.qualified_name = "::a:::b::p".to_owned();
+             procedure.body = Script::new();
+             procedure.body.namespace_context = Some(Box::new(SourceNamespaceKey::Allocated {
+@@ -757,7 +763,11 @@
+                 context,
+                 tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(_)
+             ));
+-            let instructions = &module.procedures["::a:::b::p"].instructions;
++            let instructions = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::a:::b::p"))
++                .expect("authored fixture body")
++                .instructions;
+             let source_instructions: Vec<_> = instructions
+                 .iter()
+                 .filter(|instruction| !instruction.source_cmd_text.is_empty())
+diff --git a/rust/tcl-compiler/src/codegen/wasm/backend.rs b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+--- a/rust/tcl-compiler/src/codegen/wasm/backend.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+@@ -2860,6 +2860,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     /// Plan the top-level statements of `source` under the full analysed tier.
+@@ -3241,7 +3243,9 @@
+             config,
+             tcl_dialect::DialectProfile::find("tcl8.5").unwrap(),
+         );
+-        let function = unit.procedures.get("::p").unwrap();
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .unwrap();
+         assert_eq!(function.source_lexer_config(), config.nested().normalized());
+         assert_eq!(
+             function.source_metadata_input().unwrap().lexer_config(),
+@@ -3322,10 +3326,8 @@
+             &registry,
+             false,
+         );
+-        let procedure = unit
+-            .ir_module
+-            .procedures
+-            .get("::p")
++        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
++            .and_then(|id| unit.ir_module.procedures.get(&id))
+             .expect("the inner definition survives as a procedure");
+         assert_eq!(
+             procedure.body_source.as_deref(),
+@@ -3334,7 +3336,9 @@
+              body, else this proves nothing",
+         );
+ 
+-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
++        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the enclosing body");
+         let definition = proc_statement_tokens(enclosing)
+             .into_iter()
+             .find(|(span, _)| *span == procedure.span)
+@@ -3370,8 +3374,12 @@
+             "proc make {} { proc p {x} {return $x} }; make\n",
+             tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+         );
+-        let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
+-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
++        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
++            .and_then(|id| unit.ir_module.procedures.get(&id))
++            .expect("procedure");
++        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the enclosing body");
+         let definition = proc_statement_tokens(enclosing)
+             .into_iter()
+             .find(|(span, _)| *span == procedure.span)
+diff --git a/rust/tcl-compiler/src/codegen/wasm/pipeline.rs b/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
+--- a/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
+@@ -792,6 +792,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::super::{ValType, WasmOp};
+     use super::*;
+     use crate::common_aot_plan::{
+@@ -931,7 +933,11 @@
+         );
+         assert!(
+             crate::native_compilation_admission::script_requires_admission(
+-                &unit.ir_module.procedures["::bad"].body
++                unit.ir_module
++                    .procedures
++                    .get(&fixture_id(&unit.ir_module.procedures, "::bad"))
++                    .expect("authored fixture body")
++                    .body
+             )
+         );
+         let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -19770,6 +19770,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::compilation_unit::CompilationUnit;
+ 
+@@ -21965,7 +21967,10 @@
+              rename ::set ::saved_set",
+         );
+         assert!(
+-            cu.ir_module.procedures["::uses_set"]
++            cu.ir_module
++                .procedures
++                .get(&fixture_id(&cu.ir_module.procedures, "::uses_set"))
++                .expect("authored fixture body")
+                 .body
+                 .command_binding_sites
+                 .iter()
+@@ -22153,7 +22158,11 @@
+              } }",
+         );
+         assert_eq!(
+-            cu.ir_module.methods["::n::C::mutate"].execution_namespace,
++            cu.ir_module
++                .methods
++                .get(&fixture_id(&cu.ir_module.methods, "::n::C::mutate"))
++                .expect("authored fixture body")
++                .execution_namespace,
+             crate::ir::ExecutionNamespace::RuntimeSelected
+         );
+         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
+@@ -22595,6 +22604,7 @@
+ 
+ #[cfg(test)]
+ mod source_variable_access_tests {
++
+     use super::*;
+ 
+     fn analyse(source: &str) -> (SourceCommandBindings, Arc<CommandRegistry>) {
+@@ -22938,6 +22948,7 @@
+ 
+ #[cfg(test)]
+ mod source_callable_static_tests {
++
+     use super::*;
+ 
+     fn analyse(source: &str) -> SourceCommandBindings {
+@@ -22992,6 +23003,7 @@
+ 
+ #[cfg(test)]
+ mod source_alias_lookup_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -23047,6 +23059,7 @@
+ 
+ #[cfg(test)]
+ mod compiled_variable_policy_tests {
++
+     use super::SourceAnalysisOptions;
+     use tcl_registry::{
+         InvocationDialect, native_compiled_variables::LogicalCompiledVariableProvider,
+@@ -23117,6 +23130,7 @@
+ 
+ #[cfg(test)]
+ mod hosted_storage_entry_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -23172,6 +23186,7 @@
+ 
+ #[cfg(test)]
+ mod selected_replay_formal_tests {
++
+     use super::*;
+ 
+     fn invocation(parameters: &str) -> ResolvedBindingInvocation {
+@@ -23243,6 +23258,7 @@
+ 
+ #[cfg(test)]
+ mod original_definition_body_purpose_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -23298,6 +23314,7 @@
+ 
+ #[cfg(test)]
+ mod shared_noop_source_join_tests {
++
+     use super::*;
+ 
+     fn original(source: &str) -> SourceCommandBindings {
+@@ -23441,6 +23458,7 @@
+ 
+ #[cfg(test)]
+ mod original_explicit_script_purpose_tests {
++
+     use super::*;
+ 
+     fn input() -> crate::analyser::ResolvedAnalysisInput {
+@@ -23555,6 +23573,7 @@
+ 
+ #[cfg(test)]
+ mod original_logical_source_layout_tests {
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::registry_invocation::InvocationMetadataContext;
+diff --git a/rust/tcl-compiler/src/command_binding/body_template.rs b/rust/tcl-compiler/src/command_binding/body_template.rs
+--- a/rust/tcl-compiler/src/command_binding/body_template.rs
++++ b/rust/tcl-compiler/src/command_binding/body_template.rs
+@@ -812,13 +812,17 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+ 
+     fn prepare(source: &str) -> Option<NativeBodyTemplate> {
+         let registry = CommandRegistry::build_default()
+             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+-        let procedure = unit.ir_module.procedures.get("::p").unwrap();
++        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
++            .and_then(|id| unit.ir_module.procedures.get(&id))
++            .unwrap();
+         let mut body = procedure.body.clone();
+         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+         ModuleCommandBindings::analyse(&unit.ir_module, &registry).prepare_native_body_template(
+@@ -878,7 +882,11 @@
+             Some(&entry),
+             &input,
+         );
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let bindings = ModuleCommandBindings::analyse(&unit.ir_module, context.commands());
+         let mut body = procedure.body.clone();
+         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+@@ -1004,7 +1012,11 @@
+         let registry = CommandRegistry::build_default()
+             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let bindings = ModuleCommandBindings::analyse(&unit.ir_module, &registry);
+         let mut body = procedure.body.clone();
+         crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+@@ -1065,7 +1077,9 @@
+         let registry = CommandRegistry::build_default()
+             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+         let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+-        let procedure = unit.ir_module.procedures.get("::p").unwrap();
++        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
++            .and_then(|id| unit.ir_module.procedures.get(&id))
++            .unwrap();
+         let mut actual = procedure.body.clone();
+         crate::lattice_rebase::rebase_script(&mut actual, -i64::from(procedure.span.start()));
+         let template = prepare(source).unwrap();
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_flow.rs b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -2617,6 +2617,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     #[test]
+@@ -3106,7 +3108,9 @@
+             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                 source, registry, false, profile,
+             );
+-            let procedure = unit.ir_module.procedures.get("::f").unwrap();
++            let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::f")
++                .and_then(|id| unit.ir_module.procedures.get(&id))
++                .unwrap();
+             let image = tcl_lexer::SourceImage::document(source);
+             let report = bindings
+                 .original_procedure_declaration_flow(procedure, &image, registry)
+diff --git a/rust/tcl-compiler/src/common_aot_plan.rs b/rust/tcl-compiler/src/common_aot_plan.rs
+--- a/rust/tcl-compiler/src/common_aot_plan.rs
++++ b/rust/tcl-compiler/src/common_aot_plan.rs
+@@ -2589,6 +2589,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     #[test]
+     fn direct_formals_consume_native_activation_plan() {
+         use tcl_dialect::ParameterGrammar;
+@@ -2785,7 +2787,11 @@
+                 if procedures.as_slice() == [procedure.clone()]));
+         assert!(
+             crate::native_compilation_admission::script_requires_admission(
+-                &module.procedures["::p"].body
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
++                    .body
+             )
+         );
+         let plan = CommonAotProofPlan::build_with_retained_metadata(
+@@ -2940,7 +2946,10 @@
+             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+         let unit = native_unit("proc p {x y} {return $x}; p FIRST SECOND", context);
+         let module = &unit.ir_module;
+-        let procedure = &module.procedures["::p"];
++        let procedure = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::p"))
++            .expect("authored fixture body");
+         let entry = module.source_entry.native_entry.as_deref().unwrap();
+         assert!(entry.compiled_local_layout.is_none());
+         let receipt = OriginalDeclaredProcedureArgumentSlots::from_module(module, procedure)
+@@ -2996,7 +3005,11 @@
+         ] {
+             let source = format!("proc p {{{formals}}} {{{body}}}; p {arguments}");
+             let unit = native_unit(&source, std::sync::Arc::clone(&context));
+-            let procedure = &unit.ir_module.procedures["::p"];
++            let procedure = unit
++                .ir_module
++                .procedures
++                .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++                .expect("authored fixture body");
+             let original = procedure.body.executed_source.as_ref().unwrap();
+             assert_eq!(original.text.bytes(), body.as_bytes());
+             assert!(
+@@ -3034,7 +3047,11 @@
+         let context =
+             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+         let unit = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&context));
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         assert!(procedure.body.statements.is_empty());
+         assert!(!crate::native_compilation_admission::script_requires_admission(&procedure.body));
+         let plan = CommonAotProofPlan::build_with_retained_metadata(
+@@ -3093,11 +3110,12 @@
+         let mut missing_caller = unit.clone();
+         missing_caller.top_level.source_metadata_input = None;
+         let mut missing_callee = unit.clone();
+-        missing_callee
+-            .procedures
+-            .get_mut("::p")
+-            .unwrap()
+-            .source_metadata_input = None;
++        {
++            let id = fixture_id(&missing_callee.procedures, "::p");
++            missing_callee.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .source_metadata_input = None;
+         let mut stale_grammar = unit.clone();
+         stale_grammar.top_level.source_config.expand_syntax =
+             !stale_grammar.top_level.source_config.expand_syntax;
+@@ -3198,7 +3216,10 @@
+             "proc p {x} {return $x}; proc q {x} {return [p $x]}; list {[p VALUE]}",
+             context,
+         );
+-        let function = &unit.procedures["::q"];
++        let function = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::q"))
++            .expect("authored fixture body");
+         let candidates = call_sites("::q", function, function.source_lexer_config());
+         let nested = candidates
+             .iter()
+@@ -3245,8 +3266,15 @@
+             "proc p {x y} {return [expr {$x+$y}]}",
+             std::sync::Arc::clone(&context),
+         );
+-        let function = &unit.procedures["::p"];
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let function = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body");
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+         let operations = original_direct_expression_body_operations(
+             registry,
+@@ -3292,12 +3320,19 @@
+             "proc p {x y} {return [expr {$x+[unknown]}]}",
+         ] {
+             let changed = logical_unit(source, std::sync::Arc::clone(&context));
+-            let function = &changed.procedures["::p"];
++            let function = changed
++                .procedures
++                .get(&fixture_id(&changed.procedures, "::p"))
++                .expect("authored fixture body");
+             assert!(
+                 original_direct_expression_body_operations(
+                     registry,
+                     function.invocation_metadata_context_for_module(registry, &changed.ir_module),
+-                    &changed.ir_module.procedures["::p"],
++                    changed
++                        .ir_module
++                        .procedures
++                        .get(&fixture_id(&changed.ir_module.procedures, "::p"))
++                        .expect("authored fixture body"),
+                     function.source_lexer_config(),
+                 )
+                 .is_none(),
+@@ -3329,12 +3364,13 @@
+             false,
+             "tcl9.0",
+         );
+-        unit.ir_module
+-            .procedures
+-            .get_mut("::p")
+-            .unwrap()
+-            .body
+-            .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
++        {
++            let id = fixture_id(&unit.ir_module.procedures, "::p");
++            unit.ir_module.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .body
++        .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+             source: None,
+             failure: None,
+             provider_required: true,
+@@ -3388,7 +3424,10 @@
+     }
+ 
+     fn original_formal_diagnostics(unit: &CompilationUnit, function: &str) -> String {
+-        let function = &unit.procedures[function];
++        let function = &unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, function))
++            .expect("authored fixture body");
+         let mut rows = vec![format!("SSA cells: {:?}", function.ssa.cell_keys())];
+         if let Some(points) = &function.ssa.point_contexts {
+             for (&block, body) in &function.cfg.blocks {
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -4578,6 +4578,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     fn fixture_method<'a>(unit: &'a CompilationUnit, label: &str) -> Option<&'a FunctionUnit> {
+         let (id, _) = unit.ir_module.methods.unique_display(label)?;
+         unit.methods.get(&id)
+@@ -5142,16 +5144,22 @@
+         );
+         assert_eq!(requests, 1);
+         assert!(semantic_bundle_has_selected_invocation(
+-            &unit.procedures["::p"]
++            unit.procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
+         ));
+         assert!(
+-            unit.procedures["::p"]
++            unit.procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
+                 .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                 .is_some()
+         );
+         let deep = unit.with_retained_deep_semantic_analysis(registry);
+         assert!(semantic_bundle_has_selected_invocation(
+-            &deep.procedures["::p"]
++            deep.procedures
++                .get(&fixture_id(&deep.procedures, "::p"))
++                .expect("authored fixture body")
+         ));
+     }
+ 
+@@ -5189,7 +5197,7 @@
+             Some(&input)
+         );
+         assert!(unit.ir_module.source_entry.native_entry.is_none());
+-        assert!(unit.procedures.contains_key("::aliaser"));
++        assert!(fixture_id_if_present(&unit.procedures, "::aliaser").is_some());
+         let explicit = crate::command_binding::SourceAnalysisEntry::default();
+         let unknown = CompilationUnit::build_with_analysis_input(
+             "proc aliaser {} {global ::n::shared; set shared 1}",
+@@ -5520,7 +5528,9 @@
+         let src = "proc p {a} { return $a }\nset x 1\n";
+         let cu = CompilationUnit::build_for(src, &registry(), false);
+         assert!(cu.top_level.method_facts.is_none());
+-        let fu = cu.procedures.get("::p").expect("proc unit built");
++        let fu = fixture_id_if_present(&cu.procedures, "::p")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("proc unit built");
+         assert!(fu.method_facts.is_none());
+     }
+ 
+@@ -6026,8 +6036,8 @@
+                 .is_some()
+         );
+         assert!(
+-            deep.procedures
+-                .get("::p")
++            fixture_id_if_present(&deep.procedures, "::p")
++                .and_then(|id| deep.procedures.get(&id))
+                 .unwrap()
+                 .semantic_facts
+                 .executable()
+@@ -6081,7 +6091,9 @@
+                 [Widget new] go
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let f = cu.procedures.get("::helper").expect("helper analysed");
++            let f = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 !knows_condition_mentioning(f, "mode"),
+                 "helper is called with both \"a\" (external) and \"b\" (from the method body); must not fold: {:?}",
+@@ -6112,7 +6124,9 @@
+                 ::app::go
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let f = cu.procedures.get("::lib::helper").expect("helper analysed");
++            let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 !knows_condition_mentioning(f, "mode"),
+                 "helper is called with both \"a\" (direct) and \"b\" (via the ::app import); must not fold: {:?}",
+@@ -6168,7 +6182,9 @@
+             );
+             assert_eq!(imported.evaluated_written_argument_value(0), Some("prod"));
+             assert_eq!(direct.evaluated_written_argument_value(0), Some("prod"));
+-            let function = cu.procedures.get("::lib::helper").expect("helper analysed");
++            let function = fixture_id_if_present(&cu.procedures, "::lib::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(!knows_condition_mentioning(function, "mode"));
+             assert_eq!(
+                 function.sccp.constant_branches,
+@@ -6215,7 +6231,9 @@
+                 CompilationUnit::build_for(&exported, &reg, false),
+                 build_closed_world(&exported, &reg),
+             ] {
+-                let f = cu.procedures.get("::lib::helper").expect("helper analysed");
++                let f = fixture_id_if_present(&cu.procedures, "::lib::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(f, "mode"),
+                     "`namespace export *` publishes helper beyond any enumerable project: {:?}",
+@@ -6256,7 +6274,9 @@
+                 CompilationUnit::build_for(src, &reg, false),
+                 build_closed_world(src, &reg),
+             ] {
+-                let f = cu.procedures.get("::helper").expect("helper analysed");
++                let f = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(f, "mode"),
+                     "`myens go dev` reaches helper with \"dev\" (tclsh8.6/9.0-confirmed), \
+@@ -6300,10 +6320,11 @@
+                 [::foo::Widget new] go
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
+-            let ns_helper = cu
+-                .procedures
+-                .get("::foo::Widget::helper")
++            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("::helper analysed");
++            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::Widget::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::Widget::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(global_helper, "mode"),
+@@ -6357,10 +6378,11 @@
+                 ::foo::runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let global_helper = cu.procedures.get("::helper").expect("::helper analysed");
+-            let ns_helper = cu
+-                .procedures
+-                .get("::foo::helper")
++            let global_helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("::helper analysed");
++            let ns_helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(global_helper, "mode"),
+@@ -6400,9 +6422,8 @@
+                 ::foo::runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu
+-                .procedures
+-                .get("::foo::helper")
++            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+@@ -6434,9 +6455,8 @@
+                 ::foo::runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu
+-                .procedures
+-                .get("::foo::helper")
++            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+@@ -6466,7 +6486,9 @@
+                 runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("::helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+                 "::helper is called with both \"a\" and \"b\" (the conditionally-defined \
+@@ -6502,9 +6524,8 @@
+                 runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu
+-                .procedures
+-                .get("::other::helper")
++            let helper = fixture_id_if_present(&cu.procedures, "::other::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::other::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+@@ -6544,9 +6565,8 @@
+                 ::foo::runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu
+-                .procedures
+-                .get("::foo::helper")
++            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+@@ -6577,9 +6597,8 @@
+                 ::foo::runIt
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu
+-                .procedures
+-                .get("::foo::helper")
++            let helper = fixture_id_if_present(&cu.procedures, "::foo::helper")
++                .and_then(|id| cu.procedures.get(&id))
+                 .expect("::foo::helper analysed");
+             assert!(
+                 knows_condition_mentioning(helper, "mode"),
+@@ -6622,7 +6641,9 @@
+             let reg = registry();
+             let source = "proc helper {n} {if {$n + 0 == 7} {set result yes} else {set result no}}; helper 007";
+             let unit = CompilationUnit::build_for(source, &reg, false);
+-            let function = unit.procedures.get("::helper").expect("helper analysed");
++            let function = fixture_id_if_present(&unit.procedures, "::helper")
++                .and_then(|id| unit.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 knows_condition_mentioning(function, "n"),
+                 "caller_scope={:?} names={:?} preparations={} branch_bindings={} semantic_expressions={}",
+@@ -6676,7 +6697,9 @@
+                 ::graph::dfs 0
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
++            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("dfs analysed");
+             assert!(
+                 !knows_condition_mentioning(dfs, "count"),
+                 "recursive parity check on `count` must not fold to a constant: {:?}",
+@@ -6698,7 +6721,9 @@
+                 count_up 0
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let f = cu.procedures.get("::count_up").expect("count_up analysed");
++            let f = fixture_id_if_present(&cu.procedures, "::count_up")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("count_up analysed");
+             assert!(
+                 !knows_condition_mentioning(f, "n"),
+                 "recursive parity check on `n` must not fold to a constant: {:?}",
+@@ -6724,7 +6749,9 @@
+                 }
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let go = cu.procedures.get("::a::go").expect("go analysed");
++            let go = fixture_id_if_present(&cu.procedures, "::a::go")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("go analysed");
+             assert!(
+                 knows_condition_mentioning(go, "mode"),
+                 "two same-namespace callers passing the identical literal should still fold: caller_scope={:?}, contents={:?}, preparations={}, condition_bindings={}",
+@@ -6764,8 +6791,12 @@
+                 ::b::go different
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let a_go = cu.procedures.get("::a::go").expect("::a::go analysed");
+-            let b_go = cu.procedures.get("::b::go").expect("::b::go analysed");
++            let a_go = fixture_id_if_present(&cu.procedures, "::a::go")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("::a::go analysed");
++            let b_go = fixture_id_if_present(&cu.procedures, "::b::go")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("::b::go analysed");
+             assert!(
+                 knows_condition_mentioning(a_go, "mode"),
+                 "::a::go's sole caller passes a uniform literal, should fold: {:?}",
+@@ -6803,7 +6834,9 @@
+                 rename other helper
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+                 "a callee whose name is later rebound must not fold on stale call-site evidence: {:?}",
+@@ -6834,7 +6867,9 @@
+                 $cmd prod
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 knows_condition_mentioning(helper, "mode"),
+                 "an unrelated dynamic call site must not disqualify helper's own uniform-literal seed: {:?}",
+@@ -6863,7 +6898,9 @@
+                 }
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
++            let f = fixture_id_if_present(&cu.procedures, "::is_even")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("is_even analysed");
+             assert!(
+                 !knows_condition_mentioning(f, "n"),
+                 "is_even is called with both 3 and 4 (the latter inside `catch`); must not fold: {:?}",
+@@ -6887,7 +6924,9 @@
+                 }
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let f = cu.procedures.get("::is_even").expect("is_even analysed");
++            let f = fixture_id_if_present(&cu.procedures, "::is_even")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("is_even analysed");
+             assert!(
+                 !knows_condition_mentioning(f, "n"),
+                 "is_even is called with both 3 and 4 (the latter inside `uplevel`); must not fold: {:?}",
+@@ -6915,7 +6954,9 @@
+                 noisy
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 knows_condition_mentioning(helper, "mode"),
+                 "an unrelated catch body must not disqualify helper's own uniform-literal seed: {:?}",
+@@ -6935,7 +6976,9 @@
+                 noisy
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(!knows_condition_mentioning(helper, "mode"));
+             assert_eq!(
+                 helper.sccp.constant_branches,
+@@ -6959,7 +7002,9 @@
+                 helper prod
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+                 "a package-providing file must not seed from locally-visible call sites: {:?}",
+@@ -6982,7 +7027,9 @@
+                 helper prod
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 knows_condition_mentioning(helper, "mode"),
+                 "no package-provide in this file, seed should still fold: {:?}",
+@@ -7006,7 +7053,9 @@
+                 helper prod
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 knows_condition_mentioning(helper, "mode"),
+                 "a comment merely mentioning the phrase must not disqualify: {:?}",
+@@ -7030,7 +7079,9 @@
+                 helper prod
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let helper = cu.procedures.get("::helper").expect("helper analysed");
++            let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("helper analysed");
+             assert!(
+                 !knows_condition_mentioning(helper, "mode"),
+                 "a real (if oddly-spelled) package provide must still disqualify: {:?}",
+@@ -7156,7 +7207,9 @@
+                 let reg = registry();
+                 let evidence = evidence_from(MAIN, &reg);
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(helper, "mode"),
+                     "main.tcl calls helper with \"dev\"; lib.tcl must not fold on \"prod\": {:?}",
+@@ -7182,7 +7235,9 @@
+                 let reg = registry();
+                 let evidence = evidence_from("source lib.tcl\nhelper prod\n", &reg);
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     knows_condition_mentioning(helper, "mode"),
+                     "every caller in the project passes \"prod\"; the seed is sound: {:?}",
+@@ -7209,7 +7264,9 @@
+                     "an unrelated file supplies no caller of ::helper: {evidence:?}",
+                 );
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     knows_condition_mentioning(helper, "mode"),
+                     "an unrelated file must not retract a sound fold: {:?}",
+@@ -7226,7 +7283,9 @@
+                 let reg = registry();
+                 let evidence = evidence_from("set m dev\nhelper $m\n", &reg);
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(helper, "mode"),
+                     "a cross-file caller with a non-literal argument must retract the fold: {:?}",
+@@ -7243,7 +7302,9 @@
+                 let reg = registry();
+                 let evidence = evidence_from("after 0 {helper $::runtime_mode}\n", &reg);
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(helper, "mode"),
+                     "a deferred cross-file callback reads an unknown argument: {:?}",
+@@ -7260,7 +7321,9 @@
+                 let reg = registry();
+                 let evidence = evidence_from("rename helper legacy_helper\n", &reg);
+                 let cu = build_with_evidence(LIB, &reg, &evidence);
+-                let helper = cu.procedures.get("::helper").expect("helper analysed");
++                let helper = fixture_id_if_present(&cu.procedures, "::helper")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("helper analysed");
+                 assert!(
+                     !knows_condition_mentioning(helper, "mode"),
+                     "another file renamed helper; its binding has moved: {:?}",
+@@ -7285,7 +7348,9 @@
+                     local prod
+                 ";
+                 let cu = build_with_source_evidence(src, &reg, None);
+-                let f = cu.procedures.get("::local").expect("local analysed");
++                let f = fixture_id_if_present(&cu.procedures, "::local")
++                    .and_then(|id| cu.procedures.get(&id))
++                    .expect("local analysed");
+                 assert!(
+                     !knows_condition_mentioning(f, "mode"),
+                     "the sourced file's script can call ::local with anything: {:?}",
+@@ -7294,7 +7359,9 @@
+                 // …and with a workspace view that says otherwise, it folds.
+                 let empty = CallSiteEvidence::default();
+                 let closed = build_with_evidence(src, &reg, &empty);
+-                let f = closed.procedures.get("::local").expect("local analysed");
++                let f = fixture_id_if_present(&closed.procedures, "::local")
++                    .and_then(|id| closed.procedures.get(&id))
++                    .expect("local analysed");
+                 assert!(
+                     knows_condition_mentioning(f, "mode"),
+                     "with the project enumerated, the boundary is no longer a blind spot: {:?}",
+@@ -7322,7 +7389,9 @@
+                 ::graph::dfs 0
+             ";
+             let cu = CompilationUnit::build_for(src, &reg, false);
+-            let dfs = cu.procedures.get("::graph::dfs").expect("dfs analysed");
++            let dfs = fixture_id_if_present(&cu.procedures, "::graph::dfs")
++                .and_then(|id| cu.procedures.get(&id))
++                .expect("dfs analysed");
+             // Incoming activation alternatives do not manufacture one scalar
+             // SSA symbol. If a physical template slot exists, its entry value
+             // must still refuse a recursive caller's constant seed.
+@@ -7353,6 +7422,8 @@
+ 
+ #[cfg(test)]
+ mod smoke {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use tcl_registry::CommandRegistry;
+ 
+     use super::CompilationUnit;
+@@ -7366,7 +7437,7 @@
+         let src = "proc double {n} { return [expr {$n * 2}] }\nset r [double 21]\n";
+         let unit = CompilationUnit::build_for(src, &registry, false);
+         assert!(
+-            unit.procedures.contains_key("::double"),
++            fixture_id_if_present(&unit.procedures, "::double").is_some(),
+             "expected a lowered ::double procedure, got {:?}",
+             unit.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -7382,6 +7453,7 @@
+ /// the name `tcl`, which would bypass the centralised resolution entirely.
+ #[cfg(test)]
+ mod jim_ingress_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -7413,6 +7485,8 @@
+ 
+ #[cfg(test)]
+ mod original_receiver_method_facts_tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     #[test]
+@@ -7422,10 +7496,8 @@
+         let source = r"oo::class create C {variable state; method m {arg\uD800} {return ${arg\uD800}}}; oo::define C variable later";
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+-        let method = unit
+-            .ir_module
+-            .methods
+-            .get("::C::m")
++        let method = fixture_id_if_present(&unit.ir_module.methods, "::C::m")
++            .and_then(|id| unit.ir_module.methods.get(&id))
+             .expect("original method");
+         assert!(method.body.executed_source.is_some());
+         let facts = MethodBodyFacts::from_method(method);
+@@ -7477,6 +7549,7 @@
+ 
+ #[cfg(test)]
+ mod conditional_original_body_tests {
++
+     use super::*;
+ 
+     fn supplied(
+@@ -7905,6 +7978,7 @@
+ 
+ #[cfg(test)]
+ mod selected_class_roster_tests {
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+ 
+diff --git a/rust/tcl-compiler/src/compile_service.rs b/rust/tcl-compiler/src/compile_service.rs
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -984,6 +984,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::lowering::{
+         lower_proc_body_module_for_bytecode, lower_to_ir_for_bytecode_with_dialect,
+@@ -1816,7 +1818,7 @@
+     fn explicit_whole_module_artifact_keeps_procedure_inventory() {
+         let source = "proc child {} {return KEPT}; set marker ENTERED";
+         let module = BytecodeCompileService::default().compile(source).unwrap();
+-        assert!(module.procedures.contains_key("::child"));
++        assert!(fixture_id_if_present(&module.procedures, "::child").is_some());
+         assert_eq!(module.procedure_provenance["::child"].body, "return KEPT");
+     }
+ 
+@@ -2136,7 +2138,10 @@
+                         dispatch,
+                     )
+                     .unwrap();
+-                let static_proc = &static_module.procedures["::matrix::p"];
++                let static_proc = static_module
++                    .procedures
++                    .get(&fixture_id(&static_module.procedures, "::matrix::p"))
++                    .expect("authored fixture body");
+                 let direct_proc = &direct_module.top_level;
+ 
+                 if dispatch == ProcedureDispatch::Optimised {
+@@ -2228,7 +2233,7 @@
+             direct_ir.namespace_exports,
+             [(":::".to_owned(), "exposed".to_owned())]
+         );
+-        assert!(direct_ir.procedures.contains_key(":::::child"));
++        assert!(fixture_id_if_present(&direct_ir.procedures, ":::::child").is_some());
+         assert!(direct_module.procedures.is_empty());
+         assert!(direct_module.procedure_provenance.is_empty());
+ 
+@@ -2245,9 +2250,8 @@
+             config,
+             Some(profile),
+         );
+-        let namespace_proofs: Vec<_> = static_ir
+-            .procedures
+-            .get(":::::p")
++        let namespace_proofs: Vec<_> = fixture_id_if_present(&static_ir.procedures, ":::::p")
++            .and_then(|id| static_ir.procedures.get(&id))
+             .into_iter()
+             .flat_map(|procedure| &procedure.body.statements)
+             .filter_map(|statement| statement.tokens())
+@@ -2274,7 +2278,7 @@
+             static_ir.procedures.keys().collect::<Vec<_>>(),
+             static_ir.body_units.keys().collect::<Vec<_>>()
+         );
+-        assert!(static_ir.procedures.contains_key(":::::p"));
++        assert!(fixture_id_if_present(&static_ir.procedures, ":::::p").is_some());
+     }
+ 
+     #[test]
+@@ -2691,7 +2695,10 @@
+         let source = "proc p {} {mutate; catch {error x} msg; return $msg}";
+         let catch_source = "catch {error x} msg";
+         let module = BytecodeCompileService::default().compile(source).unwrap();
+-        let procedure = &module.procedures["::p"];
++        let procedure = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::p"))
++            .expect("authored fixture body");
+ 
+         assert!(
+             procedure
+@@ -2720,7 +2727,11 @@
+             .unwrap();
+ 
+         for procedure in ["::ret", "::caught", "::tried"] {
+-            let bindings = &module.procedures[procedure].command_bindings;
++            let bindings = &module
++                .procedures
++                .get(&fixture_id(&module.procedures, procedure))
++                .expect("authored fixture body")
++                .command_bindings;
+             assert!(
+                 bindings
+                     .iter()
+@@ -2729,14 +2740,20 @@
+             );
+         }
+         assert!(
+-            module.procedures["::tried"]
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::tried"))
++                .expect("authored fixture body")
+                 .command_bindings
+                 .iter()
+                 .any(|binding| binding.name == "try" && binding.identity == "try"),
+             "the catch-body try specialisation must retain its own dependency",
+         );
+         assert!(
+-            module.procedures["::tried"]
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::tried"))
++                .expect("authored fixture body")
+                 .command_bindings
+                 .iter()
+                 .any(|binding| binding.name == "set" && binding.identity == "set"),
+@@ -2748,7 +2765,11 @@
+             ("::breaking", "break"),
+             ("::continuing", "continue"),
+         ] {
+-            let bindings = &module.procedures[procedure].command_bindings;
++            let bindings = &module
++                .procedures
++                .get(&fixture_id(&module.procedures, procedure))
++                .expect("authored fixture body")
++                .command_bindings;
+             assert!(
+                 bindings.iter().any(|binding| {
+                     binding.name == dependency && binding.identity == dependency
+@@ -2813,7 +2834,10 @@
+                     "proc target {{}} {{}}; proc p {{}} {{set result [{command}]}}"
+                 ))
+                 .unwrap();
+-            let operation = module.procedures["::p"]
++            let operation = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
+                 .instructions
+                 .iter()
+                 .flat_map(|instruction| &instruction.native_operation_selections)
+@@ -2826,13 +2850,27 @@
+             let operation = operation.unwrap_or_else(|| {
+                 panic!(
+                     "{name}: proved inline hook retains its operation range; requirements={:?}",
+-                    module.procedures["::p"].command_bindings
++                    module
++                        .procedures
++                        .get(&fixture_id(&module.procedures, "::p"))
++                        .expect("authored fixture body")
++                        .command_bindings
+                 )
+             });
+             assert_eq!(operation.source, command);
+-            assert!(module.procedures["::p"].labels.contains_key(&operation.end));
+             assert!(
+-                module.procedures["::p"]
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
++                    .labels
++                    .contains_key(&operation.end)
++            );
++            assert!(
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
+                     .command_bindings
+                     .iter()
+                     .any(|binding| binding.name == name && binding.identity == name),
+@@ -2860,21 +2898,30 @@
+                 ))
+                 .unwrap();
+             assert!(
+-                module.procedures["::p"]
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
+                     .instructions
+                     .iter()
+                     .any(|instruction| instruction.op == expected_op),
+                 "{name} lost its inline specialisation"
+             );
+             assert!(
+-                module.procedures["::p"]
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
+                     .command_bindings
+                     .iter()
+                     .any(|binding| binding.name == name && binding.identity == name),
+                 "{name} lost its runtime-validated command binding"
+             );
+             assert!(
+-                module.procedures["::p"]
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
+                     .instructions
+                     .iter()
+                     .all(|instruction| {
+@@ -2894,12 +2941,19 @@
+             .compile("interp alias {} e {} expr; proc p {} {return [e {1 + 2}]}")
+             .unwrap();
+         assert!(
+-            module.procedures["::p"]
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
+                 .command_bindings
+                 .iter()
+                 .any(|binding| binding.name == "e" && binding.identity == "expr"),
+             "a fused return dependency belongs to the alias source spelling: {:?}",
+-            module.procedures["::p"].command_bindings,
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .command_bindings,
+         );
+     }
+ 
+@@ -3027,7 +3081,14 @@
+             .top_level
+             .instructions
+             .iter()
+-            .chain(module.procedures["::p"].instructions.iter())
++            .chain(
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::p"))
++                    .expect("authored fixture body")
++                    .instructions
++                    .iter(),
++            )
+             .filter(|instruction| instruction.op == tcl_bytecode::Op::START_CMD)
+             .map(|instruction| {
+                 instruction
+@@ -3097,7 +3158,10 @@
+             )
+             .unwrap();
+ 
+-        let static_proc = &static_module.procedures["::p"];
++        let static_proc = static_module
++            .procedures
++            .get(&fixture_id(&static_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let direct_proc = &procedure_module.top_level;
+         for (path, procedure) in [("static", static_proc), ("direct", direct_proc)] {
+             let owners: Vec<_> = procedure
+@@ -3172,7 +3236,13 @@
+                     ProcedureDispatch::Optimised,
+                 )
+                 .unwrap();
+-            for procedure in [&static_module.procedures["::p"], &direct_module.top_level] {
++            for procedure in [
++                static_module
++                    .procedures
++                    .get(&fixture_id(&static_module.procedures, "::p"))
++                    .expect("authored fixture body"),
++                &direct_module.top_level,
++            ] {
+                 assert!(
+                     procedure.instructions.iter().all(|instruction| {
+                         instruction.op != tcl_bytecode::Op::START_CMD
+diff --git a/rust/tcl-compiler/src/connection_scope.rs b/rust/tcl-compiler/src/connection_scope.rs
+--- a/rust/tcl-compiler/src/connection_scope.rs
++++ b/rust/tcl-compiler/src/connection_scope.rs
+@@ -891,6 +891,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     #[test]
+     fn cross_event_namespace_cells_keep_native_incarnations_separate() {
+         use crate::{
+@@ -1320,7 +1322,9 @@
+             .project_for_profile(tcl_dialect::DialectProfile::irules());
+         let source = "when HTTP_REQUEST {set local 1}";
+         let unit = CompilationUnit::build_for(source, &registry, false);
+-        let event = unit.procedures.get("::when::HTTP_REQUEST").unwrap();
++        let event = fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST")
++            .and_then(|id| unit.procedures.get(&id))
++            .unwrap();
+         let body = event
+             .irules_event_body
+             .as_ref()
+@@ -1410,7 +1414,9 @@
+             .irules_event_bodies
+             .get("::when::HTTP_REQUEST")
+             .unwrap();
+-        let procedure = module.procedures.get("::when::HTTP_REQUEST").unwrap();
++        let procedure = fixture_id_if_present(&module.procedures, "::when::HTTP_REQUEST")
++            .and_then(|id| module.procedures.get(&id))
++            .unwrap();
+         assert!(body.owns_procedure(procedure, &module.source, module.lexer_config, &registry));
+         let mut changed = procedure.clone();
+         changed.span = tcl_lexer::Span::new(procedure.span.start() + 1, procedure.span.end());
+diff --git a/rust/tcl-compiler/src/def_use.rs b/rust/tcl-compiler/src/def_use.rs
+--- a/rust/tcl-compiler/src/def_use.rs
++++ b/rust/tcl-compiler/src/def_use.rs
+@@ -554,6 +554,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::Statement;
+     use crate::cfg::BlockId;
+@@ -620,7 +622,10 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = &unit.procedures["::p"];
++        let function = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body");
+         for name in ["x", "y"] {
+             let symbol = function.ssa.var_symbol(name).expect("unambiguous producer");
+             let cell = function.ssa.cell_key(symbol);
+diff --git a/rust/tcl-compiler/src/gvn.rs b/rust/tcl-compiler/src/gvn.rs
+--- a/rust/tcl-compiler/src/gvn.rs
++++ b/rust/tcl-compiler/src/gvn.rs
+@@ -2202,6 +2202,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use tcl_dialect::model::{Family, SurfaceQuery};
+ 
+     /// The default document's `${…}` close rule — these unit tests build no
+@@ -4628,7 +4630,9 @@
+             false,
+             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+         );
+-        let procedure = cu.procedures.get("::p").expect("the proc unit is built");
++        let procedure = fixture_id_if_present(&cu.procedures, "::p")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("the proc unit is built");
+         assert!(
+             !find_redundancies(
+                 &registry,
+diff --git a/rust/tcl-compiler/src/inlining/frame.rs b/rust/tcl-compiler/src/inlining/frame.rs
+--- a/rust/tcl-compiler/src/inlining/frame.rs
++++ b/rust/tcl-compiler/src/inlining/frame.rs
+@@ -676,6 +676,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     fn beyond_values(text: &str) -> bool {
+@@ -698,7 +700,13 @@
+             let (context, module) = crate::inlining::tests::logical_module_for(source);
+             let selected = SourceContext::for_module(&module, context.commands()).unwrap();
+             assert!(
+-                reads_only_bound_names(&module.procedures["::p"], selected),
++                reads_only_bound_names(
++                    module
++                        .procedures
++                        .get(&fixture_id(&module.procedures, "::p"))
++                        .expect("authored fixture body"),
++                    selected
++                ),
+                 "{source}"
+             );
+         }
+@@ -712,7 +720,13 @@
+             let (context, module) = crate::inlining::tests::logical_module_for(source);
+             let selected = SourceContext::for_module(&module, context.commands()).unwrap();
+             assert!(
+-                !reads_only_bound_names(&module.procedures["::p"], selected),
++                !reads_only_bound_names(
++                    module
++                        .procedures
++                        .get(&fixture_id(&module.procedures, "::p"))
++                        .expect("authored fixture body"),
++                    selected
++                ),
+                 "{source}"
+             );
+         }
+@@ -726,7 +740,10 @@
+             crate::inlining::tests::logical_module_for("proc p {x} {return $x}; p 1");
+         let selected = SourceContext::for_module(&original, context.commands()).unwrap();
+         assert!(reads_only_bound_names(
+-            &original.procedures["::p"],
++            original
++                .procedures
++                .get(&fixture_id(&original.procedures, "::p"))
++                .expect("authored fixture body"),
+             selected
+         ));
+         let foreign =
+@@ -741,7 +758,11 @@
+         let mut stale_source = original.clone();
+         stale_source.source = tcl_lexer::SourceImage::document("proc p {x} {return $missing}; p 1");
+         assert!(SourceContext::for_module(&stale_source, context.commands()).is_none());
+-        let mut cooked = original.procedures["::p"].clone();
++        let mut cooked = original
++            .procedures
++            .get(&fixture_id(&original.procedures, "::p"))
++            .expect("authored fixture body")
++            .clone();
+         cooked.body.command_binding_sites = Default::default();
+         let Statement::Return { tokens, .. } = &mut cooked.body.statements[0] else {
+             panic!("genuine original return fixture");
+@@ -759,7 +780,10 @@
+         let (context, module) =
+             crate::inlining::tests::logical_module_for("proc p {café} {return ${café}}; p VALUE");
+         let source = SourceContext::for_module(&module, context.commands()).unwrap();
+-        let original = &module.procedures["::p"];
++        let original = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::p"))
++            .expect("authored fixture body");
+         assert!(reads_only_bound_names(original, source));
+         let mutations: &[fn(&mut Procedure)] = &[
+             |procedure| procedure.name = "other".into(),
+@@ -901,7 +925,11 @@
+         );
+         let selected = SourceContext::for_module(&logical.ir_module, registry).unwrap();
+         assert!(reads_only_bound_names(
+-            &logical.ir_module.procedures["::p"],
++            logical
++                .ir_module
++                .procedures
++                .get(&fixture_id(&logical.ir_module.procedures, "::p"))
++                .expect("authored fixture body"),
+             selected
+         ));
+     }
+diff --git a/rust/tcl-compiler/src/interprocedural/completion.rs b/rust/tcl-compiler/src/interprocedural/completion.rs
+--- a/rust/tcl-compiler/src/interprocedural/completion.rs
++++ b/rust/tcl-compiler/src/interprocedural/completion.rs
+@@ -894,6 +894,7 @@
+ 
+ #[cfg(test)]
+ mod original_source_purpose_tests {
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::command_binding::{OriginalInvocationSourcePurpose, SourceAnalysisEntry};
+diff --git a/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs b/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
+--- a/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
+@@ -459,6 +459,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     #[test]
+@@ -827,18 +829,23 @@
+                 .is_none()
+         );
+         let mut changed = module.clone();
+-        changed
+-            .procedures
+-            .get_mut("::p")
+-            .unwrap()
+-            .params_raw
+-            .push_str(" injected");
++        {
++            let id = fixture_id(&changed.procedures, "::p");
++            changed.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .params_raw
++        .push_str(" injected");
+         let source =
+             SourceSummaryContext::for_module(&changed, context.commands(), changed.lexer_config)
+                 .unwrap();
+         assert!(source.procedure("::p").is_none());
+         let mut moved = module.clone();
+-        let procedure = moved.procedures.remove("::p").unwrap();
++        let procedure = {
++            let id = fixture_id(&moved.procedures, "::p");
++            moved.procedures.remove(&id)
++        }
++        .unwrap();
+         moved.procedures.insert("::other".into(), procedure);
+         let source =
+             SourceSummaryContext::for_module(&moved, context.commands(), moved.lexer_config)
+diff --git a/rust/tcl-compiler/src/interval_bounds.rs b/rust/tcl-compiler/src/interval_bounds.rs
+--- a/rust/tcl-compiler/src/interval_bounds.rs
++++ b/rust/tcl-compiler/src/interval_bounds.rs
+@@ -1612,6 +1612,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use crate::analyser::Analyser;
+ 
+     fn context_test_unit(
+@@ -1675,7 +1677,10 @@
+                 .with_command_store(Arc::new(registry)),
+         );
+         let unit = context_test_unit(source, &context);
+-        let function = &unit.procedures["::f"];
++        let function = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::f"))
++            .expect("authored fixture body");
+         let original = function
+             .ssa
+             .blocks
+@@ -1728,7 +1733,16 @@
+             "proc lset {args} {}; proc f {i} {lset values $i NEW}",
+             &context,
+         );
+-        assert!(context_test_candidates(&replaced.procedures["::f"], selected).is_empty());
++        assert!(
++            context_test_candidates(
++                replaced
++                    .procedures
++                    .get(&fixture_id(&replaced.procedures, "::f"))
++                    .expect("authored fixture body"),
++                selected
++            )
++            .is_empty()
++        );
+         let mut missing = original.clone();
+         missing.source_binding = None;
+         assert!(
+diff --git a/rust/tcl-compiler/src/intervals.rs b/rust/tcl-compiler/src/intervals.rs
+--- a/rust/tcl-compiler/src/intervals.rs
++++ b/rust/tcl-compiler/src/intervals.rs
+@@ -1132,6 +1132,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     #[test]
+@@ -1638,7 +1640,9 @@
+             registry,
+             false,
+         );
+-        let fu = cu.procedures.get("::f").expect("proc");
++        let fu = fixture_id_if_present(&cu.procedures, "::f")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("proc");
+         let intervals = compute_intervals_with(
+             &fu.cfg,
+             &fu.ssa,
+@@ -1668,7 +1672,9 @@
+             registry,
+             false,
+         );
+-        let fu = cu.procedures.get("::f").expect("proc");
++        let fu = fixture_id_if_present(&cu.procedures, "::f")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("proc");
+         let intervals = compute_intervals_with(
+             &fu.cfg,
+             &fu.ssa,
+diff --git a/rust/tcl-compiler/src/ir_helpers.rs b/rust/tcl-compiler/src/ir_helpers.rs
+--- a/rust/tcl-compiler/src/ir_helpers.rs
++++ b/rust/tcl-compiler/src/ir_helpers.rs
+@@ -2239,6 +2239,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::ir::{ForeachIterator, IfClause, Script};
+     use tcl_lexer::Span;
+@@ -2979,61 +2981,128 @@
+             registry,
+         );
+         assert!(!requires_runtime_command_namespace(
+-            &module.methods["::C::helper"].body,
++            module
++                .methods
++                .get(&fixture_id(&module.methods, "::C::helper"))
++                .expect("authored fixture body")
++                .body,
+             registry
+         ));
+         assert!(
+-            requires_runtime_command_namespace(&module.methods["::C::m"].body, registry),
++            requires_runtime_command_namespace(
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::m"))
++                    .expect("authored fixture body")
++                    .body,
++                registry
++            ),
+             "the receiver namespace can shadow TclOO's injected `my` command"
+         );
+         assert!(
+-            !requires_runtime_command_namespace(&module.methods["::C::dynamic"].body, registry),
++            !requires_runtime_command_namespace(
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::dynamic"))
++                    .expect("authored fixture body")
++                    .body,
++                registry
++            ),
+             "a computed head is already an opaque CFG barrier, not a lexical fallback dependency"
+         );
+         assert!(
+-            !requires_runtime_command_namespace(&module.methods["::C::global_body"].body, registry),
++            !requires_runtime_command_namespace(
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::global_body"))
++                    .expect("authored fixture body")
++                    .body,
++                registry
++            ),
+             "uplevel #0 selects the exact global namespace for its nested body"
+         );
+         for name in ["::C::exact", "::C::exact_info", "::C::exact_regex"] {
+-            let body = &module.methods[name].body;
++            let body = &module
++                .methods
++                .get(&fixture_id(&module.methods, name))
++                .expect("authored fixture body")
++                .body;
+             assert!(
+                 !requires_runtime_command_namespace(body, registry),
+                 "absolute-only method {name} must remain analysable: {body:#?}"
+             );
+         }
+         assert!(
+-            requires_runtime_command_namespace(&module.methods["::C::nested_alias"].body, registry),
++            requires_runtime_command_namespace(
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::nested_alias"))
++                    .expect("authored fixture body")
++                    .body,
++                registry
++            ),
+             "a relative nested binding consumed by typed lowering can be shadowed by the object namespace"
+         );
+         assert!(
+             matches!(
+-                module.methods["::C::exact"].body.statements.first(),
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::exact"))
++                    .expect("authored fixture body")
++                    .body
++                    .statements
++                    .first(),
+                 Some(Statement::Return { expr: Some(_), .. })
+             ),
+             "absolute nested expr must retain typed return IR: {:#?}",
+-            module.methods["::C::exact"].body
++            module
++                .methods
++                .get(&fixture_id(&module.methods, "::C::exact"))
++                .expect("authored fixture body")
++                .body
+         );
+         assert!(
+             matches!(
+-                module.methods["::C::exact_info"].body.statements.first(),
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::exact_info"))
++                    .expect("authored fixture body")
++                    .body
++                    .statements
++                    .first(),
+                 Some(Statement::If { .. })
+             ),
+             "absolute if must retain typed control IR: {:#?}",
+-            module.methods["::C::exact_info"].body
++            module
++                .methods
++                .get(&fixture_id(&module.methods, "::C::exact_info"))
++                .expect("authored fixture body")
++                .body
+         );
+         assert!(
+             matches!(
+-                module.methods["::C::exact_regex"].body.statements.first(),
++                module
++                    .methods
++                    .get(&fixture_id(&module.methods, "::C::exact_regex"))
++                    .expect("authored fixture body")
++                    .body
++                    .statements
++                    .first(),
+                 Some(Statement::AssignConst { .. })
+             ),
+             "absolute set must retain typed assignment IR: {:#?}",
+-            module.methods["::C::exact_regex"].body
++            module
++                .methods
++                .get(&fixture_id(&module.methods, "::C::exact_regex"))
++                .expect("authored fixture body")
++                .body
+         );
+     }
+ }
+ 
+ #[cfg(test)]
+ mod original_recovered_source_purpose_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -3116,6 +3185,7 @@
+ 
+ #[cfg(test)]
+ mod original_written_source_tests {
++
+     use super::*;
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/src/irules_checks.rs b/rust/tcl-compiler/src/irules_checks.rs
+--- a/rust/tcl-compiler/src/irules_checks.rs
++++ b/rust/tcl-compiler/src/irules_checks.rs
+@@ -2277,6 +2277,7 @@
+ 
+ #[cfg(test)]
+ mod tests {
++
+     use tcl_dialect::model::{Family, SurfaceQuery};
+ 
+     use super::*;
+@@ -3893,6 +3894,7 @@
+ 
+ #[cfg(test)]
+ mod original_getter_source_config_tests {
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::compilation_unit::UnitBuildOptions;
+@@ -4003,6 +4005,7 @@
+ 
+ #[cfg(test)]
+ mod original_collection_source_tests {
++
+     use super::*;
+     use crate::compilation_unit::UnitBuildOptions;
+     use std::sync::Arc;
+@@ -4141,6 +4144,8 @@
+ 
+ #[cfg(test)]
+ mod original_event_owner_tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+     use crate::compilation_unit::UnitBuildOptions;
+     use std::sync::Arc;
+@@ -4226,7 +4231,7 @@
+             HTTP::respond 200; HTTP::header insert X-Test yes; drop;\n\
+             set static::debug 1; set svc foo; HTTP::payload\n}";
+         let (unit, context) = supplied(text, false);
+-        assert!(unit.procedures.contains_key("::when::HTTP_REQUEST"));
++        assert!(fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST").is_some());
+         let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
+         assert_eq!(events(&source), Some(Vec::new()));
+         assert_eq!(event_mutation_counts(&source), Some(HashMap::new()));
+diff --git a/rust/tcl-compiler/src/loops.rs b/rust/tcl-compiler/src/loops.rs
+--- a/rust/tcl-compiler/src/loops.rs
++++ b/rust/tcl-compiler/src/loops.rs
+@@ -182,6 +182,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::compilation_unit::CompilationUnit;
+     use tcl_registry::model::ingress::static_context_for;
+@@ -195,7 +197,9 @@
+         let fu = if qname == "::top" {
+             &cu.top_level
+         } else {
+-            cu.procedures.get(qname).expect("proc must exist")
++            cu.procedures
++                .get(&fixture_id(&cu.ir_module.procedures, qname))
++                .expect("proc must exist")
+         };
+         build_loop_forest(&fu.cfg, &fu.ssa, &fu.sccp.executable_blocks)
+     }
+@@ -272,7 +276,9 @@
+             registry,
+             false,
+         );
+-        let fu = cu.procedures.get("::f").unwrap();
++        let fu = fixture_id_if_present(&cu.procedures, "::f")
++            .and_then(|id| cu.procedures.get(&id))
++            .unwrap();
+         let entry = fu.ssa.entry;
+         // Entry dominates itself (base case).
+         assert!(dominates(&fu.ssa, entry, entry));
+diff --git a/rust/tcl-compiler/src/lowering/execution_regions.rs b/rust/tcl-compiler/src/lowering/execution_regions.rs
+--- a/rust/tcl-compiler/src/lowering/execution_regions.rs
++++ b/rust/tcl-compiler/src/lowering/execution_regions.rs
+@@ -888,6 +888,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::command_binding::SourceAnalysisOptions;
+     use crate::ir::Statement;
+@@ -984,9 +986,8 @@
+     }
+ 
+     fn region(module: &crate::ir::Module) -> Option<&EvaluatedBodyRegion> {
+-        module
+-            .procedures
+-            .get("::p")?
++        fixture_id_if_present(&module.procedures, "::p")
++            .and_then(|id| module.procedures.get(&id))?
+             .body
+             .statements
+             .iter()
+@@ -1053,7 +1054,13 @@
+         let source = "proc p {mode} {switch -- $mode {a {for {set j 0} {$j < 3} {incr j} {puts $j}} default {puts $missing}}}";
+         let module = lower(source, false);
+         if region(&module).is_none() {
+-            for statement in &module.procedures["::p"].body.statements {
++            for statement in module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .body
++                .statements
++            {
+                 let Some(tokens) = statement.tokens() else {
+                     continue;
+                 };
+@@ -1455,7 +1462,11 @@
+                 &source, &registry, false, "tcl8.6",
+             );
+             assert!(region(&unit.ir_module).is_some());
+-            let ssa = &unit.procedures["::p"].ssa;
++            let ssa = unit
++                .procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
++                .ssa;
+             let read_versions = |name: &str| {
+                 let mut versions = Vec::new();
+                 for (block, body) in &ssa.blocks {
+diff --git a/rust/tcl-compiler/src/lowering/hooks/control.rs b/rust/tcl-compiler/src/lowering/hooks/control.rs
+--- a/rust/tcl-compiler/src/lowering/hooks/control.rs
++++ b/rust/tcl-compiler/src/lowering/hooks/control.rs
+@@ -308,6 +308,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::lowering::lower_to_ir;
+     use tcl_lexer::Span;
+@@ -344,7 +346,14 @@
+     fn nested_return_expression_retains_original_parser_source_base() {
+         let source = "proc p {} {return [expr {abs(-3)}]}; p";
+         let module = native_return_module(source);
+-        let statement = module.procedures["::p"].body.statements.first().unwrap();
++        let statement = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::p"))
++            .expect("authored fixture body")
++            .body
++            .statements
++            .first()
++            .unwrap();
+         let Statement::Return {
+             expr: Some(_),
+             expr_base: Some(base),
+@@ -361,7 +370,10 @@
+             Some("abs(-3)")
+         );
+         assert!(
+-            module.procedures["::p"]
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
+                 .body
+                 .implicit_math_invocations
+                 .iter()
+@@ -455,7 +467,13 @@
+         // `return [expr {$x + 1}]` should attach the parsed expression
+         // so codegen can emit the value directly without re-eval.
+         let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
+-        match &m.procedures["::p"].body.statements[0] {
++        match m
++            .procedures
++            .get(&fixture_id(&m.procedures, "::p"))
++            .expect("authored fixture body")
++            .body
++            .statements[0]
++        {
+             Statement::Return { expr, .. } => {
+                 assert!(expr.is_some(), "expected expr attached, got None");
+             }
+@@ -471,7 +489,11 @@
+             ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
+         ] {
+             let module = native_return_module(source);
+-            let body = &module.procedures["::p"].body;
++            let body = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .body;
+             assert!(body.implicit_math_invocations.is_empty());
+             // Reached preparation precedes the missing-variable failure; it
+             // supplies neither a normal result nor admission of the Return.
+@@ -519,8 +541,8 @@
+     fn lowered_in_p(source: &str, dialect: &str) -> Statement {
+         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+         let m = lower_to_ir(source, registry);
+-        m.procedures
+-            .get("::p")
++        fixture_id_if_present(&m.procedures, "::p")
++            .and_then(|id| m.procedures.get(&id))
+             .and_then(|p| p.body.statements.first())
+             .cloned()
+             .expect("the procedure's first statement")
+@@ -562,7 +584,13 @@
+             "tcl8.4"
+         )));
+         let m = lower_to_ir("proc p {} {return -level 0 -code ok x}", &reg());
+-        assert!(barrier(&m.procedures["::p"].body.statements[0]));
++        assert!(barrier(
++            m.procedures
++                .get(&fixture_id(&m.procedures, "::p"))
++                .expect("authored fixture body")
++                .body
++                .statements[0]
++        ));
+         match lowered_in_p("proc p {} {return -code}", "tcl8.6") {
+             Statement::Return { value, .. } => assert_eq!(value.as_deref(), Some("-code")),
+             other => panic!("expected Return, got {other:?}"),
+@@ -613,8 +641,13 @@
+         // The shared dispatcher in ``lowering_hooks::try_lower_hook``
+         // must route ``return`` and ``expr`` to this module.
+         let m = lower_to_ir("proc f {} { return 1 }\nexpr {1}", &reg());
+-        assert!(m.procedures.contains_key("::f"));
+-        let body = &m.procedures["::f"].body.statements;
++        assert!(fixture_id_if_present(&m.procedures, "::f").is_some());
++        let body = m
++            .procedures
++            .get(&fixture_id(&m.procedures, "::f"))
++            .expect("authored fixture body")
++            .body
++            .statements;
+         assert!(body.iter().any(|s| matches!(s, Statement::Return { .. })));
+         assert!(
+             m.top_level
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -6544,6 +6544,8 @@
+ 
+ #[cfg(test)]
+ mod body_cache_eligible_tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::body_cache_eligible;
+ 
+     #[test]
+@@ -6624,7 +6626,10 @@
+         // the actual withdrawal and retained dispatch instead of equating the
+         // debug serialization of two different physical worlds.
+         for module in [&cached, &fresh] {
+-            let procedure = &module.procedures["::f"];
++            let procedure = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::f"))
++                .expect("authored fixture body");
+             assert_eq!(procedure.params, ["x"]);
+             let mut retained_target = false;
+             crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+@@ -7124,6 +7129,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     fn fixture_method<'a>(
+         methods: &'a crate::ir::MethodInventory,
+         label: &str,
+@@ -7422,7 +7429,11 @@
+                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+             );
+             assert_eq!(
+-                module.procedures["::when::HTTP_REQUEST"].base_priority,
++                module
++                    .procedures
++                    .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
++                    .expect("authored fixture body")
++                    .base_priority,
+                 expected
+             );
+         }
+@@ -7450,7 +7461,13 @@
+             "::when::HTTP_REQUEST#3",
+         ]
+         .into_iter()
+-        .map(|name| module.procedures[name].base_priority)
++        .map(|name| {
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, name))
++                .expect("authored fixture body")
++                .base_priority
++        })
+         .collect();
+         assert_eq!(priorities, [700, 400, 200, 400]);
+     }
+@@ -7474,19 +7491,27 @@
+         );
+ 
+         assert!(
+-            module.procedures.contains_key("::when::NOT_A_REAL_EVENT"),
++            fixture_id_if_present(&module.procedures, "::when::NOT_A_REAL_EVENT").is_some(),
+             "a syntactically valid unknown event is lowered so the XC translator can report it"
+         );
+         for name in ["::when::CLIENT_DATA", "::bare_proc", "::quoted_proc"] {
+             assert!(
+-                !module.procedures.contains_key(name),
++                !fixture_id_if_present(&module.procedures, name).is_some(),
+                 "a non-braced declaration body must not open {name}"
+             );
+         }
+-        assert!(module.procedures.contains_key("::valid_proc"));
++        assert!(fixture_id_if_present(&module.procedures, "::valid_proc").is_some());
+         let request = [
+-            module.procedures["::when::HTTP_REQUEST"].base_priority,
+-            module.procedures["::when::HTTP_REQUEST#1"].base_priority,
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
++                .expect("authored fixture body")
++                .base_priority,
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST#1"))
++                .expect("authored fixture body")
++                .base_priority,
+         ];
+         assert_eq!(request, [200, 500], "valid repeated handlers keep priority");
+     }
+@@ -7531,8 +7556,8 @@
+                 "nested declaration must remain inert: {absent}"
+             );
+         }
+-        assert!(module.procedures.contains_key("::when::HTTP_REQUEST"));
+-        assert!(module.procedures.contains_key("::helper"));
++        assert!(fixture_id_if_present(&module.procedures, "::when::HTTP_REQUEST").is_some());
++        assert!(fixture_id_if_present(&module.procedures, "::helper").is_some());
+     }
+ 
+     #[test]
+@@ -8264,12 +8289,12 @@
+                    proc toplevel {} { return 3 }\n";
+         let m = lower_to_ir(src, &reg());
+         assert!(
+-            m.procedures.contains_key("::toplevel"),
++            fixture_id_if_present(&m.procedures, "::toplevel").is_some(),
+             "procs: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+         assert!(
+-            !m.procedures.contains_key("::helper"),
++            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
+             "nested method proc must not be registered: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -8292,12 +8317,12 @@
+                    }\n";
+         let m = lower_to_ir(src, &reg());
+         assert!(
+-            m.procedures.contains_key("::helper"),
++            fixture_id_if_present(&m.procedures, "::helper").is_some(),
+             "apply body proc must register in the global namespace: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+         assert!(
+-            !m.procedures.contains_key("::foo::helper"),
++            !fixture_id_if_present(&m.procedures, "::foo::helper").is_some(),
+             "apply body proc must NOT inherit the caller namespace: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -8309,7 +8334,7 @@
+         let src = "apply {{} { proc helper {} { return 1 } } ::bar}\n";
+         let m = lower_to_ir(src, &reg());
+         assert!(
+-            m.procedures.contains_key("::bar::helper"),
++            fixture_id_if_present(&m.procedures, "::bar::helper").is_some(),
+             "explicit lambda namespace must be honoured: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -8325,12 +8350,12 @@
+         let src = "proc ::caller::p {} { apply {{} { proc helper {} { return 1 } } sub} }\n";
+         let m = lower_to_ir(src, &reg());
+         assert!(
+-            m.procedures.contains_key("::sub::helper"),
++            fixture_id_if_present(&m.procedures, "::sub::helper").is_some(),
+             "relative lambda ns must resolve against ::: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+         assert!(
+-            !m.procedures.contains_key("::caller::sub::helper"),
++            !fixture_id_if_present(&m.procedures, "::caller::sub::helper").is_some(),
+             "relative lambda ns must NOT pin against the caller: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -8347,8 +8372,11 @@
+     fn proc_definition() {
+         let m = lower_to_ir("proc greet {name} {puts $name}", &reg());
+         // proc emits a Statement::Call + registers a procedure.
+-        assert!(m.procedures.contains_key("::greet"));
+-        let p = &m.procedures["::greet"];
++        assert!(fixture_id_if_present(&m.procedures, "::greet").is_some());
++        let p = m
++            .procedures
++            .get(&fixture_id(&m.procedures, "::greet"))
++            .expect("authored fixture body");
+         assert_eq!(p.params, vec!["name"]);
+     }
+ 
+@@ -8459,7 +8487,7 @@
+         let r = reg();
+         let m = lower_to_ir("set x 1\nproc foo {} {return 1}", &r);
+         assert_eq!(m.top_level.statements.len(), 2);
+-        assert!(m.procedures.contains_key("::foo"));
++        assert!(fixture_id_if_present(&m.procedures, "::foo").is_some());
+     }
+ 
+     // A proc body homes nested definitions to the proc's *defining*
+@@ -8488,12 +8516,12 @@
+             &reg(),
+         );
+         assert!(
+-            m.procedures.contains_key("::a::helper"),
++            fixture_id_if_present(&m.procedures, "::a::helper").is_some(),
+             "nested proc must home to ::a, got {:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+         assert!(
+-            !m.procedures.contains_key("::helper"),
++            !fixture_id_if_present(&m.procedures, "::helper").is_some(),
+             "nested proc must NOT home lexically to ::",
+         );
+     }
+@@ -8506,13 +8534,13 @@
+             "namespace eval ::g {}\nproc g::o7 {} { proc o7b {} { proc h7 {u} { return $u } } }\n",
+             &reg(),
+         );
+-        assert!(m.procedures.contains_key("::g::o7b"));
++        assert!(fixture_id_if_present(&m.procedures, "::g::o7b").is_some());
+         assert!(
+-            m.procedures.contains_key("::g::h7"),
++            fixture_id_if_present(&m.procedures, "::g::h7").is_some(),
+             "third level must stay in ::g, got {:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+-        assert!(!m.procedures.contains_key("::h7"));
++        assert!(!fixture_id_if_present(&m.procedures, "::h7").is_some());
+     }
+ 
+     #[test]
+@@ -8524,12 +8552,12 @@
+             &reg(),
+         );
+         assert!(
+-            m.procedures.contains_key("::e::h3"),
++            fixture_id_if_present(&m.procedures, "::e::h3").is_some(),
+             "got {:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+-        assert!(!m.procedures.contains_key("::d::h3"));
+-        assert!(!m.procedures.contains_key("::h3"));
++        assert!(!fixture_id_if_present(&m.procedures, "::d::h3").is_some());
++        assert!(!fixture_id_if_present(&m.procedures, "::h3").is_some());
+     }
+ 
+     #[test]
+@@ -8537,14 +8565,14 @@
+         // TN. The common shape: lexical and defining namespace agree, so
+         // homing changes nothing. Both at top level…
+         let m = lower_to_ir("proc outer {} { proc inner {} { return 1 } }\n", &reg());
+-        assert!(m.procedures.contains_key("::inner"));
++        assert!(fixture_id_if_present(&m.procedures, "::inner").is_some());
+         // …and inside a `namespace eval`, where both are `::ns`.
+         let m = lower_to_ir(
+             "namespace eval ::ns {\n    proc outer {} { proc inner {} { return 1 } }\n}\n",
+             &reg(),
+         );
+         assert!(
+-            m.procedures.contains_key("::ns::inner"),
++            fixture_id_if_present(&m.procedures, "::ns::inner").is_some(),
+             "got {:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+@@ -8558,8 +8586,8 @@
+             "namespace eval ::a {}\nproc a::outer4 {} { proc ::abs {q} { return $q } }\n",
+             &reg(),
+         );
+-        assert!(m.procedures.contains_key("::abs"));
+-        assert!(!m.procedures.contains_key("::a::abs"));
++        assert!(fixture_id_if_present(&m.procedures, "::abs").is_some());
++        assert!(!fixture_id_if_present(&m.procedures, "::a::abs").is_some());
+     }
+ 
+     #[test]
+@@ -8699,8 +8727,8 @@
+     /// Parameter names recorded for `::p` when `src` is lowered.
+     fn proc_params(src: &str) -> Vec<String> {
+         let m = lower_to_ir(src, &reg());
+-        m.procedures
+-            .get("::p")
++        fixture_id_if_present(&m.procedures, "::p")
++            .and_then(|id| m.procedures.get(&id))
+             .unwrap_or_else(|| panic!("::p registered for {src:?}"))
+             .params
+             .clone()
+@@ -8739,7 +8767,7 @@
+         ] {
+             let m = lower_to_ir(src, &reg());
+             assert!(
+-                !m.procedures.contains_key("::p"),
++                !fixture_id_if_present(&m.procedures, "::p").is_some(),
+                 "no ::p for {src:?}: {:?}",
+                 m.procedures.keys().collect::<Vec<_>>(),
+             );
+@@ -8940,7 +8968,9 @@
+         // proc — the const-map records ``body`` and the uplevel
+         // folds in the literal as an UpFrame.
+         let m = lower_to_ir("proc f {} { set body {set x 1}\n uplevel 1 $body }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         // proc body: [AssignConst(body), UpFrame { body: [...] }]
+         let last = proc.body.statements.last().expect("body has statements");
+         match last {
+@@ -8956,7 +8986,9 @@
+         // ``eval $body`` with const-mapped body folds to a
+         // Statement::Block.
+         let m = lower_to_ir("proc f {} { set body {set x 1}\n eval $body }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         let last = proc.body.statements.last().expect("body has statements");
+         match last {
+             Statement::Block { body, .. } => {
+@@ -8970,7 +9002,9 @@
+     fn const_prop_eval_brace_body_emits_block() {
+         // ``eval {body}`` in a proc context lowers to Block.
+         let m = lower_to_ir("proc f {} { eval {set x 1} }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
+     }
+ 
+@@ -8997,7 +9031,9 @@
+             "proc f {} { set body {a}\n set body $other\n uplevel 1 $body }",
+             &reg(),
+         );
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         let last = proc.body.statements.last().expect("body");
+         assert!(
+             !matches!(last, Statement::UpFrame { .. }),
+@@ -9009,7 +9045,9 @@
+     fn const_prop_eval_list_literal() {
+         // ``eval [list set x 42]`` recognised as static body.
+         let m = lower_to_ir("proc f {} { eval [list set x 42] }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         assert!(matches!(proc.body.statements[0], Statement::Block { .. }));
+     }
+ 
+@@ -9018,7 +9056,9 @@
+         // ``eval [list set x $v]`` — dynamic ``\$v`` rejects the
+         // list-literal shape. Falls back to runtime barrier.
+         let m = lower_to_ir("proc f {} { eval [list set x $v] }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
+     }
+ 
+@@ -9027,7 +9067,9 @@
+         // ``eval [foo arg]`` — inner command isn't ``list``;
+         // can't synthesise a body. Falls back to runtime barrier.
+         let m = lower_to_ir("proc f {} { eval [foo arg] }", &reg());
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         assert!(!matches!(proc.body.statements[0], Statement::Block { .. }));
+     }
+ 
+@@ -9040,7 +9082,9 @@
+             "proc outer {} {\n  set body {set x 1}\n  proc inner {} { uplevel 1 $body }\n}",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::inner").expect("inner registered");
++        let inner = fixture_id_if_present(&m.procedures, "::inner")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("inner registered");
+         // The inner uplevel must remain a Call/Barrier — NOT an
+         // UpFrame. If the const-map leaked, the inner body would
+         // be folded as UpFrame { body: [set x 1], .. }.
+@@ -9094,7 +9138,7 @@
+             &reg(),
+         );
+         assert!(
+-            m.procedures.contains_key("::Verbose"),
++            fixture_id_if_present(&m.procedures, "::Verbose").is_some(),
+             "expected ::Verbose in {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -9104,7 +9148,9 @@
+     fn proc_dynamic_name_no_binding_stays_barrier() {
+         // ``proc \$name`` with no const-map entry — bail to barrier.
+         let m = lower_to_ir("proc factory {} { proc $name {} { puts hi } }", &reg());
+-        let factory = m.procedures.get("::factory").expect("factory registered");
++        let factory = fixture_id_if_present(&m.procedures, "::factory")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("factory registered");
+         let last = factory.body.statements.last().expect("body");
+         assert!(
+             matches!(last, Statement::Barrier { .. }),
+@@ -9125,9 +9171,9 @@
+         // ``::ns`` (which is what the bug would produce) or any
+         // empty-key variant.
+         assert!(
+-            !m.procedures.contains_key("::ns")
+-                && !m.procedures.contains_key("::ns::")
+-                && !m.procedures.contains_key(""),
++            !fixture_id_if_present(&m.procedures, "::ns").is_some()
++                && !fixture_id_if_present(&m.procedures, "::ns::").is_some()
++                && !fixture_id_if_present(&m.procedures, "").is_some(),
+             "trailing-:: proc should not be AOT-registered; got {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -9163,7 +9209,11 @@
+         );
+         // ``::factory`` registered; the inner proc must NOT be
+         // registered under any literal name (``::x...``).
+-        assert!(!m.procedures.keys().any(|k| k.contains("suffix")));
++        assert!(
++            !m.procedures
++                .values()
++                .any(|body| body.qualified_name.contains("suffix"))
++        );
+     }
+ 
+     #[test]
+@@ -9175,7 +9225,9 @@
+             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nocommands {return $default}] }",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
++        let inner = fixture_id_if_present(&m.procedures, "::Verbose")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("::Verbose registered");
+         // Body should contain a Return statement (or at least be
+         // non-empty — the materialised body lowers to a real
+         // statement, not a Barrier).
+@@ -9251,7 +9303,9 @@
+             "proc factory {} { set name {Greeter}\n set body {return hi}\n proc $name {} $body }",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
++        let inner = fixture_id_if_present(&m.procedures, "::Greeter")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("::Greeter registered");
+         // The body was const-resolved to "return hi"; lowering it
+         // produces a Return statement.
+         assert!(
+@@ -9269,7 +9323,9 @@
+             "proc factory {} { set name {Greeter}\n proc $name {} $body }",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::Greeter").expect("::Greeter registered");
++        let inner = fixture_id_if_present(&m.procedures, "::Greeter")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("::Greeter registered");
+         assert_eq!(
+             inner.body.statements.len(),
+             0,
+@@ -9291,7 +9347,7 @@
+         // No inner procedure should be registered — params couldn't
+         // be parsed statically.
+         assert!(
+-            !m.procedures.contains_key("::x"),
++            !fixture_id_if_present(&m.procedures, "::x").is_some(),
+             "dynamic-params shape must not AOT-register: {:?}",
+             m.procedures.keys().collect::<Vec<_>>()
+         );
+@@ -9312,7 +9368,9 @@
+         // We allow either no entry or an empty-body entry; the key
+         // assertion is that the literal source text isn't compiled
+         // as a script.
+-        if let Some(inner) = m.procedures.get("::inner") {
++        if let Some(inner) =
++            fixture_id_if_present(&m.procedures, "::inner").and_then(|id| m.procedures.get(&id))
++        {
+             assert_eq!(
+                 inner.body.statements.len(),
+                 0,
+@@ -9337,7 +9395,8 @@
+         // the proc IS registered with whatever the body lowering
+         // produces; the assertion is that it's NOT the materialised
+         // form.
+-        let inner = m.procedures.get("::Verbose");
++        let inner =
++            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id));
+         if let Some(p) = inner {
+             // The body should not contain a Return whose value is
+             // the literal "0" — that would be the materialised
+@@ -9368,7 +9427,9 @@
+             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -variables -backslashes {return $default}] }",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
++        let inner = fixture_id_if_present(&m.procedures, "::Verbose")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("::Verbose registered");
+         assert!(
+             !inner.body.statements.is_empty(),
+             "expected lowered body, got empty"
+@@ -9388,7 +9449,9 @@
+             "proc factory {opt} { set name {Verbose}\n set default {0}\n proc $name {x} [subst $opt {return $default}] }",
+             &reg(),
+         );
+-        if let Some(p) = m.procedures.get("::Verbose") {
++        if let Some(p) =
++            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id))
++        {
+             assert!(
+                 p.body.statements.is_empty()
+                     || matches!(
+@@ -9409,7 +9472,8 @@
+             "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -nobackslashes -nocommands {return $default}] }",
+             &reg(),
+         );
+-        let inner = m.procedures.get("::Verbose");
++        let inner =
++            fixture_id_if_present(&m.procedures, "::Verbose").and_then(|id| m.procedures.get(&id));
+         if let Some(p) = inner {
+             // Body did not materialise — should be empty or have
+             // a fallback shape.
+@@ -9430,8 +9494,8 @@
+             "proc factory {} { set name {First}\n set name {Second}\n proc $name {} { puts hi } }",
+             &reg(),
+         );
+-        assert!(m.procedures.contains_key("::Second"));
+-        assert!(!m.procedures.contains_key("::First"));
++        assert!(fixture_id_if_present(&m.procedures, "::Second").is_some());
++        assert!(!fixture_id_if_present(&m.procedures, "::First").is_some());
+     }
+ 
+     #[test]
+@@ -9581,7 +9645,9 @@
+             "proc f {} { set body {set x 1}\n catch { uplevel 1 $body } }",
+             &reg(),
+         );
+-        let proc = m.procedures.get("::f").expect("proc registered");
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .expect("proc registered");
+         // Look for a Catch wrapping an UpFrame.
+         let catch_stmt = proc
+             .body
+@@ -10240,7 +10306,7 @@
+             .with_resolved_analysis_input(input.clone());
+         current.lower(source);
+         let module = current.finish_module(source);
+-        assert!(module.procedures.contains_key("::subject"));
++        assert!(fixture_id_if_present(&module.procedures, "::subject").is_some());
+         // Upstream keeps non-numeric bare literals as AssignValue so escape
+         // spelling survives. This assertion covers IR/source ownership only.
+         let statement = module.top_level.statements.iter().find(|statement| {
+@@ -10290,7 +10356,7 @@
+         let mut absent = Lowerer::with_config(context.commands(), native.lexer_config())
+             .with_resolved_analysis_input(native);
+         let module = absent.lower(source);
+-        assert!(!module.procedures.contains_key("::subject"));
++        assert!(!fixture_id_if_present(&module.procedures, "::subject").is_some());
+         assert!(module.source_entry.logical_source_input.is_none());
+         assert!(module.source_entry.native_entry.is_none());
+         assert!(module.source_entry.unknown_entry);
+@@ -10320,7 +10386,10 @@
+             let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
+                 .with_resolved_analysis_input(input.clone());
+             let module = lowerer.lower(source);
+-            assert!(module.procedures.contains_key("::subject"), "{source}");
++            assert!(
++                fixture_id_if_present(&module.procedures, "::subject").is_some(),
++                "{source}"
++            );
+             assert!(module.source_entry.native_entry.is_none());
+             assert!(module.source_entry.execution_name_policy.is_none());
+             assert_eq!(
+@@ -10335,9 +10404,8 @@
+             let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
+                 .with_resolved_analysis_input(input.clone());
+             let module = lowerer.lower(source);
+-            let procedure = module
+-                .procedures
+-                .get("::subject")
++            let procedure = fixture_id_if_present(&module.procedures, "::subject")
++                .and_then(|id| module.procedures.get(&id))
+                 .expect("captured source declaration");
+             assert!(procedure.params.is_empty());
+             assert_eq!(procedure.params_raw, "");
+@@ -10533,7 +10601,7 @@
+             other => panic!("expected Call via registry hook, got {other:?}"),
+         }
+         assert!(
+-            m.procedures.contains_key("::greet"),
++            fixture_id_if_present(&m.procedures, "::greet").is_some(),
+             "expected ::greet to be registered in module.procedures, got keys={:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+@@ -10553,7 +10621,7 @@
+             "expected Call via lower_default fallback, got {stmt:?}",
+         );
+         assert!(
+-            !m.procedures.contains_key("::greet"),
++            !fixture_id_if_present(&m.procedures, "::greet").is_some(),
+             "expected ::greet NOT to be registered when arity is wrong",
+         );
+     }
+@@ -10667,7 +10735,7 @@
+             other => panic!("expected Call via registry hook, got {other:?}"),
+         }
+         assert!(
+-            m.procedures.contains_key("::when::HTTP_REQUEST"),
++            fixture_id_if_present(&m.procedures, "::when::HTTP_REQUEST").is_some(),
+             "expected ::when::HTTP_REQUEST procedure to be registered, got keys={:?}",
+             m.procedures.keys().collect::<Vec<_>>(),
+         );
+@@ -10695,7 +10763,9 @@
+             other => panic!("expected Call via lower_default, got {other:?}"),
+         }
+         assert!(
+-            !m.procedures.keys().any(|k| k.starts_with("::when::")),
++            !m.procedures
++                .values()
++                .any(|body| body.qualified_name.starts_with("::when::")),
+             "expected NO ::when::* procedure registered without iRules loaded",
+         );
+     }
+@@ -10935,6 +11005,7 @@
+ 
+ #[cfg(test)]
+ mod original_script_purpose_tests {
++
+     use super::*;
+ 
+     fn first_invocation(script: &Script) -> &CommandTokens {
+diff --git a/rust/tcl-compiler/src/lowering/native_body_context_tests.rs b/rust/tcl-compiler/src/lowering/native_body_context_tests.rs
+--- a/rust/tcl-compiler/src/lowering/native_body_context_tests.rs
++++ b/rust/tcl-compiler/src/lowering/native_body_context_tests.rs
+@@ -6,6 +6,7 @@
+ 
+ use super::*;
+ use crate::command_binding::{ExecutedScriptSource, SourceNamespaceKey, SourceOriginId};
++use crate::interprocedural::test_body_identity::fixture_id;
+ use std::sync::Arc;
+ 
+ fn native_module(source: &str) -> (tcl_vm::Vm, Module) {
+@@ -133,7 +134,11 @@
+         .with_dialect(Some(profile)),
+         source,
+     );
+-    let body = &module.procedures["::when::HTTP_REQUEST"].body;
++    let body = module
++        .procedures
++        .get(&fixture_id(&module.procedures, "::when::HTTP_REQUEST"))
++        .expect("authored fixture body")
++        .body;
+     assert_eq!(body.statements.len(), 2);
+     assert_eq!(
+         body.namespace_context.as_deref(),
+diff --git a/rust/tcl-compiler/src/lowering_hooks.rs b/rust/tcl-compiler/src/lowering_hooks.rs
+--- a/rust/tcl-compiler/src/lowering_hooks.rs
++++ b/rust/tcl-compiler/src/lowering_hooks.rs
+@@ -1200,6 +1200,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     /// The statement `src` lowers to under `dialect` — the configuration a
+@@ -1754,7 +1756,12 @@
+             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                 source, registry, false, profile,
+             );
+-            let body = &unit.ir_module.procedures["::add"].body;
++            let body = unit
++                .ir_module
++                .procedures
++                .get(&fixture_id(&unit.ir_module.procedures, "::add"))
++                .expect("authored fixture body")
++                .body;
+             assert!(
+                 matches!(
+                     &body.statements[0],
+@@ -1790,7 +1797,13 @@
+             );
+             assert!(
+                 !matches!(
+-                    &changed.ir_module.procedures["::add"].body.statements[0],
++                    changed
++                        .ir_module
++                        .procedures
++                        .get(&fixture_id(&changed.ir_module.procedures, "::add"))
++                        .expect("authored fixture body")
++                        .body
++                        .statements[0],
+                     Statement::Return { expr: Some(_), .. }
+                 ),
+                 "{name}"
+diff --git a/rust/tcl-compiler/src/native_integer_proof.rs b/rust/tcl-compiler/src/native_integer_proof.rs
+--- a/rust/tcl-compiler/src/native_integer_proof.rs
++++ b/rust/tcl-compiler/src/native_integer_proof.rs
+@@ -1109,6 +1109,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::common_aot_plan::CommonAotEnvironment;
+     use tcl_registry::model::semantic::SemanticContext;
+@@ -1201,12 +1203,14 @@
+             .first()
+             .unwrap()
+             .clone();
+-        unit.procedures
+-            .get_mut("::add")
+-            .unwrap()
+-            .cfg
+-            .required_math_invocations
+-            .push(proof);
++        {
++            let id = fixture_id(&unit.procedures, "::add");
++            unit.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .cfg
++        .required_math_invocations
++        .push(proof);
+         let plan = CommonAotProofPlan::build(
+             &unit,
+             registry,
+diff --git a/rust/tcl-compiler/src/native_lowering/tests.rs b/rust/tcl-compiler/src/native_lowering/tests.rs
+--- a/rust/tcl-compiler/src/native_lowering/tests.rs
++++ b/rust/tcl-compiler/src/native_lowering/tests.rs
+@@ -6,6 +6,7 @@
+ //! Lowering contract tests: each pins one decision the native tier takes on a
+ //! T0/T1 shape, through the real front end.
+ 
++use crate::interprocedural::test_body_identity::fixture_id_if_present;
+ use std::collections::BTreeMap;
+ 
+ use tcl_registry::CommandRegistry;
+@@ -743,7 +744,9 @@
+     let source = "proc p {x} { return $x }\np 1\n";
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+-    let body = unit.procedures.get("::p").expect("::p is a unit");
++    let body = fixture_id_if_present(&unit.procedures, "::p")
++        .and_then(|id| unit.procedures.get(&id))
++        .expect("::p is a unit");
+     let facts = &body.semantic_facts;
+     let function = facts
+         .executable()
+@@ -794,10 +797,8 @@
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+ 
+     // The front end really does record a body it did not compile.
+-    let inner = unit
+-        .ir_module
+-        .procedures
+-        .get("::p")
++    let inner = fixture_id_if_present(&unit.ir_module.procedures, "::p")
++        .and_then(|id| unit.ir_module.procedures.get(&id))
+         .expect("the materialised body registers a procedure");
+     assert_eq!(inner.body_source.as_deref(), Some("${body}"));
+     assert_eq!(
+@@ -806,7 +807,9 @@
+         "…while the compiled body came from the materialised `return hello`"
+     );
+ 
+-    let outer = unit.procedures.get("::make").expect("::make is a unit");
++    let outer = fixture_id_if_present(&unit.procedures, "::make")
++        .and_then(|id| unit.procedures.get(&id))
++        .expect("::make is a unit");
+     let facts = &outer.semantic_facts;
+     let function = facts
+         .executable()
+@@ -847,7 +850,9 @@
+     let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
+     let registry = CommandRegistry::build_default();
+     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
+-    let outer = unit.procedures.get("::make").expect("::make is a unit");
++    let outer = fixture_id_if_present(&unit.procedures, "::make")
++        .and_then(|id| unit.procedures.get(&id))
++        .expect("::make is a unit");
+     let facts = &outer.semantic_facts;
+     let function = facts
+         .executable()
+diff --git a/rust/tcl-compiler/src/optimiser/code_sinking.rs b/rust/tcl-compiler/src/optimiser/code_sinking.rs
+--- a/rust/tcl-compiler/src/optimiser/code_sinking.rs
++++ b/rust/tcl-compiler/src/optimiser/code_sinking.rs
+@@ -991,6 +991,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+     use tcl_registry::CommandRegistry;
+ 
+@@ -1233,7 +1235,9 @@
+         // The pin must exercise the Barrier arm of `statement_uses_var`, not
+         // the dynamic-name whole-function gate — assert the barrier is clear.
+         let cu = CompilationUnit::build_for(src, &registry(), false);
+-        let fu = cu.procedures.get("::f").expect("::f built");
++        let fu = fixture_id_if_present(&cu.procedures, "::f")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("::f built");
+         assert!(
+             !fu.dynamic_barrier_blocks_value_motion(),
+             "shape must not raise the dynamic-name barrier",
+diff --git a/rust/tcl-compiler/src/optimiser/elimination.rs b/rust/tcl-compiler/src/optimiser/elimination.rs
+--- a/rust/tcl-compiler/src/optimiser/elimination.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination.rs
+@@ -1751,6 +1751,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+ 
+     use tcl_registry::CommandRegistry;
+@@ -1945,8 +1947,20 @@
+         let profile = unit.ir_module.dialect_profile;
+         let unit = unit.with_interprocedural(context.commands(), profile);
+         let interproc = unit.interproc.as_ref().unwrap();
+-        assert!(interproc.procedures["::leaf"].pure);
+-        assert!(interproc.procedures["::leaf"].completes);
++        assert!(
++            interproc
++                .procedures
++                .get(&fixture_id(&interproc.procedures, "::leaf"))
++                .expect("authored fixture body")
++                .pure
++        );
++        assert!(
++            interproc
++                .procedures
++                .get(&fixture_id(&interproc.procedures, "::leaf"))
++                .expect("authored fixture body")
++                .completes
++        );
+         let statement = unit
+             .top_level
+             .cfg
+@@ -1964,7 +1978,12 @@
+         ctx.ir_module = Some(&unit.ir_module);
+         assert!(RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
+         let mut changed = unit.ir_module.clone();
+-        changed.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into();
++        {
++            let id = fixture_id(&changed.procedures, "::leaf");
++            changed.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .params_raw = "{x DEFAULT}".into();
+         ctx.ir_module = Some(&changed);
+         assert!(!RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
+         ctx.ir_module = None;
+@@ -2396,7 +2415,9 @@
+             let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+             let source = "proc f {} {global exported; set exported OLD; set first $exported; set unused $first; return OK}; f";
+             let unit = CompilationUnit::build_for_dialect(source, registry, false, engine);
+-            let function = unit.procedures.get("::f").unwrap();
++            let function = fixture_id_if_present(&unit.procedures, "::f")
++                .and_then(|id| unit.procedures.get(&id))
++                .unwrap();
+             let offset = u32::try_from(source.find("set exported OLD").unwrap()).unwrap();
+             let (&block, index, statement) = function
+                 .cfg
+diff --git a/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs b/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs
+--- a/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination/source_purity.rs
+@@ -79,6 +79,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+@@ -295,12 +297,12 @@
+             &summary
+         ));
+         let mut changed = original.clone();
+-        changed
+-            .ir_module
+-            .procedures
+-            .get_mut("::pure")
+-            .unwrap()
+-            .params_raw = "{x DEFAULT}".into();
++        {
++            let id = fixture_id(&changed.ir_module.procedures, "::pure");
++            changed.ir_module.procedures.get_mut(&id)
++        }
++        .unwrap()
++        .params_raw = "{x DEFAULT}".into();
+         assert!(!check_with_procedure_summary(
+             &changed,
+             context.commands(),
+diff --git a/rust/tcl-compiler/src/optimiser/end_offset.rs b/rust/tcl-compiler/src/optimiser/end_offset.rs
+--- a/rust/tcl-compiler/src/optimiser/end_offset.rs
++++ b/rust/tcl-compiler/src/optimiser/end_offset.rs
+@@ -672,6 +672,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+     use crate::interprocedural::InterproceduralAnalysis;
+     use tcl_registry::CommandRegistry;
+@@ -694,7 +696,10 @@
+         let source = "\u{feff}proc p {} {\u{feff}unknown argument}\nset outside 1";
+         let unit = CompilationUnit::build_for_with_config(source, &reg, false, config);
+         assert_eq!(unit.ir_module.lexer_config, config);
+-        let body = &unit.ir_module.procedures.get("::p").unwrap().body;
++        let body = &fixture_id_if_present(&unit.ir_module.procedures, "::p")
++            .and_then(|id| unit.ir_module.procedures.get(&id))
++            .unwrap()
++            .body;
+         let mut spans = Vec::new();
+         collect_statement_spans(body, &mut spans, 0);
+         let (span, script, tokens) = spans
+diff --git a/rust/tcl-compiler/src/optimiser/structure_elimination.rs b/rust/tcl-compiler/src/optimiser/structure_elimination.rs
+--- a/rust/tcl-compiler/src/optimiser/structure_elimination.rs
++++ b/rust/tcl-compiler/src/optimiser/structure_elimination.rs
+@@ -645,6 +645,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     use tcl_registry::CommandRegistry;
+@@ -1147,7 +1149,15 @@
+             &registry(),
+             false,
+         );
+-        assert!(!sccp_env_for(&local.procedures["::p"]).contains_key("x"));
++        assert!(
++            !sccp_env_for(
++                local
++                    .procedures
++                    .get(&fixture_id(&local.procedures, "::p"))
++                    .expect("authored fixture body")
++            )
++            .contains_key("x")
++        );
+         let before = CompilationUnit::build_for("set x 7\nif {$x} { ok }", &registry(), false);
+         assert!(sccp_env_for(&before.top_level).contains_key("x"));
+     }
+@@ -1159,7 +1169,11 @@
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let source = "proc p {} {set firstcell OLD; set secondcell NEW; upvar 0 firstcell a; set observed $a; upvar 0 secondcell a; return $a}; p";
+         let mut unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+-        let function = unit.procedures.get_mut("::p").unwrap();
++        let function = {
++            let id = fixture_id(&unit.procedures, "::p");
++            unit.procedures.get_mut(&id)
++        }
++        .unwrap();
+         let mut reads = Vec::new();
+         for (&block, body) in &function.ssa.blocks {
+             for index in (0..body.statements.len()).chain(std::iter::once(usize::MAX)) {
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -7624,6 +7624,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use tcl_registry::StateTransition;
+ 
+@@ -8160,7 +8162,11 @@
+             );
+             let mut count = 0;
+             crate::ir::for_each_statement(
+-                &unit.ir_module.procedures["::f"].body,
++                unit.ir_module
++                    .procedures
++                    .get(&fixture_id(&unit.ir_module.procedures, "::f"))
++                    .expect("authored fixture body")
++                    .body,
+                 &mut |statement| {
+                     for call in crate::word_subst::lifted_calls(
+                         statement.tokens(),
+@@ -8201,7 +8207,11 @@
+                 false,
+                 registry.profile().unwrap(),
+             );
+-            let procedure = &unit.ir_module.procedures["::make"];
++            let procedure = unit
++                .ir_module
++                .procedures
++                .get(&fixture_id(&unit.ir_module.procedures, "::make"))
++                .expect("authored fixture body");
+             let mut values = Vec::new();
+             crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+                 if let Some(tokens) = procedure
+@@ -8717,7 +8727,13 @@
+                 registry,
+                 false,
+             );
+-            let statement = &cu.ir_module.procedures["::p"].body.statements[0];
++            let statement = cu
++                .ir_module
++                .procedures
++                .get(&fixture_id(&cu.ir_module.procedures, "::p"))
++                .expect("authored fixture body")
++                .body
++                .statements[0];
+             let tokens = statement.tokens().unwrap();
+             let normal = normal_representation_invocation(registry, None, tokens).unwrap();
+             assert_eq!(
+@@ -8755,7 +8771,11 @@
+             ),
+         ] {
+             let cu = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+-            let statement = cu.ir_module.procedures["::p"]
++            let statement = cu
++                .ir_module
++                .procedures
++                .get(&fixture_id(&cu.ir_module.procedures, "::p"))
++                .expect("authored fixture body")
+                 .body
+                 .statements
+                 .last()
+@@ -10226,6 +10246,7 @@
+ 
+ #[cfg(test)]
+ mod original_argument_slice_purpose_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -10282,6 +10303,7 @@
+ 
+ #[cfg(test)]
+ mod original_logical_body_topology_input_tests {
++
+     use super::*;
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure.rs b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -3018,6 +3018,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
+@@ -3318,7 +3320,10 @@
+             crate::lowering::Lowerer::with_config(context.commands(), input.lexer_config())
+                 .with_resolved_analysis_input(input.clone());
+         let module = lowerer.lower(source);
+-        let body = &module.procedures.get("::f").unwrap().body;
++        let body = &fixture_id_if_present(&module.procedures, "::f")
++            .and_then(|id| module.procedures.get(&id))
++            .unwrap()
++            .body;
+         let tokens = body
+             .retained_source_tokens_for_statement(&body.statements[0])
+             .unwrap();
+@@ -4378,6 +4383,7 @@
+ 
+ #[cfg(test)]
+ mod original_procedure_argument_tests {
++
+     use super::*;
+     use crate::analyser::Analyser;
+     use tcl_syntax::formal_params::FormalByteArgumentBinding;
+@@ -4488,6 +4494,7 @@
+ 
+ #[cfg(test)]
+ mod source_lookup_boundary_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -4532,6 +4539,7 @@
+ 
+ #[cfg(test)]
+ mod source_word_dialect_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -4655,6 +4663,7 @@
+ 
+ #[cfg(test)]
+ mod retained_image_geometry_tests {
++
+     use super::{matching_document_image, retained_document_image, source_registry_words};
+ 
+     #[test]
+@@ -4705,6 +4714,7 @@
+ 
+ #[cfg(test)]
+ mod original_selected_command_purpose_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -4803,6 +4813,7 @@
+ 
+ #[cfg(test)]
+ mod member_source_catalogue_tests {
++
+     use super::{OriginalRegistrySource, source_registry_words_at};
+     use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+     use crate::command_binding::SourceCommandTransitionObligation;
+diff --git a/rust/tcl-compiler/src/registry_invocation/store_advice.rs b/rust/tcl-compiler/src/registry_invocation/store_advice.rs
+--- a/rust/tcl-compiler/src/registry_invocation/store_advice.rs
++++ b/rust/tcl-compiler/src/registry_invocation/store_advice.rs
+@@ -312,6 +312,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     fn standalone_context() -> Option<super::InvocationMetadataContext<'static>> {
+         Some(tcl_registry::model::ingress::static_context_for("tcl8.6").into())
+     }
+@@ -333,7 +335,11 @@
+             false,
+             registry.profile().unwrap(),
+         );
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+         let bindings =
+             crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
+diff --git a/rust/tcl-compiler/src/sccp.rs b/rust/tcl-compiler/src/sccp.rs
+--- a/rust/tcl-compiler/src/sccp.rs
++++ b/rust/tcl-compiler/src/sccp.rs
+@@ -5014,6 +5014,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
+@@ -7134,7 +7136,9 @@
+             &registry,
+             false,
+         );
+-        let fu = cu.procedures.get("::p").expect("proc");
++        let fu = fixture_id_if_present(&cu.procedures, "::p")
++            .and_then(|id| cu.procedures.get(&id))
++            .expect("proc");
+         let explained: Vec<(String, String)> = fu
+             .sccp
+             .explanations
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts.rs b/rust/tcl-compiler/src/sccp/original_value_facts.rs
+--- a/rust/tcl-compiler/src/sccp/original_value_facts.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts.rs
+@@ -3568,6 +3568,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+ 
+     fn logical_callback_unit(
+@@ -4333,7 +4335,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl9.0",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut seen = 0;
+         for (&block, body) in &ssa.blocks {
+             for (index, statement) in body.statements.iter().enumerate() {
+diff --git a/rust/tcl-compiler/src/script_binds.rs b/rust/tcl-compiler/src/script_binds.rs
+--- a/rust/tcl-compiler/src/script_binds.rs
++++ b/rust/tcl-compiler/src/script_binds.rs
+@@ -430,6 +430,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::{Ownership, script_binds_name};
+ 
+     fn binds(script: &str, name: &str) -> bool {
+@@ -629,7 +631,11 @@
+             None,
+             input,
+         );
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let image = tcl_lexer::SourceImage::document(source);
+         let realm = analysis.retained_command_realm().unwrap();
+         let binding = realm.invocation_at_source("", procedure.span.start());
+diff --git a/rust/tcl-compiler/src/segmenter.rs b/rust/tcl-compiler/src/segmenter.rs
+--- a/rust/tcl-compiler/src/segmenter.rs
++++ b/rust/tcl-compiler/src/segmenter.rs
+@@ -1229,6 +1229,7 @@
+ 
+ #[cfg(test)]
+ mod tests {
++
+     #[test]
+     fn original_image_segmentation_keeps_channel_and_unavailable_text_distinct() {
+         let source = "set a A\\\r\nset b B";
+@@ -1899,6 +1900,7 @@
+ 
+ #[cfg(test)]
+ mod recovery_tests {
++
+     //! Tests for [`segment_commands_with_recovery`].
+     //!
+     //! When an unclosed `{` / `[` / `"` causes the lexer to
+@@ -2116,6 +2118,8 @@
+ 
+ #[cfg(test)]
+ mod span_absolute_tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use crate::compilation_unit::CompilationUnit;
+     use tcl_registry::CommandRegistry;
+ 
+@@ -2124,7 +2128,9 @@
+         let src = "proc ::f {} { set x 1; return $x }";
+         let r = CommandRegistry::build_default();
+         let cu = CompilationUnit::build_for(src, &r, false);
+-        let proc = cu.ir_module.procedures.get("::f").expect("proc");
++        let proc = fixture_id_if_present(&cu.ir_module.procedures, "::f")
++            .and_then(|id| cu.ir_module.procedures.get(&id))
++            .expect("proc");
+         let first = proc.body.statements.first().expect("body stmt");
+         let span = first.span();
+         let text = &src[span.as_range()];
+@@ -2137,6 +2143,7 @@
+ 
+ #[cfg(test)]
+ mod original_clause_element_purpose_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -2198,6 +2205,7 @@
+ 
+ #[cfg(test)]
+ mod checked_script_tests {
++
+     use super::*;
+     use tcl_lexer::{ParseIssueKind, SourceImage};
+ 
+diff --git a/rust/tcl-compiler/src/site_claims.rs b/rust/tcl-compiler/src/site_claims.rs
+--- a/rust/tcl-compiler/src/site_claims.rs
++++ b/rust/tcl-compiler/src/site_claims.rs
+@@ -116,6 +116,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use tcl_registry::CommandSpec;
+     use tcl_registry::hooks::InlineCodegenHookId;
+@@ -286,7 +288,10 @@
+         let source = "proc caller {n} {vdouble $n}\nset x 1";
+         let module = service_over(registry).compile(source).unwrap();
+ 
+-        let caller = &module.procedures["::caller"];
++        let caller = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::caller"))
++            .expect("authored fixture body");
+         assert_eq!(caller.procedure_bindings, vec![binding()]);
+         assert_eq!(
+             caller.site_claims,
+@@ -388,7 +393,10 @@
+         let caller = "proc caller {n} {vdouble $n}";
+         let inlined = |registry: CommandRegistry, source: &str| {
+             let module = service_over(registry).compile(source).unwrap();
+-            let function = &module.procedures["::caller"];
++            let function = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::caller"))
++                .expect("authored fixture body");
+             (
+                 function.procedure_bindings.clone(),
+                 function.site_claims.clone(),
+@@ -447,7 +455,10 @@
+         let module = service_over(registry)
+             .compile("proc caller {n} {vdouble $n}")
+             .unwrap();
+-        let caller = &module.procedures["::caller"];
++        let caller = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::caller"))
++            .expect("authored fixture body");
+         assert!(caller.procedure_bindings.is_empty());
+         assert!(caller.site_claims.is_empty());
+         assert!(calls_a_command(caller));
+diff --git a/rust/tcl-compiler/src/specialise_factories.rs b/rust/tcl-compiler/src/specialise_factories.rs
+--- a/rust/tcl-compiler/src/specialise_factories.rs
++++ b/rust/tcl-compiler/src/specialise_factories.rs
+@@ -72,6 +72,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+     use crate::lowering::lower_to_ir;
+ 
+@@ -108,7 +110,7 @@
+         assert_eq!(units[0].name, "::made");
+         assert_eq!(units[0].body_source.as_deref(), Some("return 7"));
+         assert_eq!(units[0].params, ["x"]);
+-        assert!(!module.procedures.contains_key("::made"));
++        assert!(!fixture_id_if_present(&module.procedures, "::made").is_some());
+         assert_eq!(module.top_level, before);
+         assert!(
+             module
+@@ -153,7 +155,7 @@
+         specialise_factories(&mut module, registry);
+         assert_eq!(installed(&module).len(), 1);
+         assert_eq!(module.top_level, before);
+-        assert!(!module.procedures.contains_key("::made"));
++        assert!(!fixture_id_if_present(&module.procedures, "::made").is_some());
+         assert_eq!(
+             module.parameter_grammar(),
+             Some(tcl_dialect::ParameterGrammar::Jim)
+@@ -170,7 +172,7 @@
+         specialise_factories_with_cap(&mut module, &registry(), 1);
+         assert_eq!(installed(&module).len(), 1);
+         assert_eq!(module.top_level, before);
+-        assert!(!module.procedures.contains_key("::a"));
+-        assert!(!module.procedures.contains_key("::b"));
++        assert!(!fixture_id_if_present(&module.procedures, "::a").is_some());
++        assert!(!fixture_id_if_present(&module.procedures, "::b").is_some());
+     }
+ }
+diff --git a/rust/tcl-compiler/src/ssa.rs b/rust/tcl-compiler/src/ssa.rs
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -6867,6 +6867,7 @@
+ 
+ #[cfg(test)]
+ mod tests {
++
+     use super::*;
+     use crate::cfg::{Block, Function, Terminator};
+     use crate::expr_ast::ExprNode;
+@@ -10230,6 +10231,8 @@
+ 
+ #[cfg(test)]
+ mod cell_resolution_tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::cfg::Terminator;
+     use tcl_lexer::Span;
+@@ -10393,7 +10396,11 @@
+             false,
+             "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+@@ -10457,7 +10464,11 @@
+             false,
+             "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+@@ -10529,7 +10540,11 @@
+             false,
+             "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut missing = false;
+         let mut incoming = false;
+         for (&block, data) in &ssa.blocks {
+@@ -10591,7 +10606,11 @@
+             let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+                 &source, registry, false, profile,
+             );
+-            let ssa = &unit.procedures["::p"].ssa;
++            let ssa = unit
++                .procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
++                .ssa;
+             let mut reached = false;
+             for (&block, data) in &ssa.blocks {
+                 for index in 0..data.statements.len() {
+@@ -10624,7 +10643,11 @@
+             false,
+             "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut reached = false;
+         for (&block, data) in &ssa.blocks {
+             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
+@@ -10875,7 +10898,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl9.0",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut written = None;
+         let mut read = Vec::new();
+         for (&block, body) in &ssa.blocks {
+@@ -10920,7 +10947,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut pairs = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+@@ -10959,7 +10990,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let node = tcl_syntax::expr::parser::parse_expr("$n", Some("tcl8.6"));
+         let base = Some(u32::try_from(source.find("$n").unwrap()).unwrap());
+         let mut proofs = Vec::new();
+@@ -10991,7 +11026,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let node = tcl_syntax::expr::parser::parse_expr("$n", Some("tcl8.6"));
+         let base = Some(u32::try_from(source.find("$n").unwrap()).unwrap());
+         let mut reached = false;
+@@ -11056,7 +11095,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut reads = Vec::new();
+         let mut inventory = Vec::new();
+         for (&block, data) in &ssa.blocks {
+@@ -11134,7 +11177,10 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = &unit.procedures["::p"];
++        let function = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body");
+         let mut cached = Vec::new();
+         for (&block, data) in &function.ssa.blocks {
+             for (index, statement) in data.statements.iter().enumerate() {
+@@ -11218,7 +11264,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut pairs = Vec::new();
+         for &block in ssa.blocks.keys() {
+             let view = SsaSourceView::at_terminator(ssa, block);
+@@ -11316,7 +11366,11 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut pairs = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+@@ -11353,7 +11407,11 @@
+             false,
+             "tcl8.6",
+         );
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         let mut projected = Vec::new();
+         for (&block, body) in &ssa.blocks {
+             for index in 0..body.statements.len() {
+@@ -11419,6 +11477,7 @@
+ 
+ #[cfg(test)]
+ mod external_mutability_tests {
++
+     use super::*;
+ 
+     #[test]
+@@ -11505,6 +11564,7 @@
+ 
+ #[cfg(test)]
+ mod original_definition_name_tests {
++
+     use super::*;
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/src/taint/instance_classes.rs b/rust/tcl-compiler/src/taint/instance_classes.rs
+--- a/rust/tcl-compiler/src/taint/instance_classes.rs
++++ b/rust/tcl-compiler/src/taint/instance_classes.rs
+@@ -558,6 +558,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+@@ -812,7 +814,7 @@
+         let context = receiver_context();
+         let registry = context.commands();
+         let mut unit = logical_unit("source_factory .w; proc callback {} {puts MARK}", &context);
+-        assert!(unit.ir_module.procedures.contains_key("::callback"));
++        assert!(fixture_id_if_present(&unit.ir_module.procedures, "::callback").is_some());
+         let classes = crate::interprocedural::global_instance_classes(&unit.ir_module, registry);
+         assert_eq!(
+             classes["::callback"].get(".w"),
+@@ -824,7 +826,9 @@
+             global_instance_class_owner: unit.ir_module.retained_source_bindings.clone(),
+             ..crate::interprocedural::InterproceduralAnalysis::default()
+         };
+-        let function = unit.procedures.get("::callback").unwrap();
++        let function = fixture_id_if_present(&unit.procedures, "::callback")
++            .and_then(|id| unit.procedures.get(&id))
++            .unwrap();
+         let facts = crate::taint::instance_classes_for_function(
+             &function.cfg,
+             registry,
+@@ -851,7 +855,9 @@
+             "source_factory .other; proc callback {} {puts MARK}",
+             &context,
+         );
+-        let other_function = other.procedures.get("::callback").unwrap();
++        let other_function = fixture_id_if_present(&other.procedures, "::callback")
++            .and_then(|id| other.procedures.get(&id))
++            .unwrap();
+         let mismatched = crate::taint::instance_classes_for_function(
+             &other_function.cfg,
+             registry,
+diff --git a/rust/tcl-compiler/src/unit_scope.rs b/rust/tcl-compiler/src/unit_scope.rs
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -3427,6 +3427,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::cfg_builder::build_cfg;
+ 
+@@ -4837,7 +4839,9 @@
+             &reg,
+         );
+         let cfg_module = build_cfg(&ir, false);
+-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
++        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
++            .and_then(|id| cfg_module.procedures.get(&id))
++            .expect("p lowered");
+         let facts = collect_scope_var_facts(
+             cfg,
+             &surface(&reg),
+@@ -4863,7 +4867,9 @@
+         let reg = registry();
+         let ir = retained_scope_fixture("proc p {n} {\n set a one\n set $n two\n}\n", &reg);
+         let cfg_module = build_cfg(&ir, false);
+-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
++        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
++            .and_then(|id| cfg_module.procedures.get(&id))
++            .expect("p lowered");
+         assert!(
+             collect_scope_var_facts(
+                 cfg,
+@@ -4882,7 +4888,9 @@
+         let reg = registry();
+         let ir = retained_scope_fixture("proc p {} {\n global cmd\n set other one\n}\n", &reg);
+         let cfg_module = build_cfg(&ir, false);
+-        let cfg = cfg_module.procedures.get("::p").expect("p lowered");
++        let cfg = fixture_id_if_present(&cfg_module.procedures, "::p")
++            .and_then(|id| cfg_module.procedures.get(&id))
++            .expect("p lowered");
+         let facts = collect_scope_var_facts(
+             cfg,
+             &surface(&reg),
+@@ -5199,7 +5207,7 @@
+         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+         let source = "proc helper {mode} {return $mode}\nhelper FIXED\nset result [expr {[helper DIFFERENT]}]";
+         let module = original_caller_fixture(source, config);
+-        assert!(module.procedures.contains_key("::helper"));
++        assert!(fixture_id_if_present(&module.procedures, "::helper").is_some());
+         let cfg = crate::cfg_builder::build_cfg(&module, false);
+         assert!(
+             cfg.top_level.blocks.iter().any(|(&block, data)| {
+@@ -5444,7 +5452,11 @@
+         let (_, unit) = native_argument_caller_unit(
+             "proc add {b c} {catch {return [expr {$b + $c}]}}; add 2 4; add 3 5",
+         );
+-        let function = &unit.cfg_module.procedures["::add"];
++        let function = unit
++            .cfg_module
++            .procedures
++            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
++            .expect("authored fixture body");
+         assert!(
+             function.blocks.iter().any(|(&block, data)| {
+                 data.statements.iter().enumerate().any(|(index, _)| {
+@@ -5507,7 +5519,11 @@
+         let (context, unit) = native_argument_caller_unit(source);
+         let module = &unit.ir_module;
+         let input = module.source_metadata_input.as_ref().unwrap();
+-        let function = &unit.cfg_module.procedures["::add"];
++        let function = unit
++            .cfg_module
++            .procedures
++            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
++            .expect("authored fixture body");
+         let phase = function
+             .blocks
+             .iter()
+@@ -5653,7 +5669,11 @@
+         );
+         let module = &unit.ir_module;
+         let input = module.source_metadata_input.as_ref().unwrap();
+-        let function = &unit.cfg_module.procedures["::add"];
++        let function = unit
++            .cfg_module
++            .procedures
++            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
++            .expect("authored fixture body");
+         let phase = function
+             .blocks
+             .iter()
+@@ -6028,7 +6048,11 @@
+         let (_, unit) = native_argument_caller_unit(
+             "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
+         );
+-        let function = &unit.cfg_module.procedures["::add"];
++        let function = unit
++            .cfg_module
++            .procedures
++            .get(&fixture_id(&unit.cfg_module.procedures, "::add"))
++            .expect("authored fixture body");
+         let returns = function
+             .blocks
+             .iter()
+diff --git a/rust/tcl-compiler/src/value_transfer.rs b/rust/tcl-compiler/src/value_transfer.rs
+--- a/rust/tcl-compiler/src/value_transfer.rs
++++ b/rust/tcl-compiler/src/value_transfer.rs
+@@ -8791,6 +8791,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id_if_present;
++
+     use super::*;
+ 
+     #[test]
+@@ -8931,7 +8933,9 @@
+             )
+         };
+         let value = |unit: &crate::compilation_unit::CompilationUnit, i: usize| {
+-            let function = unit.procedures.get("::p").expect("the procedure");
++            let function = fixture_id_if_present(&unit.procedures, "::p")
++                .and_then(|id| unit.procedures.get(&id))
++                .expect("the procedure");
+             let symbol = function
+                 .ssa
+                 .var_symbol(&format!("a{i}"))
+@@ -8939,8 +8943,8 @@
+             function.sccp.values.get(&(symbol, 1)).cloned()
+         };
+         let answers = |unit: &crate::compilation_unit::CompilationUnit| -> Vec<String> {
+-            unit.procedures
+-                .get("::p")
++            fixture_id_if_present(&unit.procedures, "::p")
++                .and_then(|id| unit.procedures.get(&id))
+                 .expect("the procedure")
+                 .sccp
+                 .explanations
+@@ -9003,7 +9007,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         let value = |name: &str, version: u32| {
+             let symbol = function.ssa.var_symbol(name).expect("the variable");
+             function.sccp.values.get(&(symbol, version)).cloned()
+@@ -9038,7 +9044,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         let last = |name: &str| {
+             let symbol = function.ssa.var_symbol(name).expect("the variable");
+             function
+@@ -9073,7 +9081,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         // The span of `word` in the first place `call` is written.
+         let word_at = |call: &str, word: &str| {
+             let start = source.find(call).expect("the call") + call.find(word).expect("the word");
+@@ -9120,7 +9130,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         let set_of = |texts: &[&str]| {
+             LatticeValue::constset(
+                 texts
+@@ -9342,7 +9354,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         let records = &function.sccp.template_plans;
+         let word = |text: &str| {
+             let start = source.find(text).expect("the word");
+@@ -9380,8 +9394,8 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, dialect,
+         );
+-        unit.procedures
+-            .get("::p")
++        fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
+             .expect("the procedure")
+             .sccp
+             .selections
+@@ -9487,7 +9501,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         let facts = &function.sccp.constant_branches;
+         assert!(
+             facts
+@@ -9532,7 +9548,9 @@
+         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+             source, registry, false, "tcl8.6",
+         );
+-        let function = unit.procedures.get("::p").expect("the procedure");
++        let function = fixture_id_if_present(&unit.procedures, "::p")
++            .and_then(|id| unit.procedures.get(&id))
++            .expect("the procedure");
+         assert!(
+             function
+                 .ssa
+@@ -10436,6 +10454,8 @@
+ 
+ #[cfg(test)]
+ mod original_child_script_purpose_tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::analyser::ResolvedAnalysisInput;
+     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+@@ -10486,7 +10506,11 @@
+         let source = "\u{feff}interp alias {} \u{feff}emit {} list\nproc p {} {catch {\u{feff}emit VALUE}; return [\u{feff}emit VALUE]}";
+         let (context, unit) = supplied(source);
+         let module = crate::interprocedural::ModuleProcedures::of_unit(&unit, context.commands());
+-        let procedure = &unit.ir_module.procedures["::p"];
++        let procedure = unit
++            .ir_module
++            .procedures
++            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
++            .expect("authored fixture body");
+         let input = unit.ir_module.source_metadata_input.as_ref().unwrap();
+         let config = input.lexer_config();
+         let parents: Vec<_> = procedure
+@@ -10523,7 +10547,13 @@
+             FoldPolicy::for_profile(None, Some(input.unit_profile())),
+             &HashSet::new(),
+         )
+-        .with_cfg_metadata(&unit.procedures["::p"].cfg.metadata_context)
++        .with_cfg_metadata(
++            unit.procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
++                .cfg
++                .metadata_context,
++        )
+         .in_module(
+             "::p",
+             crate::sccp::ModuleRun {
+@@ -10535,7 +10565,11 @@
+         );
+         let uses = HashMap::<Symbol, Version>::new();
+         let values = HashMap::<ValueKey, LatticeValue>::new();
+-        let ssa = &unit.procedures["::p"].ssa;
++        let ssa = unit
++            .procedures
++            .get(&fixture_id(&unit.procedures, "::p"))
++            .expect("authored fixture body")
++            .ssa;
+         for original in [&body, &child] {
+             assert_eq!(original.text(), script);
+             assert!(original.base() > 0);
+@@ -10584,7 +10618,13 @@
+             EvalAnswer::Declined(_)
+         ));
+         assert_eq!(driver.lexer_config, config);
+-        assert_eq!(unit.procedures["::p"].source_lexer_config(), config);
++        assert_eq!(
++            unit.procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body")
++                .source_lexer_config(),
++            config
++        );
+         let mut changed = unit.clone();
+         changed.ir_module.source_metadata_input = None;
+         let missing =
+@@ -10606,7 +10646,10 @@
+                 "\u{feff}rename return {{\u{feff}back}}\nproc p {{}} {{\u{feff}back {argument}}}"
+             );
+             let (context, unit) = supplied(&source);
+-            let function = &unit.procedures["::p"];
++            let function = unit
++                .procedures
++                .get(&fixture_id(&unit.procedures, "::p"))
++                .expect("authored fixture body");
+             let config = function.source_lexer_config();
+             let (&block, _) = function
+                 .cfg
+diff --git a/rust/tcl-compiler/src/var_escape/known_names.rs b/rust/tcl-compiler/src/var_escape/known_names.rs
+--- a/rust/tcl-compiler/src/var_escape/known_names.rs
++++ b/rust/tcl-compiler/src/var_escape/known_names.rs
+@@ -95,6 +95,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use super::*;
+     use crate::lowering::lower_to_ir;
+     use tcl_registry::CommandRegistry;
+@@ -132,7 +134,11 @@
+             "proc f {condition} {if {$condition} {set inside_if 1} else {set inside_else 2}}",
+             &reg(),
+         );
+-        let body = &module.procedures["::f"].body;
++        let body = module
++            .procedures
++            .get(&fixture_id(&module.procedures, "::f"))
++            .expect("authored fixture body")
++            .body;
+         let names = collect_known_names(std::iter::empty::<String>(), body);
+         assert!(names.contains("inside_if"));
+         assert!(names.contains("inside_else"));
+@@ -194,7 +200,9 @@
+         // ``eval {set y 5}`` lowers to a Statement::Block in a proc
+         // context — collect_known_names should descend into it.
+         let m = lower_to_ir("proc f {} { eval {set y 5} }", &reg());
+-        let proc = m.procedures.get("::f").unwrap();
++        let proc = fixture_id_if_present(&m.procedures, "::f")
++            .and_then(|id| m.procedures.get(&id))
++            .unwrap();
+         let names = collect_known_names(std::iter::empty::<String>(), &proc.body);
+         assert!(names.contains("y"));
+     }
+diff --git a/rust/tcl-compiler/src/var_escape/walker.rs b/rust/tcl-compiler/src/var_escape/walker.rs
+--- a/rust/tcl-compiler/src/var_escape/walker.rs
++++ b/rust/tcl-compiler/src/var_escape/walker.rs
+@@ -852,6 +852,8 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::fixture_id;
++
+     use super::*;
+     use crate::lowering::lower_to_ir;
+     use tcl_registry::CommandRegistry;
+@@ -919,7 +921,11 @@
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let module = lower_to_ir("proc p {} {global g}", registry);
+         let summary = analyse_script_with_registry(
+-            &module.procedures["::p"].body,
++            module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .expect("authored fixture body")
++                .body,
+             std::iter::empty::<String>(),
+             registry,
+         );
+diff --git a/rust/tcl-compiler/src/test_body_identity.rs b/rust/tcl-compiler/src/test_body_identity.rs
+--- a/rust/tcl-compiler/src/test_body_identity.rs
++++ b/rust/tcl-compiler/src/test_body_identity.rs
+@@ -26,6 +26,22 @@
+ impl FixtureBodyLabel for super::ProcSummary {
+     fn fixture_label(&self) -> Cow<'_, str> {
+         Cow::Borrowed(&self.qualified_name)
++    }
++}
++
++impl FixtureBodyLabel for crate::cfg::Function {
++    fn fixture_label(&self) -> Cow<'_, str> {
++        Cow::Borrowed(&self.name)
++    }
++}
++impl FixtureBodyLabel for tcl_bytecode::FunctionAsm {
++    fn fixture_label(&self) -> Cow<'_, str> {
++        Cow::Borrowed(&self.name)
++    }
++}
++impl FixtureBodyLabel for super::MethodSummary {
++    fn fixture_label(&self) -> Cow<'_, str> {
++        Cow::Borrowed(&self.base.qualified_name)
+     }
+ }
+ 

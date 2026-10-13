@@ -1,0 +1,117 @@
+INDEX 0 RESULT {X Y A B C}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name 0 X Y"
+  Cmds 1, src 19, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f36550, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-18
+  Command 1: "linsert $name 0 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "0"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+INDEX end RESULT {A B C X Y}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name end X Y"
+  Cmds 1, src 21, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f361d0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-20
+  Command 1: "linsert $name end X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "end"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+INDEX 1 RESULT {A X Y B C}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name 1 X Y"
+  Cmds 1, src 19, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f364d0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-18
+  Command 1: "linsert $name 1 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "1"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+INDEX end-1 RESULT {A B X Y C}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name end-1 X Y"
+  Cmds 1, src 23, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f401f0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-22
+  Command 1: "linsert $name end-1 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "end-1"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+INDEX -8 RESULT {X Y A B C}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name -8 X Y"
+  Cmds 1, src 20, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f36550, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-19
+  Command 1: "linsert $name -8 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "-8"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+INDEX 2147483647 RESULT {A B C X Y}
+ByteCode 0x55a1f3f21f70, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $name 2147483647 X Y"
+  Cmds 1, src 28, inst 15, litObjs 3, aux 0, stkDepth 4, code/src 0.00
+  Proc 0x55a1f3f361d0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-13, src 0-27
+  Command 1: "linsert $name 2147483647 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "2147483647"
+    (4) push1 1 	# "X"
+    (6) push1 2 	# "Y"
+    (8) lreplace4 4 2 
+    (14) done 
+
+ByteCode 0x55a1f3f21970, refCt 1, epoch 21, interp 0x55a1f3ec0a10 (epoch 21)
+  Source "linsert $args 0 interp alias {} $name {}"
+  File "/tmp/name-native-insert-20261013/probe.tcl" Line 6
+  Cmds 1, src 40, inst 21, litObjs 4, aux 0, stkDepth 7, code/src 0.00
+  Proc 0x55a1f3f402f0, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-19, src 0-39
+  Command 1: "linsert $args 0 interp alias {} $name {}"
+    (0) loadScalar1 %v0 	# var "args"
+    (2) push1 0 	# "0"
+    (4) push1 1 	# "interp"
+    (6) push1 2 	# "alias"
+    (8) push1 3 	# ""
+    (10) loadScalar1 %v1 	# var "name"
+    (12) push1 3 	# ""
+    (14) lreplace4 7 2 
+    (20) done 
+
+HELPER {interp alias {} original {} one two}

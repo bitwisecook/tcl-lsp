@@ -1,0 +1,14 @@
+{
+  "production_sources": {
+    "rust/tcl-vm/src/exec/native_list_insertion.rs": "957dbcbbc2271a3b2debcb543e982356bab860934631bfe1538372a2d094fa6b",
+    "rust/tcl-bytecode/src/lib.rs": "b78fd7a09ce6b0a8e8034825e130e41bd6a48a5464fb2f57d74aa7e1013f39d5",
+    "rust/tcl-runtime-api/src/native_list_insertion.rs": "ef0e9a1adfbd3e0e379c83689e479c055995809e15306a3eb9e80190912b5726",
+    "rust/tcl-compiler/src/command_binding/original_command_table.rs": "92efd5b8ae7530a69ebba1be2212e2564247f0f942f8dea62d3cd707f579067e",
+    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs": "17366a9fd0cb0a2aac9ddfdf1126880cedd64d62bb7d3a83f7db9dd9e858d085"
+  },
+  "accepted_validation": null,
+  "last_executed_diagnostic": "/tmp/name-vm-finish-20261013/diagnostic-03",
+  "diagnostic_followon": "/tmp/name-vm-finish-20261013/alias-records-diagnostic-03",
+  "C9_original_probe_scope": "fourteen actual C90/C91 result and originalheader windows for each backend; unexecuted current source",
+  "external_binary_only": true
+}

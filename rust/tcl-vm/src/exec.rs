@@ -41,6 +41,7 @@ mod native_fixed_math_tests;
 #[cfg(test)]
 #[path = "exec/native_list_index_tests.rs"]
 mod native_list_index_tests;
+mod native_list_insertion;
 #[cfg(test)]
 #[path = "exec/native_list_operations_tests.rs"]
 mod native_list_operations_tests;
@@ -5789,6 +5790,36 @@ impl Vm {
             // Inline `lreplace`/`linsert` (C Tcl `INST_LREPLACE4`). Operands:
             // [argc, mode] where mode 1 = lreplace, 2 = linsert. Stack holds
             // `argc` values in push order: list, index arg(s), then elements.
+            Op::LREPLACE4 | Op::LREPLACE if instr.native_list_insertion.is_some() => {
+                let count = match usize::try_from(imm0(instr)) {
+                    Ok(count) if count >= 2 && count <= f.stack.len() && imm_at(instr, 1) == 2 => {
+                        count
+                    }
+                    _ => {
+                        return Tick::Return(
+                            self.refuse_host_command("original List insertion stack layout".into()),
+                        );
+                    }
+                };
+                let operands = f.stack.split_off(f.stack.len() - count);
+                match self.execute_native_list_insertion(
+                    operands,
+                    instr.native_list_insertion.unwrap(),
+                    instr.op,
+                ) {
+                    Ok(value) => f.stack.push(value),
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
+                    }
+                }
+            }
+            Op::LREPLACE => {
+                return Tick::Return(
+                    self.refuse_host_command("original List insertion recipe unavailable".into()),
+                );
+            }
             Op::LREPLACE4 => {
                 let argc = usize::try_from(imm0(instr)).unwrap_or(0);
                 let mode = imm_at(instr, 1);

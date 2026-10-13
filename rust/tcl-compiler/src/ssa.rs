@@ -6867,6 +6867,7 @@ fn is_synthetic_statement(stmt: &Statement) -> bool {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::cfg::{Block, Function, Terminator};
     use crate::expr_ast::ExprNode;
@@ -10230,6 +10231,8 @@ fn scope_read_bindings(
 
 #[cfg(test)]
 mod cell_resolution_tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::cfg::Terminator;
     use tcl_lexer::Span;
@@ -10393,7 +10396,11 @@ mod cell_resolution_tests {
             false,
             "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
@@ -10457,7 +10464,11 @@ mod cell_resolution_tests {
             false,
             "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
@@ -10529,7 +10540,11 @@ mod cell_resolution_tests {
             false,
             "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut missing = false;
         let mut incoming = false;
         for (&block, data) in &ssa.blocks {
@@ -10591,7 +10606,11 @@ mod cell_resolution_tests {
             let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
                 &source, registry, false, profile,
             );
-            let ssa = &unit.procedures["::p"].ssa;
+            let ssa = unit
+                .procedures
+                .get(&fixture_id(&unit.procedures, "::p"))
+                .expect("authored fixture body")
+                .ssa;
             let mut reached = false;
             for (&block, data) in &ssa.blocks {
                 for index in 0..data.statements.len() {
@@ -10624,7 +10643,11 @@ mod cell_resolution_tests {
             false,
             "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut reached = false;
         for (&block, data) in &ssa.blocks {
             for index in (0..data.statements.len()).chain(std::iter::once(usize::MAX)) {
@@ -10875,7 +10898,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl9.0",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut written = None;
         let mut read = Vec::new();
         for (&block, body) in &ssa.blocks {
@@ -10920,7 +10947,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut pairs = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
@@ -10959,7 +10990,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let node = tcl_syntax::expr::parser::parse_expr("$n", Some("tcl8.6"));
         let base = Some(u32::try_from(source.find("$n").unwrap()).unwrap());
         let mut proofs = Vec::new();
@@ -10991,7 +11026,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let node = tcl_syntax::expr::parser::parse_expr("$n", Some("tcl8.6"));
         let base = Some(u32::try_from(source.find("$n").unwrap()).unwrap());
         let mut reached = false;
@@ -11056,7 +11095,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut reads = Vec::new();
         let mut inventory = Vec::new();
         for (&block, data) in &ssa.blocks {
@@ -11134,7 +11177,10 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = &unit.procedures["::p"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body");
         let mut cached = Vec::new();
         for (&block, data) in &function.ssa.blocks {
             for (index, statement) in data.statements.iter().enumerate() {
@@ -11218,7 +11264,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut pairs = Vec::new();
         for &block in ssa.blocks.keys() {
             let view = SsaSourceView::at_terminator(ssa, block);
@@ -11316,7 +11366,11 @@ mod cell_resolution_tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut pairs = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
@@ -11353,7 +11407,11 @@ mod cell_resolution_tests {
             false,
             "tcl8.6",
         );
-        let ssa = &unit.procedures["::p"].ssa;
+        let ssa = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
+            .ssa;
         let mut projected = Vec::new();
         for (&block, body) in &ssa.blocks {
             for index in 0..body.statements.len() {
@@ -11419,6 +11477,7 @@ mod cell_resolution_tests {
 
 #[cfg(test)]
 mod external_mutability_tests {
+
     use super::*;
 
     #[test]
@@ -11505,6 +11564,7 @@ mod external_mutability_tests {
 
 #[cfg(test)]
 mod original_definition_name_tests {
+
     use super::*;
 
     #[test]

@@ -1,0 +1,364 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/cfg.rs",
+      "before_sha256": "eb8de1091cdd7cb42786bba860fda2a71d2ec4ae0958c66096c656950eb9c0f7",
+      "after_sha256": "606022a8bd663aea8af089c43e04eecabf53ee014c585d05dbabd43ded6ecb7c",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/execution_regions.rs",
+      "before_sha256": "98df2a1231ed8216ac09c5709a86686fab7f0b680e2640a0b14fade8add6ab40",
+      "after_sha256": "4c729553ff4e9c9276d12f742e549a2a76a4555ccef4dc74807371b437b8ed1f",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "before_sha256": "98cf9a2963b19e8cf3035eab74d4f6ad1e30a677d728c8e637d9fddd0b2e2e80",
+      "after_sha256": "f37e272acec0895241a38e7b224ea1ff84aa48c4a4558c725f1fe56fda901216",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+      "before_sha256": "42235bfb0838375efb6c65786f9c2dc72a28cdf6ba203695a4f06f2d5b36dc01",
+      "after_sha256": "4bf0c62fa2073140e9a8221e80fe9c0166fceca102a177b46437a16ec32b2d84",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+      "before_sha256": "9ff94fa48ae06f1b8eb59e317c1f71af097991e4132d8bf5e85dec2189fcf932",
+      "after_sha256": "a0ec36d391401558cbcc4cc38d94de98419c83f4f2fe1a74325a4c42edbab871",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+      "before_sha256": "a9d03e560bbfdeabfd34a9bd97ab82f348529a89c835a1fc0313b3a49f97c825",
+      "after_sha256": "874e0e802106de1139113b95611aa45048a27a51d7186743f31e7018eb8a46bc",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "648bc1b141ca9556c6fa4b32d6824c3c4977b5ac68da236e280cce806aa34008",
+      "after_sha256": "0f5f71f47239972475fa021e394c644decbf2530224ef0ab1b20bd8b3a1353b4",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/body_template.rs",
+      "before_sha256": "a05a3bf2645ddc724dc87e622aa1782baece91bb4c5f9c0e1fed649b787d24c9",
+      "after_sha256": "2259a84860689f94b1f33e1f3137515922b41f1bebf800ccdc53c8a7c3005507",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+      "before_sha256": "e90fa8aedeeeb5388e8f1be23a0f337092cb00304b9ccbff7e0ef9389a0af86d",
+      "after_sha256": "f47f1107224120653f0e0d33b8d2bb5b67c2de50a3911a6dc315708aa1285382",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/common_aot_plan.rs",
+      "before_sha256": "f315409ab8afd60d966db5dbda819bed579b3eb7d4176eb2ecd89b6e3a869fc2",
+      "after_sha256": "92c57e56613874c24d573459188dbb3e68c81b6f668d3a43e02feec017082aac",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "9995aa6a54b40c3a3c015e9bd808ba959072b1b48525e08366315ba8de3a46eb",
+      "after_sha256": "1bb52d766af9909a4dbbb490d38466d11bff8b16ea95dbfc73b6ee3f27aa7302",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "before_sha256": "31b7615439a57c129b4ecdc948d324b6b612ba5635a3aeab13f06a87440c7d72",
+      "after_sha256": "8a397d71c9acdbab9e2beb3215d700fc29c92bbf169afc9ed8b04b287d32fa57",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/connection_scope.rs",
+      "before_sha256": "994745916e428ec0f4c7942d909f95dee2695ad2b4c1d3fab68e2e1920dc350a",
+      "after_sha256": "c37b358e913535175859f1e9e4bcb65605de2c7efad3222aea032cb5bef0b1ff",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/def_use.rs",
+      "before_sha256": "33be43e4a2c7c988ef7f0b3a714f3dcfbc657b09062be14961b5abb589040495",
+      "after_sha256": "fd3dd51a71ac3662c5c3048113a173b4921a82af3de9ea652eae708f72e7bc90",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/gvn.rs",
+      "before_sha256": "f1932212d30133a91e6e6ae7c9a3e1c94d63f1896fad73aa2eda6fc0ca93ca5f",
+      "after_sha256": "ab71ab80616ac7f619af99a01a55c40163e562390e1d7f4b04ccbf48a04e6b6e",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/inlining/frame.rs",
+      "before_sha256": "1134b72f2d9460108479113de8b2b9c91b33fefac410ec1ebb1b438d49a955ff",
+      "after_sha256": "c6be68970113107569f064e56085da0a1711a0bf1607e66baf45b256c27053ee",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+      "before_sha256": "ee9ecd08784106f3f1d9aba3aa7235e80c9e0cb722a7534802c8a545a643f3d1",
+      "after_sha256": "ed3476484c8bfcff9eab32008d733143b4617f123e5602b15a34cdaea52574cc",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+      "before_sha256": "d3fd78bf6c1b7f279c7f89d36b5edd5519240248a988a178fd730f842b9238ab",
+      "after_sha256": "49dc5d6b7832dcbfc29b2771879e3a25fb62d785d34d7e906c65d4dfeaf4db64",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/interval_bounds.rs",
+      "before_sha256": "cce16c91e3472d1953685f95724161657efcc2816f25759a73b978dde78195ce",
+      "after_sha256": "a18d21a12fbc741efa671e9238888a4fa3655f1d3390e526f295961910bdd36f",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/intervals.rs",
+      "before_sha256": "b8b8abb6dca3676c92e13c3c29d9ca70b984da89cb0b998c92938c50be06eeb0",
+      "after_sha256": "90da84d159cff9998046e09dee44814635ee8821bc7244e7017ef4fa890f5c52",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir_helpers.rs",
+      "before_sha256": "7559eae9ec9f653cc2ec30ba6a90b69dc7ae210e6d7384dba5f722d4c5ba41a7",
+      "after_sha256": "84f0209205e45849842fd8088daf79ea72cd9b5d4275b87e3a67ed73d09fe631",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/irules_checks.rs",
+      "before_sha256": "f464bea84e1e684e16dbd075b85c07c0175f40a2064317730ba7b0de52d6fa24",
+      "after_sha256": "6fb4cf3a957fd5d9627f0d448baa6461de3991f7ba5c7ef6b19b0858211396e7",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/loops.rs",
+      "before_sha256": "2c6edb5d9d74f0e8032c09fdfe840ebaaa507388d6436a70125da4f8fdbf2027",
+      "after_sha256": "351ecb2042731acaa5f14e6ae24f4398950a6dceb344f5d6c6a8f7d13f004196",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/execution_regions.rs",
+      "before_sha256": "bbe83933ae727caa73b9f3eb8d956573e64df7c1f2e54c9190833ee13de56b21",
+      "after_sha256": "41d93cae5a40ede491dd5a73784cb015e9f34f70d6d545115a3ffea4d85da115",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/hooks/control.rs",
+      "before_sha256": "8415fc1ef134b899c7ee505fe876711fe5a4856f4ba6e49dd52000fe026ac203",
+      "after_sha256": "861b458191b6ed062ceef8245d7af7144b3b43eb08f405f227e2386362a20b97",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "9d06a85cbfdad4ee43e436de1f07f1ba92a0dcd2d486ec65e4ce28aef6ad3c75",
+      "after_sha256": "fefa50843d0cdfc542c393fa52889641f4d3336d33a0e47591fa452af357632b",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/native_body_context_tests.rs",
+      "before_sha256": "a66c0fd12cde01dc2f2ffed72dcac94fca3aa965d24eafe53d06cae98cf4379e",
+      "after_sha256": "12c65bd54004720b68fef21ff2338001b93b8b67075169086f687835b5a68b25",
+      "testwhole": true,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering_hooks.rs",
+      "before_sha256": "fc7a39c72d330c50fea31fdf0dbc1d08234d179546e4210989d0a7e458a513e8",
+      "after_sha256": "4e7ad68b41e19a2fa1051e26fc2f4298ac3e7197862ca098c03a2138c00dadf8",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_integer_proof.rs",
+      "before_sha256": "b6a2116909e8b8f4ab03f6345ecd717df7f206df9fc74b76cd52d69b9d421f22",
+      "after_sha256": "bb5501b8a58c90593ae574e262f6bf62411dccde333adb7bed53fb51b285f9b2",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_lowering/tests.rs",
+      "before_sha256": "1698f69d474b8bdca9fc72588ea76dd379be92f1257edea41775014fdfa6dbf4",
+      "after_sha256": "362fb4cdff3bb48710fc694efdfc84f435497250b4105247f6d10d4ce9911b47",
+      "testwhole": true,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/code_sinking.rs",
+      "before_sha256": "2575c2f5986014141334ea2d4fbc8da34374299b0b40db7c727516a76e5eb0a1",
+      "after_sha256": "63de04d503d279b73fce852aa28aaa31df2cedd727f22779ea0c2183e1c74256",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+      "before_sha256": "52b8ec643e45dccf5fc7a3cf8e431c213170c1a7f78a9896839b2526c130956c",
+      "after_sha256": "f5be1db39ba8d1617aa7855f69ab98161fb5a55bc8c8e72891aa27278b12640c",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+      "before_sha256": "86adae899823cb23ba554e142cab125c98de9fc809f68d31f20b6b16b7d36d8c",
+      "after_sha256": "0d1bdf0592b32efede7e83d24293f33862b0600601fc446e6972ee81c9c2daca",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/end_offset.rs",
+      "before_sha256": "6b7d07bbf0e4db4a7e7df5c0c7774ba4b7fc97c8fd9bf6eb7ec0240865cafa24",
+      "after_sha256": "4330cc3d351121725b0c80ce4574a2c492f570fa0053d5b4b1ed1d081fb027e2",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/structure_elimination.rs",
+      "before_sha256": "02bf886bcfa3e5e6f7c40b0b5159e8a11c7fc33dc4818d71caf22d1770d4f72c",
+      "after_sha256": "3e10e444bc44100e9c334aa25ab1fa29d11d527c67a9d99ecd744f29a99a3a89",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "6a3b5d63433cc22a521c76ec18c1f519fa6946675e51ee0702a090443d4962b5",
+      "after_sha256": "94bb61ed2e0447af43119acb5ec9bfb9577a72a0599333b9ca649c74e342f0ae",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "b2ea882080c539138cf9cabd82b9e3151a486ab87b6ae10f6ad857e2e07d4d31",
+      "after_sha256": "288f1e08f341ecab64e77450b8b83dec6bf89ab5db37d66aac63d1f934282400",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/store_advice.rs",
+      "before_sha256": "2e857e5bc74b77875ef20de9c8ce1adc811f986fa41890032016aa3c64f9139a",
+      "after_sha256": "4f21f9caf2183428c65d6301316e42a85c77ec9d9bbdc92c6b427cd682cbe9a6",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/sccp.rs",
+      "before_sha256": "1474e2797683ba1ee6322c665e4054144a51ec07b7abb4a2aaa07621c90fec32",
+      "after_sha256": "dcfe308390534e20b86601ea9895fddccf5c5679ff0717fc2f1ed3b38e912249",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/sccp/original_value_facts.rs",
+      "before_sha256": "97db245103af31447bdf8613677a7a6256f2932308732dd29f7d39ded867e63f",
+      "after_sha256": "d171a8e31d392d2b497091c5b2618fbd66c9362cb9d7017a522ddc7fa0491ae6",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/script_binds.rs",
+      "before_sha256": "77ff562d8f9ce81568ded3394a081d0a78da4021183c4877d6ddd58bd57aac79",
+      "after_sha256": "d61f991bdd25838114d674139b13b0d040502d69de3b673f53fbf3a446ae2c93",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/segmenter.rs",
+      "before_sha256": "5e6a39330a0caf731ffdaa3794e095c02f73ab6ce9e033bbcf0503c7dd73ce6f",
+      "after_sha256": "f8a248fa28ef1bf79bb3fc7ce6cf93e3d12bf2dcb250bdb6e914995e019eb539",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/site_claims.rs",
+      "before_sha256": "bf7711f7a61bdf4a1d94ac2cf2369a82029df75a85faaaab5a530d578d7791af",
+      "after_sha256": "4bf0b8226519fd8b9ea6bb803fc1c04f2e25dc2735b83d80e8f479c75eccebc6",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/specialise_factories.rs",
+      "before_sha256": "13cf8f82e47103c49baee9bc72a33b9796b0d64211b092a5dfbd3557348bf522",
+      "after_sha256": "f7a1fe3606db94fb78c2f85158a06ed0b160281418d9753f67c8a7f2b2489fa9",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/ssa.rs",
+      "before_sha256": "91db4c494d015b4d1506b205f04b59b48a03eb392d10bba481023766c6a12f1b",
+      "after_sha256": "43015a557631a0fd0cc97b06af893720216556d714a6cc2d27d17cba9c47917e",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint/instance_classes.rs",
+      "before_sha256": "84d13b663368f260cc47651d6f11af0ed59722e75102a3ead36ca1245057976d",
+      "after_sha256": "93d3a2b84009c1e1ef64d59f52c5f80c8ecd2ca7fa6e2b4dd00d1923be616846",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/unit_scope.rs",
+      "before_sha256": "7ed19d3d104bf538dfe663ef48c51b09cf587f08276d1e237dcb4bbcc0a1e878",
+      "after_sha256": "a2bb3828f8b68f9fee39120556cfadeaa16c4037163f2659a9639d161717d355",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/value_transfer.rs",
+      "before_sha256": "475fb3c00dc8f65e01972bff6a943f6d8dd89a4490f7332ba1ca35faf51974ab",
+      "after_sha256": "2657ca91da68fb86c4036013dfb1cc4aa113e2b0802b2a52e5bccedb59b29f93",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_escape/known_names.rs",
+      "before_sha256": "2db30bf4526cb94203f16182871b3be585ce4f7c122b047cd05235d1cba2e6d6",
+      "after_sha256": "363d18f12d860940fb64c6c11063767cdf8e13c7e4d14c1660f9894a14ea2013",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/var_escape/walker.rs",
+      "before_sha256": "73fd40f05cad1dc0281d61ccc4f562061a8fe2995492a36a21a3ce9e1dd95740",
+      "after_sha256": "90258c987ce8cd19f7b0634e2e83c1d8d20bd24eb92c3f79d5c5babacce01dc0",
+      "testwhole": false,
+      "prefix_unchanged": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/test_body_identity.rs",
+      "before_sha256": "7054cced9fcf25f7a40eb9db29cc2f71872b2928c3c8c504988ef5a42f260885",
+      "after_sha256": "d7b61ffe0b0c95bd02d985eec5745411d0d6c54fe95c37ca176fbec85103ca4a",
+      "testwhole": true,
+      "prefix_unchanged": true
+    }
+  ],
+  "patch_sha256": "8678edc8b7cdf641fe1244672beb018d98a8b5e827c493ef2e9fecdcc7952afb",
+  "status": "parsed-and-formatted test-only mirror; no Cargo no selectors executed",
+  "assertions": "All original selectors, source programs and expected labels/effects retained. Optional source absence remains optional, mutable body IDs computed before borrow, exact ID edge projection only for presentation in fixture assertions."
+}

@@ -1163,13 +1163,13 @@ impl Analyser {
                             ..Default::default()
                         },
                     );
-                    self.set_original_logical_interp_var_binding(name, key, *value_tok, scope_path);
+                    self.set_original_logical_interp_var_binding(name, key, value_tok, scope_path);
                 }
             }
         } else if single
             && value_tok.kind == TokenType::Cmd
             && let Some(folded) =
-                self.try_fold_const_cmd_subst_rhs(value_text, *value_tok, scope_path)
+                self.try_fold_const_cmd_subst_rhs(value_text, value_tok, scope_path)
         {
             // `set VAR [cmd …]` whose substitution is a compile-time
             // constant: the registry `const_fold` / frame-fact engine proves
@@ -1735,13 +1735,8 @@ impl Analyser {
     /// arm here, so registering the next such command (a benchmark runner, a
     /// custom test wrapper) is a one-line spec change.
     ///
-    /// The name is resolved through the analyser's constant-propagation lattice
-    /// (`const_strings` / [`Self::lookup_const_string`]): a bare literal, a
-    /// constant `$var`, or a quoted literal all resolve identically, and a
-    /// genuinely dynamic name (`test $unknown …`) is skipped rather than
-    /// recorded as the literal text `$unknown`.  This is a void handler — it
-    /// records the symbol and returns, leaving the command's body recursion to
-    /// the generic `ArgRole::Body` walk.
+    /// Names use original-word values and checked Logical declaration provenance.
+    /// Unresolved substitutions cannot supply outline identities.
     pub(super) fn handle_defines_symbol(
         &mut self,
         advice: &crate::registry_invocation::OriginalSymbolDeclarationAdvice,
@@ -2342,14 +2337,7 @@ impl Analyser {
         true
     }
 
-    /// Resolve a single argument word to a constant string, or `None` when it is
-    /// not statically constant.
-    ///
-    /// The analyser-level counterpart to the optimiser's SCCP: a plain literal
-    /// word (its delimiters already stripped into `text`) is itself constant; a
-    /// bare `$var` resolves through the constant-string lattice
-    /// ([`Self::lookup_const_string`]); anything with embedded substitution or
-    /// concatenation is not statically known.
+    /// Resolve a single literal or original scalar substitution through checked value provenance.
     fn resolve_const_word(&self, text: &str, tok: Token, is_single: bool) -> Option<String> {
         if !is_single {
             return None;
@@ -5461,9 +5449,8 @@ impl Analyser {
     /// `-regexp` pattern recording: each non-`default`
     /// pattern arm is recorded as a `RegexPattern` with
     /// ``command = "switch"`` when its token is a literal
-    /// (`Esc` / `Str`) or a `Var` token whose name resolves via
-    /// `lookup_const_string_with_span` to a constant string set
-    /// earlier in the same scope.  Command-substitution patterns
+    /// (`Esc` / `Str`) or a `Var` token whose original substitution resolves
+    /// through checked Logical declaration and value provenance.  Command-substitution patterns
     /// are skipped (runtime-computed values can't be statically
     /// resolved).
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Switch`].
@@ -6048,7 +6035,7 @@ impl Analyser {
         else {
             return;
         };
-        self.retain_readonly_dictionary_keys(&value, value_span, scope_path);
+        self.retain_readonly_dictionary_keys(&value, value_span, arg_tokens[1].span, scope_path);
     }
 
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
@@ -11932,9 +11919,8 @@ impl Analyser {
     /// highlighting.
     ///
     /// Literal patterns (`Esc` / `Str` tokens) are recorded
-    /// verbatim; `Var` tokens are resolved via the
-    /// `const_strings` map (populated by `set var "..."`) so
-    /// `regexp $p $line` records the literal stored in `p`.
+    /// verbatim; variable patterns use checked Logical declaration and value
+    /// provenance to retain the original value and its source geometry.
     /// `Cmd`-substitution patterns are skipped — runtime-computed
     /// patterns can't be statically resolved.
     ///
@@ -11964,9 +11950,8 @@ impl Analyser {
     }
 
     /// Record one regex-pattern token for `regexp` / `regsub` /
-    /// `switch -regexp`.  Var tokens are resolved against
-    /// `const_strings`; `Cmd` substitutions are skipped (no
-    /// static resolution); literals are recorded verbatim.
+    /// `switch -regexp`. Variables use checked original value provenance;
+    /// command substitutions supply no static pattern, and literals retain their bytes.
     fn record_regex_pattern_token(
         &mut self,
         text: &str,
@@ -12044,58 +12029,6 @@ impl Analyser {
         crate::naming::bareword_resolution_candidates(&ns, cmd_name)
             .into_iter()
             .find_map(|qname| self.result.all_procs.get(&qname))
-    }
-
-    /// Static element count for a `{*}`-expanded word.
-    ///
-    /// Used by the proc-call arity checker (which lives in
-    /// `compiler_checks::arity_checks`) to decide whether a
-    /// ``{*}``-expanded argument contributes a statically-known
-    /// number of runtime arguments.
-    ///
-    /// - **Braced literal** (`Str` token, ``{a b c}``) — split
-    ///   the token's inner text as a list and return its length.
-    /// - **Pure variable reference** (`Var` token, ``$x``) — if
-    ///   the variable has a known constant value in the current
-    ///   scope chain, split that value and return its length.
-    /// - **Anything else** — `None`: count not statically known.
-    ///
-    /// Refinement is only attempted when ``single_token`` is
-    /// `true`; for concatenated words like ``{*}$x$y`` or
-    /// ``{*}{a b}$suffix`` the segmenter exposes only the *first*
-    /// token, which would otherwise be misinterpreted as a pure
-    /// literal or pure var ref.  Token text is resolved via
-    /// [`tcl_lexer::SourceMap::token_text`] — the same helper the
-    /// rest of the analyser uses — so the inner-content stripping
-    /// rules (kind-specific delimiter handling) stay in one
-    /// place.
-    #[must_use]
-    pub fn resolve_expansion_count(
-        &self,
-        tok: Token,
-        single_token: bool,
-        scope_path: &[usize],
-    ) -> Option<usize> {
-        if !single_token {
-            return None;
-        }
-        let sm = Analyser::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        match tok.kind {
-            TokenType::Str => {
-                let inner = sm.token_text(tok);
-                Some(crate::codegen::helpers::split_list_simple(inner).len())
-            }
-            TokenType::Var => {
-                let var_name = sm.token_text(tok);
-                let const_val = self.lookup_const_string(var_name, scope_path)?;
-                Some(crate::codegen::helpers::split_list_simple(const_val).len())
-            }
-            _ => None,
-        }
     }
 }
 
@@ -12484,6 +12417,51 @@ mod tests {
             .unwrap();
         assert!(advice.readonly_variable_names().contains(&"alpha"));
         assert!(advice.variable_definition("alpha").is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_metadata_retains_an_empty_variable_name() {
+        let source = "set d {{} EMPTY}; dict with d {puts ${}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let scope = &analyser.result.global_scope;
+        assert!(scope.readonly_dictionary_keys.contains_key(""));
+        assert!(!scope.variables.contains_key(""));
+    }
+
+    #[test]
+    fn logical_dictionary_write_invalidates_the_previous_constant_value() {
+        let source = "set x OLD; set d {x NEW}; dict with d {puts $x}; puts $x";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$x");
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        assert!(analyser.result.global_scope.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn logical_dictionary_write_invalidates_interpreter_handle_provenance() {
+        let source = "set child [interp create named]; set d {child other}; dict with d {}; interp eval $child {set x VALUE}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$child");
+        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_metadata_masks_an_outer_procedure_name() {
+        let source = "set x ROOT; proc p {} {set d {x LOCAL}; dict with d {puts $x}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$x");
+        let image = tcl_lexer::SourceImage::document(source);
+        let advice = analyser
+            .result
+            .logical_variable_scope_advice(&image, analyser.file_lexer_config(), token.span.start())
+            .unwrap();
+        assert!(advice.readonly_variable_names().contains(&"x"));
+        assert!(advice.variable_definition("x").is_none());
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
     }
 
     #[test]
@@ -12935,7 +12913,13 @@ mod tests {
                 ("hello", esc_tok(span(6, 11)), true),
             ],
         );
-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello"));
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("hello")
+        );
     }
 
     #[test]
@@ -12949,7 +12933,13 @@ mod tests {
                 ("hello world", str_tok(span(6, 19)), true),
             ],
         );
-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello world"));
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("hello world")
+        );
     }
 
     #[test]
@@ -12967,7 +12957,13 @@ mod tests {
                 ("$other", esc_tok(span(6, 12)), false),
             ],
         );
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
     }
 
     #[test]
@@ -12991,7 +12987,14 @@ mod tests {
                 ("x", esc_tok(span(4, 5)), true),
             ],
         );
-        assert_eq!(read_only.lookup_const_string("x", &[]), None);
+        assert_eq!(
+            read_only
+                .const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
     }
 
     /// A literal value word is recorded as Tcl reads it: the
@@ -13008,7 +13011,13 @@ mod tests {
                 ("a\\\\d", esc_tok(span(6, 12)), true),
             ],
         );
-        assert_eq!(a.lookup_const_string("p", &[]), Some("a\\d"));
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("p"))
+                .map(|(value, _)| value.as_str()),
+            Some("a\\d")
+        );
     }
 
     /// A computed target defines no variable: `set $n 1` writes
@@ -16931,99 +16940,6 @@ mod tests {
     fn resolve_proc_call_empty_name_returns_none() {
         let a = Analyser::new();
         assert!(a.resolve_proc_call("", &[]).is_none());
-    }
-
-    // resolve_expansion_count
-
-    #[test]
-    fn resolve_expansion_count_braced_literal() {
-        // ``{a b c}`` — Str token; inner content "a b c" splits
-        // to three elements.
-        let mut a = Analyser::new();
-        a.source = "{a b c}".to_string();
-        // Span covers ``{a b c`` (5 inner chars + opening brace),
-        // content_offset = 1 to skip ``{``.  Closing ``}`` is
-        // OUTSIDE the span by lexer convention for non-degenerate
-        // STR tokens.
-        let tok = Token {
-            kind: TokenType::Str,
-            span: span(0, 6),
-            content_offset: 1,
-            in_quote: false,
-        };
-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
-    }
-
-    #[test]
-    fn resolve_expansion_count_braced_empty_list() {
-        // ``{}`` — degenerate Str case; span extended to include
-        // ``}``, token_text returns empty string.
-        let mut a = Analyser::new();
-        a.source = "{}".to_string();
-        let tok = Token {
-            kind: TokenType::Str,
-            span: span(0, 2),
-            content_offset: 1,
-            in_quote: false,
-        };
-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(0));
-    }
-
-    #[test]
-    fn resolve_expansion_count_var_with_const_value() {
-        // ``$xs`` where xs has known constant ``a b c`` — splits
-        // to three elements.
-        let mut a = Analyser::new();
-        a.source = "$xs".to_string();
-        a.set_const_string("xs", "a b c".to_string(), span(0, 5), &[]);
-        // Var token: span covers ``xs`` (after `$`) by lexer
-        // convention; content_offset = 0 because the lexer's
-        // ``_start`` for VAR is set after the ``$``.
-        // For testing, place the var name at offset 1..3 in source.
-        let tok = Token {
-            kind: TokenType::Var,
-            span: span(1, 3),
-            content_offset: 0,
-            in_quote: false,
-        };
-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), Some(3));
-    }
-
-    #[test]
-    fn resolve_expansion_count_var_without_const_value() {
-        // Var with no known constant value → None.
-        let mut a = Analyser::new();
-        a.source = "$xs".to_string();
-        let tok = Token {
-            kind: TokenType::Var,
-            span: span(1, 3),
-            content_offset: 0,
-            in_quote: false,
-        };
-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
-    }
-
-    #[test]
-    fn resolve_expansion_count_concatenated_word_returns_none() {
-        // ``single_token = false`` short-circuits to None.
-        let mut a = Analyser::new();
-        a.source = "{a b c}".to_string();
-        let tok = Token {
-            kind: TokenType::Str,
-            span: span(0, 6),
-            content_offset: 1,
-            in_quote: false,
-        };
-        assert_eq!(a.resolve_expansion_count(tok, false, &[]), None);
-    }
-
-    #[test]
-    fn resolve_expansion_count_other_token_kind_returns_none() {
-        // Non-Str, non-Var token kinds aren't statically
-        // resolvable.
-        let a = Analyser::new();
-        let tok = esc_tok(span(0, 4));
-        assert_eq!(a.resolve_expansion_count(tok, true, &[]), None);
     }
 
     // handle_interp_alias

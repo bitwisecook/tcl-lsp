@@ -95,6 +95,8 @@ fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
@@ -132,7 +134,11 @@ mod tests {
             "proc f {condition} {if {$condition} {set inside_if 1} else {set inside_else 2}}",
             &reg(),
         );
-        let body = &module.procedures["::f"].body;
+        let body = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body;
         let names = collect_known_names(std::iter::empty::<String>(), body);
         assert!(names.contains("inside_if"));
         assert!(names.contains("inside_else"));
@@ -194,7 +200,9 @@ mod tests {
         // ``eval {set y 5}`` lowers to a Statement::Block in a proc
         // context — collect_known_names should descend into it.
         let m = lower_to_ir("proc f {} { eval {set y 5} }", &reg());
-        let proc = m.procedures.get("::f").unwrap();
+        let proc = fixture_id_if_present(&m.procedures, "::f")
+            .and_then(|id| m.procedures.get(&id))
+            .unwrap();
         let names = collect_known_names(std::iter::empty::<String>(), &proc.body);
         assert!(names.contains("y"));
     }

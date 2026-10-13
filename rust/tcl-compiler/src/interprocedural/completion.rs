@@ -366,6 +366,8 @@ impl BodyScan<'_> {
 
 #[cfg(test)]
 pub(super) mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use std::collections::HashMap;
 
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
@@ -427,7 +429,7 @@ pub(super) mod tests {
     fn summaries(
         source: &str,
         dialect: &str,
-    ) -> HashMap<String, crate::interprocedural::ProcSummary> {
+    ) -> HashMap<crate::ir::ProcedureId, crate::interprocedural::ProcSummary> {
         let (context, unit) = logical_unit(source, dialect);
         let profile = unit.ir_module.dialect_profile;
         unit.with_interprocedural(context.commands(), profile)
@@ -445,16 +447,26 @@ pub(super) mod tests {
     fn completes_under(source: &str, dialect: &str) -> HashMap<String, bool> {
         summaries(source, dialect)
             .into_iter()
-            .map(|(qname, summary)| (qname, summary.completes))
-            .collect()
+            .fold(HashMap::new(), |mut shown, (_, summary)| {
+                assert!(
+                    shown
+                        .insert(summary.qualified_name, summary.completes)
+                        .is_none(),
+                    "authored completion fixture labels must be unique"
+                );
+                shown
+            })
     }
 
     /// Whether `procedure` is surely defined where `runner`'s calls run.
     fn defined_for(source: &str, runner: &str, procedure: &str) -> bool {
-        summaries(source, DIALECT)[runner]
+        let summaries = summaries(source, DIALECT);
+        let caller = fixture_id(&summaries, runner);
+        let target = fixture_id_if_present(&summaries, procedure);
+        summaries[&caller]
             .defined_callees
             .iter()
-            .any(|name| name == procedure)
+            .any(|id| Some(*id) == target)
     }
 
     /// A procedure called before the `proc` statement that defines it has
@@ -683,7 +695,7 @@ pub(super) mod tests {
             crate::realm::CommandBindingRealm::none(),
             None,
         );
-        assert!(!summaries.procedures["::one"].completes);
+        assert!(!summaries.procedures[&fixture_id(&summaries.procedures, "::one")].completes);
         assert!(completes("proc one {} {return 1}\n")["::one"]);
     }
     #[test]
@@ -754,47 +766,87 @@ pub(super) mod tests {
         let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
         let (context, unit) = logical_unit(source, DIALECT);
         let module = &unit.ir_module;
-        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)["::p"]);
+        let p_id = fixture_id(&module.procedures, "::p");
+        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)[&p_id]);
         let mutations: &[fn(&mut crate::ir::Module)] = &[
             |module| {
-                let procedure = module.procedures.remove("::leaf").unwrap();
-                module.procedures.insert("::other".into(), procedure);
+                let id = fixture_id(&module.procedures, "::leaf");
+                let procedure = module.procedures.remove(&id).unwrap();
+                let mut foreign_module = crate::ir::Module::default();
+                let foreign_id = foreign_module.retain_procedure(procedure.clone());
+                module.procedures.insert(foreign_id, procedure);
             },
             |module| module.source_metadata_input = None,
             |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
             |module| module.source = tcl_lexer::SourceImage::document("return OTHER"),
-            |module| module.procedures.get_mut("::leaf").unwrap().qualified_name = "::other".into(),
-            |module| module.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into(),
-            |module| module.procedures.get_mut("::leaf").unwrap().params = vec!["y".into()],
-            |module| module.procedures.get_mut("::leaf").unwrap().body_offset += 1,
             |module| {
-                module.procedures.get_mut("::leaf").unwrap().body_source =
-                    Some("return OTHER".into())
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .qualified_name = "::other".into()
             },
             |module| {
-                module
-                    .procedures
-                    .get_mut("::leaf")
-                    .unwrap()
-                    .body
-                    .statements
-                    .clear()
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .params_raw = "{x DEFAULT}".into()
+            },
+            |module| {
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .params = vec!["y".into()]
+            },
+            |module| {
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .body_offset += 1
+            },
+            |module| {
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .body_source = Some("return OTHER".into())
+            },
+            |module| {
+                {
+                    let id = fixture_id(&module.procedures, "::leaf");
+                    module.procedures.get_mut(&id)
+                }
+                .unwrap()
+                .body
+                .statements
+                .clear()
             },
         ];
         for change in mutations {
             let mut changed = module.clone();
             change(&mut changed);
-            assert!(!super::procedures_complete(&changed, context.commands(), &|_, _| true)["::p"]);
+            assert!(!super::procedures_complete(&changed, context.commands(), &|_, _| true)[&p_id]);
         }
         let mut foreign_key = module.clone();
-        let procedure = foreign_key.procedures.remove("::leaf").unwrap();
-        foreign_key.procedures.insert("::other".into(), procedure);
+        let leaf_id = fixture_id(&foreign_key.procedures, "::leaf");
+        let procedure = foreign_key.procedures.remove(&leaf_id).unwrap();
+        let mut foreign_module = crate::ir::Module::default();
+        let foreign_id = foreign_module.retain_procedure(procedure.clone());
+        foreign_key.procedures.insert(foreign_id, procedure);
         let summaries = super::procedures_complete(&foreign_key, context.commands(), &|_, _| true);
-        assert!(!summaries["::other"]);
-        assert!(!summaries["::p"]);
+        assert!(!summaries[&foreign_id]);
+        assert!(!summaries[&p_id]);
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
-        assert!(!super::procedures_complete(module, foreign.commands(), &|_, _| true)["::p"]);
+        assert!(!super::procedures_complete(module, foreign.commands(), &|_, _| true)[&p_id]);
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let context = tcl_registry::model::ingress::resolve_environment(dialect)
                 .default_context_registry();
@@ -854,7 +906,10 @@ pub(super) mod tests {
                 module.parameter_grammar(),
                 Some(tcl_dialect::ParameterGrammar::Jim)
             );
-            let procedure = &module.procedures["::p"];
+            let procedure = module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::p"))
+                .unwrap();
             let shape = crate::registry_invocation::original_procedure_formal_count_shape(
                 module,
                 procedure,
@@ -876,7 +931,8 @@ pub(super) mod tests {
             "proc p {{a(k)}} {return $a(k)}",
         ] {
             let (context, unit) = logical_unit(source, "jim");
-            let procedure = &unit.ir_module.procedures["::p"];
+            let p_id = fixture_id(&unit.ir_module.procedures, "::p");
+            let procedure = unit.ir_module.procedures.get(&p_id).unwrap();
             assert!(
                 crate::registry_invocation::original_procedure_scalar_bindings(
                     &unit.ir_module,
@@ -886,7 +942,8 @@ pub(super) mod tests {
                 .is_none()
             );
             assert!(
-                !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)["::p"]
+                !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)
+                    [&p_id]
             );
         }
     }
@@ -894,6 +951,7 @@ pub(super) mod tests {
 
 #[cfg(test)]
 mod original_source_purpose_tests {
+
     use super::*;
     use crate::analyser::ResolvedAnalysisInput;
     use crate::command_binding::{OriginalInvocationSourcePurpose, SourceAnalysisEntry};

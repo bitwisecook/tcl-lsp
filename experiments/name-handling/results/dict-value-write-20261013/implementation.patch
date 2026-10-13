@@ -1,0 +1,132 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -238,6 +238,7 @@
+     input: super::ResolvedAnalysisInput,
+     receiver_scope: Vec<usize>,
+     original_key: Option<Span>,
++    original_declaration: Option<Span>,
+ }
+ 
+ impl ReadonlyDictionaryKeyVariable {
+@@ -359,11 +360,24 @@
+         Some(*definition)
+     }
+ 
++    fn readonly_key_is_current(&self, scope: &Scope, name: &str) -> bool {
++        scope.readonly_dictionary_keys.get(name).is_some_and(|key| {
++            key.image == self.image
++                && self.analysis.resolved_input.as_ref() == Some(&key.input)
++                && scope_at(&self.analysis.global_scope, &key.receiver_scope)
++                    .is_some_and(|retained| std::ptr::eq(retained, scope))
++        })
++    }
++
+     fn variable_declaration_scope(&self, name: &str) -> Option<&'a Scope> {
+         let current = || {
+-            self.eligible_scopes()
+-                .rev()
+-                .find(|scope| scope.variables.contains_key(name))
++            self.eligible_scopes().rev().find(|scope| {
++                scope.variables.contains_key(name)
++                    || (self.readonly_key_is_current(scope, name)
++                        && scope.readonly_dictionary_keys[name]
++                            .original_declaration
++                            .is_none())
++            })
+         };
+         if !crate::naming::is_qualified(name.as_bytes()) && self.is_namespace_frame() {
+             return crate::naming::variable_namespace_lookup_bases(
+@@ -2123,6 +2137,7 @@
+         &mut self,
+         value: &str,
+         value_span: Span,
++        write_span: Span,
+         receiver_scope: &[usize],
+     ) {
+         let Ok(elements) = tcl_syntax::list::split_list_in(value, self.file_lexer_config().escapes)
+@@ -2179,6 +2194,33 @@
+                 offset = element.next;
+             }
+         }
++        let declarations = elements
++            .chunks_exact(2)
++            .map(|pair| {
++                let name = pair[0].to_string();
++                let declaration = self
++                    .result
++                    .logical_variable_scope_advice(&image, config, write_span.start())
++                    .and_then(|advice| advice.variable_definition(&name))
++                    .map(|definition| definition.definition_span);
++                (name, declaration)
++            })
++            .collect::<std::collections::HashMap<_, _>>();
++        for declaration in declarations.values().flatten() {
++            for (path, records) in &mut self.logical_const_string_provenance {
++                let changed = records
++                    .iter()
++                    .filter(|(_, record)| record.declaration == *declaration)
++                    .map(|(name, _)| name.clone())
++                    .collect::<Vec<_>>();
++                for name in changed {
++                    records.remove(&name);
++                    if let Some(values) = self.const_strings.get_mut(path) {
++                        values.remove(&name);
++                    }
++                }
++            }
++        }
+         let Some(scope) = scope_at_mut(&mut self.result.global_scope, receiver_scope) else {
+             return;
+         };
+@@ -2191,6 +2233,7 @@
+                 name.clone(),
+                 ReadonlyDictionaryKeyVariable {
+                     original_key: original_keys.get(&name).copied().flatten(),
++                    original_declaration: declarations.get(&name).copied().flatten(),
+                     name,
+                     image: image.clone(),
+                     input: input.clone(),
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -6048,7 +6048,7 @@
+         else {
+             return;
+         };
+-        self.retain_readonly_dictionary_keys(&value, value_span, scope_path);
++        self.retain_readonly_dictionary_keys(&value, value_span, arg_tokens[1].span, scope_path);
+     }
+ 
+     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
+@@ -12487,6 +12487,32 @@
+     }
+ 
+     #[test]
++    fn logical_dictionary_write_invalidates_the_previous_constant_value() {
++        let source = "set x OLD; set d {x NEW}; dict with d {puts $x}; puts $x";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "$x");
++        assert!(analyser.lookup_logical_const_substitution(token).is_none());
++        assert!(analyser.result.global_scope.variables.contains_key("x"));
++    }
++
++    #[test]
++    fn logical_dictionary_metadata_masks_an_outer_procedure_name() {
++        let source = "set x ROOT; proc p {} {set d {x LOCAL}; dict with d {puts $x}}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "$x");
++        let image = tcl_lexer::SourceImage::document(source);
++        let advice = analyser
++            .result
++            .logical_variable_scope_advice(&image, analyser.file_lexer_config(), token.span.start())
++            .unwrap();
++        assert!(advice.readonly_variable_names().contains(&"x"));
++        assert!(advice.variable_definition("x").is_none());
++        assert!(analyser.lookup_logical_const_substitution(token).is_none());
++    }
++
++    #[test]
+     fn dynamic_apply_value_uses_checked_logical_variable_declaration() {
+         let source = "namespace eval N {set lambda {{p} {puts $p} ::N}}; apply $::N::lambda VALUE";
+         let mut analyser = Analyser::new();

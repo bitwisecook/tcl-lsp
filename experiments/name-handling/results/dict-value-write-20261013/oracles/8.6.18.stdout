@@ -1,0 +1,9 @@
+version 8.6.18
+existing-during NEW Y
+existing-after NEW Y
+proc-during LOCAL
+proc-after LOCAL
+namespace-during NAMESPACE
+namespace-after NAMESPACE
+root-after NAMESPACE
+namespace-exists 0

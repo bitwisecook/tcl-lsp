@@ -1,0 +1,31 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-bytecode/src/lib.rs",
+      "before_sha256": "792d510bd3502096658e046c4deff1c41400e217b746a9507178c2a94d3b931d",
+      "after_sha256": "b78fd7a09ce6b0a8e8034825e130e41bd6a48a5464fb2f57d74aa7e1013f39d5"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "before_sha256": "b04d0afc4a3c647ce6d489043dfac13ea098f660d7e2f0ab9f2a862c0ea39d4c",
+      "after_sha256": "1568c0f401b0960f4eed481a072dd30b3b4c1ed7587264c8de61901d15da6f83"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_list_insertion.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "cbfa19c3cff78699cbc8166c60471a6aaa2d013fe021a6fdaf89fe5ccdee9994"
+    },
+    {
+      "path": "rust/tcl-runtime-api/src/lib.rs",
+      "before_sha256": "d00d8a46607175d40d04e2d4a781d591f87a637ad8976e23aa7c05c1cd782c5d",
+      "after_sha256": "ff663846d5377a8e8c6caf01acacf5866aca2590a4b3d91210b1e1821bd0e232"
+    },
+    {
+      "path": "rust/tcl-runtime-api/src/native_list_insertion.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "ef0e9a1adfbd3e0e379c83689e479c055995809e15306a3eb9e80190912b5726"
+    }
+  ],
+  "status": "uncompiled; compiler/registry producer modern patch prerequisite, original14windows unexecuted",
+  "Registry_instruction_enum_reexport": "owned compiler_finish seven-file modern producer patch; no duplicated schema includedhere"
+}

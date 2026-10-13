@@ -554,6 +554,8 @@ fn add_terminator_uses(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::Statement;
     use crate::cfg::BlockId;
@@ -620,7 +622,10 @@ mod tests {
         let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
             source, registry, false, "tcl8.6",
         );
-        let function = &unit.procedures["::p"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body");
         for name in ["x", "y"] {
             let symbol = function.ssa.var_symbol(name).expect("unambiguous producer");
             let cell = function.ssa.cell_key(symbol);

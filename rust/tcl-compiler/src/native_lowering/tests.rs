@@ -6,6 +6,7 @@
 //! Lowering contract tests: each pins one decision the native tier takes on a
 //! T0/T1 shape, through the real front end.
 
+use crate::interprocedural::test_body_identity::fixture_id_if_present;
 use std::collections::BTreeMap;
 
 use tcl_registry::CommandRegistry;
@@ -743,7 +744,9 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
     let source = "proc p {x} { return $x }\np 1\n";
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
-    let body = unit.procedures.get("::p").expect("::p is a unit");
+    let body = fixture_id_if_present(&unit.procedures, "::p")
+        .and_then(|id| unit.procedures.get(&id))
+        .expect("::p is a unit");
     let facts = &body.semantic_facts;
     let function = facts
         .executable()
@@ -794,10 +797,8 @@ fn a_definition_declines_a_body_the_statement_does_not_write_out() {
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
 
     // The front end really does record a body it did not compile.
-    let inner = unit
-        .ir_module
-        .procedures
-        .get("::p")
+    let inner = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+        .and_then(|id| unit.ir_module.procedures.get(&id))
         .expect("the materialised body registers a procedure");
     assert_eq!(inner.body_source.as_deref(), Some("${body}"));
     assert_eq!(
@@ -806,7 +807,9 @@ fn a_definition_declines_a_body_the_statement_does_not_write_out() {
         "…while the compiled body came from the materialised `return hello`"
     );
 
-    let outer = unit.procedures.get("::make").expect("::make is a unit");
+    let outer = fixture_id_if_present(&unit.procedures, "::make")
+        .and_then(|id| unit.procedures.get(&id))
+        .expect("::make is a unit");
     let facts = &outer.semantic_facts;
     let function = facts
         .executable()
@@ -847,7 +850,9 @@ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
     let source = "proc make {} {\n proc p {x} {return hello}\n}\nmake\n";
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
-    let outer = unit.procedures.get("::make").expect("::make is a unit");
+    let outer = fixture_id_if_present(&unit.procedures, "::make")
+        .and_then(|id| unit.procedures.get(&id))
+        .expect("::make is a unit");
     let facts = &outer.semantic_facts;
     let function = facts
         .executable()

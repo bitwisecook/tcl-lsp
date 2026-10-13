@@ -238,6 +238,7 @@ pub struct ReadonlyDictionaryKeyVariable {
     input: super::ResolvedAnalysisInput,
     receiver_scope: Vec<usize>,
     original_key: Option<Span>,
+    original_declaration: Option<Span>,
 }
 
 impl ReadonlyDictionaryKeyVariable {
@@ -359,11 +360,24 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
         Some(*definition)
     }
 
+    fn readonly_key_is_current(&self, scope: &Scope, name: &str) -> bool {
+        scope.readonly_dictionary_keys.get(name).is_some_and(|key| {
+            key.image == self.image
+                && self.analysis.resolved_input.as_ref() == Some(&key.input)
+                && scope_at(&self.analysis.global_scope, &key.receiver_scope)
+                    .is_some_and(|retained| std::ptr::eq(retained, scope))
+        })
+    }
+
     fn variable_declaration_scope(&self, name: &str) -> Option<&'a Scope> {
         let current = || {
-            self.eligible_scopes()
-                .rev()
-                .find(|scope| scope.variables.contains_key(name))
+            self.eligible_scopes().rev().find(|scope| {
+                scope.variables.contains_key(name)
+                    || (self.readonly_key_is_current(scope, name)
+                        && scope.readonly_dictionary_keys[name]
+                            .original_declaration
+                            .is_none())
+            })
         };
         if !crate::naming::is_qualified(name.as_bytes()) && self.is_namespace_frame() {
             return crate::naming::variable_namespace_lookup_bases(
@@ -1890,11 +1904,7 @@ impl Analyser {
             .entry(scope_path.to_vec())
             .or_default()
             .insert(var_name.to_string(), (value, value_span));
-        // Track whether this binding's *current* value dominates uses after
-        // an `if`/`try` join. A conditional write (`conditional_depth > 0`)
-        // does not; a straight-line (depth-0) write does and re-establishes
-        // dominance over any earlier conditional one (see
-        // `nondominating_consts` / `lookup_dominating_const_string`).
+        // Conditional writes cannot establish a value after the branch joins.
         if self.conditional_depth > 0 {
             self.nondominating_consts
                 .entry(scope_path.to_vec())
@@ -1917,67 +1927,6 @@ impl Analyser {
         if let Some(set) = self.nondominating_consts.get_mut(scope_path) {
             set.remove(var_name);
         }
-    }
-
-    /// Like [`Self::lookup_const_string`], but only returns a value that
-    /// **dominates** this use site — i.e. whose nearest-enclosing-scope
-    /// binding was last written straight-line (not inside an `if`/`try`
-    /// body). A binding poisoned in [`Self::nondominating_consts`] at the
-    /// scope where it is found yields `None`: the value is branch-dependent,
-    /// so identity resolution (`source`/`rename` targets) must abstain
-    /// rather than pick the last-written branch.
-    /// The nearest binding still wins — a poisoned inner binding shadows an
-    /// outer dominating one, exactly as Tcl variable scoping would.
-    #[must_use]
-    pub fn lookup_dominating_const_string(
-        &self,
-        var_name: &str,
-        scope_path: &[usize],
-    ) -> Option<&str> {
-        for ancestor in ancestor_paths(scope_path) {
-            if let Some(map) = self.const_strings.get(&ancestor)
-                && let Some((value, _)) = map.get(var_name)
-            {
-                let poisoned = self
-                    .nondominating_consts
-                    .get(&ancestor)
-                    .is_some_and(|s| s.contains(var_name));
-                return if poisoned { None } else { Some(value.as_str()) };
-            }
-        }
-        None
-    }
-
-    /// Look up the constant string value for `var_name`, walking
-    /// the scope chain from `scope_path` outwards.
-    ///
-    /// Returns the nearest enclosing scope's value, or `None` if the
-    /// var isn't tracked anywhere on the chain.
-    #[must_use]
-    pub fn lookup_const_string(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
-        self.lookup_const_string_with_span(var_name, scope_path)
-            .map(|(value, _)| value)
-    }
-
-    /// Look up the constant string value for `var_name` along
-    /// with the source span recorded for the defining ``set``.
-    /// Used by the regex-pattern emitters to also tag the
-    /// defining ``set var "..."`` value as a `RegexPattern` so
-    /// semantic-token highlighting fires on the literal.
-    #[must_use]
-    pub fn lookup_const_string_with_span(
-        &self,
-        var_name: &str,
-        scope_path: &[usize],
-    ) -> Option<(&str, Span)> {
-        for ancestor in ancestor_paths(scope_path) {
-            if let Some(map) = self.const_strings.get(&ancestor)
-                && let Some((value, span)) = map.get(var_name)
-            {
-                return Some((value.as_str(), *span));
-            }
-        }
-        None
     }
 
     /// A dominating value from the exact declaration selected by Logical source advice.
@@ -2030,25 +1979,18 @@ impl Analyser {
         candidates.next().is_none().then_some(value)
     }
 
-    /// A scalar substitution retains its original braced-name form.
+    /// A scalar substitution retains its complete original word and braced-name form.
     pub(super) fn lookup_logical_const_substitution(&self, token: Token) -> Option<(&str, Span)> {
         if token.kind != TokenType::Var {
             return None;
         }
-        let map = Self::source_map(
-            &self.source,
-            &self.cached_line_index,
-            self.cached_line_index_source_len,
-        );
-        let name = map.token_text(token);
-        if token.content_offset != 2
-            && crate::naming::split_array_name_braced(name, false)
-                .1
-                .is_some()
-        {
+        let word = self.retained_value_word(token)?;
+        let arena = word.executable_parts();
+        let [component] = arena.list(arena.root()) else {
             return None;
-        }
-        self.lookup_logical_const_string_at(name, token.span)
+        };
+        let (name, span) = self.logical_variable_value_component(&arena, component)?;
+        self.lookup_logical_const_string_at(&name, span)
     }
 
     pub(super) fn retained_value_word(&self, token: Token) -> Option<tcl_lexer::NativeWord> {
@@ -2123,6 +2065,7 @@ impl Analyser {
         &mut self,
         value: &str,
         value_span: Span,
+        write_span: Span,
         receiver_scope: &[usize],
     ) {
         let Ok(elements) = tcl_syntax::list::split_list_in(value, self.file_lexer_config().escapes)
@@ -2179,18 +2122,58 @@ impl Analyser {
                 offset = element.next;
             }
         }
+        let declarations = elements
+            .chunks_exact(2)
+            .map(|pair| {
+                let name = pair[0].to_string();
+                let declaration = self
+                    .result
+                    .logical_variable_scope_advice(&image, config, write_span.start())
+                    .and_then(|advice| advice.variable_definition(&name))
+                    .map(|definition| definition.definition_span);
+                (name, declaration)
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        for declaration in declarations.values().flatten() {
+            for (path, records) in &mut self.logical_const_string_provenance {
+                let changed = records
+                    .iter()
+                    .filter(|(_, record)| record.declaration == *declaration)
+                    .map(|(name, _)| name.clone())
+                    .collect::<Vec<_>>();
+                for name in changed {
+                    records.remove(&name);
+                    if let Some(values) = self.const_strings.get_mut(path) {
+                        values.remove(&name);
+                    }
+                }
+            }
+        }
+        for declaration in declarations.values().flatten() {
+            for (path, records) in &mut self.logical_interp_path_provenance {
+                let changed = records
+                    .iter()
+                    .filter(|(_, record)| record.declaration == *declaration)
+                    .map(|(name, _)| name.clone())
+                    .collect::<Vec<_>>();
+                for name in changed {
+                    records.remove(&name);
+                    if let Some(values) = self.interp_var_bindings.get_mut(path) {
+                        values.remove(&name);
+                    }
+                }
+            }
+        }
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, receiver_scope) else {
             return;
         };
         for pair in elements.chunks_exact(2) {
             let name = pair[0].to_string();
-            if name.is_empty() {
-                continue;
-            }
             scope.readonly_dictionary_keys.insert(
                 name.clone(),
                 ReadonlyDictionaryKeyVariable {
                     original_key: original_keys.get(&name).copied().flatten(),
+                    original_declaration: declarations.get(&name).copied().flatten(),
                     name,
                     image: image.clone(),
                     input: input.clone(),
@@ -2312,21 +2295,6 @@ impl Analyser {
         if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
             map.remove(var_name);
         }
-    }
-
-    /// Look up the interpreter-domain key `var_name` was bound to,
-    /// walking the scope chain from `scope_path` outwards — the
-    /// interpreter-value-flow analogue of [`Self::lookup_const_string`].
-    #[must_use]
-    pub fn lookup_interp_var_binding(&self, var_name: &str, scope_path: &[usize]) -> Option<&str> {
-        for ancestor in ancestor_paths(scope_path) {
-            if let Some(map) = self.interp_var_bindings.get(&ancestor)
-                && let Some(key) = map.get(var_name)
-            {
-                return Some(key.as_str());
-            }
-        }
-        None
     }
 
     /// Namespace in which an *unqualified* command invoked at
@@ -3141,6 +3109,21 @@ impl Analyser {
         use crate::signature_scan::scope::SignatureSourceNameInput;
         let policy = self.declaration_name_policy()?;
         let config = self.file_lexer_config();
+        if !substitution && self.selected_logical_declaration_advice() {
+            let image = tcl_lexer::SourceImage::document(&self.source);
+            return self
+                .head_identities
+                .source_bindings_ref()
+                .original_written_word_at_span_in_source(&image, span, config)
+                .and_then(|(word, _)| {
+                    crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                        &word, self.word_rules(), policy,
+                    )
+                })
+                .map(SignatureSourceNameInput::OriginalWord)
+                .or_else(|| self.original_static_variable_operand_input(span))
+                .filter(|input| input.policy() == policy);
+        }
         if !substitution {
             return self
                 .head_identities
@@ -4221,27 +4204,37 @@ mod tests {
     }
 
     #[test]
-    fn set_then_lookup_const_string() {
+    fn set_const_string_retains_the_value() {
         let mut a = Analyser::new();
         a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
-        assert_eq!(a.lookup_const_string("x", &[]), Some("hello"));
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("hello")
+        );
     }
 
     #[test]
-    fn lookup_const_string_walks_chain() {
-        // x defined in global; lookup from a child scope finds it.
-        let mut a = make_analyser_with_namespace("ns1");
-        a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
-        assert_eq!(a.lookup_const_string("x", &[0]), Some("hello"));
-    }
-
-    #[test]
-    fn lookup_const_string_inner_shadows_outer() {
+    fn const_string_tables_keep_independent_values() {
         let mut a = make_analyser_with_namespace("ns1");
         a.set_const_string("x", "outer".to_string(), span(0, 5), &[]);
         a.set_const_string("x", "inner".to_string(), span(10, 15), &[0]);
-        assert_eq!(a.lookup_const_string("x", &[0]), Some("inner"));
-        assert_eq!(a.lookup_const_string("x", &[]), Some("outer"));
+        assert_eq!(
+            a.const_strings
+                .get(&vec![0])
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("inner")
+        );
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("outer")
+        );
     }
 
     #[test]
@@ -4249,13 +4242,25 @@ mod tests {
         let mut a = Analyser::new();
         a.set_const_string("x", "hello".to_string(), span(0, 5), &[]);
         a.clear_const_string("x", &[]);
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
     }
 
     #[test]
-    fn lookup_const_string_returns_none_for_unknown() {
+    fn const_string_table_starts_empty() {
         let a = Analyser::new();
-        assert_eq!(a.lookup_const_string("x", &[]), None);
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
     }
 
     #[test]

@@ -1600,6 +1600,49 @@ fn replace_elements_native_with_duplicate_check<E>(
     Ok(value)
 }
 
+/// Duplicate only after the reached original compiled replacement sampled sharing.
+pub(crate) fn replace_prepared_native_range_original_using<E>(
+    original: *mut TclObj,
+    first: usize,
+    delete: usize,
+    elements: &[*mut TclObj],
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(tcl_syntax::value::ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    check()?;
+    obj::check_native_liveness(original).map_err(refuse)?;
+    let lifetime = obj::NativeObjectLifetime::retain(original);
+    let value = if obj::is_shared(original) {
+        let copied = with_native_conversion_check(check, refuse, |stage, retain| {
+            obj::duplicate_with_stage_check::<tcl_syntax::value::ValueError>(
+                original,
+                &mut || stage(),
+                &mut |first| retain(first.clone()),
+            )
+        })?;
+        let copied = obj::Owned::fresh(copied);
+        check()?;
+        duplicate_native_backing(original, copied.as_ptr(), protocol);
+        copied
+    } else {
+        obj::Owned::retain(original)
+    };
+    check()?;
+    replace_prepared_native_range_using(
+        value.as_ptr(),
+        first,
+        delete,
+        elements,
+        protocol,
+        check,
+        refuse,
+    )?;
+    drop(lifetime);
+    check()?;
+    Ok(value)
+}
+
 /// Replace an original range on the already selected private List header.
 /// This is the existing physical replacement kernel with the caller's checks.
 pub(crate) fn replace_prepared_native_range_using<E>(

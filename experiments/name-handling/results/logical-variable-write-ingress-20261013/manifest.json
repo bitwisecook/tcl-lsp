@@ -1,0 +1,20 @@
+{
+  "patch_sha256": "a97ab2a116d158386be2a8dc91cb829bc33cfbe3c4af6bc87077588963bba6eb",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "ea7d45f2436966980deaee69ff1ded8ded4d5267b6cdc7a1c1cf15acc38e19db",
+      "after_sha256": "26ecbda45ac2be0a4f31ac8cc713eb1ca025c3d3d912eb8d5bc68dad0d777331"
+    }
+  ],
+  "dependencies": [
+    "d835bc15 value readers",
+    "06ade936 DictWith",
+    "d24f5ee retired readers"
+  ],
+  "rust_status": "unexecuted",
+  "tests": [
+    "analyser::scope::tests::logical_write_card_correspondence_uses_original_word_without_native_recipe",
+    "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates"
+  ]
+}

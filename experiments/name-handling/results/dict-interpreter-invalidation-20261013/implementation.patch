@@ -1,0 +1,42 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -2151,6 +2151,21 @@
+                 for name in changed {
+                     records.remove(&name);
+                     if let Some(values) = self.const_strings.get_mut(path) {
++                        values.remove(&name);
++                    }
++                }
++            }
++        }
++        for declaration in declarations.values().flatten() {
++            for (path, records) in &mut self.logical_interp_path_provenance {
++                let changed = records
++                    .iter()
++                    .filter(|(_, record)| record.declaration == *declaration)
++                    .map(|(name, _)| name.clone())
++                    .collect::<Vec<_>>();
++                for name in changed {
++                    records.remove(&name);
++                    if let Some(values) = self.interp_var_bindings.get_mut(path) {
+                         values.remove(&name);
+                     }
+                 }
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -12430,6 +12430,15 @@
+     }
+ 
+     #[test]
++    fn logical_dictionary_write_invalidates_interpreter_handle_provenance() {
++        let source = "set child [interp create named]; set d {child other}; dict with d {}; interp eval $child {set x VALUE}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "$child");
++        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
++    }
++
++    #[test]
+     fn logical_dictionary_metadata_masks_an_outer_procedure_name() {
+         let source = "set x ROOT; proc p {} {set d {x LOCAL}; dict with d {puts $x}}";
+         let mut analyser = Analyser::new();

@@ -1132,6 +1132,8 @@ fn compute_intervals_kernel<S: std::hash::BuildHasher>(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     #[test]
@@ -1638,7 +1640,9 @@ mod tests {
             registry,
             false,
         );
-        let fu = cu.procedures.get("::f").expect("proc");
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc");
         let intervals = compute_intervals_with(
             &fu.cfg,
             &fu.ssa,
@@ -1668,7 +1672,9 @@ mod tests {
             registry,
             false,
         );
-        let fu = cu.procedures.get("::f").expect("proc");
+        let fu = fixture_id_if_present(&cu.procedures, "::f")
+            .and_then(|id| cu.procedures.get(&id))
+            .expect("proc");
         let intervals = compute_intervals_with(
             &fu.cfg,
             &fu.ssa,

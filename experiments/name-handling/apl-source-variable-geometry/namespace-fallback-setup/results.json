@@ -1,0 +1,80 @@
+[
+  {
+    "provider": "TCL_LSP_JIMSH",
+    "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "library": null,
+    "exit": 0,
+    "files": 8,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "37cfee877c6505bfdd926634555390e1b78a5f8bcb2ea054d37075e8dfc59dea",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 0.84-9-g5bac7c9\nabsolute 0 ROOT\nrepeated 0 ROOT\nloneColon 0 LITERAL\nqualified 1 {can't read \"::ns::basic__addr\": no such variable}\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 ROOT\nexpressionRead 0 1\nnestedRead 0 ROOT\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH84",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "exit": 0,
+    "files": 106,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "84a9d97cf6ede931ab22d911f81d76a0ce604d80decba419d552a7911a4757a5",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.4.20\nabsolute 0 QUALIFIED\nrepeated 0 QUALIFIED\nloneColon 0 LITERAL\nqualified 1 {can't read \"::ns::basic__addr\": no such variable}\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 QUALIFIED\nexpressionRead 0 0\nnestedRead 0 QUALIFIED\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH85",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "exit": 0,
+    "files": 830,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "7c07f64d09aee128a5ddd668a6fcda6720a319079a2fd0cd694e19ece3cc4fb9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.5.19\nabsolute 0 QUALIFIED\nrepeated 0 QUALIFIED\nloneColon 0 LITERAL\nqualified 1 {can't read \"::ns::basic__addr\": no such variable}\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 QUALIFIED\nexpressionRead 0 0\nnestedRead 0 QUALIFIED\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH86",
+    "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "exit": 0,
+    "files": 837,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "b38bfc67033e6021c68a31c95e83830803bebe6712c712f0153b9f5c633dbe5c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 8.6.18\nabsolute 0 QUALIFIED\nrepeated 0 QUALIFIED\nloneColon 0 LITERAL\nqualified 1 {can't read \"::ns::basic__addr\": no such variable}\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 QUALIFIED\nexpressionRead 0 0\nnestedRead 0 QUALIFIED\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH90",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "exit": 0,
+    "files": 845,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "d4e5fe4f1c5fea831510addb3730012012ca69f1388aa8ecaea955abfd8f997a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.0.4\nabsolute 0 ROOT\nrepeated 0 ROOT\nloneColon 0 LITERAL\nqualified 0 QUALIFIED\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 ROOT\nexpressionRead 0 1\nnestedRead 0 ROOT\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "provider": "TCL_LSP_TCLSH91",
+    "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "exit": 0,
+    "files": 846,
+    "drift": false,
+    "input_sha256": "b85069b4eeb98a0542f9e619ee046d1a3023fe825c0ce6294524e94a81fcbabf",
+    "stdout_sha256": "372e20ad29bc9d77102a81c50cccfc019ef6bf6d8f2219a55a750ff3136863c3",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout": "version 9.1.0\nabsolute 0 ROOT\nrepeated 0 ROOT\nloneColon 0 LITERAL\nqualified 0 QUALIFIED\nbareElement 0 ELEMENT\nbracedElement 0 ELEMENT\ninertBraced 0 {{$::unseen__field}}\nescapedDollar 0 {{$::unseen__field}}\nquotedRead 0 ROOT\nexpressionRead 0 1\nnestedRead 0 ROOT\ncommentOnly 0 DONE\ntrailingRoot 1 {can't read \"basic__addr::\": no such variable}\n",
+    "stderr": ""
+  }
+]

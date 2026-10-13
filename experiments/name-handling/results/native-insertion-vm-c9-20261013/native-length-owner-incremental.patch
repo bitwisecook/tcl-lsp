@@ -1,0 +1,22 @@
+--- a/rust/tcl-vm/src/exec/native_list_insertion.rs
++++ b/rust/tcl-vm/src/exec/native_list_insertion.rs
+@@ -5,7 +5,7 @@
+ use crate::interp::native_numeric_ops::OriginalNumericOps;
+ use tcl_cmd_core::CmdError;
+ use tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction;
+-use tcl_syntax::value::ValueError;
++use tcl_syntax::value::{ValueError, ValueOps};
+ 
+ impl Vm {
+     pub(super) fn execute_native_list_insertion(
+@@ -41,7 +41,9 @@
+         let original = operands.remove(0);
+         let index = operands.remove(0);
+         let reached = (|| {
+-            let length = numeric.list(&original, protocol)?.len();
++            let length = numeric.with_vm_for_value(&original, |vm| {
++                vm.list_len(&original).map_err(CmdError::from)
++            })?;
+             let end = i64::try_from(length).map_err(|_| {
+                 ValueError::CommandProtocolUnavailable("original List insertion length")
+             })?;

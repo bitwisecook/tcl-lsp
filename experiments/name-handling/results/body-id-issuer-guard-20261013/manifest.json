@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+      "before_sha256": "49dc5d6b7832dcbfc29b2771879e3a25fb62d785d34d7e906c65d4dfeaf4db64",
+      "after_sha256": "18ec138543fceae70eb2b1d541bb8d51015679d1293fe24fc58c57c22e7d1eee"
+    },
+    {
+      "path": "rust/tcl-compiler/src/ir.rs",
+      "before_sha256": "cfc865da2028800b3c60849f646693c3226aae1e91dc5dc92a56dd8511a97fd5",
+      "after_sha256": "6cf6c5936f07317bb4296b5766ce0252fc5a3d3c5ccdf840fccb73e342c88df8"
+    },
+    {
+      "path": "rust/tcl-core-types/src/body_identity.rs",
+      "before_sha256": "257713f023558f813b152e67f304acf6978710af07cc42b31f054f03d2292ae9",
+      "after_sha256": "bf5cf1ee54146c11bd199dc8385d311b7be6e702a4d60c9924e78fd1a3c518e3"
+    }
+  ],
+  "status": "Uncompiled/parsed genuine issuer admission guard. Original retained body moved under actual foreign-issued ID cannot become source summary or original-allocation selected body. No label inverse."
+}

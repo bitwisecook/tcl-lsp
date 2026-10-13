@@ -56,6 +56,13 @@ enum ListOperation {
         list: NamespaceOperand,
         targets: Vec<ListTarget>,
     },
+    ReplaceInsert {
+        list: NamespaceOperand,
+        index: NamespaceOperand,
+        instruction:
+            tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction,
+        elements: Vec<NamespaceOperand>,
+    },
     Insert {
         steps: Vec<InsertionStep>,
     },
@@ -100,6 +107,19 @@ impl Builder<'_> {
                     list,
                     targets: prepared,
                 }
+            }
+            Plan::Insert {
+                list,
+                index: tcl_registry::native_list_operations_compilation::NativeListInsertionIndex::Original { operand, instruction },
+                elements,
+            } => {
+                let list = self.namespace_operand(words, &list, &mut prepared_words, depth)?;
+                let index = self.namespace_operand(words, &operand, &mut prepared_words, depth)?;
+                let mut prepared = Vec::with_capacity(elements.len());
+                for operand in elements {
+                    prepared.push(self.namespace_operand(words, &operand, &mut prepared_words, depth)?);
+                }
+                ListOperation::ReplaceInsert { list, index, instruction, elements: prepared }
             }
             Plan::Insert {
                 list,
@@ -238,6 +258,120 @@ impl Interp {
                         &|error| variable_original.refuse(error),
                     )
                     .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?
+                }
+                ListOperation::ReplaceInsert {
+                    list,
+                    index,
+                    instruction,
+                    elements,
+                } => {
+                    use tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction;
+                    let expected = match instruction {
+                        NativeListInsertionInstruction::ReplaceFour => {
+                            tcl_dialect::TclVersion::V9_0
+                        }
+                        NativeListInsertionInstruction::Replace => tcl_dialect::TclVersion::V9_1,
+                    };
+                    if artifact.stamp.physical != expected {
+                        return Err(self.report_cmd_error_using(
+                            variable_original
+                                .refuse(unavailable("original compiled list insertion release")),
+                            Some(&current),
+                        ));
+                    }
+                    let original =
+                        self.body_namespace_operand(artifact, command, list, execution)?;
+                    current()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    if execution.done {
+                        return Ok(None);
+                    }
+                    let index = self.body_namespace_operand(artifact, command, index, execution)?;
+                    current()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    if execution.done {
+                        return Ok(None);
+                    }
+                    let mut values = Vec::with_capacity(elements.len());
+                    for operand in elements {
+                        values.push(
+                            self.body_namespace_operand(artifact, command, operand, execution)?,
+                        );
+                        current()
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                        if execution.done {
+                            return Ok(None);
+                        }
+                    }
+                    let pointers = std::iter::once(original.as_ptr())
+                        .chain(std::iter::once(index.as_ptr()))
+                        .chain(values.iter().map(obj::Owned::as_ptr))
+                        .collect::<Vec<_>>();
+                    let headers =
+                        crate::interp::native_arguments::OriginalArguments::enter(self, &pointers)
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    let entered = || {
+                        current()?;
+                        headers.check_for(&actual)
+                    };
+                    let length = crate::value_ops::list_length_using(
+                        self,
+                        &original.as_ptr(),
+                        &mut |actual, _| {
+                            variable_original.check(actual)?;
+                            headers.check_for(actual)
+                        },
+                        |actual, original| {
+                            crate::list::list_elements_native_using(
+                                *original,
+                                protocol,
+                                &|| {
+                                    variable_original.check(actual)?;
+                                    headers.check_for(actual)
+                                },
+                                &|error| variable_original.refuse(error),
+                            )
+                        },
+                    )
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    let end = i64::try_from(length).expect("native compiled list length");
+                    let index_guard = |actual: &Interp| {
+                        variable_original.check(actual)?;
+                        headers.check_for(actual)
+                    };
+                    let position = tcl_cmd_core::native_list_index::original_index_using(
+                        self,
+                        &index.as_ptr(),
+                        end,
+                        true,
+                        Some(&index_guard),
+                    )
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?
+                    .expect("reported original insertion index");
+                    entered()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    let position = usize::try_from(position.max(0))
+                        .unwrap_or(usize::MAX)
+                        .min(length);
+                    let replacements = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+                    let reached = crate::list::replace_prepared_native_range_original_using(
+                        original.as_ptr(),
+                        position,
+                        0,
+                        &replacements,
+                        protocol,
+                        &entered,
+                        &|error| variable_original.refuse(error),
+                    );
+                    let reached =
+                        reached.map_err(|error| self.report_cmd_error_using(error, Some(&current)));
+                    drop(headers);
+                    drop(values);
+                    drop(index);
+                    drop(original);
+                    current()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    reached?
                 }
                 ListOperation::Insert { steps } => {
                     let mut stack = Vec::<obj::Owned>::new();
@@ -561,6 +695,33 @@ mod tests {
             windows += 1;
         }
         assert_eq!(windows, 5);
+    }
+
+    #[test]
+    fn original_c9_insertion_matches_fourteen_native_result_and_original_header_pairs() {
+        let mut windows = 0;
+        for &(engine, rows, _) in LIST_TABLES {
+            if !["tcl9.0", "tcl9.1"].contains(&engine) {
+                continue;
+            }
+            for line in rows.lines().filter(|line| line.starts_with("R|")) {
+                let result = line.split('|').collect::<Vec<_>>();
+                let case = result[1].parse::<usize>().unwrap();
+                if ![5, 6, 7, 8, 9, 10, 29].contains(&case) {
+                    continue;
+                }
+                let prefix = format!("O|{case}|");
+                let original = rows
+                    .lines()
+                    .find(|line| line.starts_with(&prefix))
+                    .unwrap()
+                    .split('|')
+                    .collect::<Vec<_>>();
+                run(engine, CASES[case], &result, &original);
+                windows += 1;
+            }
+        }
+        assert_eq!(windows, 14);
     }
 }
 

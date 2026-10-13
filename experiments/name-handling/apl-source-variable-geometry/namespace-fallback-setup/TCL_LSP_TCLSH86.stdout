@@ -1,0 +1,14 @@
+version 8.6.18
+absolute 0 QUALIFIED
+repeated 0 QUALIFIED
+loneColon 0 LITERAL
+qualified 1 {can't read "::ns::basic__addr": no such variable}
+bareElement 0 ELEMENT
+bracedElement 0 ELEMENT
+inertBraced 0 {{$::unseen__field}}
+escapedDollar 0 {{$::unseen__field}}
+quotedRead 0 QUALIFIED
+expressionRead 0 0
+nestedRead 0 QUALIFIED
+commentOnly 0 DONE
+trailingRoot 1 {can't read "basic__addr::": no such variable}

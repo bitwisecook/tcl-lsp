@@ -1229,6 +1229,7 @@ fn merge_f5_if_else_lookahead(
 
 #[cfg(test)]
 mod tests {
+
     #[test]
     fn original_image_segmentation_keeps_channel_and_unavailable_text_distinct() {
         let source = "set a A\\\r\nset b B";
@@ -1899,6 +1900,7 @@ mod tests {
 
 #[cfg(test)]
 mod recovery_tests {
+
     //! Tests for [`segment_commands_with_recovery`].
     //!
     //! When an unclosed `{` / `[` / `"` causes the lexer to
@@ -2116,6 +2118,8 @@ mod recovery_tests {
 
 #[cfg(test)]
 mod span_absolute_tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
@@ -2124,7 +2128,9 @@ mod span_absolute_tests {
         let src = "proc ::f {} { set x 1; return $x }";
         let r = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &r, false);
-        let proc = cu.ir_module.procedures.get("::f").expect("proc");
+        let proc = fixture_id_if_present(&cu.ir_module.procedures, "::f")
+            .and_then(|id| cu.ir_module.procedures.get(&id))
+            .expect("proc");
         let first = proc.body.statements.first().expect("body stmt");
         let span = first.span();
         let text = &src[span.as_range()];
@@ -2137,6 +2143,7 @@ mod span_absolute_tests {
 
 #[cfg(test)]
 mod original_clause_element_purpose_tests {
+
     use super::*;
 
     #[test]
@@ -2198,6 +2205,7 @@ mod original_clause_element_purpose_tests {
 
 #[cfg(test)]
 mod checked_script_tests {
+
     use super::*;
     use tcl_lexer::{ParseIssueKind, SourceImage};
 

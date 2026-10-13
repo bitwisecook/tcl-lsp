@@ -1,0 +1,14 @@
+version 0.84-9-g5bac7c9
+absolute 0 ROOT
+repeated 0 ROOT
+loneColon 0 LITERAL
+qualified 0 QUALIFIED
+bareElement 0 ELEMENT
+bracedElement 0 ELEMENT
+inertBraced 0 {{$::unseen__field}}
+escapedDollar 0 {{$::unseen__field}}
+quotedRead 0 ROOT
+expressionRead 0 1
+nestedRead 0 ROOT
+commentOnly 0 DONE
+trailingRoot 1 {can't read "basic__addr::": no such variable}

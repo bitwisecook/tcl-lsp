@@ -1,0 +1,425 @@
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -5688,7 +5688,8 @@
+             );
+         }
+         let mut fast = deep.clone();
+-        fast.procedures.insert("::p".to_owned(), fast_p);
++        let p_id = fixture_id(&deep.ir_module.procedures, "::p");
++        fast.procedures.insert(p_id, fast_p);
+ 
+         let found = lifecycle(deep);
+         assert!(
+diff --git a/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs b/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
+--- a/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer/source_context.rs
+@@ -840,18 +840,24 @@
+         let source =
+             SourceSummaryContext::for_module(&changed, context.commands(), changed.lexer_config)
+                 .unwrap();
+-        assert!(source.procedure("::p").is_none());
++        assert!(
++            source
++                .procedure(&fixture_id(&changed.procedures, "::p"))
++                .is_none()
++        );
+         let mut moved = module.clone();
+         let procedure = {
+             let id = fixture_id(&moved.procedures, "::p");
+             moved.procedures.remove(&id)
+         }
+         .unwrap();
+-        moved.procedures.insert("::other".into(), procedure);
++        let mut foreign_module = crate::ir::Module::default();
++        let foreign_id = foreign_module.retain_procedure(procedure.clone());
++        moved.procedures.insert(foreign_id, procedure);
+         let source =
+             SourceSummaryContext::for_module(&moved, context.commands(), moved.lexer_config)
+                 .unwrap();
+-        assert!(source.procedure("::other").is_none());
++        assert!(source.procedure(&foreign_id).is_none());
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-compiler/src/interprocedural/completion.rs b/rust/tcl-compiler/src/interprocedural/completion.rs
+--- a/rust/tcl-compiler/src/interprocedural/completion.rs
++++ b/rust/tcl-compiler/src/interprocedural/completion.rs
+@@ -366,6 +366,8 @@
+ 
+ #[cfg(test)]
+ pub(super) mod tests {
++    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
++
+     use std::collections::HashMap;
+ 
+     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+@@ -427,7 +429,7 @@
+     fn summaries(
+         source: &str,
+         dialect: &str,
+-    ) -> HashMap<String, crate::interprocedural::ProcSummary> {
++    ) -> HashMap<crate::ir::ProcedureId, crate::interprocedural::ProcSummary> {
+         let (context, unit) = logical_unit(source, dialect);
+         let profile = unit.ir_module.dialect_profile;
+         unit.with_interprocedural(context.commands(), profile)
+@@ -445,16 +447,26 @@
+     fn completes_under(source: &str, dialect: &str) -> HashMap<String, bool> {
+         summaries(source, dialect)
+             .into_iter()
+-            .map(|(qname, summary)| (qname, summary.completes))
+-            .collect()
++            .fold(HashMap::new(), |mut shown, (_, summary)| {
++                assert!(
++                    shown
++                        .insert(summary.qualified_name, summary.completes)
++                        .is_none(),
++                    "authored completion fixture labels must be unique"
++                );
++                shown
++            })
+     }
+ 
+     /// Whether `procedure` is surely defined where `runner`'s calls run.
+     fn defined_for(source: &str, runner: &str, procedure: &str) -> bool {
+-        summaries(source, DIALECT)[runner]
++        let summaries = summaries(source, DIALECT);
++        let caller = fixture_id(&summaries, runner);
++        let target = fixture_id_if_present(&summaries, procedure);
++        summaries[&caller]
+             .defined_callees
+             .iter()
+-            .any(|name| name == procedure)
++            .any(|id| Some(*id) == target)
+     }
+ 
+     /// A procedure called before the `proc` statement that defines it has
+@@ -683,7 +695,7 @@
+             crate::realm::CommandBindingRealm::none(),
+             None,
+         );
+-        assert!(!summaries.procedures["::one"].completes);
++        assert!(!summaries.procedures[&fixture_id(&summaries.procedures, "::one")].completes);
+         assert!(completes("proc one {} {return 1}\n")["::one"]);
+     }
+     #[test]
+@@ -754,47 +766,87 @@
+         let source = "proc leaf {x} {return $x}; proc p {x} {return [leaf $x]}";
+         let (context, unit) = logical_unit(source, DIALECT);
+         let module = &unit.ir_module;
+-        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)["::p"]);
++        let p_id = fixture_id(&module.procedures, "::p");
++        assert!(super::procedures_complete(module, context.commands(), &|_, _| true)[&p_id]);
+         let mutations: &[fn(&mut crate::ir::Module)] = &[
+             |module| {
+-                let procedure = module.procedures.remove("::leaf").unwrap();
+-                module.procedures.insert("::other".into(), procedure);
++                let id = fixture_id(&module.procedures, "::leaf");
++                let procedure = module.procedures.remove(&id).unwrap();
++                let mut foreign_module = crate::ir::Module::default();
++                let foreign_id = foreign_module.retain_procedure(procedure.clone());
++                module.procedures.insert(foreign_id, procedure);
+             },
+             |module| module.source_metadata_input = None,
+             |module| module.lexer_config.strict_quoting = !module.lexer_config.strict_quoting,
+             |module| module.source = tcl_lexer::SourceImage::document("return OTHER"),
+-            |module| module.procedures.get_mut("::leaf").unwrap().qualified_name = "::other".into(),
+-            |module| module.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into(),
+-            |module| module.procedures.get_mut("::leaf").unwrap().params = vec!["y".into()],
+-            |module| module.procedures.get_mut("::leaf").unwrap().body_offset += 1,
+             |module| {
+-                module.procedures.get_mut("::leaf").unwrap().body_source =
+-                    Some("return OTHER".into())
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .qualified_name = "::other".into()
+             },
+             |module| {
+-                module
+-                    .procedures
+-                    .get_mut("::leaf")
+-                    .unwrap()
+-                    .body
+-                    .statements
+-                    .clear()
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .params_raw = "{x DEFAULT}".into()
++            },
++            |module| {
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .params = vec!["y".into()]
++            },
++            |module| {
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .body_offset += 1
++            },
++            |module| {
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .body_source = Some("return OTHER".into())
++            },
++            |module| {
++                {
++                    let id = fixture_id(&module.procedures, "::leaf");
++                    module.procedures.get_mut(&id)
++                }
++                .unwrap()
++                .body
++                .statements
++                .clear()
+             },
+         ];
+         for change in mutations {
+             let mut changed = module.clone();
+             change(&mut changed);
+-            assert!(!super::procedures_complete(&changed, context.commands(), &|_, _| true)["::p"]);
++            assert!(!super::procedures_complete(&changed, context.commands(), &|_, _| true)[&p_id]);
+         }
+         let mut foreign_key = module.clone();
+-        let procedure = foreign_key.procedures.remove("::leaf").unwrap();
+-        foreign_key.procedures.insert("::other".into(), procedure);
++        let leaf_id = fixture_id(&foreign_key.procedures, "::leaf");
++        let procedure = foreign_key.procedures.remove(&leaf_id).unwrap();
++        let mut foreign_module = crate::ir::Module::default();
++        let foreign_id = foreign_module.retain_procedure(procedure.clone());
++        foreign_key.procedures.insert(foreign_id, procedure);
+         let summaries = super::procedures_complete(&foreign_key, context.commands(), &|_, _| true);
+-        assert!(!summaries["::other"]);
+-        assert!(!summaries["::p"]);
++        assert!(!summaries[&foreign_id]);
++        assert!(!summaries[&p_id]);
+         let foreign =
+             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+-        assert!(!super::procedures_complete(module, foreign.commands(), &|_, _| true)["::p"]);
++        assert!(!super::procedures_complete(module, foreign.commands(), &|_, _| true)[&p_id]);
+         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+             let context = tcl_registry::model::ingress::resolve_environment(dialect)
+                 .default_context_registry();
+@@ -854,7 +906,10 @@
+                 module.parameter_grammar(),
+                 Some(tcl_dialect::ParameterGrammar::Jim)
+             );
+-            let procedure = &module.procedures["::p"];
++            let procedure = module
++                .procedures
++                .get(&fixture_id(&module.procedures, "::p"))
++                .unwrap();
+             let shape = crate::registry_invocation::original_procedure_formal_count_shape(
+                 module,
+                 procedure,
+@@ -876,7 +931,8 @@
+             "proc p {{a(k)}} {return $a(k)}",
+         ] {
+             let (context, unit) = logical_unit(source, "jim");
+-            let procedure = &unit.ir_module.procedures["::p"];
++            let p_id = fixture_id(&unit.ir_module.procedures, "::p");
++            let procedure = unit.ir_module.procedures.get(&p_id).unwrap();
+             assert!(
+                 crate::registry_invocation::original_procedure_scalar_bindings(
+                     &unit.ir_module,
+@@ -886,7 +942,8 @@
+                 .is_none()
+             );
+             assert!(
+-                !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)["::p"]
++                !super::procedures_complete(&unit.ir_module, context.commands(), &|_, _| true,)
++                    [&p_id]
+             );
+         }
+     }
+diff --git a/rust/tcl-compiler/src/interprocedural/transfer.rs b/rust/tcl-compiler/src/interprocedural/transfer.rs
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -2495,10 +2495,26 @@
+     /// The transfer summaries the build of `source` computes under the
+     /// `environment` profile.
+     fn summaries(source: &str, environment: &str) -> HashMap<String, TransferSummary> {
+-        crate::interprocedural::logical_completion_unit(source, environment)
+-            .1
+-            .transfers
+-            .0
++        let (_, unit) = crate::interprocedural::logical_completion_unit(source, environment);
++        fixture_transfer_labels(&unit.ir_module, unit.transfers.0)
++    }
++
++    fn fixture_transfer_labels(
++        module: &crate::ir::Module,
++        rows: HashMap<crate::ir::ProcedureId, TransferSummary>,
++    ) -> HashMap<String, TransferSummary> {
++        let mut shown = HashMap::new();
++        for (id, summary) in rows {
++            let body = module
++                .procedures
++                .get(&id)
++                .expect("actual transfer fixture body");
++            assert!(
++                shown.insert(body.qualified_name.clone(), summary).is_none(),
++                "authored transfer fixture labels must be unique"
++            );
++        }
++        shown
+     }
+ 
+     /// The summaries of `source` with a cycle given at most `rounds` rounds.
+@@ -2511,7 +2527,7 @@
+             &unit.command_mutations,
+             registry,
+         );
+-        ModuleProcedures::with_rounds(
++        let summaries = ModuleProcedures::with_rounds(
+             ModuleInputs {
+                 ir: &unit.ir_module,
+                 cfg: &unit.cfg_module,
+@@ -2525,7 +2541,8 @@
+             rounds,
+         )
+         .into_summaries()
+-        .0
++        .0;
++        fixture_transfer_labels(&unit.ir_module, summaries)
+     }
+ 
+     const CALLEES: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
+diff --git a/rust/tcl-compiler/src/optimiser/unused_procs.rs b/rust/tcl-compiler/src/optimiser/unused_procs.rs
+--- a/rust/tcl-compiler/src/optimiser/unused_procs.rs
++++ b/rust/tcl-compiler/src/optimiser/unused_procs.rs
+@@ -179,23 +179,42 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    use crate::interprocedural::test_body_identity::{edge_labels, fixture_id};
+     use std::collections::HashMap;
+ 
+     use super::*;
+     use crate::interprocedural::{InterproceduralAnalysis, ProcSummary};
+ 
+-    fn summary_with_calls(name: &str, calls: &[&str], barrier: bool) -> ProcSummary {
++    fn summary_with_calls(
++        name: &str,
++        calls: &[crate::ir::ProcedureId],
++        barrier: bool,
++    ) -> ProcSummary {
+         let mut s = ProcSummary::unknown(name);
+-        s.calls = calls.iter().map(|c| (*c).to_owned()).collect();
++        s.calls = calls.to_vec();
+         s.has_barrier = barrier;
+         s
+     }
+ 
+     fn ip_with(procs: &[(&str, &[&str], bool)]) -> InterproceduralAnalysis {
++        let issuer = crate::ir::Module::default().procedure_ids;
++        let ids: HashMap<_, _> = procs
++            .iter()
++            .map(|(name, _, _)| (*name, issuer.allocate()))
++            .collect();
++        assert_eq!(
++            ids.len(),
++            procs.len(),
++            "synthetic analytical fixture labels are unique"
++        );
+         let mut ip = InterproceduralAnalysis::default();
+         for (name, calls, barrier) in procs {
++            let edges: Vec<_> = calls
++                .iter()
++                .map(|name| *ids.get(name).expect("fixture callee declared"))
++                .collect();
+             ip.procedures
+-                .insert((*name).into(), summary_with_calls(name, calls, *barrier));
++                .insert(ids[name], summary_with_calls(name, &edges, *barrier));
+         }
+         ip
+     }
+@@ -218,12 +237,14 @@
+             ("::b", &[], false),
+             ("::unused", &[], false),
+         ]);
+-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
++        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
++            .into_iter()
++            .collect();
+         let reached = reachable_procs(&roots, &ip);
+-        assert!(reached.contains("::when::HTTP_REQUEST"));
+-        assert!(reached.contains("::a"));
+-        assert!(reached.contains("::b"));
+-        assert!(!reached.contains("::unused"));
++        assert!(reached.contains(&fixture_id(&ip.procedures, "::when::HTTP_REQUEST")));
++        assert!(reached.contains(&fixture_id(&ip.procedures, "::a")));
++        assert!(reached.contains(&fixture_id(&ip.procedures, "::b")));
++        assert!(!reached.contains(&fixture_id(&ip.procedures, "::unused")));
+     }
+ 
+     #[test]
+@@ -233,7 +254,9 @@
+             ("::a", &["::b"], false),
+             ("::b", &["::a"], false),
+         ]);
+-        let roots: HashSet<String> = ["::when::HTTP_REQUEST".to_string()].into_iter().collect();
++        let roots: HashSet<_> = [fixture_id(&ip.procedures, "::when::HTTP_REQUEST")]
++            .into_iter()
++            .collect();
+         let reached = reachable_procs(&roots, &ip);
+         assert_eq!(reached.len(), 3);
+     }
+@@ -289,7 +312,17 @@
+         )
+         .commands();
+         let cu = CompilationUnit::build_for(source, registry, false);
+-        let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
++        let mut actual = InterproceduralAnalysis::default();
++        for (id, summary) in &ip.procedures {
++            let body_id = fixture_id(&cu.ir_module.procedures, &summary.qualified_name);
++            let mut bound = summary.clone();
++            bound.calls = edge_labels(&ip, &ip.procedures[id].calls)
++                .iter()
++                .map(|label| fixture_id(&cu.ir_module.procedures, label))
++                .collect();
++            actual.procedures.insert(body_id, bound);
++        }
++        let mut ctx = PassContext::with_dialect(&cu.source, actual, dialect);
+         run(&mut ctx, &cu);
+         ctx.optimisations
+     }
+@@ -438,6 +471,9 @@
+     // + `has_barrier`).
+     #[test]
+     fn param_traits_ignored_by_pass() {
++        let issuer = crate::ir::Module::default().procedure_ids;
++        let foo_id = issuer.allocate();
++        let event_id = issuer.allocate();
+         let mut ip = InterproceduralAnalysis::default();
+         let mut s = summary_with_calls("::foo", &[], false);
+         s.param_traits.insert(
+@@ -446,13 +482,13 @@
+                 .into_iter()
+                 .collect(),
+         );
+-        ip.procedures.insert("::foo".into(), s);
++        ip.procedures.insert(foo_id, s);
+         // Force-use the HashMap import the outer module expects.
+         let _scratch = HashMap::<&str, i32>::new();
+ 
+         let source = "proc ::foo {x} { return $x }\nwhen HTTP_REQUEST { set x 0 }\n";
+         ip.procedures.insert(
+-            "::when::HTTP_REQUEST".into(),
++            event_id,
+             summary_with_calls("::when::HTTP_REQUEST", &[], false),
+         );
+         let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);

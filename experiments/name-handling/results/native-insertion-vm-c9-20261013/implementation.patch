@@ -1,0 +1,240 @@
+--- a/rust/tcl-bytecode/src/lib.rs
++++ b/rust/tcl-bytecode/src/lib.rs
+@@ -393,6 +393,8 @@
+     UPLEVEL,
+     NSUPVAR,
+     LREPLACE4,
++    /// C9.1 original List replacement with counted operands and flags.
++    LREPLACE,
+     OVER,
+     LSET_FLAT,
+     LSET_LIST,
+@@ -674,6 +676,7 @@
+             Self::LSET_FLAT => "lsetFlat",
+             Self::LSET_LIST => "lsetList",
+             Self::LREPLACE4 => "lreplace4",
++            Self::LREPLACE => "lreplace",
+             Self::LOAD_SCALAR1 => "loadScalar1",
+             Self::LOAD_SCALAR4 => "loadScalar4",
+             Self::STORE_SCALAR1 => "storeScalar1",
+@@ -1089,7 +1092,11 @@
+             | Self::EXPAND_STKTOP => 5,
+ 
+             // 6-byte
+-            Self::INVOKE_REPLACE | Self::LREPLACE4 | Self::UNSET_SCALAR | Self::UNSET_ARRAY => 6,
++            Self::INVOKE_REPLACE
++            | Self::LREPLACE4
++            | Self::LREPLACE
++            | Self::UNSET_SCALAR
++            | Self::UNSET_ARRAY => 6,
+ 
+             // 9-byte: opcode + 2× 4-byte operands
+             Self::LIST_RANGE_IMM
+@@ -1321,6 +1328,9 @@
+     pub native_list_index: Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>,
+     /// Original C inclusive range coordinates, independent of portable `INDEX_END`.
+     pub native_list_range: Option<tcl_syntax::native_compiled_index::NativeCompiledListRange>,
++    /// Original C9 insertion worker, distinct from logical List replacement.
++    pub native_list_insertion:
++        Option<tcl_runtime_api::native_list_insertion::NativeListInsertionInstruction>,
+     /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
+     /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
+     /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
+@@ -1409,6 +1419,7 @@
+             native_each: None,
+             native_list_index: None,
+             native_list_range: None,
++            native_list_insertion: None,
+             foreach_collect: false,
+             dict_vars: None,
+             push_verbatim: false,
+@@ -3154,6 +3165,7 @@
+                 Op::UPLEVEL => (Op::UPLEVEL.mnemonic(), Op::UPLEVEL.size()),
+                 Op::NSUPVAR => (Op::NSUPVAR.mnemonic(), Op::NSUPVAR.size()),
+                 Op::LREPLACE4 => (Op::LREPLACE4.mnemonic(), Op::LREPLACE4.size()),
++                Op::LREPLACE => (Op::LREPLACE.mnemonic(), Op::LREPLACE.size()),
+                 Op::OVER => (Op::OVER.mnemonic(), Op::OVER.size()),
+                 Op::LSET_FLAT => (Op::LSET_FLAT.mnemonic(), Op::LSET_FLAT.size()),
+                 Op::LSET_LIST => (Op::LSET_LIST.mnemonic(), Op::LSET_LIST.size()),
+@@ -3400,6 +3412,7 @@
+             Op::UPLEVEL,
+             Op::NSUPVAR,
+             Op::LREPLACE4,
++            Op::LREPLACE,
+             Op::OVER,
+             Op::LSET_FLAT,
+             Op::LSET_LIST,
+--- a/rust/tcl-vm/src/exec.rs
++++ b/rust/tcl-vm/src/exec.rs
+@@ -41,6 +41,7 @@
+ #[cfg(test)]
+ #[path = "exec/native_list_index_tests.rs"]
+ mod native_list_index_tests;
++mod native_list_insertion;
+ #[cfg(test)]
+ #[path = "exec/native_list_operations_tests.rs"]
+ mod native_list_operations_tests;
+@@ -5789,6 +5790,36 @@
+             // Inline `lreplace`/`linsert` (C Tcl `INST_LREPLACE4`). Operands:
+             // [argc, mode] where mode 1 = lreplace, 2 = linsert. Stack holds
+             // `argc` values in push order: list, index arg(s), then elements.
++            Op::LREPLACE4 | Op::LREPLACE if instr.native_list_insertion.is_some() => {
++                let count = match usize::try_from(imm0(instr)) {
++                    Ok(count) if count >= 2 && count <= f.stack.len() && imm_at(instr, 1) == 2 => {
++                        count
++                    }
++                    _ => {
++                        return Tick::Return(
++                            self.refuse_host_command("original List insertion stack layout".into()),
++                        );
++                    }
++                };
++                let operands = f.stack.split_off(f.stack.len() - count);
++                match self.execute_native_list_insertion(
++                    operands,
++                    instr.native_list_insertion.unwrap(),
++                    instr.op,
++                ) {
++                    Ok(value) => f.stack.push(value),
++                    Err(error) => {
++                        return Tick::Return(crate::command::completion_from_cmd_error(
++                            self, error,
++                        ));
++                    }
++                }
++            }
++            Op::LREPLACE => {
++                return Tick::Return(
++                    self.refuse_host_command("original List insertion recipe unavailable".into()),
++                );
++            }
+             Op::LREPLACE4 => {
+                 let argc = usize::try_from(imm0(instr)).unwrap_or(0);
+                 let mode = imm_at(instr, 1);
+--- /dev/null
++++ b/rust/tcl-vm/src/exec/native_list_insertion.rs
+@@ -0,0 +1,89 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Original C9 insertion preserves getter order and the selected List header.
++
++use super::{NativeOperationScope, Op, Value, Vm};
++use crate::interp::native_numeric_ops::OriginalNumericOps;
++use tcl_cmd_core::CmdError;
++use tcl_registry::native_list_operations_compilation::NativeListInsertionInstruction;
++use tcl_syntax::value::ValueError;
++
++impl Vm {
++    pub(super) fn execute_native_list_insertion(
++        &mut self,
++        mut operands: Vec<Value>,
++        instruction: NativeListInsertionInstruction,
++        opcode: Op,
++    ) -> Result<Value, CmdError> {
++        let version = match (instruction, opcode) {
++            (NativeListInsertionInstruction::ReplaceFour, Op::LREPLACE4) => {
++                tcl_dialect::TclVersion::V9_0
++            }
++            (NativeListInsertionInstruction::Replace, Op::LREPLACE) => {
++                tcl_dialect::TclVersion::V9_1
++            }
++            _ => {
++                return Err(ValueError::CommandProtocolUnavailable(
++                    "original List insertion opcode",
++                )
++                .into());
++            }
++        };
++        if self.actual_native_invocation_dialect().tcl_version != Some(version) {
++            return Err(
++                ValueError::CommandProtocolUnavailable("original List insertion release").into(),
++            );
++        }
++        let scope = NativeOperationScope::enter(self)?;
++        let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
++        let protocol = numeric.dialect().native_string_protocol().ok_or(
++            ValueError::CommandProtocolUnavailable("original List insertion issuer"),
++        )?;
++        let original = operands.remove(0);
++        let index = operands.remove(0);
++        let reached = (|| {
++            let length = numeric.list(&original, protocol)?.len();
++            let end = i64::try_from(length).map_err(|_| {
++                ValueError::CommandProtocolUnavailable("original List insertion length")
++            })?;
++            let at = numeric
++                .with_vm_for_value(&index, |vm| {
++                    tcl_cmd_core::native_list_index::original_index_using(
++                        vm, &index, end, true, None,
++                    )
++                })?
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "original List insertion coordinate",
++                ))?;
++            numeric.current_for_value(&original)?;
++            let at = usize::try_from(at.max(0)).unwrap_or(length).min(length);
++            let result = if original.native_object_is_shared() {
++                original.duplicate_native_object_checked(
++                    protocol,
++                    &mut || numeric.current_for_value(&original),
++                    &mut |value| numeric.string(value, protocol),
++                    &mut |error| numeric.retain_failure(error),
++                )?
++            } else {
++                original
++            };
++            for value in &operands {
++                numeric.current_for_value(value)?;
++            }
++            result.native_list_replace_prepared_range_checked(
++                at,
++                0,
++                &operands,
++                protocol,
++                &mut || numeric.current_for_value(&result),
++                &mut |value| numeric.string(value, protocol),
++            )?;
++            numeric.current_for_value(&result)?;
++            Ok(result)
++        })();
++        if let Err(first) = &reached {
++            numeric.retain_failure(first);
++        }
++        numeric.current()?;
++        reached
++    }
++}
+--- a/rust/tcl-runtime-api/src/lib.rs
++++ b/rust/tcl-runtime-api/src/lib.rs
+@@ -48,6 +48,7 @@
+ /// Independent supported-backend C ABI issuance for native hash owners.
+ pub mod native_c_string_abi;
+ pub mod native_hash_abi;
++pub mod native_list_insertion;
+ pub mod native_return_literal;
+ 
+ pub mod native_each_loop;
+--- /dev/null
++++ b/rust/tcl-runtime-api/src/native_list_insertion.rs
+@@ -0,0 +1,22 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Original C9 List insertion operation carried between compiler and backend.
++
++/// Actual C9 insertion instruction selected by the native release.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum NativeListInsertionInstruction {
++    /// C9.0 consumes the original list, index and counted replacement objects.
++    ReplaceFour,
++    /// C9.1 consumes the original list/index and counted replacement objects.
++    Replace,
++}
++
++impl NativeListInsertionInstruction {
++    /// Exact native disassembly operation; this does not grant execution.
++    #[must_use]
++    pub const fn opcode_name(self) -> &'static str {
++        match self {
++            Self::ReplaceFour => "lreplace4",
++            Self::Replace => "lreplace",
++        }
++    }
++}

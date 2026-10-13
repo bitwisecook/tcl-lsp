@@ -965,6 +965,8 @@ pub fn next_provider(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
 
     fn source_name(written: &str) -> Option<crate::signature_scan::scope::SignatureSourceCommand> {
@@ -1479,7 +1481,13 @@ mod tests {
             collect_assign_kinds(unit, &index, &namespace, input.lexer_config())
         };
         assert_eq!(query(&unit)["target"], vec![AssignKind::Introspection]);
-        let original = unit.ir_module.procedures["::owner"].body.clone();
+        let original = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
+            .expect("authored fixture body")
+            .body
+            .clone();
         let older = std::sync::Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(std::sync::Arc::clone(registry)),
@@ -1506,7 +1514,14 @@ mod tests {
         ] {
             unit.ir_module.source_metadata_input = withheld;
             assert!(query(&unit).is_empty());
-            assert_eq!(unit.ir_module.procedures["::owner"].body, original);
+            assert_eq!(
+                unit.ir_module
+                    .procedures
+                    .get(&fixture_id(&unit.ir_module.procedures, "::owner"))
+                    .expect("authored fixture body")
+                    .body,
+                original
+            );
         }
     }
 }

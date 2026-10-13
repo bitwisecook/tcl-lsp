@@ -1,0 +1,32 @@
+{
+  "owners": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": "673f05d297d922a43bccd029e500ea08dfba0395ebb05ea4f79648b378773da9",
+      "after_sha256": "959c2252332b648191ad113cb11b9bc5570a3a1ca1e90d937920ee9e6c8e52c9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "before_sha256": null,
+      "after_sha256": "cb14aa6e8561d19bbc5b99a6f349acd69494681d5237d28c9539fea93a0e750c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/body_template.rs",
+      "before_sha256": "a05a3bf2645ddc724dc87e622aa1782baece91bb4c5f9c0e1fed649b787d24c9",
+      "after_sha256": "0fe5e423f29436074681e3a12c96a1b04d97f1745f258231532b0b87375e4414"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "648bc1b141ca9556c6fa4b32d6824c3c4977b5ac68da236e280cce806aa34008",
+      "after_sha256": "6984f0d1414a950271b4d5ecda21dffcde1a37cafe2039cb58afac5cb0a8671f"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "afda271a69343987c969d3cdb35d10386e988aa0aab79566f26b71d4276fb189",
+      "after_sha256": "27befd7e7ae7ddd6f2f1db9277b1839988427a122e4764d24cbbe3eb205d8bdc"
+    }
+  ],
+  "patch_sha256": "ad40c66c46093460abb32e88572a3fc7a9c3c2a5a560e2506a3dec9b37017dfd",
+  "validation": "rustfmt only, uncompiled, no Cargo lease",
+  "limits": "private comparison-only guarded Logical registry lookups; Native guards unchanged; no memo result precomputation; original memo reuse and edit/corpus assertions unexecuted"
+}

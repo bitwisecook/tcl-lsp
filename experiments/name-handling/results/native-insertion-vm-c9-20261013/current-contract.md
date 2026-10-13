@@ -1,0 +1,7 @@
+# Original C9 list insertion
+
+Compiler insertion carries a shared transport instruction selected by the Registry's original compiler recipe. C9.0 emits `lreplace4`; C9.1 emits `lreplace`. Both retain the original list, original index and inserted original objects in source evaluation order, then use the counted argument operand and single-index flag 2. Registry, Bytecode, VM and raw Runtime share the operation type; memory and object-header owners remain backend-specific.
+
+The VM selected worker rejects another operation/opcode/release or an invalid physical stack. It enters the genuine original operation, reaches the original List getter before `original_index_using` with end equal to length, then samples actual header sharing. Shared source headers use checked genuine duplication; unshared headers remain the same object. Replacement uses the existing checked native List mutation owner, and getter/retirement/mutation refusals preserve the first host cause. Logical List replacement supplies no native fallback.
+
+The original source authorities are `tcl9.0.4/generic/tclCompCmdsGR.c` TclCompileLinsertCmd, `tcl9.1.0/generic/tclCompCmdsGR.c` TclCompileLinsertCmd, and the original `INST_LREPLACE4`/`INST_LREPLACE` branches in each version's `tclExecute.c`. Retained generated oracle inputs and result/original-header windows live in `rust/tcl-registry/tests/data/native_list_operations`. Fourteen exact C9 windows are required independently for VM and raw Runtime; no compiled or executed acceptance has yet been recorded for this source.

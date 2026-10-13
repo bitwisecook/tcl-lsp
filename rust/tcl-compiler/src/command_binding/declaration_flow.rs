@@ -2617,6 +2617,8 @@ fn strict_expression_owner(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     #[test]
@@ -3106,7 +3108,9 @@ mod tests {
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
                 source, registry, false, profile,
             );
-            let procedure = unit.ir_module.procedures.get("::f").unwrap();
+            let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::f")
+                .and_then(|id| unit.ir_module.procedures.get(&id))
+                .unwrap();
             let image = tcl_lexer::SourceImage::document(source);
             let report = bindings
                 .original_procedure_declaration_flow(procedure, &image, registry)

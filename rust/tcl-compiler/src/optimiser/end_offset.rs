@@ -672,6 +672,8 @@ fn try_end_offset_from_length_expr(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
     use crate::interprocedural::InterproceduralAnalysis;
     use tcl_registry::CommandRegistry;
@@ -694,7 +696,10 @@ mod tests {
         let source = "\u{feff}proc p {} {\u{feff}unknown argument}\nset outside 1";
         let unit = CompilationUnit::build_for_with_config(source, &reg, false, config);
         assert_eq!(unit.ir_module.lexer_config, config);
-        let body = &unit.ir_module.procedures.get("::p").unwrap().body;
+        let body = &fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .unwrap()
+            .body;
         let mut spans = Vec::new();
         collect_statement_spans(body, &mut spans, 0);
         let (span, script, tokens) = spans

@@ -1,0 +1,40 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:27:34.776680+00:00",
+  "finished_utc": "2026-10-13T23:27:58.347179+00:00",
+  "exit_code": 101,
+  "seconds": 23.570496756998182,
+  "source_paths": 34652,
+  "changed_sources": {},
+  "errors": [
+    "error[E0433]: cannot find type `TclVersion` in this scope\n    --> rust/tcl-registry/src/native_instruction_plan.rs:1053:63\n     |\n1053 |         NativeCompilationGrammar::ListInsertion if version == TclVersion::V8_6 => {\n     |                                                               ^^^^^^^^^^ use of undeclared type `TclVersion`\n     |\nhelp: there is an enum variant `crate::pack_hooks::HookInput::TclVersion`; try using the variant's enum\n     |\n1053 -         NativeCompilationGrammar::ListInsertion if version == TclVersion::V8_6 => {\n1053 +         NativeCompilationGrammar::ListInsertion if version == crate::pack_hooks::HookInput::V8_6 => {\n     |\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

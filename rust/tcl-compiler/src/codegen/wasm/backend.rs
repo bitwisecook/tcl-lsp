@@ -2860,6 +2860,8 @@ fn start_function(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id_if_present;
+
     use super::*;
 
     /// Plan the top-level statements of `source` under the full analysed tier.
@@ -3241,7 +3243,9 @@ mod tests {
             config,
             tcl_dialect::DialectProfile::find("tcl8.5").unwrap(),
         );
-        let function = unit.procedures.get("::p").unwrap();
+        let function = fixture_id_if_present(&unit.procedures, "::p")
+            .and_then(|id| unit.procedures.get(&id))
+            .unwrap();
         assert_eq!(function.source_lexer_config(), config.nested().normalized());
         assert_eq!(
             function.source_metadata_input().unwrap().lexer_config(),
@@ -3322,10 +3326,8 @@ mod tests {
             &registry,
             false,
         );
-        let procedure = unit
-            .ir_module
-            .procedures
-            .get("::p")
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
             .expect("the inner definition survives as a procedure");
         assert_eq!(
             procedure.body_source.as_deref(),
@@ -3334,7 +3336,9 @@ mod tests {
              body, else this proves nothing",
         );
 
-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the enclosing body");
         let definition = proc_statement_tokens(enclosing)
             .into_iter()
             .find(|(span, _)| *span == procedure.span)
@@ -3370,8 +3374,12 @@ mod tests {
             "proc make {} { proc p {x} {return $x} }; make\n",
             tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
         );
-        let procedure = unit.ir_module.procedures.get("::p").expect("procedure");
-        let enclosing = unit.procedures.get("::make").expect("the enclosing body");
+        let procedure = fixture_id_if_present(&unit.ir_module.procedures, "::p")
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .expect("procedure");
+        let enclosing = fixture_id_if_present(&unit.procedures, "::make")
+            .and_then(|id| unit.procedures.get(&id))
+            .expect("the enclosing body");
         let definition = proc_statement_tokens(enclosing)
             .into_iter()
             .find(|(span, _)| *span == procedure.span)

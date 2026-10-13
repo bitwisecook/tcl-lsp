@@ -2589,6 +2589,8 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     #[test]
     fn direct_formals_consume_native_activation_plan() {
         use tcl_dialect::ParameterGrammar;
@@ -2785,7 +2787,11 @@ mod tests {
                 if procedures.as_slice() == [procedure.clone()]));
         assert!(
             crate::native_compilation_admission::script_requires_admission(
-                &module.procedures["::p"].body
+                module
+                    .procedures
+                    .get(&fixture_id(&module.procedures, "::p"))
+                    .expect("authored fixture body")
+                    .body
             )
         );
         let plan = CommonAotProofPlan::build_with_retained_metadata(
@@ -2940,7 +2946,10 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let unit = native_unit("proc p {x y} {return $x}; p FIRST SECOND", context);
         let module = &unit.ir_module;
-        let procedure = &module.procedures["::p"];
+        let procedure = module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::p"))
+            .expect("authored fixture body");
         let entry = module.source_entry.native_entry.as_deref().unwrap();
         assert!(entry.compiled_local_layout.is_none());
         let receipt = OriginalDeclaredProcedureArgumentSlots::from_module(module, procedure)
@@ -2996,7 +3005,11 @@ mod tests {
         ] {
             let source = format!("proc p {{{formals}}} {{{body}}}; p {arguments}");
             let unit = native_unit(&source, std::sync::Arc::clone(&context));
-            let procedure = &unit.ir_module.procedures["::p"];
+            let procedure = unit
+                .ir_module
+                .procedures
+                .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+                .expect("authored fixture body");
             let original = procedure.body.executed_source.as_ref().unwrap();
             assert_eq!(original.text.bytes(), body.as_bytes());
             assert!(
@@ -3034,7 +3047,11 @@ mod tests {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
         let unit = native_unit("proc p {x} {}; p VALUE", std::sync::Arc::clone(&context));
-        let procedure = &unit.ir_module.procedures["::p"];
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         assert!(procedure.body.statements.is_empty());
         assert!(!crate::native_compilation_admission::script_requires_admission(&procedure.body));
         let plan = CommonAotProofPlan::build_with_retained_metadata(
@@ -3093,11 +3110,12 @@ mod tests {
         let mut missing_caller = unit.clone();
         missing_caller.top_level.source_metadata_input = None;
         let mut missing_callee = unit.clone();
-        missing_callee
-            .procedures
-            .get_mut("::p")
-            .unwrap()
-            .source_metadata_input = None;
+        {
+            let id = fixture_id(&missing_callee.procedures, "::p");
+            missing_callee.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .source_metadata_input = None;
         let mut stale_grammar = unit.clone();
         stale_grammar.top_level.source_config.expand_syntax =
             !stale_grammar.top_level.source_config.expand_syntax;
@@ -3198,7 +3216,10 @@ mod tests {
             "proc p {x} {return $x}; proc q {x} {return [p $x]}; list {[p VALUE]}",
             context,
         );
-        let function = &unit.procedures["::q"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::q"))
+            .expect("authored fixture body");
         let candidates = call_sites("::q", function, function.source_lexer_config());
         let nested = candidates
             .iter()
@@ -3245,8 +3266,15 @@ mod tests {
             "proc p {x y} {return [expr {$x+$y}]}",
             std::sync::Arc::clone(&context),
         );
-        let function = &unit.procedures["::p"];
-        let procedure = &unit.ir_module.procedures["::p"];
+        let function = unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body");
+        let procedure = unit
+            .ir_module
+            .procedures
+            .get(&fixture_id(&unit.ir_module.procedures, "::p"))
+            .expect("authored fixture body");
         let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
         let operations = original_direct_expression_body_operations(
             registry,
@@ -3292,12 +3320,19 @@ mod tests {
             "proc p {x y} {return [expr {$x+[unknown]}]}",
         ] {
             let changed = logical_unit(source, std::sync::Arc::clone(&context));
-            let function = &changed.procedures["::p"];
+            let function = changed
+                .procedures
+                .get(&fixture_id(&changed.procedures, "::p"))
+                .expect("authored fixture body");
             assert!(
                 original_direct_expression_body_operations(
                     registry,
                     function.invocation_metadata_context_for_module(registry, &changed.ir_module),
-                    &changed.ir_module.procedures["::p"],
+                    changed
+                        .ir_module
+                        .procedures
+                        .get(&fixture_id(&changed.ir_module.procedures, "::p"))
+                        .expect("authored fixture body"),
                     function.source_lexer_config(),
                 )
                 .is_none(),
@@ -3329,12 +3364,13 @@ mod tests {
             false,
             "tcl9.0",
         );
-        unit.ir_module
-            .procedures
-            .get_mut("::p")
-            .unwrap()
-            .body
-            .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+        {
+            let id = fixture_id(&unit.ir_module.procedures, "::p");
+            unit.ir_module.procedures.get_mut(&id)
+        }
+        .unwrap()
+        .body
+        .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
             source: None,
             failure: None,
             provider_required: true,
@@ -3388,7 +3424,10 @@ mod tests {
     }
 
     fn original_formal_diagnostics(unit: &CompilationUnit, function: &str) -> String {
-        let function = &unit.procedures[function];
+        let function = &unit
+            .procedures
+            .get(&fixture_id(&unit.procedures, function))
+            .expect("authored fixture body");
         let mut rows = vec![format!("SSA cells: {:?}", function.ssa.cell_keys())];
         if let Some(points) = &function.ssa.point_contexts {
             for (&block, body) in &function.cfg.blocks {

@@ -1,0 +1,20 @@
+{
+  "patch_sha256": "c2b828ff18aee0e14e648b402265b849454b1cae53522fbadc2494acab666aa1",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "26ecbda45ac2be0a4f31ac8cc713eb1ca025c3d3d912eb8d5bc68dad0d777331",
+      "after_sha256": "07c8195538c4652e5c72bb2405f5ace2dadc1c3e07e72458616b9cafe41ba4d5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "33cc2c3ccd2b2bd38a90e13aadb1c3d4ed8502ce50e4ff6dce7d8afff2a37e11",
+      "after_sha256": "9ab25139d88f13ba54ab89ededb68badeee687b5697cb00b5e5e98de2035cd45"
+    }
+  ],
+  "rust_status": "unexecuted",
+  "dependencies": [
+    "06ade936 dict value write invalidation"
+  ],
+  "test": "analyser::handlers::tests::logical_dictionary_write_invalidates_interpreter_handle_provenance"
+}

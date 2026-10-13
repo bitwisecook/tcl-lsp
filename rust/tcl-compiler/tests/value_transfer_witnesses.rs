@@ -9027,7 +9027,8 @@ fn o103_summary_path_folds_a_computed_return() {
         let registry = static_context_for(dialect).commands();
         let profile = resolve_environment(dialect).analyser_profile();
         let mut unit = summarised_unit(source, dialect);
-        unit.procedures.remove("::p");
+        let p_id = fixture_id(&unit.ir_module.procedures, "::p");
+        unit.procedures.remove(&p_id);
         let folds = optimise_unit(&unit, registry, Some(profile));
         assert!(
             folds.iter().any(|fold| fold.code == DiagCode::O103

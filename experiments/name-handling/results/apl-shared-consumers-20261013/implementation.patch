@@ -1,0 +1,882 @@
+--- /dev/null
++++ b/docs/work/name-handling/apl-name-consumers.md
+@@ -0,0 +1,9 @@
++# APL variable names
++
++The APL convention owner in `tcl-bigip::apl::variable_names` serves the public converters, model export reports and iApp source diagnostics. It projects dotted presentation fields to double-underscore variable labels. Reverse projection uses shared counted colon geometry, preserves lone-colon data, and declines namespace-qualified roots and empty simple components. Actual reference extraction requires an explicit root marker; relative convention-like reads cannot establish an appliance global and leave absence coverage partial. Conventional rooted export strings are reports; they do not establish source addressability, native variable cells or appliance publication.
++
++Configured extraction consumes `tcl-irules::original_hosted_source_variable_references` under the original selected profile, Registry context and full LexerConfig. The existing analyser retains genuine original words and Registry source-body roles. Original lexical components and selected expression syntax supply reference spans. Comments, escaped dollars and inert braced data are not substitution reads; arbitrary braced words are not entered as scripts.
++
++`IappSourceReferences` separates positive candidates from absence coverage. The current closure covers valid flat source with original selected cell routes and no unknown/computed/nested entry. Positive original candidates can still inform undefined-field diagnostics when source coverage is partial. Unused-field diagnostics require `complete_references`; a missing implementation, unknown source route or partial coverage does not prove a field is unused. LSP sibling-source and BIG-IP report callers pass the registered `f5-iapps` profile/context/config; report evidence records partial source when absence coverage is unavailable. The slice-returning convenience extractor is a compatibility report of positive candidates, without a coverage guarantee.
++
++Original C Tcl 8.4–9.1 and latest Jim source controls are retained in `experiments/name-handling/apl-source-variable-geometry`. The BIG-IP publication questions are in `experiments/name-handling/apl-source-variable-geometry/f5-questions.md`. Source geometry tests do not establish iApp export rules; appliance result documents must retain actual declaration, input, interpreter/context, status and output before those rules become conformance tests.
+--- a/rust/bigip-report-gen/rust/src/model.rs
++++ b/rust/bigip-report-gen/rust/src/model.rs
+@@ -91,22 +91,39 @@
+     } else {
+         None
+     };
+-    match (presentation, implementation, peer.is_some()) {
+-        (true, false, true) => serde_json::json!({
++    let implementation_source = if presentation {
++        peer
++    } else if implementation {
++        sources
++            .iter()
++            .find(|(source_uri, _)| source_uri == uri)
++            .map(|(_, source)| source.as_str())
++    } else {
++        None
++    };
++    let covered = implementation_source
++        .map(configured_iapp_source_references)
++        .is_some_and(|references| references.complete_references().is_some());
++    match (presentation, implementation, peer.is_some(), covered) {
++        (true, false, true, true) => serde_json::json!({
+             "state": "complete",
+             "message": "Presentation and implementation were supplied; cross-file iApp checks are complete.",
+         }),
+-        (true, false, false) => serde_json::json!({
++        (true, false, false, _) => serde_json::json!({
+             "state": "presentation_only",
+             "message": "Only the iApp presentation was supplied; implementation-reference checks (IAPP7001 and IAPP7002) could not be evaluated.",
+         }),
+-        (false, true, true) => serde_json::json!({
++        (false, true, true, true) => serde_json::json!({
+             "state": "complete",
+             "message": "Implementation and presentation were supplied; cross-file iApp checks are complete.",
+         }),
+-        (false, true, false) => serde_json::json!({
++        (false, true, false, _) => serde_json::json!({
+             "state": "implementation_only",
+             "message": "Only the iApp implementation was supplied; presentation-field checks (IAPP7001) could not be evaluated.",
++        }),
++        (_, _, true, false) => serde_json::json!({
++            "state": "partial_source",
++            "message": "Both files were supplied; unknown source entry or naming leaves unused-field checks unavailable.",
+         }),
+         _ => J::Null,
+     }
+@@ -146,23 +163,34 @@
+ /// every IAPP7001–7003 check offline; partial input remains explicit through
+ /// [`collect_iapp_diagnostic_evidence`].
+ #[must_use]
++fn configured_iapp_source_references(source: &str) -> tcl_bigip::apl::IappSourceReferences {
++    let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");
++    tcl_bigip::apl::extract_iapp_var_refs_with_context(
++        source,
++        environment.analyser_profile(),
++        environment.default_context_registry(),
++        tcl_lexer::LexerConfig::from_grammar(environment.grammar()),
++    )
++}
++
+ pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -> J {
+     let mut diagnostics = tcl_bigip::validator::validate_bigip_source(source, "Common");
+     if is_iapp_presentation_uri(uri) {
+         let model = tcl_bigip::apl::parse_apl(source);
+-        let refs = iapp_peer(uri, sources, true).map(tcl_bigip::apl::extract_iapp_var_refs);
++        let refs = iapp_peer(uri, sources, true).map(configured_iapp_source_references);
+         diagnostics.extend(tcl_bigip::apl::validate_iapp_presentation(
+             &model,
+-            refs.as_deref(),
++            refs.as_ref()
++                .and_then(tcl_bigip::apl::IappSourceReferences::complete_references),
+             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
+         ));
+     } else if is_iapp_implementation_uri(uri)
+         && let Some(presentation) = iapp_peer(uri, sources, false)
+     {
+         let model = tcl_bigip::apl::parse_apl(presentation);
+-        let refs = tcl_bigip::apl::extract_iapp_var_refs(source);
++        let refs = configured_iapp_source_references(source);
+         diagnostics.extend(tcl_bigip::apl::validate_iapp_implementation(
+-            &refs,
++            refs.references(),
+             Some(&model),
+             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
+         ));
+@@ -2418,6 +2446,30 @@
+     }
+ 
+     #[test]
++    fn iapp_source_obligations_withdraw_unused_field_claims() {
++        let sources = vec![
++            (
++                "memory://iapp/presentation.apl".to_owned(),
++                "section basic { string addr; string port }".to_owned(),
++            ),
++            (
++                "memory://iapp/implementation".to_owned(),
++                "eval $implementation\nset a $::basic__addr".to_owned(),
++            ),
++        ];
++        let evidence = collect_iapp_diagnostic_evidence(&sources[0].0, &sources);
++        assert_eq!(evidence["state"], "partial_source");
++        let diagnostics = collect_report_diagnostics(&sources[0].0, &sources[0].1, &sources);
++        assert!(
++            !diagnostics
++                .as_array()
++                .unwrap()
++                .iter()
++                .any(|d| d["code"] == "IAPP7002")
++        );
++    }
++
++    #[test]
+     fn iapp_diagnostics_are_global_routed_to_apps_and_mark_partial_evidence() {
+         let presentation =
+             "#include \"missing.inc\"\nsection basic {\n  string addr\n  string port\n}\n";
+--- a/rust/tcl-bigip/src/apl/iapp_diagnostics.rs
++++ b/rust/tcl-bigip/src/apl/iapp_diagnostics.rs
+@@ -113,8 +113,8 @@
+                 code: DiagCode::Iapp7002.as_str().to_owned(),
+                 message: format!(
+                     "Presentation field '{qname}' is never referenced in the implementation \
+-                     (expected $::{})",
+-                    field.qualified_name.replace('.', "__")
++                     (expected ${})",
++                    super::model::apl_name_to_tcl_var(&field.qualified_name)
+                 ),
+                 severity: DiagSeverity::Hint,
+                 subject: ConfigDiagnosticSubject::IApp,
+--- a/rust/tcl-bigip/src/apl/iapp_vars.rs
++++ b/rust/tcl-bigip/src/apl/iapp_vars.rs
+@@ -16,73 +16,114 @@
+ //
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+-//! Extract iApp presentation-variable references from implementation Tcl.
+-//!
+-//! In iApp templates a presentation field declared as `section.field` in
+-//! APL becomes `$::section__field` in the implementation Tcl. This module
+-//! extracts those references so they can be cross-validated against the
+-//! presentation model (see [`super::iapp_diagnostics`]).
+-
+-use std::sync::LazyLock;
+-
+-use regex::Regex;
+-use tcl_lexer::LineIndex;
+-
++//! Original iApp source references projected through the APL field convention.
++
++use std::sync::Arc;
++
++use tcl_lexer::{LexerConfig, LineIndex};
++use tcl_registry::model::ContextRegistry;
++
++use super::variable_names::project_variable_root;
+ use crate::range::Range;
+ 
+-/// Match `$::name` or `${::name}` (with an optional `(index)`). The
+-/// identifier is captured in one greedy chunk and the
+-/// iApp `__` separator is enforced by a post-filter rather than nested
+-/// quantifiers (which risk catastrophic backtracking — `CodeQL`
+-/// `py/redos`). Group 1 is the braced form, group 2 the unbraced form.
+-static IAPP_VAR_RE: LazyLock<Regex> = LazyLock::new(|| {
+-    Regex::new(
+-        r"\$\{::([a-zA-Z_][a-zA-Z0-9_]*)(?:\([^)]*\))?\}|\$::([a-zA-Z_][a-zA-Z0-9_]*)(?:\([^)]*\))?",
+-    )
+-    .expect("static iapp-var regex")
+-});
+-
+-/// A reference to an iApp presentation variable in implementation Tcl.
++/// An original variable substitution with a conventional APL field label.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct IappVarRef {
+-    /// The Tcl global name, e.g. `"::basic__addr"`.
++    /// Original analytical root spelling, independently of a native cell.
+     pub tcl_name: String,
+-    /// The APL qualified name, e.g. `"basic.addr"`.
++    /// Conventional presentation field label.
+     pub apl_name: String,
+-    /// Source range of the reference.
++    /// Original complete substitution range.
+     pub range: Range,
+ }
+ 
+-/// Extract iApp presentation-variable references (`::section__field`)
+-/// from Tcl `source`. Plain `$::var` references without an `__` separator
+-/// are not iApp variables and are dropped.
++/// Source candidates with independent absence coverage.
++#[derive(Debug, Clone, PartialEq, Eq, Default)]
++pub struct IappSourceReferences {
++    references: Vec<IappVarRef>,
++    complete: bool,
++}
++
++impl IappSourceReferences {
++    /// Positive original source candidates remain useful without full coverage.
++    #[must_use]
++    pub fn references(&self) -> &[IappVarRef] {
++        &self.references
++    }
++
++    /// Only covered source can establish that a field is never referenced.
++    #[must_use]
++    pub fn complete_references(&self) -> Option<&[IappVarRef]> {
++        self.complete.then_some(self.references.as_slice())
++    }
++}
++
++/// Extract original source advice under the exact selected editing inputs.
++/// Unknown body roles or computed names cannot establish reference absence.
+ #[must_use]
+-pub fn extract_iapp_var_refs(source: &str) -> Vec<IappVarRef> {
++pub fn extract_iapp_var_refs_with_context(
++    source: &str,
++    profile: &'static tcl_dialect::DialectProfile,
++    context: Arc<ContextRegistry>,
++    config: LexerConfig,
++) -> IappSourceReferences {
++    let Some(original) =
++        tcl_irules::original_hosted_source_variable_references(source, profile, context, config)
++    else {
++        return IappSourceReferences::default();
++    };
+     let line_index = LineIndex::new(source);
+-    let mut refs: Vec<IappVarRef> = Vec::new();
+-    for caps in IAPP_VAR_RE.captures_iter(source) {
+-        // group 1 = braced, group 2 = unbraced.
+-        let Some(body) = caps.get(1).or_else(|| caps.get(2)) else {
+-            continue;
+-        };
+-        let var_body = body.as_str();
+-        // Real iApp refs contain at least one `__` separator.
+-        if !var_body.contains("__") {
++    let mut references = Vec::new();
++    let mut complete = original.complete;
++    for span in original.references {
++        let Some(raw) = source.as_bytes().get(span.as_range()) else {
++            complete = false;
++            continue;
++        };
++        let Ok(Some(root)) = tcl_syntax::naming::variable_reference_root_bytes(raw, config) else {
++            complete = false;
++            continue;
++        };
++        let Ok(root) = std::str::from_utf8(root) else {
++            complete = false;
++            continue;
++        };
++        let Some(convention) = project_variable_root(root) else {
++            continue;
++        };
++        if !convention.absolute {
++            complete = false;
+             continue;
+         }
+-        let whole = caps.get(0).expect("group 0 always present");
+-        refs.push(IappVarRef {
+-            tcl_name: format!("::{var_body}"),
+-            apl_name: var_body.replace("__", "."),
++        references.push(IappVarRef {
++            tcl_name: root.to_owned(),
++            apl_name: convention.apl_name,
+             range: Range::from_offsets(
+                 source,
+                 &line_index,
+-                whole.start(),
+-                whole.end().saturating_sub(1),
++                span.start() as usize,
++                span.end().saturating_sub(1) as usize,
+             ),
+         });
+     }
+-    refs
++    IappSourceReferences {
++        references,
++        complete,
++    }
++}
++
++/// Compatibility report of positive source candidates under `f5-iapps`.
++/// The returned slice alone does not certify complete reference coverage.
++#[must_use]
++pub fn extract_iapp_var_refs(source: &str) -> Vec<IappVarRef> {
++    let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");
++    extract_iapp_var_refs_with_context(
++        source,
++        environment.analyser_profile(),
++        environment.default_context_registry(),
++        LexerConfig::from_grammar(environment.grammar()),
++    )
++    .references
+ }
+ 
+ #[cfg(test)]
+@@ -110,4 +151,91 @@
+         assert_eq!(refs.len(), 1);
+         assert_eq!(refs[0].apl_name, "pool.members");
+     }
+-}
++
++    fn configured(source: &str) -> IappSourceReferences {
++        let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");
++        extract_iapp_var_refs_with_context(
++            source,
++            environment.analyser_profile(),
++            environment.default_context_registry(),
++            LexerConfig::from_grammar(environment.grammar()),
++        )
++    }
++
++    #[test]
++    fn original_source_components_exclude_comments_and_inert_data() {
++        let source = r#"# $::unseen__comment
++set a {$::unseen__literal}
++set b \$::unseen__escaped
++set c "$::basic__addr"
++"#;
++        let refs = configured(source);
++        assert_eq!(
++            refs.references()
++                .iter()
++                .map(|r| r.apl_name.as_str())
++                .collect::<Vec<_>>(),
++            ["basic.addr"]
++        );
++        assert!(refs.complete_references().is_some());
++        let span = refs.references()[0].range;
++        assert_eq!(
++            &source[span.start.offset as usize..=span.end.offset as usize],
++            "$::basic__addr"
++        );
++    }
++
++    #[test]
++    fn original_root_geometry_preserves_literal_colons_and_array_forms() {
++        let source = r#"set a $:::basic__addr
++set b ${:basic__addr}
++set c $::ns::basic__addr
++set d $::pool__members(0)
++set e ${::pool__members(0)}"#;
++        let refs = configured(source);
++        assert_eq!(
++            refs.references()
++                .iter()
++                .map(|r| r.apl_name.as_str())
++                .collect::<Vec<_>>(),
++            ["basic.addr", "pool.members", "pool.members"]
++        );
++        assert_eq!(refs.references()[0].tcl_name, ":::basic__addr");
++        assert!(refs.complete_references().is_none());
++    }
++
++    #[test]
++    fn selected_body_roles_keep_positive_candidates_without_absence_coverage() {
++        let source = "proc helper {} {set a $::basic__addr}\nunknown_helper {$::unseen__field}";
++        let refs = configured(source);
++        assert_eq!(
++            refs.references()
++                .iter()
++                .map(|r| r.apl_name.as_str())
++                .collect::<Vec<_>>(),
++            ["basic.addr"]
++        );
++        assert!(refs.complete_references().is_none());
++    }
++
++    #[test]
++    fn expression_and_command_source_keep_their_original_substitutions() {
++        let source = "set a [list $::basic__addr]\nexpr {$::ssl__members__port eq \"443\"}";
++        let refs = configured(source);
++        assert_eq!(
++            refs.references()
++                .iter()
++                .map(|r| r.apl_name.as_str())
++                .collect::<Vec<_>>(),
++            ["basic.addr", "ssl.members.port"]
++        );
++        assert!(refs.complete_references().is_none());
++    }
++
++    #[test]
++    fn relative_convention_labels_cannot_supply_a_global_reference() {
++        let refs = configured("set a $local__field");
++        assert!(refs.references().is_empty());
++        assert!(refs.complete_references().is_none());
++    }
++}
+--- a/rust/tcl-bigip/src/apl/mod.rs
++++ b/rust/tcl-bigip/src/apl/mod.rs
+@@ -28,7 +28,10 @@
+ 
+ pub use canonical::model_to_canonical;
+ pub use iapp_diagnostics::{validate_iapp_implementation, validate_iapp_presentation};
+-pub use iapp_vars::{IappVarRef, extract_iapp_var_refs};
++pub use iapp_vars::{
++    IappSourceReferences, IappVarRef, extract_iapp_var_refs, extract_iapp_var_refs_with_context,
++};
++mod variable_names;
+ pub use model::{
+     AplField, AplInclude, AplModel, AplSection, AplTable, apl_name_to_tcl_var, tcl_var_to_apl_name,
+ };
+--- a/rust/tcl-bigip/src/apl/model.rs
++++ b/rust/tcl-bigip/src/apl/model.rs
+@@ -95,7 +95,7 @@
+         let mut out: Vec<String> = self
+             .all_fields
+             .iter()
+-            .map(|(q, _)| format!("::{}", q.replace('.', "__")))
++            .map(|(q, _)| apl_name_to_tcl_var(q))
+             .collect();
+         out.sort();
+         out.dedup();
+@@ -103,21 +103,4 @@
+     }
+ }
+ 
+-/// Convert a Tcl iApp variable name to its APL qualified name
+-/// (`::basic__addr` -> `basic.addr`); `None` when it isn't the iApp
+-/// convention.
+-#[must_use]
+-pub fn tcl_var_to_apl_name(tcl_var: &str) -> Option<String> {
+-    let name = tcl_var.trim_start_matches(':');
+-    if !name.contains("__") {
+-        return None;
+-    }
+-    Some(name.replace("__", "."))
+-}
+-
+-/// Convert an APL qualified name to the Tcl global variable name
+-/// (`basic.addr` -> `::basic__addr`).
+-#[must_use]
+-pub fn apl_name_to_tcl_var(apl_name: &str) -> String {
+-    format!("::{}", apl_name.replace('.', "__"))
+-}
++pub use super::variable_names::{apl_name_to_tcl_var, tcl_var_to_apl_name};
+--- /dev/null
++++ b/rust/tcl-bigip/src/apl/variable_names.rs
+@@ -0,0 +1,54 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! APL field convention, independent of variable lookup or appliance publication.
++
++pub(super) struct AplVariableConvention {
++    pub(super) absolute: bool,
++    pub(super) apl_name: String,
++}
++
++pub(super) fn project_variable_root(tcl_var: &str) -> Option<AplVariableConvention> {
++    let parts = tcl_syntax::naming::written_command_parts(tcl_var.as_bytes());
++    if !parts.qualifiers.is_empty() || parts.simple.is_empty() {
++        return None;
++    }
++    let simple = std::str::from_utf8(parts.simple).ok()?;
++    simple.contains("__").then(|| AplVariableConvention {
++        absolute: parts.absolute,
++        apl_name: simple.replace("__", "."),
++    })
++}
++
++/// Project one simple variable root into the APL field convention.
++/// Namespace qualifiers are outside this convention; lone colons remain data.
++#[must_use]
++pub fn tcl_var_to_apl_name(tcl_var: &str) -> Option<String> {
++    project_variable_root(tcl_var).map(|name| name.apl_name)
++}
++
++/// Conventional rooted export report; no native variable or source-address proof.
++#[must_use]
++pub fn apl_name_to_tcl_var(apl_name: &str) -> String {
++    tcl_syntax::naming::root_unrooted_key(&apl_name.replace('.', "__"))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn variable_convention_uses_shared_root_geometry() {
++        for root in ["basic__addr", "::basic__addr", ":::basic__addr"] {
++            assert_eq!(tcl_var_to_apl_name(root).as_deref(), Some("basic.addr"));
++        }
++        assert_eq!(
++            tcl_var_to_apl_name(":basic__addr").as_deref(),
++            Some(":basic.addr")
++        );
++        for root in ["::ns::basic__addr", "basic__addr::", "::plain"] {
++            assert_eq!(tcl_var_to_apl_name(root), None);
++        }
++    }
++}
+--- a/rust/tcl-irules/src/lib.rs
++++ b/rust/tcl-irules/src/lib.rs
+@@ -16,7 +16,7 @@
+ //
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ 
+-//! F5 iRules BIG-IP object-reference extractor.
++//! F5 original source projections and iRules BIG-IP object references.
+ //!
+ //! Two layers:
+ //!
+@@ -48,7 +48,8 @@
+ 
+ mod source_context;
+ pub use source_context::{
+-    IrulesSourceObligation, OriginalIrulesSourceCommand, OriginalIrulesSourceContext,
++    IrulesSourceObligation, OriginalHostedSourceVariableReferences, OriginalIrulesSourceCommand,
++    OriginalIrulesSourceContext, original_hosted_source_variable_references,
+ };
+ mod source_object;
+ pub use source_object::{
+@@ -73,8 +74,7 @@
+     extension_registrations, ilx_method_calls,
+ };
+ 
+-/// This crate's dialect ingress: every walk here reads **iRules** text, so
+-/// its grammar is the `f5-irules` environment's, taken from
++/// The iRules object/event walks use the `f5-irules` source grammar, taken from
+ /// [`tcl_registry::model::resolve_environment`] rather than re-derived from a
+ /// dialect name at each lexer site.
+ ///
+--- a/rust/tcl-irules/src/source_context.rs
++++ b/rust/tcl-irules/src/source_context.rs
+@@ -98,6 +98,176 @@
+         .and_then(|name| name.strip_suffix('}'))
+         .unwrap_or(raw)
+         .to_owned()
++}
++
++/// Original hosted variable substitutions and independently bounded source coverage.
++#[derive(Debug, Clone)]
++pub struct OriginalHostedSourceVariableReferences {
++    /// Complete original substitution spans, without cells or runtime frames.
++    pub references: Vec<Span>,
++    /// A closed flat source region; nested, unknown and computed entry declines.
++    pub complete: bool,
++}
++
++fn word_variable_reference_spans(word: &tcl_lexer::NativeWord) -> Vec<Span> {
++    word.executable_parts()
++        .all_parts()
++        .filter_map(|part| {
++            matches!(part.part, tcl_lexer::ExecutablePart::Variable { .. }).then_some(part.span)
++        })
++        .collect()
++}
++
++fn source_variable_reference_spans(
++    words: &OriginalRegistryWords,
++    source: &str,
++    config: LexerConfig,
++    profile: &'static tcl_dialect::DialectProfile,
++) -> Vec<Span> {
++    let mut references = Vec::new();
++    for operand in words.operands().iter().flatten() {
++        if let Some(word) = operand.word() {
++            references.extend(word_variable_reference_spans(word));
++        }
++    }
++    for &(index, role) in words.roles().unwrap_or_default() {
++        if role != tcl_registry::ArgRole::Expr {
++            continue;
++        }
++        let Some(word) = words
++            .operands()
++            .get(index)
++            .and_then(Option::as_ref)
++            .and_then(|operand| operand.word())
++        else {
++            continue;
++        };
++        let Some(token) = word.tokens().first() else {
++            continue;
++        };
++        if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
++            || token.content_offset != 1
++        {
++            continue;
++        }
++        let Ok(span) = word.content_span() else {
++            continue;
++        };
++        let Some(expression) = source.get(span.as_range()) else {
++            continue;
++        };
++        let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile);
++        let substitutions = tcl_syntax::expr::live_expression_substitutions(
++            expression,
++            profile,
++            config,
++            |parsed| surface.validate(parsed).is_ok(),
++        );
++        references.extend(substitutions.variables.into_iter().filter_map(|variable| {
++            Some(Span::new(
++                span.start().checked_add(variable.start())?,
++                span.start().checked_add(variable.end())?,
++            ))
++        }));
++    }
++    references.sort_by_key(|span| (span.start(), span.end()));
++    references.dedup();
++    references
++}
++
++/// Original hosted source components under independently selected Registry roles.
++/// Unknown source entry stays partial; appliance frames and cells are independent.
++#[must_use]
++pub fn original_hosted_source_variable_references(
++    source: &str,
++    profile: &'static tcl_dialect::DialectProfile,
++    context: Arc<ContextRegistry>,
++    config: LexerConfig,
++) -> Option<OriginalHostedSourceVariableReferences> {
++    let input = ResolvedAnalysisInput::new(profile, profile, context, config);
++    let analysis = Analyser::new()
++        .with_resolved_input(input)
++        .analyse(source, profile.name);
++    let (image, retained_config) = tcl_compiler::source_graph::current_analysis(source, &analysis)?;
++    if retained_config != config || analysis.analysis_context_unavailable.is_some() {
++        return None;
++    }
++    let input = analysis.resolved_input.as_ref()?;
++    let context = input.context_registry();
++    let vectors = source_vectors_from_analysis(source, &analysis, &image, config, &context)?;
++    let mut references = Vec::new();
++    for occurrence in analysis.original_vendor_source_names() {
++        if !occurrence.name_input().matches_source(&image, config)
++            || occurrence.original_words().first() != Some(occurrence.name_input().original_word())
++        {
++            continue;
++        }
++        for word in occurrence.original_words() {
++            references.extend(word_variable_reference_spans(word));
++        }
++    }
++    for (_, words) in &vectors {
++        references.extend(source_variable_reference_spans(
++            words, source, config, profile,
++        ));
++    }
++    let plan = tcl_lexer::native_script_words_in(
++        image,
++        Span::new(0, u32::try_from(source.len()).ok()?),
++        config,
++    )
++    .ok()?;
++    for command in &plan.commands {
++        for word in &command.words {
++            references.extend(word_variable_reference_spans(word));
++        }
++    }
++    references.sort_by_key(|span| (span.start(), span.end()));
++    references.dedup();
++    let complete = plan.fatal_tail.is_none()
++        && analysis.dynamic_variable_names.is_empty()
++        && plan.commands.len() == vectors.len()
++        && plan.commands.iter().all(|command| {
++            !command.words.iter().any(|word| {
++                word.executable_parts().all_parts().any(|part| {
++                    matches!(
++                        part.part,
++                        tcl_lexer::ExecutablePart::Command { .. }
++                            | tcl_lexer::ExecutablePart::Expression { .. }
++                            | tcl_lexer::ExecutablePart::ParseError(_)
++                    )
++                })
++            }) && vectors
++                .iter()
++                .find(|(span, _)| span.start() == command.span.start())
++                .is_some_and(|(_, words)| {
++                    use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
++                    words
++                        .source_script_bodies_for_mutation_coverage(&context)
++                        .is_some_and(|bodies| bodies.is_empty())
++                        && words.roles().is_some_and(|roles| {
++                            !roles
++                                .iter()
++                                .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)
++                        })
++                        && words.with_source_schema(&context, |schema| {
++                            matches!(
++                                schema.semantics.value.route(),
++                                Some(EvalRoute::Direct {
++                                    id: NativeEvalId::CellWrite
++                                        | NativeEvalId::CellIncrement
++                                        | NativeEvalId::CellAppend
++                                        | NativeEvalId::CellListAppend
++                                        | NativeEvalId::ConstWrite,
++                                })
++                            )
++                        }) == Some(true)
++                })
++        });
++    Some(OriginalHostedSourceVariableReferences {
++        references,
++        complete,
++    })
+ }
+ 
+ fn source_vectors_from_analysis(
+@@ -516,68 +686,16 @@
+                             .unwrap_or_default()
+                     })
+                     .collect();
+-                let mut variable_names = Vec::new();
+-                for operand in command.words.operands().iter().flatten() {
+-                    if let Some(word) = operand.word() {
+-                        for token in word
+-                            .tokens()
+-                            .iter()
+-                            .filter(|token| token.kind == tcl_lexer::TokenType::Var)
+-                        {
+-                            let start = token
+-                                .span
+-                                .start()
+-                                .saturating_add(u32::from(token.content_offset));
+-                            if let Some(raw) = source.get(start as usize..token.span.end() as usize)
+-                            {
+-                                variable_names.push(source_variable_label(raw));
+-                            }
+-                        }
+-                    }
+-                }
+-                for &(index, role) in command.words.roles().unwrap_or_default() {
+-                    if role != tcl_registry::ArgRole::Expr {
+-                        continue;
+-                    }
+-                    let Some(word) = command
+-                        .words
+-                        .operands()
+-                        .get(index)
+-                        .and_then(Option::as_ref)
+-                        .and_then(|operand| operand.word())
+-                    else {
+-                        continue;
+-                    };
+-                    let Some(token) = word.tokens().first() else {
+-                        continue;
+-                    };
+-                    if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+-                        || token.content_offset != 1
+-                    {
+-                        continue;
+-                    }
+-                    let Ok(span) = word.content_span() else {
+-                        continue;
+-                    };
+-                    let Some(expression) = source.get(span.as_range()) else {
+-                        continue;
+-                    };
+-                    let surface =
+-                        tcl_registry::expr_surface::RuntimeExprSurface::for_profile(self.profile);
+-                    let substitutions = tcl_syntax::expr::live_expression_substitutions(
+-                        expression,
+-                        self.profile,
+-                        self.config,
+-                        |parsed| surface.validate(parsed).is_ok(),
+-                    );
+-                    for variable in substitutions.variables {
+-                        let start = span.start().saturating_add(variable.start());
+-                        let end = span.start().saturating_add(variable.end());
+-                        if let Some(raw) = source.get(start as usize..end as usize) {
+-                            variable_names.push(source_variable_label(raw));
+-                        }
+-                    }
+-                }
++                let variable_names = source_variable_reference_spans(
++                    &command.words,
++                    source,
++                    self.config,
++                    self.profile,
++                )
++                .into_iter()
++                .filter_map(|span| source.get(span.as_range()))
++                .map(source_variable_label)
++                .collect();
+                 crate::IrulesExecutableCommand {
+                     span: command.span,
+                     command: command.words.command().to_owned(),
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -31058,11 +31058,23 @@
+ /// reflected), then falls back to reading a sibling from disk.  The sibling
+ /// is named `implementation` or carries a `.iapp` / `.iappimpl` / `.impl`
+ /// extension.
++async fn configured_iapp_source_references(
++    source: String,
++) -> Option<tcl_bigip::apl::IappSourceReferences> {
++    crate::rt::spawn_blocking(move || {
++        let environment = tcl_registry::model::ingress::resolve_environment(IAPPS_DIALECT);
++        tcl_bigip::apl::extract_iapp_var_refs_with_context(
++            &source, environment.analyser_profile(), environment.default_context_registry(),
++            tcl_lexer::LexerConfig::from_grammar(environment.grammar()),
++        )
++    }).await.ok()
++}
++
+ async fn find_sibling_impl_vars(
+     uri: &Uri,
+     documents: &DocumentStore,
+     store: &dyn vfs::SourceStore,
+-) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
++) -> Option<tcl_bigip::apl::IappSourceReferences> {
+     let path = uri.to_file_path()?;
+     let dir = path.parent()?.to_path_buf();
+     let is_impl_name = |p: &Path| {
+@@ -31080,22 +31092,17 @@
+     // 1. Prefer an open implementation buffer in the same directory: an unsaved
+     //    edit to the implementation must drive the presentation's cross-file
+     //    diagnostics, not a stale on-disk copy.
+-    {
++    let open_source = {
+         let docs = documents.lock("find_sibling_impl_vars").await;
+-        for (doc_uri, doc) in docs.iter() {
+-            if doc_uri == uri {
+-                continue;
+-            }
+-            let Some(doc_path) = doc_uri.to_file_path() else {
+-                continue;
+-            };
+-            if doc_path.parent() != Some(dir.as_path()) {
+-                continue;
+-            }
+-            if is_impl_name(&doc_path) {
+-                return Some(tcl_bigip::apl::extract_iapp_var_refs(&doc.text));
+-            }
+-        }
++        docs.iter().find_map(|(doc_uri, doc)| {
++            if doc_uri == uri { return None; }
++            let doc_path = doc_uri.to_file_path()?;
++            (doc_path.parent() == Some(dir.as_path()) && is_impl_name(&doc_path))
++                .then(|| doc.text.to_string())
++        })
++    };
++    if let Some(source) = open_source {
++        return configured_iapp_source_references(source).await;
+     }
+ 
+     // 2. Fall back to a sibling on disk — the literal `implementation` file
+@@ -31105,7 +31112,7 @@
+     if store.is_file(&impl_path)
+         && let Ok(content) = store.read_to_string(&impl_path)
+     {
+-        return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
++        return configured_iapp_source_references(content).await;
+     }
+     let mut ext_candidates: Vec<PathBuf> = store
+         .read_dir(&dir)
+@@ -31125,7 +31132,7 @@
+     ext_candidates.sort();
+     for cand in ext_candidates {
+         if let Ok(content) = store.read_to_string(&cand) {
+-            return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
++            return configured_iapp_source_references(content).await;
+         }
+     }
+     None
+@@ -31156,7 +31163,8 @@
+         let impl_refs = find_sibling_impl_vars(uri, documents, store).await;
+         let t = text.to_owned();
+         let diags =
+-            crate::rt::spawn_blocking(move || apl_presentation_findings(&t, impl_refs.as_deref()))
++            crate::rt::spawn_blocking(move || apl_presentation_findings(&t, impl_refs.as_ref().and_then(
++                tcl_bigip::apl::IappSourceReferences::complete_references)))
+                 .await
+                 .unwrap_or_default();
+         return Some(diags);

@@ -29,6 +29,22 @@ impl FixtureBodyLabel for super::ProcSummary {
     }
 }
 
+impl FixtureBodyLabel for crate::cfg::Function {
+    fn fixture_label(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.name)
+    }
+}
+impl FixtureBodyLabel for tcl_bytecode::FunctionAsm {
+    fn fixture_label(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.name)
+    }
+}
+impl FixtureBodyLabel for super::MethodSummary {
+    fn fixture_label(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.base.qualified_name)
+    }
+}
+
 // A fixture label must identify one genuinely issued body before its ID is used.
 pub(crate) fn fixture_id<'a, T: FixtureBodyLabel + 'a>(
     rows: impl IntoIterator<Item = (&'a ProcedureId, &'a T)>,
