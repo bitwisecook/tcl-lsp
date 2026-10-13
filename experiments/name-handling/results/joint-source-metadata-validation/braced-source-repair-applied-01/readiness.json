@@ -1,0 +1,31 @@
+{
+  "path": "rust/tcl-compiler/src/analyser/commands.rs",
+  "preimage": "1990e4e137c55d2261926a6be4ebed599dbdbae5318b21d5aa659220bc901887",
+  "scratch_sha256": "e680c14ad781bcbe88c7b5d7f64429790e8d12e1275279981d907903715f524e",
+  "production_applied": true,
+  "builds": 0,
+  "tests": 0,
+  "new_source_issuer": false,
+  "planned_existing_acceptance": [
+    "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+    "walker::tests::braced_expr_text_does_not_invent_object_references"
+  ],
+  "existing_owner_guard_control": "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+  "matrix_gaps_unexecuted": [
+    "genuine alias Expr",
+    "shadowed Expr"
+  ],
+  "current_sha256": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e",
+  "contract_path": "docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md",
+  "contract_sha256": "61103b883b052869cde84320db4164f3e65deb7230181b6f62285b2759d12b70",
+  "new_guard_selector": "analyser::commands::original_script_body_inventory_tests::original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque",
+  "original_test_bodies_assertions_unchanged": true,
+  "typecheck_tests_executed": 0,
+  "planned_controls": [
+    "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+    "analyser::commands::original_script_body_inventory_tests::original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque",
+    "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+    "walker::tests::braced_expr_text_does_not_invent_object_references",
+    "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses"
+  ]
+}

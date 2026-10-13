@@ -135,16 +135,24 @@ released; root owns subsequent source/cache coordination.
 
 ## Remaining obligations
 
-The unchanged braced-expression failure remains independently open and was
-not rerun after the boundary refinements. Read-only inspection narrows a
-candidate loss to authentic original-vector retention, which visits Registry
-Syntax bodies and lexical executable command parts without asking the existing
-`source_expression_script_bodies` issuer. Final [] does not establish the first
-rejected guard. A bounded temporary Compiler/SourceContext logging probe is
-being prepared in scratch to observe original body origin, Expr-issued child
-geometry and source-vector admission. No third production repair or probe
-build is approved. Preserve the original fixture/assertions and every sealed
-failure; apply a probe only under a new root-coordinated source/cache lease.
+The unchanged braced-expression failure remains independently open. The
+[temporary probe capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-source-probe-capture-01/README.md)
+built only iRules and ran the exact original positive once, retaining its same
+failure. Actual compiled owned scope was 12 packages; the frozen baseline
+was 25 packages/11,764 hashes including Registry root dev dependencies.
+Compiler's genuine if vector supplied Expr0/Body1 and the existing pure Expr
+issuer returned child25..74 with original container/source/context/vendor
+origin valid. The retention loop did not queue it; SourceContext received only
+when/if/set vectors, all applicable. This measures the first loss before
+SourceContext ingress. Both temporary files were restored byte-for-byte and
+the complete baseline matched; the instrumented binary is noncurrent.
+
+A minimal one-owner Compiler scratch repair chains the existing Expr issuer's
+children alongside Syntax bodies through the same full-source/config/context,
+visited and vendor-body-origin gates. It creates no new owner API/parser or
+name branch. No production semantic repair is applied or validated yet.
+Preserve original braced positive, inert negative, currentness and source
+counterfactual controls under the next reviewed source/cache lease.
 
 Future finite consumer comparisons remain unexecuted: dynamic procedure
 requests followed by rename; literal callback alias before/after unknown

@@ -981,10 +981,17 @@ impl Analyser {
                 self.original_readonly_vendor_source_vector(&native, body_origin.as_ref())
             {
                 let context = self.analysis_context();
-                for body in words.source_script_bodies_for(
+                let syntax = words.source_script_bodies_for(
                     &context,
                     crate::registry_invocation::OriginalSourceScriptPurpose::Syntax,
-                ) {
+                );
+                let expressions = self
+                    .resolved_input
+                    .as_ref()
+                    .or(self.result.resolved_input.as_ref())
+                    .and_then(|input| words.source_expression_script_bodies(input))
+                    .unwrap_or_default();
+                for body in syntax.into_iter().chain(expressions) {
                     if !body.matches_source(&image, config)
                         || !body.matches_context(&context)
                         || !visited.insert(body.content_span())
@@ -7878,6 +7885,80 @@ mod original_script_body_inventory_tests {
                 );
             }
         }
+    }
+    #[test]
+    fn original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque() {
+        let source =
+            "when HTTP_REQUEST { expr {[class match [HTTP::host] equals /Common/guard_dg]} }";
+        let analysis = Analyser::new().analyse(source, "f5-irules");
+        let config = analysis.body_lexer_config.unwrap();
+        let offset = u32::try_from(source.find("expr ").unwrap()).unwrap();
+        let (_, command) =
+            crate::registry_invocation::source_structure::selected_vendor_registry_words_at(
+                source, &analysis, offset,
+            )
+            .unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            source, &analysis, &command,
+        )
+        .unwrap();
+        let input = analysis.resolved_input.as_ref().unwrap();
+        assert_eq!(
+            words.source_expression_script_bodies(input).unwrap().len(),
+            1
+        );
+        let child = u32::try_from(source.find("class match").unwrap()).unwrap();
+        assert!(analysis.original_vendor_source_names().any(|occurrence| {
+            occurrence.site().offset == child
+                && occurrence.original_words().first()
+                    == Some(occurrence.name_input().original_word())
+                && occurrence.body_origin().is_some()
+        }));
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                source, &missing, &command,
+            )
+            .is_none()
+        );
+        assert!(
+            crate::registry_invocation::source_structure::source_registry_words(
+                &source.replace("guard_dg", "other_dg"),
+                &analysis,
+                &command,
+            )
+            .is_none()
+        );
+        let foreign_profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            foreign_profile,
+            foreign_profile,
+            tcl_registry::model::context_for_profile(foreign_profile),
+            config,
+        );
+        assert!(words.source_expression_script_bodies(&foreign).is_none());
+        let dynamic = "when HTTP_REQUEST { expr $body }";
+        let dynamic_analysis = Analyser::new().analyse(dynamic, "f5-irules");
+        let offset = u32::try_from(dynamic.find("expr ").unwrap()).unwrap();
+        let (_, command) =
+            crate::registry_invocation::source_structure::selected_vendor_registry_words_at(
+                dynamic,
+                &dynamic_analysis,
+                offset,
+            )
+            .unwrap();
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            dynamic,
+            &dynamic_analysis,
+            &command,
+        )
+        .unwrap();
+        assert!(
+            words
+                .source_expression_script_bodies(dynamic_analysis.resolved_input.as_ref().unwrap(),)
+                .is_none()
+        );
     }
 }
 
