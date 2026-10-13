@@ -239,6 +239,83 @@ impl Interp {
             .transpose()
     }
 
+    /// Namespace command queries retain their independent Jim helper purpose.
+    pub(crate) fn native_namespace_which_command_name(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<Vec<u8>>, ValueError> {
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace command query protocol",
+            ))?;
+        if !policy.recipe().is_jim084() {
+            return self.native_resolved_command_name(original);
+        }
+        let bytes = self.native_object_string_bytes(original)?;
+        self.native_namespace_which_command_bytes(&bytes)
+    }
+
+    pub(crate) fn native_namespace_which_command_bytes(
+        &mut self,
+        original: &[u8],
+    ) -> Result<Option<Vec<u8>>, ValueError> {
+        use tcl_syntax::naming::NativeNameContext;
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace command query protocol",
+            ))?
+            .recipe();
+        if !protocol.is_jim084() {
+            return tcl_cmd_core::namespace::which_command_bytes_checked(self, original);
+        }
+        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
+            |first| {
+                self.refuse_native_execution(first);
+                ValueError::CommandProtocolUnavailable("Jim namespace command query entry")
+            },
+        )?;
+        let current = self.current_ns();
+        let namespace = self
+            .namespaces()
+            .jim_namespace_original_owner(current)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "Jim namespace command query holder",
+            ))?;
+        let namespace_bytes = self.native_object_string_bytes(namespace.as_ptr());
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("Jim namespace command query currency")
+        })?;
+        let namespace_bytes = namespace_bytes?;
+        let path = tcl_core_types::ByteNamespacePath::root();
+        let candidates = protocol
+            .jim_namespace_command_query_candidates(
+                NativeNameContext::with_jim_namespace(&path, &namespace_bytes),
+                original,
+            )
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("Jim namespace command query purpose")
+            })?;
+        let object_context = self.native_jim_object_context()?;
+        for candidate in candidates {
+            let input = obj::Owned::fresh(obj::new_string_bytes(candidate.lookup.as_bytes()));
+            crate::native_source::bind_context(input.as_ptr(), &object_context)?;
+            let found = self
+                .resolve_original_command_at(crate::namespace::GLOBAL, input.as_ptr())?
+                .is_some();
+            scope.currency().ensure_current_or_refuse().map_err(|_| {
+                ValueError::CommandProtocolUnavailable(
+                    "Jim namespace command query result currency",
+                )
+            })?;
+            if found {
+                return Ok(Some(candidate.reported.as_bytes().to_vec()));
+            }
+        }
+        Ok(None)
+    }
+
     /// Report the selected original command's imported origin without a second
     /// lookup or reconstruction of the original operand.
     pub(crate) fn native_namespace_origin(

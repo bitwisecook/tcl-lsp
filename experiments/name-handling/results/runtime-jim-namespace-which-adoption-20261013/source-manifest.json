@@ -1,0 +1,49 @@
+{
+  "owned": {
+    "runtime/rust/src/cmd_namespace.rs": {
+      "preimage_sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848",
+      "proposed_sha256": "fba1718e4cdd434a4c3d4c3c83830fb713f7e845a5426869eba017145ab89648",
+      "new_file": false
+    },
+    "runtime/rust/src/interp/native_command_names.rs": {
+      "preimage_sha256": "6d963d0d35459bae1fc18cd4ed6e8716b3d1c76822270c00d3cc26e184115a92",
+      "proposed_sha256": "9e91ceeaa33d7dd599da398c243c6bd06e2dd66d1e86d7be894e4c072d069877",
+      "new_file": false
+    },
+    "runtime/rust/src/interp/native_body_artifact/native_introspection.rs": {
+      "preimage_sha256": "e58d98ee0ab69de16e59dc5c0c6518de32808abfeabbf303079484482ce700ba",
+      "proposed_sha256": "fc92669a7e6daea45b7d5d8c7a23e7df89d2c8515e057e5bd443f0a01738e842",
+      "new_file": false
+    },
+    "runtime/rust/tests/native_namespace_command_query.rs": {
+      "preimage_sha256": null,
+      "proposed_sha256": "d23bc3d91304d5e9bfc4549ea9262f24e18e4ba14ca9cb8263c9108bae2482bc",
+      "new_file": true
+    }
+  },
+  "owned_patch_sha256": "179858aad8e947a5c0cbd360043ebefb76a055d22701ed9c5567beb03beda8a2",
+  "base_context": "prior sealed3variables +7publication +compiledWhich Runtime patch; inherited destination_of hunk unchanged",
+  "shared_dependency_patch": {
+    "path": "/tmp/runtime-jim-namespace-which-adoption-20261013/registry-vm-jim-command-query-owner.patch",
+    "sha256": "994e6f078f89043ef91ca9cd8db999c6e28659db845a23fa303f61fcdb58b577",
+    "export_adaptation": "naming.rs export added in already-sealed formatter layout; same type only"
+  },
+  "engine_transport_files_excluded": true,
+  "scope": "Runtime public provider-specific Which grammar +Jim query candidates and compiled Which purpose helper; C resolver/report owners unchanged",
+  "validation": {
+    "format_and_diff_check": "PASS",
+    "runtime_compile_executed": false,
+    "runtime_tests_executed": false,
+    "new_portable_original_query_test_profiles": [
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "jim"
+    ],
+    "assertions_unchanged": true
+  },
+  "remaining": "heavy Runtime validation queued after Root trace04 lease",
+  "jim_frame_purpose": "Actual caller namespace holder for canonicalisation; actual GLOBAL root holder for fresh original command lookup, matching global scripted helper. No physical cache-owner equivalence claim yet."
+}

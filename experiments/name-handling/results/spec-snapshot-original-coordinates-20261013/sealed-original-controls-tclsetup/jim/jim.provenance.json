@@ -1,0 +1,15 @@
+{
+  "provider": "jim",
+  "case": "jim",
+  "captured_utc": "2026-10-13T18:32:12.943417+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/spec-snapshot-address-design/jim-probe-tclsetup.tcl"
+  ],
+  "input_sha256": "d3e81d2a874f5a78c4a5c499ad4ccd3caa243426ce30a90a7cb7adb1942ff18c",
+  "selected_environment": {},
+  "exit_code": 0,
+  "stdout_sha256": "dd7d427b52063f397dda49c31eb741a5bac457bdbc6fbe4d0470608df2a714d0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+}

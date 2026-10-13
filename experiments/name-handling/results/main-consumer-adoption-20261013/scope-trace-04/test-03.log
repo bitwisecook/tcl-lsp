@@ -1,0 +1,37 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct ... SCOPE_OWNER query offset=82 registry=Some("tcl") invocations=7
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[("x", Span { start: 4, end: 5 }, {})]
+SCOPE_OWNER tree depth=1 kind=Method name="::C::m" body=Some(Span { start: 45, end: 108 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=2 kind=Uplevel name="#0" body=Some(Span { start: 75, end: 83 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=2 kind=Uplevel name="0" body=Some(Span { start: 97, end: 105 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER call offset=0 name="set" recorded=true native=true words=true roles=Some(Some([(0, VarWrite)])) head-equal=Some(true)
+SCOPE_OWNER call offset=11 name="oo::class" recorded=true native=true words=true roles=Some(Some([(1, Name), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=49 name="set" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=64 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=76 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=87 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=98 name="puts" recorded=false native=false words=false roles=None head-equal=None
+
+thread 'definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct' (116984) panicked at rust/tcl-lsp-core/src/definition.rs:8792:13:
+assertion `left == right` failed: set x ROOT
+oo::class create C {
+ method m {} {
+  set x METHOD
+  uplevel #0 {puts $x}
+  uplevel 0 {puts $x}
+ }
+}
+
+  left: []
+ right: [0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.43s
+

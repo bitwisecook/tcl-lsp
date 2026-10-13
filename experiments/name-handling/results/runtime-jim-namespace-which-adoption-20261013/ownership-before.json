@@ -1,0 +1,8 @@
+{
+  "runtime/rust/src/cmd_namespace.rs": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848",
+  "runtime/rust/src/interp/native_command_names.rs": "6d963d0d35459bae1fc18cd4ed6e8716b3d1c76822270c00d3cc26e184115a92",
+  "runtime/rust/src/interp/native_body_artifact/native_introspection.rs": "e58d98ee0ab69de16e59dc5c0c6518de32808abfeabbf303079484482ce700ba",
+  "rust/tcl-syntax/src/naming.rs": "d4fa233397dcd6e663f6626028f4f7646f912cdabe0d834ce9b5c8929c035ccd",
+  "rust/tcl-syntax/src/naming/native.rs": "8fb35607bde74a00fd9576b47773c136dc83b7110c4b952a60e8d187ee092502",
+  "rust/tcl-cmd-core/src/namespace.rs": "d2b3ac574a7731d87e79f8d36cf9363004138aa3fc7662ed11d1ce71e475d522"
+}

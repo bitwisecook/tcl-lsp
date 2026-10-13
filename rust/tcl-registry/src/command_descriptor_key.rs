@@ -74,13 +74,6 @@ impl crate::CommandSpec {
     }
 }
 
-impl crate::CommandSpec {
-    /// Exact descriptor label; no written-name or runtime binding authority.
-    #[must_use]
-    pub const fn descriptor_key(&self) -> CanonicalCommandDescriptorKey<'static> {
-        CanonicalCommandDescriptorKey::from_registry_label(self.name)
-    }
-}
 
 #[cfg(test)]
 mod tests {

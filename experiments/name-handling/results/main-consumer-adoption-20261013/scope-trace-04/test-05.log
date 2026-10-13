@@ -1,0 +1,23 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table ... SCOPE_OWNER query offset=36 registry=Some("tcl") invocations=3
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[("x", Span { start: 4, end: 5 }, {})]
+SCOPE_OWNER tree depth=1 kind=Namespace name="::" body=Some(Span { start: 29, end: 37 }) namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[]
+SCOPE_OWNER call offset=0 name="set" recorded=true native=true words=true roles=Some(Some([(0, VarWrite)])) head-equal=Some(true)
+SCOPE_OWNER call offset=11 name="namespace" recorded=true native=true words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=30 name="puts" recorded=false native=false words=false roles=None head-equal=None
+
+thread 'definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table' (116988) panicked at rust/tcl-lsp-core/src/definition.rs:8817:9:
+assertion `left == right` failed
+  left: []
+ right: [0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.35s
+

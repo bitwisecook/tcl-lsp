@@ -138,6 +138,17 @@ the owned publication namespace; registration presence uses exact command lookup
 The hand-maintained simulation roster remains distinct from environment
 availability and provides no appliance binding or frame authority.
 
+CLI purity snapshots use Syntax's
+`naming::original_namespace_variable_snapshot_support`. Their keys retain the
+selected namespace address and original simple variable word. Reads, array
+access and traces run with that context and explicit global operation heads;
+qualified reports never supply an inverse for the original word. Exact private
+namespace subtrees and exact root error metadata are excluded independently.
+Ambiguous namespace reports, array-shaped simple reports and unavailable queries
+produce an unsupported purity result while ordinary questions continue. These
+script coordinates grant no Native namespace incarnation or variable-cell
+identity.
+
 CLI SpecTest presence retains the original written command operand and global
 query context. Its literal command-inventory pattern uses Syntax's
 `glob::literal_pattern`, independently of the autoloader's original input.

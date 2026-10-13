@@ -1,0 +1,6 @@
+
+SPEC-TEST	pure	demo::mutate	declared pure, but `demo::mutate` wrote the variable(s) :errorInfo __spec_testOther {::N[0]::a} {::N[0]::x}
+
+SPEC-TEST	asked	demo::mutate	
+
+SPEC-TEST	done	-	1

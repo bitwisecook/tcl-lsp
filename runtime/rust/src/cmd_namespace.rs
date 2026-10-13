@@ -727,7 +727,12 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(args) => args,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&args) else {
+    let Some(protocol) = interp.name_policy_protocol() else {
+        return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "namespace which protocol",
+        ).into());
+    };
+    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &args) else {
         return interp.wrong_args_for_prefix(argv, 2, b"?-command? ?-variable? name");
     };
     let name = &args[name_index];
@@ -740,8 +745,8 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(error) => return interp.report_cmd_error(error.into()),
         }
     } else {
-        // `-command` via the shared `Namespaces` resolution core.
-        match tcl_cmd_core::namespace::which_command_bytes_checked(interp, name) {
+        // C reports its selected token; Jim reports its successful fresh query candidate.
+        match interp.native_namespace_which_command_bytes(name) {
             Ok(fqn) => interp.set_result_bytes(&fqn.unwrap_or_default()),
             Err(error) => return interp.report_cmd_error(error.into()),
         }

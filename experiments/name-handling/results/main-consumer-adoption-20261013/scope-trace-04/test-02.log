@@ -1,0 +1,19 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root ... SCOPE_OWNER query offset=58 registry=Some("tcl") invocations=4
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[("x", Span { start: 4, end: 5 }, {})]
+SCOPE_OWNER tree depth=1 kind=Namespace name="@interp@child" body=Some(Span { start: 51, end: 59 }) namespace=None isolated=true vars=[]
+SCOPE_OWNER call offset=0 name="set" recorded=true native=true words=true roles=Some(Some([(0, VarWrite)])) head-equal=Some(true)
+SCOPE_OWNER call offset=13 name="interp" recorded=true native=true words=true roles=Some(Some([])) head-equal=Some(true)
+SCOPE_OWNER call offset=33 name="interp" recorded=true native=true words=true roles=Some(Some([(2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=52 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER query offset=39 registry=Some("tcl") invocations=3
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[("x", Span { start: 4, end: 5 }, {})]
+SCOPE_OWNER tree depth=1 kind=Namespace name="@interp@${child}" body=Some(Span { start: 32, end: 40 }) namespace=None isolated=true vars=[]
+SCOPE_OWNER call offset=0 name="set" recorded=true native=true words=true roles=Some(Some([(0, VarWrite)])) head-equal=Some(true)
+SCOPE_OWNER call offset=13 name="interp" recorded=true native=true words=true roles=Some(Some([(2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=33 name="puts" recorded=false native=false words=false roles=None head-equal=None
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.67s
+

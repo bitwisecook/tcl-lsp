@@ -1,0 +1,209 @@
+--- a/runtime/rust/src/cmd_namespace.rs
++++ b/runtime/rust/src/cmd_namespace.rs
+@@ -727,7 +727,12 @@
+         Ok(args) => args,
+         Err(error) => return interp.report_cmd_error(error.into()),
+     };
+-    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&args) else {
++    let Some(protocol) = interp.name_policy_protocol() else {
++        return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++            "namespace which protocol",
++        ).into());
++    };
++    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &args) else {
+         return interp.wrong_args_for_prefix(argv, 2, b"?-command? ?-variable? name");
+     };
+     let name = &args[name_index];
+@@ -740,8 +745,8 @@
+             Err(error) => return interp.report_cmd_error(error.into()),
+         }
+     } else {
+-        // `-command` via the shared `Namespaces` resolution core.
+-        match tcl_cmd_core::namespace::which_command_bytes_checked(interp, name) {
++        // C reports its selected token; Jim reports its successful fresh query candidate.
++        match interp.native_namespace_which_command_bytes(name) {
+             Ok(fqn) => interp.set_result_bytes(&fqn.unwrap_or_default()),
+             Err(error) => return interp.report_cmd_error(error.into()),
+         }
+--- a/runtime/rust/src/interp/native_command_names.rs
++++ b/runtime/rust/src/interp/native_command_names.rs
+@@ -239,6 +239,83 @@
+             .transpose()
+     }
+ 
++    /// Namespace command queries retain their independent Jim helper purpose.
++    pub(crate) fn native_namespace_which_command_name(
++        &mut self,
++        original: *mut TclObj,
++    ) -> Result<Option<Vec<u8>>, ValueError> {
++        let policy = self
++            .name_policy_protocol()
++            .ok_or(ValueError::CommandProtocolUnavailable(
++                "namespace command query protocol",
++            ))?;
++        if !policy.recipe().is_jim084() {
++            return self.native_resolved_command_name(original);
++        }
++        let bytes = self.native_object_string_bytes(original)?;
++        self.native_namespace_which_command_bytes(&bytes)
++    }
++
++    pub(crate) fn native_namespace_which_command_bytes(
++        &mut self,
++        original: &[u8],
++    ) -> Result<Option<Vec<u8>>, ValueError> {
++        use tcl_syntax::naming::NativeNameContext;
++        let protocol = self
++            .name_policy_protocol()
++            .ok_or(ValueError::CommandProtocolUnavailable(
++                "namespace command query protocol",
++            ))?
++            .recipe();
++        if !protocol.is_jim084() {
++            return tcl_cmd_core::namespace::which_command_bytes_checked(self, original);
++        }
++        let scope = super::native_operation_currency::NativeOperationScope::enter(self).map_err(
++            |first| {
++                self.refuse_native_execution(first);
++                ValueError::CommandProtocolUnavailable("Jim namespace command query entry")
++            },
++        )?;
++        let current = self.current_ns();
++        let namespace = self
++            .namespaces()
++            .jim_namespace_original_owner(current)
++            .ok_or(ValueError::CommandProtocolUnavailable(
++                "Jim namespace command query holder",
++            ))?;
++        let namespace_bytes = self.native_object_string_bytes(namespace.as_ptr());
++        scope.currency().ensure_current_or_refuse().map_err(|_| {
++            ValueError::CommandProtocolUnavailable("Jim namespace command query currency")
++        })?;
++        let namespace_bytes = namespace_bytes?;
++        let path = tcl_core_types::ByteNamespacePath::root();
++        let candidates = protocol
++            .jim_namespace_command_query_candidates(
++                NativeNameContext::with_jim_namespace(&path, &namespace_bytes),
++                original,
++            )
++            .map_err(|_| {
++                ValueError::CommandProtocolUnavailable("Jim namespace command query purpose")
++            })?;
++        let object_context = self.native_jim_object_context()?;
++        for candidate in candidates {
++            let input = obj::Owned::fresh(obj::new_string_bytes(candidate.lookup.as_bytes()));
++            crate::native_source::bind_context(input.as_ptr(), &object_context)?;
++            let found = self
++                .resolve_original_command_at(crate::namespace::GLOBAL, input.as_ptr())?
++                .is_some();
++            scope.currency().ensure_current_or_refuse().map_err(|_| {
++                ValueError::CommandProtocolUnavailable(
++                    "Jim namespace command query result currency",
++                )
++            })?;
++            if found {
++                return Ok(Some(candidate.reported.as_bytes().to_vec()));
++            }
++        }
++        Ok(None)
++    }
++
+     /// Report the selected original command's imported origin without a second
+     /// lookup or reconstruction of the original operand.
+     pub(crate) fn native_namespace_origin(
+--- a/runtime/rust/src/interp/native_body_artifact/native_introspection.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_introspection.rs
+@@ -112,7 +112,7 @@
+             }
+             Kind::NamespaceWhich => {
+                 let bytes = self
+-                    .native_resolved_command_name(operands[0].as_ptr())
++                    .native_namespace_which_command_name(operands[0].as_ptr())
+                     .map_err(|error| self.report_cmd_error(error.into()))?;
+                 match bytes {
+                     Some(bytes) => self
+--- /dev/null
++++ b/runtime/rust/tests/native_namespace_command_query.rs
+@@ -0,0 +1,82 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++#![cfg(have_tommath)]
++
++use std::{cell::RefCell, rc::Rc};
++use tcl_host_native::NativeHost;
++use tcl_platform::{Capabilities, Clock, Env, Filesystem, Host, Process, StdIo};
++use tcl_runtime::interp::{Code, Interp};
++
++struct CaptureHost {
++    native: NativeHost,
++    stdout: RefCell<Vec<u8>>,
++    stderr: RefCell<Vec<u8>>,
++}
++impl StdIo for CaptureHost {
++    fn write_stdout(&self, bytes: &[u8]) {
++        self.stdout.borrow_mut().extend_from_slice(bytes);
++    }
++    fn write_stderr(&self, bytes: &[u8]) {
++        self.stderr.borrow_mut().extend_from_slice(bytes);
++    }
++}
++impl Host for CaptureHost {
++    fn capabilities(&self) -> Capabilities {
++        self.native.capabilities()
++    }
++    fn clock(&self) -> &dyn Clock {
++        self.native.clock()
++    }
++    fn stdio(&self) -> &dyn StdIo {
++        self
++    }
++    fn env(&self) -> &dyn Env {
++        self.native.env()
++    }
++    fn filesystem(&self) -> Option<&dyn Filesystem> {
++        self.native.filesystem()
++    }
++    fn process(&self) -> Option<&dyn Process> {
++        self.native.process()
++    }
++}
++
++#[test]
++fn namespace_command_queries_match_original_portable_source_reports() {
++    let source = include_bytes!(
++        "../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
++    );
++    for (environment, expected) in [
++        ("tcl8.4", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.4.20/stdout.bin").as_slice()),
++        ("tcl8.5", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.5.19/stdout.bin").as_slice()),
++        ("tcl8.6", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.6.18/stdout.bin").as_slice()),
++        ("tcl9.0", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/9.0.4/stdout.bin").as_slice()),
++        ("tcl9.1", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/9.1.0/stdout.bin").as_slice()),
++        ("jim", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/jim/stdout.bin").as_slice()),
++    ] {
++        let host = Rc::new(CaptureHost { native: NativeHost::new(), stdout: RefCell::new(Vec::new()), stderr: RefCell::new(Vec::new()) });
++        let mut interp = Interp::with_native_core(host.clone(),
++            tcl_registry::model::resolve_environment(environment).unit_profile(),
++            tcl_registry::special_vars::NativeBootstrapInputs::default()).unwrap();
++        assert_eq!(interp.eval_str(source), Code::Ok, "{environment}: {:?}", interp.result_bytes());
++        assert!(!interp.host_refusal_pending(), "{environment}");
++        assert!(host.stderr.borrow().is_empty(), "{environment}: {:?}", host.stderr.borrow());
++        let actual = host.stdout.borrow();
++        let split = |bytes: &[u8]| bytes.iter().position(|byte| *byte == b'\n').unwrap();
++        let actual_split = split(&actual);
++        let expected_split = split(expected);
++        if environment == "jim" {
++            assert_eq!(&actual[..actual_split], b"IDENTITY 0.84");
++            assert_eq!(&expected[..expected_split], b"IDENTITY 0.84-9-g5bac7c9");
++        } else {
++            assert_eq!(&actual[..actual_split], &expected[..expected_split], "{environment}: selected C release");
++        }
++        let actual = &actual[actual_split + 1..];
++        let expected = &expected[expected_split + 1..];
++        assert_eq!(actual.split(|byte| *byte == b'\n').filter(|row| !row.is_empty()).count(), 33, "{environment}");
++        assert_eq!(expected.split(|byte| *byte == b'\n').filter(|row| !row.is_empty()).count(), 33, "{environment}");
++        assert_eq!(actual, expected, "{environment}: original query/setup/context rows");
++    }
++}

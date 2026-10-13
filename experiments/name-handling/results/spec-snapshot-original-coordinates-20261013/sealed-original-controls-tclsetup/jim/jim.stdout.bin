@@ -1,0 +1,6 @@
+
+SPEC-TEST	unsupported	demo::quiet	purity snapshot unavailable: ::namespace, unknown command "children": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which
+
+SPEC-TEST	asked	demo::quiet	
+
+SPEC-TEST	done	-	1

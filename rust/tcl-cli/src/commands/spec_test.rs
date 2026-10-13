@@ -50,7 +50,8 @@
 //!   above share the same trace window. The probe's own namespace, the shell's own
 //!   `::tcl`, where one that reads its script from standard input keeps the
 //!   history of every statement it reads, and the global `errorInfo` and
-//!   `errorCode`, which the shell writes, are not counted.
+//!   `errorCode`, which the shell writes, are not counted. Unsupported namespace
+//!   addresses or interpreter queries are reported as unavailable purity checks.
 
 use std::fmt::Write as _;
 
@@ -256,41 +257,26 @@ proc ::__spec_test::reference {name text lines} {
     }
     interp delete $child
 }
-proc ::__spec_test::ours {name} {
-    set name [string trimleft $name :]
-    return [expr {[string match __spec_test* $name] || [lsearch -exact {errorInfo errorCode} $name] >= 0}]
-}
-proc ::__spec_test::namespaces {ns} {
-    set found [list $ns]
-    foreach child [namespace children $ns] {
-        if {$child eq "::__spec_test" || $child eq "::tcl"} continue
-        foreach inner [::__spec_test::namespaces $child] {lappend found $inner}
-    }
-    return $found
-}
 proc ::__spec_test::variables {} {
-    set names {}
-    foreach ns [::__spec_test::namespaces ::] {
-        foreach name [info vars [expr {$ns eq "::" ? "::*" : "${ns}::*"}]] {
-            if {![::__spec_test::ours $name]} {lappend names $name}
-        }
+    set variables {}
+    foreach coordinate [::__tcl_name_snapshot::variables {::__spec_test ::tcl}] {
+        foreach {ns name} $coordinate break
+        if {$ns eq "::" && [lsearch -exact {errorInfo errorCode} $name] >= 0} continue
+        lappend variables $coordinate
     }
-    return [lsort -unique $names]
-}
-proc ::__spec_test::shown {name} {
-    set bare [string trimleft $name :]
-    if {[string first :: $bare] < 0} {return $bare}
-    return $name
+    return $variables
 }
 proc ::__spec_test::snapshot {} {
     set state {}
-    foreach name [::__spec_test::variables] {
-        if {[array exists $name]} {
+    foreach coordinate [::__spec_test::variables] {
+        if {[::__tcl_name_snapshot::call $coordinate {::array exists}]} {
             set pairs {}
-            foreach key [lsort [array names $name]] {lappend pairs $key [set ${name}($key)]}
-            lappend state $name [list array $pairs]
-        } elseif {[info exists $name]} {
-            lappend state $name [list scalar [set $name]]
+            foreach key [lsort [::__tcl_name_snapshot::call $coordinate {::array names}]] {
+                lappend pairs $key [::__tcl_name_snapshot::element_value $coordinate $key]
+            }
+            lappend state $coordinate [list array $pairs]
+        } elseif {[::__tcl_name_snapshot::call $coordinate {::info exists}]} {
+            lappend state $coordinate [list scalar [::__tcl_name_snapshot::call $coordinate {::set}]]
         }
     }
     return $state
@@ -307,60 +293,98 @@ proc ::__spec_test::changed {before after} {
     return [lsort -unique $names]
 }
 proc ::__spec_test::begin {} {
+    set ::__spec_test::snapshot_ready 0
+    set ::__spec_test::snapshot_reason {}
     if {$::__spec_test::skip} return
-    set ::__spec_test::mark [::__spec_test::snapshot]
     set ::__spec_test::writes {}
     catch {unset ::__spec_test::traced}
     array set ::__spec_test::traced {}
-    ::__spec_test::watch 0
-    foreach helper {attempt example reference pure} {
-        trace add execution ::__spec_test::$helper leavestep ::__spec_test::step
+    if {[catch {::__spec_test::snapshot} state]} {
+        set ::__spec_test::snapshot_reason $state
+        return
     }
+    set ::__spec_test::mark $state
+    if {[catch {::__spec_test::watch 0} reason]} {
+        set ::__spec_test::snapshot_reason $reason
+        ::__spec_test::end
+        return
+    }
+    if {[catch {
+        foreach helper {attempt example reference pure} {
+            trace add execution ::__spec_test::$helper leavestep ::__spec_test::step
+        }
+    } reason]} {
+        set ::__spec_test::snapshot_reason $reason
+        ::__spec_test::end
+        return
+    }
+    set ::__spec_test::snapshot_ready 1
 }
-proc ::__spec_test::wrote {name name1 name2 op} {
-    lappend ::__spec_test::writes $name
-    if {$op eq "unset" && ![array exists $name]} {unset ::__spec_test::traced($name)}
-}
-proc ::__spec_test::watch {created} {
-    foreach qualified [::__spec_test::variables] {
-        if {[info exists ::__spec_test::traced($qualified)]} continue
-        set prefix [list ::__spec_test::wrote $qualified]
-        if {![catch {trace add variable $qualified {write unset} $prefix}]} {
-            set ::__spec_test::traced($qualified) $prefix
-            if {$created} {lappend ::__spec_test::writes $qualified}
+proc ::__spec_test::wrote {coordinate name1 name2 op} {
+    lappend ::__spec_test::writes $coordinate
+    if {$op eq "unset"} {
+        if {[catch {::__tcl_name_snapshot::call $coordinate {::array exists}} present] || !$present} {
+            catch {unset ::__spec_test::traced($coordinate)}
         }
     }
 }
+proc ::__spec_test::watch {created} {
+    foreach coordinate [::__spec_test::variables] {
+        if {[info exists ::__spec_test::traced($coordinate)]} continue
+        set prefix [list ::__spec_test::wrote $coordinate]
+        ::__tcl_name_snapshot::call $coordinate {::trace add variable} [list {write unset} $prefix]
+        set ::__spec_test::traced($coordinate) $prefix
+        if {$created} {lappend ::__spec_test::writes $coordinate}
+    }
+}
 proc ::__spec_test::step {args} {
-    ::__spec_test::watch 1
+    if {!$::__spec_test::snapshot_ready} return
+    if {[catch {::__spec_test::watch 1} reason]} {
+        set ::__spec_test::snapshot_ready 0
+        set ::__spec_test::snapshot_reason $reason
+    }
 }
 proc ::__spec_test::end {} {
     foreach helper {attempt example reference pure} {
-        trace remove execution ::__spec_test::$helper leavestep ::__spec_test::step
+        catch {trace remove execution ::__spec_test::$helper leavestep ::__spec_test::step}
     }
-    foreach qualified [array names ::__spec_test::traced] {
-        catch {trace remove variable $qualified {write unset} $::__spec_test::traced($qualified)}
+    if {![array exists ::__spec_test::traced]} return
+    foreach coordinate [array names ::__spec_test::traced] {
+        catch {::__tcl_name_snapshot::call $coordinate {::trace remove variable} [list {write unset} $::__spec_test::traced($coordinate)]}
     }
 }
 proc ::__spec_test::pure {name lines} {
     if {$::__spec_test::skip} return
+    if {!$::__spec_test::snapshot_ready} {
+        ::__spec_test::end
+        ::__spec_test::say unsupported $name "purity snapshot unavailable: $::__spec_test::snapshot_reason"
+        return
+    }
     set earlier $::__spec_test::writes
     set reported {}
     foreach line $lines {
         set ::__spec_test::writes {}
         catch {uplevel #0 $line}
         set names {}
-        foreach written [lsort -unique $::__spec_test::writes] {lappend names [::__spec_test::shown $written]}
+        foreach written [lsort -unique $::__spec_test::writes] {lappend names [::__tcl_name_snapshot::shown $written]}
         if {[llength $names] > 0} {
             eval lappend reported $names
             ::__spec_test::say pure $name "declared pure, but `$line` wrote the variable(s) $names"
         }
     }
     ::__spec_test::end
+    if {!$::__spec_test::snapshot_ready} {
+        ::__spec_test::say unsupported $name "purity snapshot unavailable: $::__spec_test::snapshot_reason"
+        return
+    }
+    if {[catch {::__spec_test::snapshot} after]} {
+        ::__spec_test::say unsupported $name "purity snapshot unavailable: $after"
+        return
+    }
     set names {}
-    set changed [::__spec_test::changed $::__spec_test::mark [::__spec_test::snapshot]]
-    foreach qualified [lsort -unique [concat $earlier $changed]] {
-        set shown [::__spec_test::shown $qualified]
+    set changed [::__spec_test::changed $::__spec_test::mark $after]
+    foreach coordinate [lsort -unique [concat $earlier $changed]] {
+        set shown [::__tcl_name_snapshot::shown $coordinate]
         if {[lsearch -exact $reported $shown] < 0} {lappend names $shown}
     }
     if {[llength $names] > 0} {
@@ -373,7 +397,9 @@ proc ::__spec_test::pure {name lines} {
 /// question each command raises.
 #[must_use]
 pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
-    let mut script = PRELUDE.replace("@PACKAGE@", &list_element(package));
+    let mut script =
+        String::from(tcl_syntax::naming::original_namespace_variable_snapshot_support());
+    script.push_str(&PRELUDE.replace("@PACKAGE@", &list_element(package)));
     for probe in probes {
         let name = list_element(&probe.name);
         let pattern = list_element(&tcl_syntax::glob::literal_pattern(&probe.name));
@@ -436,8 +462,8 @@ pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Divergence {
     /// The question: `arity`, `example`, `returns`, `reference`, `pure`,
-    /// `missing` for a command the package does not define, or `load` for a
-    /// package the shell could not require.
+    /// `missing` for an absent command, `load` for an unavailable package, or
+    /// `unsupported` when the interpreter cannot provide a purity snapshot.
     pub kind: String,
     /// The command the divergence is about; `-` for the package.
     pub command: String,
@@ -719,6 +745,128 @@ mod tests {
             required_package(&pack("beta")),
             None,
             "two packages are none: the author names one"
+        );
+    }
+    const MUTATING_FIXTURE: &str = r#"namespace eval ::demo {}
+namespace eval {::N[0]} {variable x BEFORE; variable a; array set a {:key BEFORE}}
+namespace eval ::N0 {variable y SIBLING}
+set {:errorInfo} BEFORE
+set ::__spec_testOther BEFORE
+proc ::demo::mutate {} {
+    ::uplevel #0 [list ::set :errorInfo AFTER]
+    ::set ::__spec_testOther AFTER
+    ::set {::N[0]::x} AFTER
+    ::set {::N[0]::a(:key)} AFTER
+    ::return OK
+}
+package provide demo 1.0
+"#;
+
+    const REFUSAL_FIXTURE: &str = r#"namespace eval ::demo {}
+namespace eval {:N} {variable x COLON_NAMESPACE}
+namespace eval ::N {variable x ORDINARY_NAMESPACE}
+proc ::demo::quiet {} {return OK}
+package provide demo 1.0
+"#;
+
+    const SHADOW_FIXTURE: &str = r#"namespace eval ::demo {}
+namespace eval ::shadow {
+    variable x BEFORE
+    proc namespace args {error {SHADOW namespace}}
+    proc info args {error {SHADOW info}}
+    proc set args {error {SHADOW set}}
+    proc array args {error {SHADOW array}}
+    proc trace args {error {SHADOW trace}}
+}
+proc ::demo::mutate {} {::set ::shadow::x AFTER; ::return OK}
+package provide demo 1.0
+"#;
+
+    fn original_purity_report(
+        interpreter: &std::path::Path,
+        fixture: &str,
+        command: &str,
+    ) -> Report {
+        let mut selected = probe(command);
+        selected.pure = true;
+        selected.examples.push(command.to_owned());
+        let script = format!("{fixture}\n{}", render_script("demo", &[selected]));
+        let outcome = tcl_test_support::run_script(interpreter, script.as_bytes())
+            .expect("original interpreter must execute the probe");
+        let text = outcome.strict_text().unwrap_or_else(|reason| {
+            panic!("{}: {reason}", interpreter.display());
+        });
+        let report = parse_report(&text);
+        assert_eq!(report.done, Some(1), "{text}");
+        assert_eq!(report.asked, [command], "{text}");
+        report
+    }
+
+    #[test]
+    fn original_purity_snapshots_keep_colon_root_and_bracket_namespace_operands() {
+        for interpreter in tcl_test_support::available_tclshs() {
+            let report =
+                original_purity_report(&interpreter.path, MUTATING_FIXTURE, "demo::mutate");
+            assert_eq!(report.divergences.len(), 1, "{report:?}");
+            let divergence = &report.divergences[0];
+            assert_eq!(divergence.kind, "pure", "{report:?}");
+            for variable in [":errorInfo", "__spec_testOther", "::N[0]::a", "::N[0]::x"] {
+                assert!(divergence.detail.contains(variable), "{report:?}");
+            }
+            assert!(!divergence.detail.contains("::N0::y"), "{report:?}");
+        }
+    }
+
+    #[test]
+    fn original_purity_snapshots_refuse_ambiguous_namespace_reports() {
+        for interpreter in tcl_test_support::available_tclshs() {
+            let report = original_purity_report(&interpreter.path, REFUSAL_FIXTURE, "demo::quiet");
+            assert_eq!(report.divergences.len(), 1, "{report:?}");
+            assert_eq!(report.divergences[0].kind, "unsupported", "{report:?}");
+            assert!(
+                report.divergences[0]
+                    .detail
+                    .contains("namespace report has no unambiguous snapshot address"),
+                "{report:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_purity_snapshot_operations_do_not_use_namespace_command_shadows() {
+        for interpreter in tcl_test_support::available_tclshs() {
+            let report = original_purity_report(&interpreter.path, SHADOW_FIXTURE, "demo::mutate");
+            assert_eq!(report.divergences.len(), 1, "{report:?}");
+            assert_eq!(report.divergences[0].kind, "pure", "{report:?}");
+            assert!(
+                report.divergences[0].detail.contains("::shadow::x"),
+                "{report:?}"
+            );
+            assert!(
+                !report.divergences[0].detail.contains("SHADOW"),
+                "{report:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_jim_purity_probe_reports_unavailable_namespace_enumeration() {
+        let interpreter = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+            Some(tcl_test_support::require_jimsh().expect("required original Jim oracle"))
+        } else {
+            tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
+        };
+        let Some(interpreter) = interpreter else {
+            eprintln!("skipping original Jim snapshot control: no Jim oracle");
+            return;
+        };
+        let fixture = "namespace eval ::demo {}\nproc ::demo::quiet {} {return OK}\npackage provide demo 1.0\n";
+        let report = original_purity_report(&interpreter.path, fixture, "demo::quiet");
+        assert_eq!(report.divergences.len(), 1, "{report:?}");
+        assert_eq!(report.divergences[0].kind, "unsupported", "{report:?}");
+        assert!(
+            report.divergences[0].detail.contains("children"),
+            "{report:?}"
         );
     }
 }

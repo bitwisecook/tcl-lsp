@@ -64,8 +64,8 @@ and oracle provenance are retained. Sparse fixtures are checked against Git
 before claiming an input absent.
 
 Tracking documents and coherent development commits/pushes are updated every15
-minutes, even while red. The current checkpoint is18:28 UTC on13 October2026;
-next tracking checkpoint18:43 UTC and next hourly progress report19:06 UTC.
+minutes, even while red. The current checkpoint is18:46 UTC on13 October2026;
+next tracking checkpoint19:01 UTC and next hourly progress report19:06 UTC.
 Root checks the clock between bounded operations. The last checkpoint's brief
 integration delay is explicit; no missed check is represented as executed.
 
@@ -170,3 +170,5 @@ Current consumer integration checkpoint (2026-10-13 17:58 UTC): BPF descriptor c
 Current integration: original command trace/rename consumers use retained generations and actual physical slots; their new Runtime checks are queued. Original C3 direct rename controls pass; C84/C85 fixture refusal and Jim trace unavailability remain explicit. Fresh isolated Registry/query capture22 exact controls pass; later Compiler test import build blockage is retained, remaining VM/Compiler results pending. #2286 SourceReadScope/body catalogue work continues under a fresh source_read_flow agent, with no source loss or new acceptance claim. The measured Native class fallback repair is prepared; remaining Logical scope producers are under direct audit.
 
 Checkpoint18:28 UTC: shared Registry/Compiler/VM query and metadata adapters integrated;49 unique intended controls accepted across two frozen isolated receipts. New RuntimeWhich compiler adapter integrated with5passes/1reproducedbaselinefailure. The publication geometry carrier, original read-qualification consumers and measured class gate are integrated but their new Main controls remain pending. SourceReadScope one-owner diagnostic build is running isolated; Root Scope trace and fresh replay/Runtime validation are queued. Typed procedure ID primary propagation and snapshot coordinate implementation continue in parallel. Every validation state is scoped; no allconsumer acceptance claimed.
+
+Current checkpoint18:46 UTC (18:43 checkpoint delayed by integration review): Main Scope trace03 ran0tests due duplicate descriptor method introduced in three-way integration; identicalduplicate removed. Trace04 runs10 controls3pass7fail with unchanged sources. Root/proc scope trees retain declared variables but some conditional source words are unavailable; deleted-class navigation still fails despite first fallback repair. Scope instrumentation is restored byteexact. Runtime provider query ingress +Jim global-helper frame adapter and shared original-coordinate snapshot support are integrated, compiled acceptance pending. Sixteen source-form snapshot controls pass. Separate source-flow trace proves originalrows/entry/config/word/frame guards true; postloop lookup snapshot opaque, inner later-selection guard still under investigation. Typed procedure ID primary slice remains authored but uncompiled. Next tracking19:01 UTC/hourly19:06 UTC.

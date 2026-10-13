@@ -1,0 +1,65 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner ... SCOPE_OWNER query offset=152 registry=Some("tcl") invocations=14
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=1 kind=Namespace name="Target" body=Some(Span { start: 22, end: 45 }) namespace=Some(C(ByteNamespacePath([NameBytes([84, 97, 114, 103, 101, 116])]))) isolated=false vars=[("x", Span { start: 32, end: 33 }, {})]
+SCOPE_OWNER tree depth=1 kind=Namespace name="N" body=Some(Span { start: 64, end: 250 }) namespace=Some(C(ByteNamespacePath([NameBytes([78])]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=2 kind=Namespace name="Target" body=Some(Span { start: 89, end: 109 }) namespace=Some(C(ByteNamespacePath([NameBytes([78]), NameBytes([84, 97, 114, 103, 101, 116])]))) isolated=false vars=[("x", Span { start: 99, end: 100 }, {})]
+SCOPE_OWNER tree depth=2 kind=Proc name="p" body=Some(Span { start: 122, end: 248 }) namespace=Some(C(ByteNamespacePath([NameBytes([78])]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="#0" body=Some(Span { start: 137, end: 153 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="0" body=Some(Span { start: 167, end: 183 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="1" body=Some(Span { start: 197, end: 213 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="1" body=Some(Span { start: 227, end: 245 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER call offset=0 name="namespace" recorded=true native=true words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=23 name="variable" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=47 name="namespace" recorded=true native=true words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=67 name="namespace" recorded=false native=false words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=None
+SCOPE_OWNER call offset=90 name="variable" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=112 name="proc" recorded=false native=false words=true roles=Some(Some([(0, Name), (1, ParamList), (2, Body)])) head-equal=None
+SCOPE_OWNER call offset=126 name="uplevel" recorded=false native=false words=true roles=Some(None) head-equal=None
+SCOPE_OWNER call offset=138 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=157 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=168 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=187 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=198 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=217 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=228 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER query offset=182 registry=Some("tcl") invocations=14
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=1 kind=Namespace name="Target" body=Some(Span { start: 22, end: 45 }) namespace=Some(C(ByteNamespacePath([NameBytes([84, 97, 114, 103, 101, 116])]))) isolated=false vars=[("x", Span { start: 32, end: 33 }, {})]
+SCOPE_OWNER tree depth=1 kind=Namespace name="N" body=Some(Span { start: 64, end: 250 }) namespace=Some(C(ByteNamespacePath([NameBytes([78])]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=2 kind=Namespace name="Target" body=Some(Span { start: 89, end: 109 }) namespace=Some(C(ByteNamespacePath([NameBytes([78]), NameBytes([84, 97, 114, 103, 101, 116])]))) isolated=false vars=[("x", Span { start: 99, end: 100 }, {})]
+SCOPE_OWNER tree depth=2 kind=Proc name="p" body=Some(Span { start: 122, end: 248 }) namespace=Some(C(ByteNamespacePath([NameBytes([78])]))) isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="#0" body=Some(Span { start: 137, end: 153 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="0" body=Some(Span { start: 167, end: 183 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="1" body=Some(Span { start: 197, end: 213 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER tree depth=3 kind=Uplevel name="1" body=Some(Span { start: 227, end: 245 }) namespace=None isolated=false vars=[]
+SCOPE_OWNER call offset=0 name="namespace" recorded=true native=true words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=23 name="variable" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=47 name="namespace" recorded=true native=true words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=Some(true)
+SCOPE_OWNER call offset=67 name="namespace" recorded=false native=false words=true roles=Some(Some([(1, NamespaceName), (2, Body)])) head-equal=None
+SCOPE_OWNER call offset=90 name="variable" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=112 name="proc" recorded=false native=false words=true roles=Some(Some([(0, Name), (1, ParamList), (2, Body)])) head-equal=None
+SCOPE_OWNER call offset=126 name="uplevel" recorded=false native=false words=true roles=Some(None) head-equal=None
+SCOPE_OWNER call offset=138 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=157 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=168 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=187 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=198 name="puts" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=217 name="uplevel" recorded=false native=false words=false roles=None head-equal=None
+SCOPE_OWNER call offset=228 name="puts" recorded=false native=false words=false roles=None head-equal=None
+
+thread 'definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner' (116986) panicked at rust/tcl-lsp-core/src/definition.rs:8838:13:
+assertion `left == right` failed: uplevel 0 {puts $Target::x
+  left: Some("::Target::x")
+ right: Some("::N::Target::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.62s
+

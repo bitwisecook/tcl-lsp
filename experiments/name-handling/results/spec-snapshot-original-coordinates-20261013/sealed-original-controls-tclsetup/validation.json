@@ -1,0 +1,298 @@
+{
+  "cli_path": "/workspace/name-implementation-worktrees/codegen/rust/tcl-cli/src/commands/spec_test.rs",
+  "cli_sha256": "2f9c926e03175b8a353c421b1ccf2db1b4abd1cc2d9d66963d36dc8eef7f2fae",
+  "shared_support_scratch_path": "/tmp/spec-snapshot-address-design/script_namespace_snapshot.rs",
+  "shared_support_sha256": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "shared_support_applied": true,
+  "naming_export_applied": true,
+  "rust_build_and_test_acceptance": "UNEXECUTED; Root Main and RegistryVM leases held",
+  "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "runner_sha256": "842b7efddc6ba84f7d2a81c6a4ba360bea8ba3b8c7a72d626f75461038820625",
+  "cases": [
+    {
+      "provider": "c84",
+      "case": "mutating",
+      "captured_utc": "2026-10-13T18:32:11.316500+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/mutating-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "1162c97a1dd01c6310111e0a915b1a6d4382cc1c3b55b6e213012563fff36407",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c851136d1bb14fb868761036809b612735059a42a4a03fc32f15f047dc6306d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c84",
+      "case": "refusal",
+      "captured_utc": "2026-10-13T18:32:11.319093+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/refusal-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "7927ab161938f593651bbe8da343642e41eac5882edb0cb4eb530ab85e86c89c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c84",
+      "case": "shadow",
+      "captured_utc": "2026-10-13T18:32:11.337632+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/shadow-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "62d5b1f70003d909874f8b3ce55954dc82c1882b8b470ba9c738ef8f3d9a615c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c7e92473587dd1d8a90b78aaf5e53de0f283c88433cf874c2941076b59a45e7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c85",
+      "case": "mutating",
+      "captured_utc": "2026-10-13T18:32:11.483942+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/mutating-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "1162c97a1dd01c6310111e0a915b1a6d4382cc1c3b55b6e213012563fff36407",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c851136d1bb14fb868761036809b612735059a42a4a03fc32f15f047dc6306d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c85",
+      "case": "refusal",
+      "captured_utc": "2026-10-13T18:32:11.487338+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/refusal-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "7927ab161938f593651bbe8da343642e41eac5882edb0cb4eb530ab85e86c89c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c85",
+      "case": "shadow",
+      "captured_utc": "2026-10-13T18:32:11.511603+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/shadow-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "62d5b1f70003d909874f8b3ce55954dc82c1882b8b470ba9c738ef8f3d9a615c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c7e92473587dd1d8a90b78aaf5e53de0f283c88433cf874c2941076b59a45e7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c86",
+      "case": "mutating",
+      "captured_utc": "2026-10-13T18:32:12.154090+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/mutating-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "1162c97a1dd01c6310111e0a915b1a6d4382cc1c3b55b6e213012563fff36407",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c851136d1bb14fb868761036809b612735059a42a4a03fc32f15f047dc6306d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c86",
+      "case": "refusal",
+      "captured_utc": "2026-10-13T18:32:12.158171+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/refusal-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "7927ab161938f593651bbe8da343642e41eac5882edb0cb4eb530ab85e86c89c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c86",
+      "case": "shadow",
+      "captured_utc": "2026-10-13T18:32:12.304432+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/shadow-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "62d5b1f70003d909874f8b3ce55954dc82c1882b8b470ba9c738ef8f3d9a615c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c7e92473587dd1d8a90b78aaf5e53de0f283c88433cf874c2941076b59a45e7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c90",
+      "case": "mutating",
+      "captured_utc": "2026-10-13T18:32:12.535339+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/mutating-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "1162c97a1dd01c6310111e0a915b1a6d4382cc1c3b55b6e213012563fff36407",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c851136d1bb14fb868761036809b612735059a42a4a03fc32f15f047dc6306d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c90",
+      "case": "refusal",
+      "captured_utc": "2026-10-13T18:32:12.542505+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/refusal-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "7927ab161938f593651bbe8da343642e41eac5882edb0cb4eb530ab85e86c89c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c90",
+      "case": "shadow",
+      "captured_utc": "2026-10-13T18:32:12.588016+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/shadow-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "62d5b1f70003d909874f8b3ce55954dc82c1882b8b470ba9c738ef8f3d9a615c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c7e92473587dd1d8a90b78aaf5e53de0f283c88433cf874c2941076b59a45e7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c91",
+      "case": "mutating",
+      "captured_utc": "2026-10-13T18:32:12.808578+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/mutating-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "1162c97a1dd01c6310111e0a915b1a6d4382cc1c3b55b6e213012563fff36407",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c851136d1bb14fb868761036809b612735059a42a4a03fc32f15f047dc6306d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c91",
+      "case": "refusal",
+      "captured_utc": "2026-10-13T18:32:12.815974+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/refusal-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "7927ab161938f593651bbe8da343642e41eac5882edb0cb4eb530ab85e86c89c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "c91",
+      "case": "shadow",
+      "captured_utc": "2026-10-13T18:32:12.866673+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/spec-snapshot-address-design/shadow-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "62d5b1f70003d909874f8b3ce55954dc82c1882b8b470ba9c738ef8f3d9a615c",
+      "selected_environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+      },
+      "exit_code": 0,
+      "stdout_sha256": "c7e92473587dd1d8a90b78aaf5e53de0f283c88433cf874c2941076b59a45e7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    },
+    {
+      "provider": "jim",
+      "case": "jim",
+      "captured_utc": "2026-10-13T18:32:12.943417+00:00",
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/spec-snapshot-address-design/jim-probe-tclsetup.tcl"
+      ],
+      "input_sha256": "d3e81d2a874f5a78c4a5c499ad4ccd3caa243426ce30a90a7cb7adb1942ff18c",
+      "selected_environment": {},
+      "exit_code": 0,
+      "stdout_sha256": "dd7d427b52063f397dda49c31eb741a5bac457bdbc6fbe4d0470608df2a714d0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+    }
+  ]
+}

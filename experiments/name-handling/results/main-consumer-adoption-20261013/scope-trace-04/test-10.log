@@ -1,0 +1,6 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.64s
+

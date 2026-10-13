@@ -1,0 +1,33 @@
+{
+  "worktree": "/workspace/name-implementation-worktrees/codegen",
+  "owned_cli_file": "rust/tcl-cli/src/commands/spec_test.rs",
+  "cli_sha256": "2f9c926e03175b8a353c421b1ccf2db1b4abd1cc2d9d66963d36dc8eef7f2fae",
+  "cli_patch": "/tmp/spec-snapshot-address-design/cli-snapshot.patch",
+  "cli_patch_sha256": "ab012d13e7ab47f18906dae4520c1c062a8e59946536b8b050a8bd636c785ef0",
+  "syntax_support_scratch": "/tmp/spec-snapshot-address-design/script_namespace_snapshot.rs",
+  "syntax_support_sha256": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "syntax_target": "rust/tcl-syntax/src/naming/script_namespace_snapshot.rs",
+  "syntax_export": "mod script_namespace_snapshot; pub use script_namespace_snapshot::original_namespace_variable_snapshot_support;",
+  "syntax_applied": true,
+  "scope": "Isolated CLI+four oracle unit controls and disjoint shared Syntax support/export after RegistryVM49 seal release; Main/staging/commits untouched. Original source forms16 passed, Rust/Cargo acceptance unexecuted. Root main presence fix remains separate.",
+  "formatting": "standalone rustfmt edition2024 completed",
+  "rust_validation": "UNEXECUTED; no Cargo builds during Main/RegistryVM leases",
+  "original_source_form_evidence": "/tmp/spec-snapshot-address-design/sealed-original-controls-tclsetup/validation.json",
+  "pending": [
+    "Fresh compiled CLI four selectors plus existing SpecTest controls",
+    "Root current contract/pattern catalogue integration",
+    "No QName/token/cell identity is derived from coordinates"
+  ],
+  "syntax_path": "rust/tcl-syntax/src/naming/script_namespace_snapshot.rs",
+  "syntax_sha256": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84",
+  "naming_export_path": "rust/tcl-syntax/src/naming.rs",
+  "naming_export_sha256": "c6196f29bd2bab64ac614d65e13530f14d7769c8e0be501085056719e65da5d6",
+  "production_patch": "/tmp/spec-snapshot-address-design/production.patch",
+  "production_patch_sha256": "f87139a07bd221ca8bebf37f8943a877cf5a43ccfb5000b49a3e51cd673405f1",
+  "main_safe_patch": "/tmp/spec-snapshot-address-design/main-safe-production.patch",
+  "main_safe_patch_sha256": "de3aedd221bd4a373039c0953fbce2d7e61134cd3c3857126bb5aeae07976224",
+  "main_safe_preimage_cli_sha256": "38fe32dcf94baac753e9dacdf70cd435d9c27d0494f3bdd10220733f0b948df6",
+  "main_safe_preimage_naming_sha256": "5820fed0d3532340c8ae9c10fd469ef8d2cbbc13f3073086d1fb4e119116bff9",
+  "main_safe_afterimage_cli_sha256": "61afaf545fa054790ca78212e0f60ea7ef92cc4c82b3ff0fecfb1b67a1e72f9e",
+  "main_safe_patch_read_only_apply_check": "passed at sampled Main preimages; no Main mutation"
+}

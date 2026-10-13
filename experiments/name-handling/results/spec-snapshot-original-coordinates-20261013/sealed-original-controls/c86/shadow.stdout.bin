@@ -1,0 +1,6 @@
+
+SPEC-TEST	pure	demo::mutate	declared pure, but `demo::mutate` wrote the variable(s) ::shadow::x
+
+SPEC-TEST	asked	demo::mutate	
+
+SPEC-TEST	done	-	1

@@ -112,7 +112,7 @@ impl Interp {
             }
             Kind::NamespaceWhich => {
                 let bytes = self
-                    .native_resolved_command_name(operands[0].as_ptr())
+                    .native_namespace_which_command_name(operands[0].as_ptr())
                     .map_err(|error| self.report_cmd_error(error.into()))?;
                 match bytes {
                     Some(bytes) => self

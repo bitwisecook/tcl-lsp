@@ -1,0 +1,19 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent ... SCOPE_OWNER query offset=27 registry=Some("tcl") invocations=2
+SCOPE_OWNER tree depth=0 kind=Global name="::" body=None namespace=Some(C(ByteNamespacePath([]))) isolated=false vars=[]
+SCOPE_OWNER call offset=0 name="set" recorded=true native=true words=false roles=None head-equal=None
+SCOPE_OWNER call offset=15 name="set" recorded=false native=false words=false roles=None head-equal=None
+
+thread 'definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent' (116980) panicked at rust/tcl-lsp-core/src/definition.rs:8677:18:
+current Logical source array candidate
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.27s
+

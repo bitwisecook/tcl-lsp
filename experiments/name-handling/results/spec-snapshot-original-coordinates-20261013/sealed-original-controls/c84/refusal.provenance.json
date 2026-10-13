@@ -1,0 +1,18 @@
+{
+  "provider": "c84",
+  "case": "refusal",
+  "captured_utc": "2026-10-13T18:17:31.399520+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/spec-snapshot-address-design/refusal-probe.tcl"
+  ],
+  "input_sha256": "9a24c69900138f81786f7ff831c5d6fa2fd64ea6f33ac05abb3743e767904d3b",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "4313dd550d52cd80dcb852e7fa92163575ec01a45fa7ddbee5b9823373018818",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "Original C/Jim execution of helper+CLI prelude source forms. Rust renderer/build/assertions unexecuted. Script contexts are not Native cell/token identities."
+}
