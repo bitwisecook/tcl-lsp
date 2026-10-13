@@ -1,0 +1,88 @@
+   Compiling libc v0.2.190
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling getrandom v0.4.3
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling crypto-bigint v0.7.5
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling md-5 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling elliptic-curve v0.14.1
+   Compiling primefield v0.14.0
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling getrandom v0.2.17
+   Compiling crossbeam-utils v0.8.23
+   Compiling ring v0.17.14
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling crypto-primes v0.7.2
+   Compiling crossbeam-epoch v0.9.21
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling crossbeam-deque v0.8.8
+   Compiling parking_lot_core v0.9.12
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling rayon-core v1.13.0
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling parking_lot v0.12.5
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling either v1.18.0
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+   Compiling rayon v1.12.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+warning: method `namespace_child_token` is never used
+     --> rust/tcl-vm/src/interp.rs:18328:8
+      |
+11372 | impl Vm {
+      | ------- method in this implementation
+...
+18328 |     fn namespace_child_token(&self, parent: NsId, simple: impl AsRef<[u8]>) -> Option<NsId> {
+      |        ^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-vm` (lib) generated 1 warning
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+error[E0433]: cannot find `ByteCommandSlot` in `naming`
+    --> rust/tcl-compiler/src/native_lowering/tests.rs:1314:33
+     |
+1314 |             tcl_syntax::naming::ByteCommandSlot::new(
+     |                                 ^^^^^^^^^^^^^^^ could not find `ByteCommandSlot` in `naming`
+
+error[E0433]: cannot find `ByteNamespacePath` in `naming`
+    --> rust/tcl-compiler/src/native_lowering/tests.rs:1315:37
+     |
+1315 |                 tcl_syntax::naming::ByteNamespacePath::root(),
+     |                                     ^^^^^^^^^^^^^^^^^ could not find `ByteNamespacePath` in `naming`
+
+error[E0433]: cannot find `NameBytes` in `naming`
+    --> rust/tcl-compiler/src/native_lowering/tests.rs:1316:37
+     |
+1316 |                 tcl_syntax::naming::NameBytes::from(":audit"),
+     |                                     ^^^^^^^^^ could not find `NameBytes` in `naming`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `tcl-compiler` (lib test) due to 3 previous errors

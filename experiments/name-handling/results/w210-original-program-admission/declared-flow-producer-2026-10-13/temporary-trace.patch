@@ -1,0 +1,466 @@
+--- rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ rust/tcl-compiler/src/command_binding/declaration_preview.rs (temporary diagnosis)
+@@ -1208,12 +1208,57 @@
+     (tokens.words() == observation.words.as_ref()).then_some(*tokens)
+ }
+ 
++#[cfg(test)]
++pub(super) fn trace_w210_producer_matches(site: &CommandAllocationSite) -> bool {
++    if std::env::var_os("TCL_LSP_TRACE_W210_PRODUCER").is_none() {
++        return false;
++    }
++    let bytes = site.source.source_image().bytes();
++    (bytes
++        == include_bytes!("../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl")
++        && [58, 441, 760, 1076].contains(&site.offset))
++        || bytes == b"proc ::missing::p {arg} {puts $missing}"
++        || bytes == b"rename proc stock; stock p {arg} {puts $missing}"
++        || bytes == b"interp alias {} define {} proc p; define {arg} {puts $missing}"
++        || bytes == b"interp alias {} define {} proc p {arg}; define {puts $missing}"
++}
++
++#[cfg(test)]
++pub(super) fn trace_w210_producer(site: &CommandAllocationSite, stage: &str, available: bool) {
++    if trace_w210_producer_matches(site) {
++        eprintln!(
++            "W210_PRODUCER offset={} stage={stage} available={available}",
++            site.offset
++        );
++    }
++}
++
++macro_rules! w210_producer_option {
++    ($site:expr, $stage:expr, $value:expr) => {{
++        let value = $value;
++        #[cfg(test)]
++        trace_w210_producer($site, $stage, value.is_some());
++        value
++    }};
++}
++
++macro_rules! w210_producer_check {
++    ($site:expr, $stage:expr, $value:expr) => {{
++        let value = $value;
++        #[cfg(test)]
++        trace_w210_producer($site, $stage, value);
++        value
++    }};
++}
++
+ fn declared_body(
+     site: &CommandAllocationSite,
+     tokens: &crate::ir::CommandTokens,
+     observation: &DeclarationLayoutObservation,
+     registry: &tcl_registry::CommandRegistry,
+ ) -> Option<DeclaredProcedureBody> {
++    #[cfg(test)]
++    trace_w210_producer(site, "declared-body-begin", true);
+     let advice = super::original_site_operand_layout_advice(
+         site,
+         tokens,
+@@ -1229,18 +1274,44 @@
+             advice.is_some()
+         );
+     }
+-    let advice = advice?;
++    let advice = w210_producer_option!(site, "declared-body-advice", advice)?;
+     if let Some(input) = observation
+         .snapshot
+         .state
+         .logical_source_name_advice_input()
+     {
++        #[cfg(test)]
++        trace_w210_producer(site, "declared-body-logical-input", true);
+         return logical_procedure_body_recipe(site, tokens, observation, registry, input, &advice);
++    }
++    #[cfg(test)]
++    if trace_w210_producer_matches(site) {
++        eprintln!(
++            "W210_PRODUCER offset={} stage=declared-body-metadata standalone={} supplied_input={}",
++            site.offset,
++            observation
++                .snapshot
++                .state
++                .baseline
++                .metadata_context
++                .is_standalone(),
++            observation
++                .snapshot
++                .state
++                .baseline
++                .metadata_context
++                .source_analysis_input()
++                .is_some()
++        );
+     }
+     let dialect = advice.dialect();
+     let mut agreed = None;
+     for target in advice.targets() {
+-        let effective = effective_words_for_target(tokens, target)?;
++        let effective = w210_producer_option!(
++            site,
++            "declared-body-effective",
++            effective_words_for_target(tokens, target)
++        )?;
+         let values: Vec<_> = effective
+             .words
+             .iter()
+@@ -1252,12 +1323,25 @@
+             .iter()
+             .map(EffectiveInvocationWord::as_registry_word)
+             .collect();
+-        let RegistryInvocationResolution::Resolved(facts) =
+-            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm())
+-                .ok()?
+-        else {
++        let resolution =
++            resolve_registry_words_in_realm(registry, None, &words, Some(dialect), advice.realm());
++        #[cfg(test)]
++        trace_w210_producer(site, "declared-body-resolution-result", resolution.is_ok());
++        let RegistryInvocationResolution::Resolved(facts) = resolution.ok()? else {
++            #[cfg(test)]
++            trace_w210_producer(site, "declared-body-resolution-resolved", false);
+             return None;
+         };
++        #[cfg(test)]
++        if trace_w210_producer_matches(site) {
++            eprintln!(
++                "W210_PRODUCER offset={} stage=declared-body-facts roles={} arity={:?} definition={}",
++                site.offset,
++                facts.arg_roles_complete,
++                facts.arity_accepts_frozen_arguments(),
++                facts.procedure_definition.is_some()
++            );
++        }
+         let recipe = procedure_body_recipe(
+             site,
+             tokens,
+@@ -1280,8 +1364,12 @@
+                 facts.arg_roles_complete
+             );
+         }
+-        let recipe = recipe?;
+-        if agreed.as_ref().is_some_and(|old| old != &recipe) {
++        let recipe = w210_producer_option!(site, "declared-body-recipe", recipe)?;
++        if !w210_producer_check!(
++            site,
++            "declared-body-unanimity",
++            agreed.as_ref().is_none_or(|old| old == &recipe)
++        ) {
+             return None;
+         }
+         agreed = Some(recipe);
+@@ -1465,12 +1553,23 @@
+         values,
+         dialect,
+     } = *operands;
+-    if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
++    if !w210_producer_check!(site, "body-role-complete", facts.arg_roles_complete)
++        || !w210_producer_check!(
++            site,
++            "body-arity",
++            facts.arity_accepts_frozen_arguments() == Some(true)
++        )
++    {
+         return None;
+     }
+-    let name_argument = facts
+-        .state_transitions
+-        .declared()?
++    let name_argument = w210_producer_option!(
++        site,
++        "body-name-argument",
++        w210_producer_option!(
++            site,
++            "body-declared-transitions",
++            facts.state_transitions.declared()
++        )?
+         .command_bindings()
+         .find_map(|transition| {
+             if let CommandBindingTransition::Define {
+@@ -1482,28 +1581,49 @@
+             } else {
+                 None
+             }
+-        })?;
+-    let name = original_declaration_operand_input(
++        })
++    )?;
++    let name = w210_producer_option!(
+         site,
+-        tokens,
+-        observation,
+-        candidate,
+-        effective,
+-        name_argument.checked_add(1)?,
++        "body-original-name",
++        original_declaration_operand_input(
++            site,
++            tokens,
++            observation,
++            candidate,
++            effective,
++            w210_producer_option!(site, "body-name-position", name_argument.checked_add(1))?,
++        )
+     )?;
+-    if !observation.entry.owns_source(&site.source, site.offset)
+-        || !observation
++    if !w210_producer_check!(
++        site,
++        "body-entry-source",
++        observation.entry.owns_source(&site.source, site.offset)
++    ) || !w210_producer_check!(
++        site,
++        "body-entry-context",
++        observation
+             .entry
+             .owns_original_context(&observation.snapshot.state.source_variables)
+-        || observation.snapshot.state.variable_frame != *observation.entry.frame()
+-        || observation.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+-    {
++    ) || !w210_producer_check!(
++        site,
++        "body-entry-frame",
++        observation.snapshot.state.variable_frame == *observation.entry.frame()
++    ) || !w210_producer_check!(
++        site,
++        "body-entry-origin",
++        observation.snapshot.state.current_source_origin.as_ref() == Some(&site.source)
++    ) {
+         return None;
+     }
+-    let key = observation
+-        .snapshot
+-        .state
+-        .original_conditional_procedure_key(&observation.namespace, &name)?;
++    let key = w210_producer_option!(
++        site,
++        "body-original-name-key",
++        observation
++            .snapshot
++            .state
++            .original_conditional_procedure_key(&observation.namespace, &name)
++    )?;
+     let namespace = key.holder().into_owned();
+     let words: Vec<_> = values
+         .iter()
+@@ -1513,30 +1633,59 @@
+         tcl_registry::InvocationArguments::structured(words.get(1..)?).with_dialect(dialect);
+     let original_parameters =
+         original_procedure_parameter_topology(site, tokens, observation, facts, effective, dialect);
+-    let parameters = original_parameters
+-        .as_ref()
+-        .map(super::formal_topology::OriginalFormalTopology::advisory_parameters)
+-        .or_else(|| super::native_procedure_parameters(facts, arguments))?;
+-    let body_index = facts.arg_roles.iter().find_map(|(index, role)| {
+-        (*role == tcl_registry::ArgRole::Body)
+-            .then_some(facts.argument_offset + usize::from(*index) + 1)
+-    })?;
+-    let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+-        effective.origins.get(body_index)?
++    #[cfg(test)]
++    trace_w210_producer(
++        site,
++        "body-original-formal-topology",
++        original_parameters.is_some(),
++    );
++    let parameters = w210_producer_option!(
++        site,
++        "body-formals",
++        original_parameters
++            .as_ref()
++            .map(super::formal_topology::OriginalFormalTopology::advisory_parameters)
++            .or_else(|| super::native_procedure_parameters(facts, arguments))
++    )?;
++    let body_index = w210_producer_option!(
++        site,
++        "body-operand-index",
++        facts.arg_roles.iter().find_map(|(index, role)| {
++            (*role == tcl_registry::ArgRole::Body)
++                .then_some(facts.argument_offset + usize::from(*index) + 1)
++        })
++    )?;
++    let crate::registry_invocation::InvocationWordOrigin::Written(written) = w210_producer_option!(
++        site,
++        "body-operand-origin",
++        effective.origins.get(body_index)
++    )?
+     else {
++        #[cfg(test)]
++        trace_w210_producer(site, "body-operand-written", false);
+         return None;
+     };
+-    let EffectiveInvocationWord::Literal(value) = values.get(body_index)? else {
++    #[cfg(test)]
++    trace_w210_producer(site, "body-operand-written", true);
++    let EffectiveInvocationWord::Literal(value) =
++        w210_producer_option!(site, "body-operand-value", values.get(body_index))?
++    else {
++        #[cfg(test)]
++        trace_w210_producer(site, "body-operand-literal", false);
+         return None;
+     };
+     let source = ExecutedScriptSource::from_word(
+         site.clone(),
+-        written.checked_sub(1)?,
+-        tokens.words().get(*written)?,
++        w210_producer_option!(site, "body-written-position", written.checked_sub(1))?,
++        w210_producer_option!(site, "body-written-token", tokens.words().get(*written))?,
+         value,
+         observation.config,
+     );
+-    if source.origin != site.source {
++    if !w210_producer_check!(
++        site,
++        "body-contiguous-original-source",
++        source.origin == site.source
++    ) {
+         return None;
+     }
+     let frame = declared_procedure_frame(site, &namespace);
+--- rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ rust/tcl-compiler/src/command_binding/declaration_layout.rs (temporary diagnosis)
+@@ -2011,8 +2011,43 @@
+         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+         registry: &tcl_registry::CommandRegistry,
+     ) -> Option<super::OriginalInvocationSourcePurpose> {
++        #[cfg(test)]
++        if let Some(site) = self
++            .invocation_site()
++            .filter(|site| super::declaration_preview::trace_w210_producer_matches(site))
++        {
++            eprintln!(
++                "W210_PRODUCER offset={} stage=read-purpose-request reached={} request_input={} request_standalone={}",
++                site.offset,
++                self.lookup_state.is_some(),
++                metadata.source_analysis_input().is_some(),
++                metadata.is_standalone()
++            );
++            if let Some(point) = &self.lookup_state {
++                eprintln!(
++                    "W210_PRODUCER offset={} stage=read-purpose-point retained_input={} retained_standalone={}",
++                    site.offset,
++                    point
++                        .state
++                        .baseline
++                        .metadata_context
++                        .source_analysis_input()
++                        .is_some(),
++                    point.state.baseline.metadata_context.is_standalone()
++                );
++            }
++        }
+         if self.lookup_state.is_some() {
+-            return self.original_invocation_source_purpose(tokens, metadata, registry);
++            let result = self.original_invocation_source_purpose(tokens, metadata, registry);
++            #[cfg(test)]
++            if let Some(site) = self.invocation_site() {
++                super::declaration_preview::trace_w210_producer(
++                    site,
++                    "read-purpose-reached",
++                    result.is_some(),
++                );
++            }
++            return result;
+         }
+         if !metadata.matches_registry(registry) {
+             return None;
+@@ -2020,9 +2055,30 @@
+         let advice = self
+             .declaration_operand_layout_advice(tokens)
+             .or_else(|| self.original_compilation_lookup_advice(tokens))?;
+-        let original = advice
+-            .original_declaration_metadata_context(registry, tokens)
+-            .ok()?;
++        let original = advice.original_declaration_metadata_context(registry, tokens);
++        #[cfg(test)]
++        if let Some(site) = self.invocation_site() {
++            super::declaration_preview::trace_w210_producer(
++                site,
++                "read-purpose-declaration-metadata",
++                original.is_ok(),
++            );
++        }
++        let original = original.ok()?;
++        #[cfg(test)]
++        if let Some(site) = self
++            .invocation_site()
++            .filter(|site| super::declaration_preview::trace_w210_producer_matches(site))
++        {
++            eprintln!(
++                "W210_PRODUCER offset={} stage=read-purpose-declaration-input original_present={} request_present={}",
++                site.offset,
++                original
++                    .and_then(|original| original.source_analysis_input())
++                    .is_some(),
++                metadata.source_analysis_input().is_some()
++            );
++        }
+         match (original, metadata.source_analysis_input()) {
+             (Some(original), Some(request)) => {
+                 let input = original.source_analysis_input()?;
+--- rust/tcl-compiler/src/command_binding/materialized_footprint.rs
++++ rust/tcl-compiler/src/command_binding/materialized_footprint.rs (temporary diagnosis)
+@@ -306,6 +306,19 @@
+         registry: &CommandRegistry,
+         purpose: OriginalWordSourcePurpose,
+     ) -> Option<InvocationMetadataContext<'a>> {
++        #[cfg(test)]
++        let trace_site = self
++            .invocation_site()
++            .filter(|site| super::declaration_preview::trace_w210_producer_matches(site));
++        #[cfg(test)]
++        if let Some(site) = trace_site {
++            eprintln!(
++                "W210_PRODUCER offset={} stage=original-word-input reached={} logical_source={}",
++                site.offset,
++                self.lookup_state.is_some(),
++                input.has_logical_source_name_context()
++            );
++        }
+         // A declaration-only Logical body retains its own full source owner.
+         // This metadata projection does not manufacture a reached point, and
+         // Native input cannot take the original-declaration purpose branch.
+@@ -319,14 +332,40 @@
+             let point = metadata.source_analysis_input()?;
+             return (point == input || point == &input.for_nested_source()).then_some(metadata);
+         }
+-        let config = self.original_word_config(tokens, registry, purpose)?;
++        let config = self.original_word_config(tokens, registry, purpose);
++        #[cfg(test)]
++        if let Some(site) = trace_site {
++            super::declaration_preview::trace_w210_producer(
++                site,
++                "original-word-config",
++                config.is_some(),
++            );
++        }
++        let config = config?;
+         let point = self
+             .lookup_state
+             .as_ref()?
+             .state
+             .baseline
+             .metadata_context
+-            .source_analysis_input()?;
++            .source_analysis_input();
++        #[cfg(test)]
++        if let Some(site) = trace_site {
++            super::declaration_preview::trace_w210_producer(
++                site,
++                "original-word-retained-input",
++                point.is_some(),
++            );
++        }
++        let point = point?;
++        #[cfg(test)]
++        if let Some(site) = trace_site {
++            super::declaration_preview::trace_w210_producer(
++                site,
++                "original-word-input-match",
++                point == input || point == &input.for_nested_source(),
++            );
++        }
+         if point != input && point != &input.for_nested_source() {
+             return None;
+         }

@@ -198,6 +198,8 @@ pub(super) struct DeclarationLayoutObservation {
 pub(super) enum DeclarationLayoutIssuer {
     OriginalDeclaration,
     EnteredActivation,
+    /// Independent source preview, without entered receiver authority.
+    ConditionalReceiverSource,
 }
 
 /// A sealed conditional source declaration whose original command has no
@@ -228,9 +230,26 @@ impl OriginalLogicalDeclarationTargets {
 pub(super) fn original_declaration_layouts(
     observations: &[DeclarationLayoutObservation],
 ) -> Option<impl Iterator<Item = &DeclarationLayoutObservation> + Clone> {
-    let original = observations
-        .iter()
-        .filter(|observation| observation.issuer == DeclarationLayoutIssuer::OriginalDeclaration);
+    select_declaration_layouts(observations, false)
+}
+
+/// Catalogue source advice also admits independently collected receiver bodies.
+/// Those rows cannot supply the original execution or read projection.
+pub(super) fn original_source_catalogue_layouts(
+    observations: &[DeclarationLayoutObservation],
+) -> Option<impl Iterator<Item = &DeclarationLayoutObservation> + Clone> {
+    select_declaration_layouts(observations, true)
+}
+
+fn select_declaration_layouts(
+    observations: &[DeclarationLayoutObservation],
+    catalogue: bool,
+) -> Option<impl Iterator<Item = &DeclarationLayoutObservation> + Clone> {
+    let original = observations.iter().filter(move |observation| {
+        observation.issuer == DeclarationLayoutIssuer::OriginalDeclaration
+            || (catalogue
+                && observation.issuer == DeclarationLayoutIssuer::ConditionalReceiverSource)
+    });
     #[cfg(debug_assertions)]
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some()
         && original.clone().next().is_none()
@@ -266,12 +285,20 @@ pub(super) fn original_declaration_layouts(
         observation.entry != first.entry
             || observation.config != first.config
             || observation.words != first.words
-            || observation.snapshot.state.variable_frame != *observation.entry.frame()
             || observation.snapshot.state.current_source_origin.as_ref()
                 != Some(&observation.entry.source().origin)
-            || !observation
-                .entry
-                .owns_original_context(&observation.snapshot.state.source_variables)
+            || (catalogue
+                && observation.words.first().is_none_or(|word| {
+                    !observation.entry.owns_source(
+                        &observation.entry.source().origin,
+                        word.source().span.start(),
+                    )
+                }))
+            || (!catalogue
+                && (observation.snapshot.state.variable_frame != *observation.entry.frame()
+                    || !observation
+                        .entry
+                        .owns_original_context(&observation.snapshot.state.source_variables)))
     }) {
         return None;
     }
@@ -1392,6 +1419,76 @@ pub(super) fn symbolic_version(
 }
 
 impl SourceCommandBindings {
+    /// Called receivers retain a separate declaration preview for source roles.
+    /// Only catalogue rows leave the collector; entered observations stay separate.
+    pub(super) fn retain_called_receiver_source_catalogues(
+        &mut self,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let mut entries = BTreeMap::new();
+        for (body, entry) in self.deferred_entry_states(incoming) {
+            if !body.receiver_method
+                || body.event.is_some()
+                || body.future_frame.is_some()
+                || body.statics.is_some()
+                || !self
+                    .called_implementations
+                    .contains(&body.implementation_id())
+            {
+                continue;
+            }
+            let key = body.implementation_id();
+            match entries.entry(key) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert(Some((body, entry)));
+                }
+                std::collections::btree_map::Entry::Occupied(mut slot) => {
+                    if slot.get().as_ref().is_some_and(|(previous, state)| {
+                        previous != &body || !state.same_state(&entry)
+                    }) {
+                        slot.insert(None);
+                    }
+                }
+            }
+        }
+        if entries.is_empty() {
+            return;
+        }
+        let mut conditional = self.clone();
+        conditional.active_calls.clear();
+        conditional.active_variable_observers.clear();
+        let mut declarations = std::collections::BTreeSet::new();
+        for (body, entry) in entries.into_values().flatten() {
+            let Some((declaration, _, _)) = &body.executed_script else {
+                continue;
+            };
+            declarations.insert(declaration.clone());
+            conditional.walk_deferred_entry(&body, &entry, config, registry);
+        }
+        for (site, observations) in &conditional.declaration_layouts {
+            let Some(originals) = original_declaration_layouts(observations) else {
+                continue;
+            };
+            for original in originals {
+                let OriginalDiagnosticFrameEntry::DeclaredReceiver(body) = original.entry.as_ref()
+                else {
+                    continue;
+                };
+                if !declarations.contains(body.declaration()) {
+                    continue;
+                }
+                let mut retained = original.clone();
+                retained.issuer = DeclarationLayoutIssuer::ConditionalReceiverSource;
+                let rows = self.declaration_layouts.entry(site.clone()).or_default();
+                if !rows.contains(&retained) {
+                    rows.push(retained);
+                }
+            }
+        }
+    }
+
     /// Retain original diagnostic layouts after an abrupt source prefix.
     /// The actual abrupt table is borrowed unchanged. No arguments, dispatch,
     /// compiler visits or source effects are evaluated for this suffix.

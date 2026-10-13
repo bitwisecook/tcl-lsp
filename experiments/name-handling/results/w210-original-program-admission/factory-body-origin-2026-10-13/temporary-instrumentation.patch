@@ -1,0 +1,313 @@
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -379,6 +379,40 @@
+     }
+ }
+ 
++#[cfg(test)]
++pub(super) fn trace_w210_factory(site: &CommandAllocationSite, stage: &str, passed: bool) {
++    if std::env::var_os("TCL_LSP_TRACE_W210_FACTORY").is_some()
++        && site.source.source_image().bytes()
++            == include_bytes!(
++                "../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl"
++            )
++        && [58, 441, 760, 1076].contains(&site.offset)
++    {
++        eprintln!(
++            "W210_FACTORY offset={} stage={stage} passed={passed}",
++            site.offset
++        );
++    }
++}
++
++macro_rules! w210_option {
++    ($site:expr, $stage:expr, $value:expr) => {{
++        let value = $value;
++        #[cfg(test)]
++        trace_w210_factory($site, $stage, value.is_some());
++        value
++    }};
++}
++
++macro_rules! w210_check {
++    ($site:expr, $stage:expr, $value:expr) => {{
++        let value = $value;
++        #[cfg(test)]
++        trace_w210_factory($site, $stage, value);
++        value
++    }};
++}
++
+ impl SourceCommandBindings {
+     /// Conditional declaration from complete supplied Logical input and exact
+     /// original source observations. Labels cannot reconstruct this receipt.
+@@ -431,6 +465,8 @@
+             registry, input,
+         )?;
+         let site = tokens.source_binding.as_ref()?.invocation_site()?;
++        #[cfg(test)]
++        trace_w210_factory(site, "factory-begin", true);
+         if !self.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
+             return None;
+         }
+@@ -450,36 +486,65 @@
+             });
+         }
+         let mut agreed = None;
+-        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+-            if row.config != input.lexer_config()
+-                || declaration_tokens(site, row)?.words() != tokens.words()
++        for row in w210_option!(
++            site,
++            "original-layouts",
++            original_declaration_layouts(w210_option!(
++                site,
++                "layout-map",
++                self.declaration_layouts.get(site)
++            )?)
++        )? {
++            if !w210_check!(site, "row-config", row.config == input.lexer_config())
++                || !w210_check!(
++                    site,
++                    "row-tokens-equal",
++                    w210_option!(site, "row-tokens", declaration_tokens(site, row))?.words()
++                        == tokens.words()
++                )
+             {
+                 return None;
+             }
+-            let advice = super::original_site_operand_layout_advice(
++            let advice = w210_option!(
+                 site,
+-                tokens,
+-                &row.snapshot,
+-                &row.namespace,
+-                row.config,
++                "operand-advice",
++                super::original_site_operand_layout_advice(
++                    site,
++                    tokens,
++                    &row.snapshot,
++                    &row.namespace,
++                    row.config,
++                )
+             )?;
+-            if advice.dialect() != super::source_analysis_entry::source_input_dialect(input) {
++            if !w210_check!(
++                site,
++                "row-dialect",
++                advice.dialect() == super::source_analysis_entry::source_input_dialect(input)
++            ) {
+                 return None;
+             }
+             for target in advice.targets() {
+-                if !target.registry_backed {
++                if !w210_check!(site, "target-registry", target.registry_backed) {
+                     return None;
+                 }
+-                let recipe = native_procedure_read_recipe(
+-                    site, tokens, row, target, &advice, registry, metadata,
++                let recipe = w210_option!(
++                    site,
++                    "native-recipe",
++                    native_procedure_read_recipe(
++                        site, tokens, row, target, &advice, registry, metadata,
++                    )
+                 )?;
+-                if agreed.as_ref().is_some_and(|previous| previous != &recipe) {
++                if !w210_check!(
++                    site,
++                    "recipe-agreement",
++                    agreed.as_ref().is_none_or(|previous| previous == &recipe)
++                ) {
+                     return None;
+                 }
+                 agreed = Some(recipe);
+             }
+         }
+-        agreed
++        w210_option!(site, "final-recipe", agreed)
+     }
+ 
+     /// Unanimous conditional procedure body at its genuine declaration.
+@@ -1514,7 +1579,11 @@
+     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+ ) -> Option<OriginalProcedureReadDeclaration> {
+     let dialect = advice.dialect();
+-    let effective = effective_words_for_target(tokens, target)?;
++    let effective = w210_option!(
++        site,
++        "effective-words",
++        effective_words_for_target(tokens, target)
++    )?;
+     let values: Vec<_> = effective
+         .words
+         .iter()
+@@ -1526,7 +1595,9 @@
+         .iter()
+         .map(EffectiveInvocationWord::as_registry_word)
+         .collect();
+-    let RegistryInvocationResolution::Resolved(facts) =
++    let RegistryInvocationResolution::Resolved(facts) = w210_option!(
++        site,
++        "registry-result",
+         crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+             registry,
+             Some(metadata),
+@@ -1534,46 +1605,79 @@
+             Some(dialect),
+             advice.realm(),
+         )
+-        .ok()?
++        .ok()
++    )?
+     else {
++        #[cfg(test)]
++        trace_w210_factory(site, "registry-resolved", false);
+         return None;
+     };
++    #[cfg(test)]
++    trace_w210_factory(site, "registry-resolved", true);
+     let tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(shape) =
+-        facts.procedure_definition?
++        w210_option!(site, "procedure-definition", facts.procedure_definition)?
+     else {
++        #[cfg(test)]
++        trace_w210_factory(site, "definition-valid", false);
+         return None;
+     };
+-    let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(parameters) =
++    #[cfg(test)]
++    trace_w210_factory(site, "definition-valid", true);
++    let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(parameters) = w210_option!(
++        site,
++        "parameter-input",
+         original_declaration_operand_input(
+             site,
+             tokens,
+             row,
+             target,
+             &effective,
+-            shape.parameters_at.checked_add(1)?,
+-        )?
++            w210_option!(
++                site,
++                "parameter-position",
++                shape.parameters_at.checked_add(1)
++            )?,
++        )
++    )?
+     else {
++        #[cfg(test)]
++        trace_w210_factory(site, "parameter-original-word", false);
+         return None;
+     };
+-    let topology =
+-        super::formal_topology::OriginalFormalTopology::from_original_key(parameters, dialect)?;
+-    let body_at = shape.body_at.checked_add(1)?;
++    #[cfg(test)]
++    trace_w210_factory(site, "parameter-original-word", true);
++    let topology = w210_option!(
++        site,
++        "formal-topology",
++        super::formal_topology::OriginalFormalTopology::from_original_key(parameters, dialect)
++    )?;
++    let body_at = w210_option!(site, "body-position", shape.body_at.checked_add(1))?;
+     let crate::registry_invocation::InvocationWordOrigin::Written(written) =
+-        effective.origins.get(body_at)?
++        w210_option!(site, "body-origin", effective.origins.get(body_at))?
+     else {
++        #[cfg(test)]
++        trace_w210_factory(site, "body-written", false);
+         return None;
+     };
++    #[cfg(test)]
++    trace_w210_factory(site, "body-written", true);
+     let source = ExecutedScriptSource::from_word(
+         site.clone(),
+-        written.checked_sub(1)?,
+-        tokens.words().get(*written)?,
+-        words.get(body_at)?.literal()?,
++        w210_option!(site, "written-position", written.checked_sub(1))?,
++        w210_option!(site, "written-token", tokens.words().get(*written))?,
++        w210_option!(
++            site,
++            "body-literal",
++            w210_option!(site, "body-word", words.get(body_at))?.literal()
++        )?,
+         row.config,
+     );
+-    (source.origin == site.source).then_some(OriginalProcedureReadDeclaration {
+-        source,
+-        formals: ProcedureReadFormals::Native(topology),
+-    })
++    w210_check!(site, "body-source-origin", source.origin == site.source).then_some(
++        OriginalProcedureReadDeclaration {
++            source,
++            formals: ProcedureReadFormals::Native(topology),
++        },
++    )
+ }
+ 
+ fn declared_procedure_frame(
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -241,6 +241,15 @@
+         );
+     }
+     let first = original.clone().next()?;
++    #[cfg(test)]
++    let trace_site = CommandAllocationSite {
++        source: Arc::clone(&first.entry.source().origin),
++        offset: first
++            .words
++            .first()
++            .map_or(0, |word| word.source().span.start()),
++    };
++
+     #[cfg(debug_assertions)]
+     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_DECLARATION").is_some() {
+         for observation in original.clone() {
+@@ -262,16 +271,33 @@
+             );
+         }
+     }
++    macro_rules! row_refuses {
++        ($stage:expr, $value:expr) => {{
++            let refused = $value;
++            #[cfg(test)]
++            super::declaration_preview::trace_w210_factory(&trace_site, $stage, !refused);
++            refused
++        }};
++    }
+     if original.clone().any(|observation| {
+-        observation.entry != first.entry
+-            || observation.config != first.config
+-            || observation.words != first.words
+-            || observation.snapshot.state.variable_frame != *observation.entry.frame()
+-            || observation.snapshot.state.current_source_origin.as_ref()
+-                != Some(&observation.entry.source().origin)
+-            || !observation
+-                .entry
+-                .owns_original_context(&observation.snapshot.state.source_variables)
++        row_refuses!("layout-entry", observation.entry != first.entry)
++            || row_refuses!("layout-config", observation.config != first.config)
++            || row_refuses!("layout-words", observation.words != first.words)
++            || row_refuses!(
++                "layout-frame",
++                observation.snapshot.state.variable_frame != *observation.entry.frame()
++            )
++            || row_refuses!(
++                "layout-origin",
++                observation.snapshot.state.current_source_origin.as_ref()
++                    != Some(&observation.entry.source().origin)
++            )
++            || row_refuses!(
++                "layout-context",
++                !observation
++                    .entry
++                    .owns_original_context(&observation.snapshot.state.source_variables)
++            )
+     }) {
+         return None;
+     }

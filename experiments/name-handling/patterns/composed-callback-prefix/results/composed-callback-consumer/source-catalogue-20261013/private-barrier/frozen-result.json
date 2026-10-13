@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-10-13T14:13:06.296970+00:00",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "sha256": "1219fe351c4a3d096abd0c4a548d79fa076007dfe08085cfdf74fead097fc1d4",
+  "source_snapshot": "/tmp/name-callback-repair-20261013/before-refreshed.json",
+  "limitation": "Standalone earlier frozen Core binary; checkout currently belongs to disjoint W210 instrumentation. No build and no source mutation.",
+  "runs": [
+    {
+      "name": "cold",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 101,
+      "stdout_sha256": "ae66950001d4b2bbc0cccd20cf08da625c7052af43070894573c5ffa69ae1894",
+      "stderr_sha256": "27dc5941f099e8710d4f119023e8270d1bb8579837cf2c9b2a30d59f5fc44f80"
+    },
+    {
+      "name": "warm",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "stdout_sha256": "d83e011d69934453320eab935db8b15aa988ad9a2137d20653eabafd991b8b73",
+      "stderr_sha256": "28bf0021ed80ff0362f771c5abd014c7b7a13e94d4d89eeb8299b16cc9c335b9"
+    }
+  ]
+}

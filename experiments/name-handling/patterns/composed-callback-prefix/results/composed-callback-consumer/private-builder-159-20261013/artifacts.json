@@ -1,0 +1,34 @@
+[
+  {
+    "path": "core.log",
+    "sha256": "84107b17d515d1e22baf0716182bdd519da3b804d2a1e74e762db5c32d7a5fca"
+  },
+  {
+    "path": "core-result.json",
+    "sha256": "3262990806982d8bf682247f1a33dc18f38bf75038abf86963c37316a8f870cf"
+  },
+  {
+    "path": "core-binary.json",
+    "sha256": "5a852269b0f94fb9f3479fc44a52a8d86aa43ea3afe401436d32a0efb422b095"
+  },
+  {
+    "path": "applied.json",
+    "sha256": "9f174a15dfab735987a53a7c11aab6267641ebc835832ee6104713196c089347"
+  },
+  {
+    "path": "restoration.json",
+    "sha256": "e0f789beaa57b5aa1356541ff33df9aa12dea75473316e8112495b102a1ecfb5"
+  },
+  {
+    "path": "source-diagnostic.diff",
+    "sha256": "b48a2e6c311c3775a97c134d88080ec6173345594ef720c4700b69e4d172ac21"
+  },
+  {
+    "path": "realm-diagnostic.diff",
+    "sha256": "13aa8497129293e18df540aa393dfd7e17373bb70345b7f4cb4ea7b3db1033a2"
+  },
+  {
+    "path": "core-start.json",
+    "sha256": "e38396b69ad38e60e7a9769632582dc2387deee4b7ab5d55aaa54d8fbab136fe"
+  }
+]

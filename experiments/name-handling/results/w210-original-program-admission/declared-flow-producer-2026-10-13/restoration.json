@@ -1,0 +1,12 @@
+{
+  "restored_utc": "2026-10-13T14:50:30.738448+00:00",
+  "byte_exact_owners": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs"
+  ],
+  "post_restoration_build": false,
+  "callback_restoration_pending": false
+}

@@ -1,0 +1,63 @@
+--- rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -1469,14 +1469,33 @@
+     ) {
+         #[cfg(any(test, debug_assertions))]
+         let _timing = super::root_owner_work::Timing::at(super::root_owner_work::Query::Layout);
++        #[cfg(debug_assertions)]
++        let callback_trace = std::env::var_os("TCL_LSP_TRACE_CALLBACK_DECLARATION").is_some()
++            && offset == 211
++            && self.root_origin.as_ref().is_some_and(|origin| {
++                origin.source_image().bytes()
++                    == include_bytes!("../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl")
++            });
++        #[cfg(debug_assertions)]
++        let trace_callback = |stage: &str, present: bool| {
++            if callback_trace {
++                eprintln!("CALLBACK_DECLARATION offset={offset} stage={stage} present={present}");
++            }
++        };
++        #[cfg(debug_assertions)]
++        trace_callback("execution-dialect", state.source_variables.invocation_dialect.is_some());
+         if state.source_variables.invocation_dialect.is_none() {
+             return;
+         }
++        #[cfg(debug_assertions)]
++        trace_callback("source-origin", state.current_source_origin.is_some());
+         let Some(origin) = state.current_source_origin.as_ref() else {
+             return;
+         };
+         let (entry, namespace) = if let Some(body) = self.conditional_body_entry_at(origin, offset)
+         {
++            #[cfg(debug_assertions)]
++            trace_callback("conditional-body-frame", self.original_body_owns_frame(&body, &state.variable_frame));
+             if !self.original_body_owns_frame(&body, &state.variable_frame) {
+                 return;
+             }
+@@ -1485,6 +1504,8 @@
+                 context.namespace_identity(),
+             )
+         } else if let Some(body) = self.declared_receiver_body_entry_at(origin, offset) {
++            #[cfg(debug_assertions)]
++            trace_callback("declared-receiver-frame", body.preview_frame() == &state.variable_frame);
+             if body.preview_frame() != &state.variable_frame {
+                 return;
+             }
+@@ -1498,6 +1519,8 @@
+         {
+             (entry, context.namespace_identity())
+         } else {
++            #[cfg(debug_assertions)]
++            trace_callback("root-purpose", context.source_purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput);
+             if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput {
+                 return;
+             }
+@@ -1524,6 +1547,8 @@
+                 namespace,
+             )
+         };
++        #[cfg(debug_assertions)]
++        trace_callback("entry-owned", true);
+         let entry = Arc::new(entry);
+         let observation = DeclarationLayoutObservation {
+             issuer: if state.variable_frame == *entry.frame() {

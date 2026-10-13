@@ -120,6 +120,7 @@ mod declaration_body_ownership;
 mod declaration_layout;
 pub use declaration_layout::SourceOriginalVariableFrame;
 mod declaration_preview;
+pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;
 mod scalar_body_alpha;
 pub use scalar_body_alpha::OriginalScalarBodyAlphaRename;
 mod vendor_catalogue_advice;
@@ -6489,6 +6490,7 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         trace_source_deferred(started, "entries", self);
         self.analyse_called_declaration_results(incoming, config, registry);
+        self.retain_called_receiver_source_catalogues(incoming, config, registry);
         #[cfg(any(test, debug_assertions))]
         trace_source_deferred(started, "called", self);
         self.retain_uninstalled_declaration_body_layouts(registry);
@@ -14769,6 +14771,7 @@ impl ModuleCommandBindings {
         }
         if name.is_ascii()
             && !name.as_bytes().contains(&0)
+            && !matches!(namespace.as_ref(), SourceNamespaceKey::Native(_))
             && let Some(policy) = self
                 .baseline
                 .execution_name_policy

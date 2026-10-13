@@ -1,0 +1,12 @@
+{
+  "started_utc": "2026-10-13T14:37:32.961740+00:00",
+  "source_paths": 34668,
+  "temporary_owners": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs"
+  ],
+  "callback_applied_receipt": "/tmp/name-callback-private159-20261013/applied.json"
+}

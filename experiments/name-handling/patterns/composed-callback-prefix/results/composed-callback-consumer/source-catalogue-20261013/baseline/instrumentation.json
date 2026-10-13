@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-10-13T12:59:14.238260+00:00",
+  "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+  "before_sha256": "c566154876c091d6e750d8eac26c3dd83825cbae626280c20edd5da0896d826b",
+  "instrumented_sha256": "0c0ebc1a73749689a2d9f795612e45913a24ac3933a55aecbb3eadf02f6d70a5",
+  "exact_input_sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa"
+}

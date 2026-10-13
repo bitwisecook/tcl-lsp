@@ -1,0 +1,15 @@
+{
+  "channel": "temporary instrumentation only; no production interpretation",
+  "owners": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "80bb56d68a3148ec8b4abdfaa97bceca98e833c28881afc87118d1c5e0c53279",
+      "instrumented_sha256": "2f1c08a8c9c3670e929ea4c7159865aec63d98ee6641ac434985a89c4040b6ed"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "ff024ebeac3736c15167f2e644a6c9e8a5c4345f9e5a2d07708826c7a9889262",
+      "instrumented_sha256": "34bea485e4acacb94d23dc11c11cc80d4edb6a48d31c715305cd15df15486acc"
+    }
+  ]
+}

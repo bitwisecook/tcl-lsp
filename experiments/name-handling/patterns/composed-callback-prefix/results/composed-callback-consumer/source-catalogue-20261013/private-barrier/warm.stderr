@@ -1,0 +1,1865 @@
+ANALYSER_PHASE bytes=288 stage=initial ms=0
+ANALYSER_PHASE bytes=288 stage=realm-start ms=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=initial ms=59 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=39 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=234 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=234 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=234 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=234 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=174 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=158 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=199 us=436
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=1 us=25261
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=10 us=519
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=10 us=215
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=10 us=54
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=4 us=407
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=10 us=844
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=14 us=38263
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=10 us=77997
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=5 us=10327
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=10 us=42375
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=10 us=108
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=10 us=142144
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=24
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=4 us=707
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=99 us=7156
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=39 us=6148
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=walk ms=230 points=20 layouts=6
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=walk retained_owners=1 requests=99 captures=39 reuses=60 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=command-key scope=cumulative-inclusive calls=1147 ms=18 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-paths scope=cumulative-inclusive calls=834 ms=36 world_clones=73 clone_us=500
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=metadata-advice scope=cumulative-inclusive calls=89 ms=7 world_clones=5 clone_us=39
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=lookup-key scope=cumulative-inclusive calls=879 ms=14 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=baseline scope=cumulative-inclusive calls=1188 ms=9 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=walk calls=1188 ms=9
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=2
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=2 bytes=89 offset=141 outcomes=0 layouts=6
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=branch scope=thread-cumulative-inclusive calls=199 us=436
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight scope=thread-cumulative-inclusive calls=1 us=25261
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=layout scope=thread-cumulative-inclusive calls=10 us=519
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body scope=thread-cumulative-inclusive calls=10 us=215
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=receiver-body scope=thread-cumulative-inclusive calls=10 us=54
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-segmentation scope=thread-cumulative-inclusive calls=4 us=407
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-word-tokens scope=thread-cumulative-inclusive calls=10 us=844
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=compiler-selection scope=thread-cumulative-inclusive calls=14 us=38263
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-arguments scope=thread-cumulative-inclusive calls=10 us=77997
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=native-invocation-preparation scope=thread-cumulative-inclusive calls=5 us=10327
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=point-capture scope=thread-cumulative-inclusive calls=10 us=42375
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=continuation-capture scope=thread-cumulative-inclusive calls=10 us=108
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=selected-command scope=thread-cumulative-inclusive calls=10 us=142144
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=24
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-publication scope=thread-cumulative-inclusive calls=4 us=707
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-memo scope=thread-cumulative-inclusive calls=99 us=7156
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-capture scope=thread-cumulative-inclusive calls=39 us=6148
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_DEFERRED_PHASE stage=entries ms=6 roots=2 outcomes=2 layouts=8
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=150 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=158 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=174 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_DEFERRED_PHASE stage=called ms=20 roots=2 outcomes=2 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=6 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=39 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=4 visits=0 pending=0 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=12
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=40 visits=0 pending=0 layouts=12
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=40 visits=0 pending=0 layouts=12
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=45 visits=0 pending=0 layouts=12
+SOURCE_DEFERRED_PHASE stage=layouts ms=66 roots=2 outcomes=2 layouts=12
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=367 us=811
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=2 us=361
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=3 us=12
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=3 us=28176
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=16 us=851
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=16 us=363
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=16 us=130
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=2 us=18450
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=9 us=724
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=30 us=2259
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=26 us=40015
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=16 us=90556
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=5 us=10327
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=16 us=43567
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=16 us=155
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=16 us=146702
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=3 us=26
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=9 us=1039
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=190 us=9314
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=48 us=7588
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=deferred ms=296 points=24 layouts=12
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=deferred retained_owners=1 requests=190 captures=48 reuses=142 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=command-key scope=cumulative-inclusive calls=1187 ms=18 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-paths scope=cumulative-inclusive calls=1006 ms=39 world_clones=229 clone_us=1886
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=95 ms=7 world_clones=11 clone_us=135
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=lookup-key scope=cumulative-inclusive calls=903 ms=14 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=baseline scope=cumulative-inclusive calls=1204 ms=9 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=deferred calls=1204 ms=9
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=367 us=811
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=2 us=361
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=3 us=12
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=3 us=28176
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=16 us=851
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=16 us=363
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=16 us=130
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=2 us=18450
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=9 us=724
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=30 us=2259
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=26 us=40015
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=16 us=90556
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=5 us=10327
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=16 us=43567
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=16 us=155
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=16 us=146702
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=3 us=26
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=9 us=1039
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=190 us=9314
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=48 us=7588
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=complete ms=296 points=24 layouts=12
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=complete retained_owners=1 requests=190 captures=48 reuses=142 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=command-key scope=cumulative-inclusive calls=1187 ms=18 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-paths scope=cumulative-inclusive calls=1006 ms=39 world_clones=229 clone_us=1886
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=metadata-advice scope=cumulative-inclusive calls=95 ms=7 world_clones=11 clone_us=135
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=lookup-key scope=cumulative-inclusive calls=903 ms=14 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=baseline scope=cumulative-inclusive calls=1204 ms=9 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+ANALYSER_PHASE bytes=288 stage=realm-complete ms=304
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_PHASE bytes=288 stage=retained-inventory ms=306
+ANALYSER_PHASE bytes=288 stage=segmented ms=309
+ANALYSER_PHASE bytes=288 stage=walk-start ms=309
+SOURCE_INVOCATION_PROJECT site=0 ms=0 targets=1 unknown=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=85 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=101 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=150 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=158 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=174 ms=23 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=211 ms=0 targets=0 unknown=true
+SOURCE_INVOCATION_PROJECT site=39 ms=0 targets=1 unknown=false
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=234 ms=0 targets=1 unknown=false
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=251 ms=0 targets=1 unknown=false
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=265 ms=0 targets=0 unknown=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=273 ms=0 targets=0 unknown=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=0 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=0 ms=0 nested=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=scoped-bodies ms=13
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=variable-receivers ms=17
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=direct-invocations ms=21
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=nested-invocations ms=22
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=callback-invocations ms=27
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=command-name-invocations ms=28
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=namespace-role-facts ms=31
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=nested-diagnostics ms=34
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=variable-command-sites ms=35
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=procedure-resolution ms=48
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=expression-diagnostics ms=50
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=dispatch-diagnostics ms=63
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=0 stage=handlers-complete ms=95
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=39 ms=0 nested=6
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=original-names ms=2
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=39 ms=0 nested=6
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=scoped-bodies ms=13
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=variable-receivers ms=16
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=direct-invocations ms=19
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=nested-invocations ms=20
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=callback-invocations ms=22
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=command-name-invocations ms=23
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=namespace-role-facts ms=26
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=nested-diagnostics ms=28
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=variable-command-sites ms=29
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=procedure-resolution ms=33
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=expression-diagnostics ms=35
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=dispatch-diagnostics ms=43
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=85 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=original-names ms=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=85 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=scoped-bodies ms=14
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=variable-receivers ms=17
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=direct-invocations ms=43
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=nested-invocations ms=51
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=callback-invocations ms=55
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=command-name-invocations ms=55
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=namespace-role-facts ms=59
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=101 ms=0 nested=0
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=nested-diagnostics ms=92
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=variable-command-sites ms=92
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=procedure-resolution ms=100
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=expression-diagnostics ms=103
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_LEXICAL_NEXT offset=85 vector=true retained_schema=false
+ORIGINAL_LEXICAL_NEXT offset=85 schema=Some(Some(VariableLoadStore)) arguments=2
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=dispatch-diagnostics ms=117
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+LOWER_SOURCE_PHASE bytes=288 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=288 phase=configured ms=26 statements=0 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=367 us=811
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=2 us=361
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=3 us=12
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=3 us=28176
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=16 us=851
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=16 us=363
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=16 us=130
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=2 us=18450
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=9 us=724
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=30 us=2259
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=26 us=40015
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=16 us=90556
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=5 us=10327
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=16 us=43567
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=16 us=155
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=16 us=146702
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=3 us=26
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=9 us=1039
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=496 us=12405
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=48 us=7588
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=initial ms=69 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=39 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=234 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=234 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=234 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=234 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=174 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=158 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=566 us=1077
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=2 us=361
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=4 us=14
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=4 us=65879
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=26 us=1289
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=26 us=585
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=26 us=181
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=2 us=18450
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=13 us=1154
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=40 us=3676
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=40 us=73852
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=26 us=110314
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=26 us=59600
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=26 us=430
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=26 us=244333
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=4 us=53
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=13 us=1399
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=595 us=17637
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=87 us=11844
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=walk ms=183 points=20 layouts=6
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=walk retained_owners=1 requests=99 captures=39 reuses=60 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=command-key scope=cumulative-inclusive calls=1147 ms=13 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-paths scope=cumulative-inclusive calls=834 ms=32 world_clones=73 clone_us=325
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=metadata-advice scope=cumulative-inclusive calls=89 ms=5 world_clones=5 clone_us=27
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=lookup-key scope=cumulative-inclusive calls=879 ms=10 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=baseline scope=cumulative-inclusive calls=1188 ms=26 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=walk calls=1188 ms=26
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=2
+SOURCE_DEFERRED_PROGRESS stage=entry iteration=1 index=0 ms=0 roots=2 bytes=89 offset=141 outcomes=0 layouts=6
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=branch scope=thread-cumulative-inclusive calls=566 us=1077
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=frame scope=thread-cumulative-inclusive calls=2 us=361
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=snapshot scope=thread-cumulative-inclusive calls=4 us=14
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight scope=thread-cumulative-inclusive calls=4 us=65879
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=layout scope=thread-cumulative-inclusive calls=26 us=1289
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body scope=thread-cumulative-inclusive calls=26 us=585
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=receiver-body scope=thread-cumulative-inclusive calls=26 us=181
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=deferred-entry scope=thread-cumulative-inclusive calls=2 us=18450
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-segmentation scope=thread-cumulative-inclusive calls=13 us=1154
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-word-tokens scope=thread-cumulative-inclusive calls=40 us=3676
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=compiler-selection scope=thread-cumulative-inclusive calls=40 us=73852
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-arguments scope=thread-cumulative-inclusive calls=26 us=110314
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=point-capture scope=thread-cumulative-inclusive calls=26 us=59600
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=continuation-capture scope=thread-cumulative-inclusive calls=26 us=430
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=selected-command scope=thread-cumulative-inclusive calls=26 us=244333
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=preflight-publication scope=thread-cumulative-inclusive calls=4 us=53
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=source-publication scope=thread-cumulative-inclusive calls=13 us=1399
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-memo scope=thread-cumulative-inclusive calls=595 us=17637
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=lexical-capture scope=thread-cumulative-inclusive calls=87 us=11844
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred-entry query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_DEFERRED_PHASE stage=entries ms=4 roots=2 outcomes=2 layouts=8
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=150 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=158 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=174 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_DEFERRED_PHASE stage=called ms=13 roots=2 outcomes=2 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=6 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=39 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=3 visits=0 pending=0 layouts=12
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=8 layouts=12
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=2 visits=0 pending=0 layouts=12
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=2 visits=0 pending=0 layouts=12
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=5 visits=0 pending=0 layouts=12
+SOURCE_DEFERRED_PHASE stage=layouts ms=18 roots=2 outcomes=2 layouts=12
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=734 us=1296
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=6 us=20
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=6 us=68401
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=32 us=1490
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=32 us=674
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=32 us=228
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=18 us=1463
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=60 us=4468
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=52 us=75376
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=32 us=118629
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=32 us=60383
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=32 us=464
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=32 us=247152
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=6 us=54
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=18 us=1551
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=686 us=19016
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=96 us=12784
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=deferred ms=202 points=24 layouts=12
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=deferred retained_owners=1 requests=190 captures=48 reuses=142 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=command-key scope=cumulative-inclusive calls=1187 ms=14 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-paths scope=cumulative-inclusive calls=1006 ms=34 world_clones=229 clone_us=1183
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=95 ms=5 world_clones=11 clone_us=63
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=lookup-key scope=cumulative-inclusive calls=903 ms=10 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=baseline scope=cumulative-inclusive calls=1204 ms=26 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=deferred calls=1204 ms=26
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=734 us=1296
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=6 us=20
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=6 us=68401
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=32 us=1490
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=32 us=674
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=32 us=228
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=18 us=1463
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=60 us=4468
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=52 us=75376
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=32 us=118629
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=32 us=60383
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=32 us=464
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=32 us=247152
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=6 us=54
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=18 us=1551
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=686 us=19016
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=96 us=12784
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=288 stage=complete ms=202 points=24 layouts=12
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=complete retained_owners=1 requests=190 captures=48 reuses=142 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=command-key scope=cumulative-inclusive calls=1187 ms=14 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-paths scope=cumulative-inclusive calls=1006 ms=34 world_clones=229 clone_us=1183
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=namespace scope=cumulative-inclusive calls=11 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=metadata-advice scope=cumulative-inclusive calls=95 ms=5 world_clones=11 clone_us=63
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=lookup-key scope=cumulative-inclusive calls=903 ms=10 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=baseline scope=cumulative-inclusive calls=1204 ms=26 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-for-key scope=cumulative-inclusive calls=10 ms=0 world_clones=0 clone_us=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=binding-analysis ms=202 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=segmented ms=0 commands=6 statements=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=commands ms=7 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=admission ms=7 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=source ms=11 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=script ms=214 commands=0 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=restore ms=214 commands=0 statements=6
+LOWER_SOURCE_PHASE bytes=288 phase=lowered ms=240 statements=6 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=memo query=branch scope=thread-cumulative-inclusive calls=734 us=1296
+SOURCE_ROOT_OWNER_WORK stage=memo query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=memo query=snapshot scope=thread-cumulative-inclusive calls=6 us=20
+SOURCE_ROOT_OWNER_WORK stage=memo query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=memo query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=memo query=preflight scope=thread-cumulative-inclusive calls=6 us=68401
+SOURCE_ROOT_OWNER_WORK stage=memo query=layout scope=thread-cumulative-inclusive calls=32 us=1490
+SOURCE_ROOT_OWNER_WORK stage=memo query=body scope=thread-cumulative-inclusive calls=32 us=674
+SOURCE_ROOT_OWNER_WORK stage=memo query=receiver-body scope=thread-cumulative-inclusive calls=32 us=228
+SOURCE_ROOT_OWNER_WORK stage=memo query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=memo query=source-segmentation scope=thread-cumulative-inclusive calls=18 us=1463
+SOURCE_ROOT_OWNER_WORK stage=memo query=source-word-tokens scope=thread-cumulative-inclusive calls=60 us=4468
+SOURCE_ROOT_OWNER_WORK stage=memo query=compiler-selection scope=thread-cumulative-inclusive calls=52 us=75376
+SOURCE_ROOT_OWNER_WORK stage=memo query=source-arguments scope=thread-cumulative-inclusive calls=32 us=118629
+SOURCE_ROOT_OWNER_WORK stage=memo query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=memo query=point-capture scope=thread-cumulative-inclusive calls=32 us=60383
+SOURCE_ROOT_OWNER_WORK stage=memo query=continuation-capture scope=thread-cumulative-inclusive calls=32 us=464
+SOURCE_ROOT_OWNER_WORK stage=memo query=selected-command scope=thread-cumulative-inclusive calls=32 us=247152
+SOURCE_ROOT_OWNER_WORK stage=memo query=preflight-publication scope=thread-cumulative-inclusive calls=6 us=54
+SOURCE_ROOT_OWNER_WORK stage=memo query=source-publication scope=thread-cumulative-inclusive calls=18 us=1551
+SOURCE_ROOT_OWNER_WORK stage=memo query=lexical-memo scope=thread-cumulative-inclusive calls=692 us=19050
+SOURCE_ROOT_OWNER_WORK stage=memo query=lexical-capture scope=thread-cumulative-inclusive calls=96 us=12784
+SOURCE_ROOT_OWNER_WORK stage=memo query=body-math scope=thread-cumulative-inclusive calls=1 us=3490
+SOURCE_ROOT_OWNER_WORK stage=memo query=body-expression scope=thread-cumulative-inclusive calls=1 us=6
+SOURCE_PHASE bytes=288 stage=memo ms=0 points=24 layouts=12
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=memo retained_owners=1 requests=196 captures=48 reuses=148 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=memo requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+ANALYSER_COMMAND_PHASE bytes=288 site=85 stage=handlers-complete ms=413
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=150 ms=0 nested=2
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=original-names ms=2
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=150 ms=0 nested=2
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=scoped-bodies ms=14
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=variable-receivers ms=19
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=direct-invocations ms=21
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=nested-invocations ms=30
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=callback-invocations ms=33
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=command-name-invocations ms=33
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=namespace-role-facts ms=35
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=174 ms=0 nested=0
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=174 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=158 ms=0 nested=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=nested-diagnostics ms=115
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=variable-command-sites ms=116
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=procedure-resolution ms=121
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=expression-diagnostics ms=124
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_LEXICAL_NEXT offset=150 vector=true retained_schema=false
+ORIGINAL_LEXICAL_NEXT offset=150 schema=Some(Some(VariableLoadStore)) arguments=2
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=dispatch-diagnostics ms=134
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=150 stage=handlers-complete ms=148
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=211 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_TOKEN_PREPARE bytes=288 site=211 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=scoped-bodies ms=9
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=variable-receivers ms=11
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=direct-invocations ms=14
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=nested-invocations ms=14
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=callback-invocations ms=16
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=command-name-invocations ms=17
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=namespace-role-facts ms=19
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=nested-diagnostics ms=22
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=variable-command-sites ms=22
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=procedure-resolution ms=46
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=expression-diagnostics ms=48
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_LEXICAL_NEXT offset=211 vector=true retained_schema=false
+ORIGINAL_LEXICAL_NEXT offset=211 schema=Some(Some(NoHook)) arguments=2
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=dispatch-diagnostics ms=57
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=211 stage=handlers-complete ms=66
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ANALYSER_COMMAND_PHASE bytes=288 site=39 stage=handlers-complete ms=713
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=234 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=234 ms=0 nested=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=scoped-bodies ms=7
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=variable-receivers ms=9
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=direct-invocations ms=11
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=nested-invocations ms=12
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=callback-invocations ms=14
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=command-name-invocations ms=14
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=namespace-role-facts ms=18
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=nested-diagnostics ms=20
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=variable-command-sites ms=20
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=procedure-resolution ms=24
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=expression-diagnostics ms=27
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=dispatch-diagnostics ms=84
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=234 stage=handlers-complete ms=93
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=251 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=251 ms=0 nested=0
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=scoped-bodies ms=7
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=variable-receivers ms=10
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=direct-invocations ms=12
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=nested-invocations ms=12
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=callback-invocations ms=15
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=command-name-invocations ms=15
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=namespace-role-facts ms=17
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=nested-diagnostics ms=19
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=variable-command-sites ms=20
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=procedure-resolution ms=24
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=expression-diagnostics ms=26
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=dispatch-diagnostics ms=52
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=251 stage=handlers-complete ms=178
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=265 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=265 ms=0 nested=0
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=scoped-bodies ms=5
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=variable-receivers ms=6
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=direct-invocations ms=7
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=nested-invocations ms=7
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=callback-invocations ms=8
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=command-name-invocations ms=8
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=namespace-role-facts ms=9
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=nested-diagnostics ms=10
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=variable-command-sites ms=10
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=procedure-resolution ms=12
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=expression-diagnostics ms=12
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=dispatch-diagnostics ms=15
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=265 stage=handlers-complete ms=18
+ANALYSER_TOKEN_PREPARE bytes=288 site=273 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=original-names ms=0
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_TOKEN_PREPARE bytes=288 site=273 ms=0 nested=0
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=scoped-bodies ms=6
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=variable-receivers ms=10
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=direct-invocations ms=12
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=nested-invocations ms=12
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=callback-invocations ms=13
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=command-name-invocations ms=13
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=namespace-role-facts ms=14
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=nested-diagnostics ms=15
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=variable-command-sites ms=15
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=procedure-resolution ms=17
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=expression-diagnostics ms=17
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=dispatch-diagnostics ms=21
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ANALYSER_COMMAND_PHASE bytes=288 site=273 stage=handlers-complete ms=25
+ANALYSER_PHASE bytes=288 stage=walk-complete ms=1547
+ANALYSER_PHASE bytes=288 stage=parameter-definitions ms=1548
+DIAGNOSTIC_PHASE bytes=288 stage=initial ms=0
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+DIAGNOSTIC_PHASE bytes=288 stage=invocations ms=20
+DIAGNOSTIC_PHASE bytes=288 stage=variable-references ms=20
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+DIAGNOSTIC_PHASE bytes=288 stage=command-diagnostics ms=111
+DIAGNOSTIC_PHASE bytes=288 stage=variable-usage ms=111
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=initial us=8
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=initial us=0
+LOWER_SOURCE_PHASE bytes=288 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=288 phase=configured ms=0 statements=0 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=734 us=1296
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=6 us=20
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=6 us=68401
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=32 us=1490
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=32 us=674
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=32 us=228
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=18 us=1463
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=60 us=4468
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=52 us=75376
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=32 us=118629
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=32 us=60383
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=32 us=464
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=32 us=247152
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=6 us=54
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=18 us=1551
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=1185 us=22361
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=96 us=12784
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=1 us=3490
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=1 us=6
+SOURCE_PHASE bytes=288 stage=initial ms=41 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=886 us=1370
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=7 us=29
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=7 us=68403
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=38 us=1610
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=38 us=702
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=38 us=231
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=19 us=1686
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=66 us=4812
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=58 us=77317
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=38 us=120390
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=38 us=60944
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=38 us=487
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=38 us=248516
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=7 us=70
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=19 us=1580
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=1245 us=24977
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=119 us=15074
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=1 us=3490
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=1 us=6
+SOURCE_PHASE bytes=288 stage=walk ms=49 points=12 layouts=6
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=walk retained_owners=1 requests=60 captures=23 reuses=37 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-paths scope=cumulative-inclusive calls=116 ms=0 world_clones=116 clone_us=27
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=metadata-advice scope=cumulative-inclusive calls=6 ms=0 world_clones=6 clone_us=1
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=walk calls=0 ms=0
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=6
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=6
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=0 visits=0 pending=6 layouts=6
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=1 visits=0 pending=0 layouts=6
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=0 visits=0 pending=6 layouts=6
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=1 visits=0 pending=0 layouts=6
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=1 visits=0 pending=0 layouts=6
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=0 inputs=0 parsed_commands=0
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=2 visits=0 pending=0 layouts=6
+SOURCE_DEFERRED_PHASE stage=layouts ms=2 roots=0 outcomes=0 layouts=6
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=886 us=1370
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=7 us=29
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=7 us=68403
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=38 us=1610
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=38 us=702
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=38 us=231
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=19 us=1686
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=78 us=5119
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=58 us=77317
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=38 us=120390
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=38 us=60944
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=38 us=487
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=38 us=248516
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=7 us=70
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=19 us=1580
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=1257 us=25030
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=119 us=15074
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=1 us=3490
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=1 us=6
+SOURCE_PHASE bytes=288 stage=deferred ms=51 points=12 layouts=6
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=deferred retained_owners=1 requests=72 captures=23 reuses=49 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-paths scope=cumulative-inclusive calls=140 ms=0 world_clones=140 clone_us=36
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=6 ms=0 world_clones=6 clone_us=1
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=288 stage=deferred calls=0 ms=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=886 us=1370
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=4 us=563
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=7 us=29
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=7 us=68403
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=38 us=1610
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=38 us=702
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=38 us=231
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=4 us=30710
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=19 us=1686
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=78 us=5119
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=58 us=77317
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=38 us=120390
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=10 us=11829
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=38 us=60944
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=38 us=487
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=38 us=248516
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=7 us=70
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=19 us=1580
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=1257 us=25030
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=119 us=15074
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=1 us=3490
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=1 us=6
+SOURCE_PHASE bytes=288 stage=complete ms=51 points=12 layouts=6
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=288 stage=complete retained_owners=1 requests=72 captures=23 reuses=49 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=288 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=288 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-paths scope=cumulative-inclusive calls=140 ms=0 world_clones=140 clone_us=36
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=metadata-advice scope=cumulative-inclusive calls=6 ms=0 world_clones=6 clone_us=1
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=288 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=binding-analysis ms=52 commands=0 statements=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=segmented ms=0 commands=6 statements=0
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=commands ms=1 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=admission ms=1 commands=6 statements=6
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=source ms=4 commands=6 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=script ms=56 commands=0 statements=6
+LOWER_SCRIPT_PHASE bytes=288 depth=1 phase=restore ms=56 commands=0 statements=6
+LOWER_SOURCE_PHASE bytes=288 phase=lowered ms=56 statements=6 procedures=0
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=lowered us=57456
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=factories us=57484
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=inline-uplevel us=57502
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=prepared us=57568
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=cfg-built us=63660
+COMPILER_PIPELINE_PHASE pipeline=lower-cfg bytes=288 procedures=0 stage=enriched us=64216
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=lower-and-cfg us=64260
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=module-context us=64307
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=unit-scope us=105956
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=module-facts us=111086
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=procedure-transfers us=111159
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=top-level-lattice us=151701
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=procedure-lattices us=151739
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=method-and-body-lattices us=151748
+COMPILER_PIPELINE_PHASE pipeline=unit bytes=288 procedures=0 stage=connection-scope us=151758
+COMPILER_FUNCTION_PHASE_TOTALS pipeline=unit final=true functions=1 blocks=2 statements=12 prepare_us=54 ssa_us=32629 def_use_us=10 dynamic_names_us=52 sccp_us=3113 existence_us=49 types_us=102 rendered_us=11 instance_classes_us=3963 taint_us=90
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=initial us=2
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=object-types us=4784
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=original-realm us=4806
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=analysis us=6916
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=top-level-taint us=11172
+COMPILER_PIPELINE_PHASE pipeline=interprocedural bytes=288 procedures=0 stage=procedure-taints us=11196
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=initial us=0
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=object-facts us=104
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=command-binding us=1292
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=module-suppression us=3116
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=top-level us=28097
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=procedures us=28123
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=fresh-bodies us=28127
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=variable-command us=29075
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=abstract-factory us=29928
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=constant-dispatch-and-template us=29953
+DIAGNOSTIC_CFG_EMISSION_PHASE bytes=288 procedures=0 methods=0 body_units=0 stage=complete us=30027
+DIAGNOSTIC_PHASE bytes=288 stage=cfg-ssa ms=305
+DIAGNOSTIC_PHASE bytes=288 stage=complete ms=306
+ANALYSER_PHASE bytes=288 stage=diagnostics-complete ms=1854
+ANALYSER_PHASE bytes=288 stage=complete ms=1854
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=64 ms=0 targets=0 unknown=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+SOURCE_INVOCATION_PROJECT site=124 ms=0 targets=0 unknown=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION stage=no-original observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=namespace-geometry available=true observations=1
+ORIGINAL_DECLARATION offset=211 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true

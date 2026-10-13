@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-10-13T13:02:05.125756+00:00",
+  "selector": "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+  "exit_code": 101,
+  "passed": 0,
+  "failed": 1,
+  "filtered": 3002,
+  "original_input": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+  "producer_trace": [
+    "CALLBACK_DECLARATION offset=211 stage=declared-receiver-frame present=false",
+    "CALLBACK_DECLARATION offset=211 stage=execution-dialect present=true",
+    "CALLBACK_DECLARATION offset=211 stage=source-origin present=true"
+  ],
+  "instrumented_source_sha256": "0c0ebc1a73749689a2d9f795612e45913a24ac3933a55aecbb3eadf02f6d70a5",
+  "restored_source_sha256": "c566154876c091d6e750d8eac26c3dd83825cbae626280c20edd5da0896d826b",
+  "changed_after_restore": [],
+  "scope_source_files": 24067,
+  "instrumented_binaries": [
+    {
+      "path": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "sha256": "839923f7024c80e3486ab20978c95235aa3ad8970630f130ef9094c0720d5d6c"
+    }
+  ]
+}

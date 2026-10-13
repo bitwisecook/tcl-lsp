@@ -1,0 +1,10 @@
+{
+  "exit_code": 101,
+  "elapsed_seconds": 294.72985774600056,
+  "finished_utc": "2026-10-13T14:45:13.375211+00:00",
+  "counts": {
+    "passed": 3,
+    "failed": 3
+  },
+  "test_seconds": 17.98
+}

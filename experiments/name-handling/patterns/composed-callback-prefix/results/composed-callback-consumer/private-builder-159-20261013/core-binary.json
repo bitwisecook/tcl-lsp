@@ -1,0 +1,7 @@
+{
+  "path": "tmp/name-target-issues/debug/deps/tcl_lsp_core-44d35ade4611194f",
+  "sha256": "b10a2415a8caa4af008ca5cb552496e9c43c66cce63708ff8b84a82b1d6997c7",
+  "instrumented_source_inventory": "combined-instrumented-source.json",
+  "stale_after_restoration": true,
+  "retained_binary": false
+}

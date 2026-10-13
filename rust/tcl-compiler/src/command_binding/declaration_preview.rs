@@ -117,8 +117,16 @@ impl LogicalProcedureDeclaration {
 /// their distinct authored declaration recipe. Neither supplies body entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OriginalProcedureReadDeclaration {
-    source: ExecutedScriptSource,
+    source: ProcedureReadSource,
     formals: ProcedureReadFormals,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProcedureReadSource {
+    Contiguous(ExecutedScriptSource),
+    OriginalBraced {
+        producer: crate::signature_scan::scope::SignatureSourceNameKey,
+        correspondence: tcl_syntax::backslash::NativeBracedWordSourceMap,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProcedureReadFormals {
@@ -129,8 +137,50 @@ enum ProcedureReadFormals {
     },
 }
 impl OriginalProcedureReadDeclaration {
-    pub(crate) fn source(&self) -> &ExecutedScriptSource {
-        &self.source
+    pub(crate) fn original_image(&self) -> &tcl_lexer::SourceImage {
+        match &self.source {
+            ProcedureReadSource::Contiguous(source) => source.origin.source_image(),
+            ProcedureReadSource::OriginalBraced { producer, .. } => {
+                producer.original_word().image()
+            }
+        }
+    }
+    pub(crate) fn original_body_span(&self) -> Option<tcl_lexer::Span> {
+        match &self.source {
+            ProcedureReadSource::Contiguous(source) => Some(tcl_lexer::Span::new(
+                source.base(),
+                source
+                    .base()
+                    .checked_add(u32::try_from(source.text.len()).ok()?)?,
+            )),
+            ProcedureReadSource::OriginalBraced { producer, .. } => {
+                producer.original_word().content_span().ok()
+            }
+        }
+    }
+    pub(crate) fn original_body_text(&self) -> Option<&str> {
+        std::str::from_utf8(
+            self.original_image()
+                .bytes()
+                .get(self.original_body_span()?.as_range())?,
+        )
+        .ok()
+    }
+    pub(crate) fn owns_original_read(&self, span: tcl_lexer::Span) -> bool {
+        let Some(body) = self.original_body_span() else {
+            return false;
+        };
+        if span.start() < body.start() || span.end() > body.end() {
+            return false;
+        }
+        match &self.source {
+            ProcedureReadSource::Contiguous(_) => true,
+            ProcedureReadSource::OriginalBraced { correspondence, .. } => correspondence
+                .native_extent(
+                    (span.start() - body.start()) as usize..(span.end() - body.start()) as usize,
+                )
+                .is_some(),
+        }
     }
     pub(crate) fn parameter_names(&self) -> Vec<String> {
         match &self.formals {
@@ -442,7 +492,7 @@ impl SourceCommandBindings {
         {
             let recipe = self.original_logical_procedure_declaration(tokens, registry, input)?;
             return Some(OriginalProcedureReadDeclaration {
-                source: recipe.source().clone(),
+                source: ProcedureReadSource::Contiguous(recipe.source().clone()),
                 formals: ProcedureReadFormals::Logical {
                     parameters: recipe.parameters().to_vec(),
                     text: recipe.parameters_text()?.to_owned(),
@@ -1570,7 +1620,47 @@ fn native_procedure_read_recipe(
         words.get(body_at)?.literal()?,
         row.config,
     );
-    (source.origin == site.source).then_some(OriginalProcedureReadDeclaration {
+    let source = if source.origin == site.source {
+        ProcedureReadSource::Contiguous(source)
+    } else {
+        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(producer) =
+            original_declaration_operand_input(site, tokens, row, target, &effective, body_at)?
+        else {
+            return None;
+        };
+        let original = producer.original_word();
+        if original.group().kind != tcl_lexer::WordKind::Braced
+            || original.image() != site.source.source_image()
+        {
+            return None;
+        }
+        let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
+            original
+                .image()
+                .bytes()
+                .get(original.content_span().ok()?.as_range())?,
+            original.image().channel(),
+            original.config().brace_backslash_newline,
+            producer.policy().string_protocol(),
+        )
+        .ok()?;
+        let evaluated = tcl_syntax::backslash::native_source_literal_bytes(
+            words.get(body_at)?.literal()?.as_bytes(),
+            original.image().channel(),
+            producer.policy().string_protocol(),
+        )
+        .ok()?;
+        if correspondence.bytes() != producer.bytes()
+            || correspondence.bytes() != evaluated.as_ref()
+        {
+            return None;
+        }
+        ProcedureReadSource::OriginalBraced {
+            producer,
+            correspondence,
+        }
+    };
+    Some(OriginalProcedureReadDeclaration {
         source,
         formals: ProcedureReadFormals::Native(topology),
     })

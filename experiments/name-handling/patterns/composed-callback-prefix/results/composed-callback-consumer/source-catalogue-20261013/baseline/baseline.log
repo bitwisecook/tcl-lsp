@@ -1,0 +1,833 @@
+   Compiling zeroize v1.9.0
+   Compiling libc v0.2.190
+   Compiling subtle v2.6.1
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+   Compiling cfg-if v1.0.5
+   Compiling rand_core v0.10.1
+   Compiling proc-macro2 v1.0.107
+   Compiling typenum v1.20.1
+   Compiling getrandom v0.4.3
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling hybrid-array v0.4.15
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.2
+   Compiling const-oid v0.10.2
+   Compiling crypto-common v0.2.2
+   Compiling syn v3.0.6
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling thiserror v2.0.21
+   Compiling num-integer v0.1.47
+   Compiling memchr v2.8.3
+   Compiling base64ct v1.8.3
+   Compiling pem-rfc7468 v1.0.0
+   Compiling thiserror-impl v2.0.21
+   Compiling cpubits v0.1.1
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling libm v0.2.16
+   Compiling bitflags v2.13.2
+   Compiling cpufeatures v0.3.1
+   Compiling bytecount v0.6.9
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling spki v0.8.0
+   Compiling num-bigint v0.5.1
+   Compiling ff v0.14.0
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling sha2 v0.11.0
+   Compiling syn v2.0.119
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling num-conv v0.2.2
+   Compiling minimal-lexical v0.2.1
+   Compiling base16ct v1.0.0
+   Compiling time-core v0.1.9
+   Compiling nom v7.1.3
+   Compiling time-macros v0.2.32
+   Compiling sec1 v0.8.1
+   Compiling synstructure v0.13.2
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling serde_core v1.0.229
+   Compiling deranged v0.5.8
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling powerfmt v0.2.0
+   Compiling cc v1.6.0
+   Compiling time v0.3.55
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling asn1-rs-derive v0.6.0
+   Compiling rusticata-macros v4.1.0
+   Compiling elliptic-curve v0.14.1
+   Compiling asn1-rs-impl v0.2.0
+   Compiling primefield v0.14.0
+   Compiling displaydoc v0.2.7
+   Compiling aho-corasick v1.1.5
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling zmij v1.0.23
+   Compiling regex-syntax v0.8.11
+   Compiling unicode-general-category v1.1.0
+   Compiling rfc6979 v0.6.0
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling asn1-rs v0.7.2
+   Compiling regex-automata v0.4.18
+   Compiling wnaf v0.14.1
+   Compiling ring v0.17.14
+   Compiling rustc-hash v2.1.3
+   Compiling smallvec v1.16.2
+   Compiling equivalent v1.0.2
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling hashbrown v0.17.1
+   Compiling oid-registry v0.8.1
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling indexmap v2.14.2
+   Compiling regex v1.13.1
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde_derive v1.0.229
+   Compiling num-bigint v0.4.8
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling itoa v1.0.18
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling lazy_static v1.5.1
+   Compiling data-encoding v2.11.1
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling base64 v0.23.1
+   Compiling ipnet v2.12.2
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 2m 07s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 1 test
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=39 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=234 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=234 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=234 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=234 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=174 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=158 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=39 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_COMPLETED_WORLD root_state=false
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_LEXICAL_NEXT offset=85 vector=true retained_schema=false
+ORIGINAL_LEXICAL_NEXT offset=85 schema=Some(Some(VariableLoadStore)) arguments=2
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_PROCEDURE_CLOSURE offset=0 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=39 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_CONSTRUCTOR_DEFINITION site=234 dispatcher=false lifecycle_closed=true generation_match=true dependencies=true constructor=false destructor=false factory=true words=3 written=Some(3)
+ORIGINAL_CONSTRUCTOR_INPUTS site=234 selector=Some([99, 114, 101, 97, 116, 101]) name=Some([111, 98, 106, 101, 99, 116])
+ORIGINAL_NAMED_CELL key=Slot { namespace: Authored("::"), simple: NameBytes([111, 98, 106, 101, 99, 116]) } current=true namespace=true unknown_holder=false cell=Some({Missing})
+ORIGINAL_NAMED_ALLOCATION site=234 command_incarnation=First object_incarnation=First same_site=true same_namespace=true same_token=true
+ORIGINAL_CONSTRUCTOR_ALLOCATION site=234 retained_named=true current=true
+ORIGINAL_PROCEDURE_CLOSURE offset=174 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_PROCEDURE_CLOSURE offset=158 opaque=false definition_valid=false topology=false key=false holder_exists=false installed_count=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=0 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=39 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_LEXICAL_NEXT offset=150 vector=true retained_schema=false
+ORIGINAL_LEXICAL_NEXT offset=150 schema=Some(Some(VariableLoadStore)) arguments=2
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_LEXICAL_NEXT offset=211 vector=false retained_schema=false
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=39 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=39 stage=body-unavailable
+ORIGINAL_DECLARATION offset=234 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=234 stage=body-unavailable
+ORIGINAL_DECLARATION offset=251 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=251 stage=body-unavailable
+ORIGINAL_DECLARATION offset=265 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=265 stage=body-unavailable
+ORIGINAL_DECLARATION offset=273 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=273 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=265 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=273 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=39 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=101 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(101) stage=candidate available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=original-rows available=true observations=1
+ORIGINAL_DECLARATION offset=85 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=namespace-geometry available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(85) stage=candidate available=true observations=1
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_RECEIVER_CATALOGUE offset=Some(211) stage=original-rows available=false observations=0
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=234 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=251 stage=owner entry=true config=true words=true frame=true origin=true context=true
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (30005) panicked at rust/tcl-lsp-core/src/references.rs:6385:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.15s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

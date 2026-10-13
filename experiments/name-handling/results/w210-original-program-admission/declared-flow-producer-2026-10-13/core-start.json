@@ -1,0 +1,24 @@
+{
+  "started_utc": "2026-10-13T14:46:38.891053+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "--",
+    "--exact",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "target": "tmp/name-target-issues",
+  "trace_environment": [
+    "TCL_LSP_TRACE_PRIVATE_159=1",
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1"
+  ]
+}

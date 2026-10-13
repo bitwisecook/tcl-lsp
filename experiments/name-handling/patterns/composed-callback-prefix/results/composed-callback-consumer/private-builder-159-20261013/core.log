@@ -1,0 +1,522 @@
+   Compiling libc v0.2.190
+   Compiling getrandom v0.4.3
+   Compiling getrandom v0.2.17
+   Compiling crypto-common v0.2.2
+   Compiling crypto-bigint v0.7.5
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling primefield v0.14.0
+   Compiling elliptic-curve v0.14.1
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling crypto-primes v0.7.2
+   Compiling ring v0.17.14
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling x509-parser v0.18.1
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling rsa v0.10.0-rc.18
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 25s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_lsp_core-44d35ade4611194f)
+
+running 2 tests
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand ... PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand' (53858) panicked at rust/tcl-lsp-core/src/references.rs:6290:29:
+tcl8.6/private-positive: missing original builder schema
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+PRIVATE_159_SELECTED stage=assistance passed=true
+PRIVATE_159_SELECTED stage=unanimous passed=false
+ORIGINAL_CHILD_GUARD label=retained.logical offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.input_context offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.reached_lookup offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unknown offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=retained.targets offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.tape offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.native_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.authored_producer_vector offset=Some(159) passed=true
+ORIGINAL_CHILD_GUARD label=retained.unrepresented offset=Some(159) passed=false
+ORIGINAL_CHILD_GUARD label=transition.retained offset=Some(159) passed=false
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (53859) panicked at rust/tcl-lsp-core/src/references.rs:6385:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+FAILED
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 3001 filtered out; finished in 4.84s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

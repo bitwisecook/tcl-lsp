@@ -1,0 +1,33 @@
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 2m 02s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 4 tests
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand ... 
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand' (45504) panicked at rust/tcl-lsp-core/src/references.rs:6290:29:
+tcl8.6/private-positive: missing original builder schema
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration ... ok
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... 
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (45519) panicked at rust/tcl-lsp-core/src/references.rs:6385:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_stored_sink_withdraws_unknown_and_opaque_writers ... ok
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 2999 filtered out; finished in 16.31s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

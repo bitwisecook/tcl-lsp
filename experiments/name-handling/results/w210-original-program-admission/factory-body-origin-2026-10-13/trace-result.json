@@ -1,0 +1,27 @@
+{
+  "head": "000c431f05b4ef5fc88af538c524cff14e6d3072",
+  "test": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "profile": "tcl8.4",
+  "exit_code": 101,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "actual": 0,
+  "expected": 2,
+  "first_refusal": "ExecutedScriptSource::from_word result source.origin != declaration site.source",
+  "header_offsets": [
+    58,
+    441,
+    760,
+    1076
+  ],
+  "preceding_checked_stages": "layout-map, original row ownership/config/vector/frame/origin/context, row config/token correspondence, operand advice, dialect, registry target, effective words, registry resolution, Valid procedure definition, parameter OriginalWord, formal topology, body Written provenance/index/literal all pass",
+  "restoration": {
+    "owners_byte_exact": true,
+    "scoped_source_paths_unchanged": 4343,
+    "post_restoration_build": false,
+    "instrumented_binary": "stale to restored source"
+  },
+  "captured_utc": "2026-10-13T12:52:23.827393+00:00"
+}

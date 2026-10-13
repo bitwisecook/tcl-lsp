@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-10-13T13:46:22.136512+00:00",
+  "command": "cargo test --offline -j2 -p tcl-compiler --lib source_catalogue_advice::tests -- --nocapture --test-threads=1",
+  "exit_code": 101,
+  "tests_executed": 0,
+  "classification": "Compilation rejected three test-only type paths in native_lowering/tests.rs; callback assertions did not execute.",
+  "errors": [
+    "error[E0433]: cannot find `ByteCommandSlot` in `naming`",
+    "error[E0433]: cannot find `ByteNamespacePath` in `naming`",
+    "error[E0433]: cannot find `NameBytes` in `naming`",
+    "error: could not compile `tcl-compiler` (lib test) due to 3 previous errors"
+  ]
+}

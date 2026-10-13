@@ -1,0 +1,54 @@
+--- rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -711,6 +711,15 @@
+         segment,
+     );
+     realm.stamp_original_tokens(&mut tokens);
++    #[cfg(debug_assertions)]
++    let trace = |stage: &str, passed: bool| {
++        if std::env::var_os("TCL_LSP_TRACE_PRIVATE_159").is_some()
++            && segment.argv.first().is_some_and(|word| word.span.start() == 159)
++            && image.bytes() == include_bytes!("../../../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl")
++        {
++            eprintln!("PRIVATE_159_SELECTED stage={stage} passed={passed}");
++        }
++    };
+     let assistance = crate::registry_invocation::original_registry_invocation_assistance(
+         registry, None, &tokens,
+     )
+@@ -718,8 +727,14 @@
+         crate::registry_invocation::original_incomplete_body_registry_invocation_assistance(
+             registry, realm, &tokens,
+         )
+-    })?;
+-    let selected = assistance.unanimous_command_words()?;
++    });
++    #[cfg(debug_assertions)]
++    trace("assistance", assistance.is_some());
++    let assistance = assistance?;
++    let selected = assistance.unanimous_command_words();
++    #[cfg(debug_assertions)]
++    trace("unanimous", selected.is_some());
++    let selected = selected?;
+     let roles = assistance.candidates.first().and_then(|first| {
+         let roles = first
+             .roles
+@@ -759,8 +774,16 @@
+         segment.argv.first()?.span.start(),
+         config,
+     );
+-    let dialect = binding.original_source_word_dialect_for_tokens(&tokens)?;
+-    let protocol = dialect.native_source_string_protocol()?;
++    #[cfg(debug_assertions)]
++    trace("native", native.is_some());
++    let dialect = binding.original_source_word_dialect_for_tokens(&tokens);
++    #[cfg(debug_assertions)]
++    trace("dialect", dialect.is_some());
++    let dialect = dialect?;
++    let protocol = dialect.native_source_string_protocol();
++    #[cfg(debug_assertions)]
++    trace("protocol", protocol.is_some());
++    let protocol = protocol?;
+     let arguments =
+         original_source_argument_words(&tokens, effective, native.as_deref()?, protocol)?;
+     let words: Vec<_> = arguments

@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-10-13T12:41:01.243830+00:00",
+  "records": [
+    {
+      "version": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "input": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+      "input_sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+      "wrapper_sha256": "4f440165721d2e2a219eb69d5f4555434d61ae1b3d741159a069e2fc5f06173e",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-callback-oracle/capture.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "completion 0 resultHex 7469636b207b6120627d\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "input": "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl",
+      "input_sha256": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+      "wrapper_sha256": "4f440165721d2e2a219eb69d5f4555434d61ae1b3d741159a069e2fc5f06173e",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-callback-oracle/capture.tcl",
+        "/workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+      ],
+      "exit_code": 0,
+      "stdout": "completion 0 resultHex 7469636b207b6120627d\n",
+      "stderr": ""
+    }
+  ]
+}

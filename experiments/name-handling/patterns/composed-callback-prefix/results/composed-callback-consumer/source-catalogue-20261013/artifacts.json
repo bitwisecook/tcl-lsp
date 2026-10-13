@@ -1,0 +1,142 @@
+[
+  {
+    "path": "baseline/metadata.json",
+    "sha256": "ad80c9a2c2fbdea1eb10bd93cd2d8aa492c2027b8ed9a081824f0fc7b93e8fb2",
+    "size": 235680
+  },
+  {
+    "path": "baseline/before.json",
+    "sha256": "149e6939f74a0dbbd935a700834263246521348911db39e81e942bec1e5e5483",
+    "size": 3949414
+  },
+  {
+    "path": "baseline/baseline.log",
+    "sha256": "39359054b4259e52c7bf491dbe04927dcd21727620e48d5720eeb466930c514c",
+    "size": 79688
+  },
+  {
+    "path": "baseline/instrumentation.diff",
+    "sha256": "a3c2bdc89a49a127151c90594d6a0bdbc24bdaa4c3afefd1fd01874f784f4986",
+    "size": 2949
+  },
+  {
+    "path": "baseline/instrumentation.json",
+    "sha256": "f90ba73051e6e1dba7a57d6535a6fbf30b0de4625b84073505dd2de0ffca06b8",
+    "size": 399
+  },
+  {
+    "path": "baseline/producer-trace.log",
+    "sha256": "3710df344d25e16f9623cbc5414b88b85652fefaffdf9c49ce251670660a70ed",
+    "size": 76366
+  },
+  {
+    "path": "baseline/producer-result.json",
+    "sha256": "40f66556e5f01b42fac4c5ce4cef5439bde9228fc0cde472b6d10c521b831f50",
+    "size": 1099
+  },
+  {
+    "path": "repair/before.json",
+    "sha256": "afcdfa7e94de179ca9e2b313be667525327111427bbad648556539e857428130",
+    "size": 3949414
+  },
+  {
+    "path": "repair/before-refreshed.json",
+    "sha256": "65fde8cadca5f14cf9f0027a9626bb02cab61a6c408039c083f4961acc935124",
+    "size": 3949952
+  },
+  {
+    "path": "repair/production.diff",
+    "sha256": "398f3d460dbc64952e9bd23233ec42b92d3a33674280c7ae6590a6f1e17defb4",
+    "size": 14647
+  },
+  {
+    "path": "repair/compiler.log",
+    "sha256": "b80937ec549d3a51a0ddfae72053cb1db0560805fd70cdf9fbd88676707d172d",
+    "size": 4051
+  },
+  {
+    "path": "repair/compile-failure.json",
+    "sha256": "7158bfd37c36619f795b9cad681233a7710d831b54a3af0fddfd58f459a9276f",
+    "size": 646
+  },
+  {
+    "path": "repair/compiler-refreshed.log",
+    "sha256": "307b61047b535690ef496f474e34e00540b7cce8f2fb243a57d62340d9be4a2f",
+    "size": 1672
+  },
+  {
+    "path": "repair/core.log",
+    "sha256": "bf887bfbb9c2eb5cf41f3b4a1b9b5bcd3bcbaba6525ceb8573154660a585e8ad",
+    "size": 2438
+  },
+  {
+    "path": "repair/result.json",
+    "sha256": "df9f767ef96adf24072c1917077415388c3e0a8ec2786b0c18250634c8d4c314",
+    "size": 907
+  },
+  {
+    "path": "repair/core-reference-isolated.log",
+    "sha256": "d6b7b837482706e9b118ffb87a7dca6aee801d686a5c553c59d898c2680723ff",
+    "size": 828
+  },
+  {
+    "path": "oracle/capture.tcl",
+    "sha256": "4f440165721d2e2a219eb69d5f4555434d61ae1b3d741159a069e2fc5f06173e",
+    "size": 227
+  },
+  {
+    "path": "oracle/8.6.18.stdout",
+    "sha256": "0be846d04b1de045a7c8d2ddcc36a80477c920a4c2bd3064ac546b0b0f238601",
+    "size": 44
+  },
+  {
+    "path": "oracle/8.6.18.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0
+  },
+  {
+    "path": "oracle/9.0.4.stdout",
+    "sha256": "0be846d04b1de045a7c8d2ddcc36a80477c920a4c2bd3064ac546b0b0f238601",
+    "size": 44
+  },
+  {
+    "path": "oracle/9.0.4.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size": 0
+  },
+  {
+    "path": "oracle/records.json",
+    "sha256": "d7f02319a3374cabf2781e78b29e4469009c006b505f4c0ad39c58e9c9ab3829",
+    "size": 1712
+  },
+  {
+    "path": "private-barrier/frozen-result.json",
+    "sha256": "ba0e5ee8d26d206f1fd35f6515f454d14427cb22ffd1a3115060c6236cabb44e",
+    "size": 1611
+  },
+  {
+    "path": "private-barrier/frozen-analysis.json",
+    "sha256": "f1605a705a1f662a8d363446923fb08f59c3c5e0898599bdf5350b779460f89f",
+    "size": 1072
+  },
+  {
+    "path": "private-barrier/cold.stdout",
+    "sha256": "ae66950001d4b2bbc0cccd20cf08da625c7052af43070894573c5ffa69ae1894",
+    "size": 421
+  },
+  {
+    "path": "private-barrier/cold.stderr",
+    "sha256": "27dc5941f099e8710d4f119023e8270d1bb8579837cf2c9b2a30d59f5fc44f80",
+    "size": 358805
+  },
+  {
+    "path": "private-barrier/warm.stdout",
+    "sha256": "d83e011d69934453320eab935db8b15aa988ad9a2137d20653eabafd991b8b73",
+    "size": 261
+  },
+  {
+    "path": "private-barrier/warm.stderr",
+    "sha256": "28bf0021ed80ff0362f771c5abd014c7b7a13e94d4d89eeb8299b16cc9c335b9",
+    "size": 188451
+  }
+]

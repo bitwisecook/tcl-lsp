@@ -1,0 +1,7 @@
+{
+  "path": "tmp/name-target-issues/debug/deps/tcl_compiler-78463101920c36d4",
+  "sha256": "ab3abaf9e91fd68cc43ad6119b16d1597c25ed2193bc3b6895a281e542842d6f",
+  "instrumented_source_inventory": "combined-instrumented-source.json",
+  "stale_after_restoration": true,
+  "retained_binary": false
+}

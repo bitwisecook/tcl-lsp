@@ -1,0 +1,16 @@
+{
+  "owners": {
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": {
+      "before": "81ae1c7ca9e68984572a47e6855ab356b795164f60122bb70ff2524ac6c083f0",
+      "instrumented": "35c826fd24428b86763ac74aaf6412d9493dd28c973939dbe258d8cac6c38171"
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": {
+      "before": "ba53cf8755e86dcfd8dfde7d3e12207b8729d1eb444427357bc216a7b5b0cc05",
+      "instrumented": "e726e0070b7580abef2d3f543007d30e905fc7108f798d954803bf2d19c4ae49"
+    },
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": {
+      "before": "418e3aeae18b7541e28cc4a6f2138b5e67cbe0e10a70d26b08121d1b4b5a739d",
+      "instrumented": "44b0340957a48a19a75888ee67f38a96f4d5ae68c7ebb528204a6d34817aa062"
+    }
+  }
+}

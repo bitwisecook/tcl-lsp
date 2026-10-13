@@ -1,0 +1,15 @@
+{
+  "head": "000c431f05b4ef5fc88af538c524cff14e6d3072",
+  "command": "cargo test -j2 -p tcl-compiler --lib tcltest_ -- --nocapture",
+  "exit_code": 101,
+  "counts": {
+    "passed": 8,
+    "failed": 1
+  },
+  "failed": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "actual": 0,
+  "expected": 2,
+  "profile": "tcl8.4",
+  "source_paths_unchanged": 4343,
+  "captured_utc": "2026-10-13T12:47:25.159222+00:00"
+}

@@ -1,0 +1,10 @@
+{
+  "restored_utc": "2026-10-13T14:16:43.705176+00:00",
+  "byte_exact_owners": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "rust/tcl-compiler/src/script_binds.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+  ],
+  "production_source_paths_match": 6382,
+  "post_restoration_build": false
+}

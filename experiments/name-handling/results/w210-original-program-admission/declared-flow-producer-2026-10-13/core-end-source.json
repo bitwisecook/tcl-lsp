@@ -1,0 +1,12 @@
+{
+  "finished_utc": "2026-10-13T14:50:30.326568+00:00",
+  "paths": 34668,
+  "announced_runtime_testleaf_changes": [
+    {
+      "path": "runtime/rust/tests/native_namespace_query_bases.rs",
+      "before_sha256": "e4ebb173788ba4e8402604025e25a8e86436196c54e6a25cc68e3a827520cf90",
+      "after_sha256": "c52c51c93967f91adbc5d3273782e36c4d0664b3f852542c285954c1864c1c53"
+    }
+  ],
+  "actual_compiler_core_source_changed": false
+}

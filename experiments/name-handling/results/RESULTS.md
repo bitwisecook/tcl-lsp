@@ -20,6 +20,28 @@ direct object entry; their full results are not accepted. Three C86+ query
 fixtures refuse compiler preflight before producing a result. None establishes
 Core, F5, ordinary scalar/element behavior or complete naming conformance.
 
+## Original declaration and callback source consumers
+
+The [braced-source compiler capture](braced-source-correspondence-2026-10-13/README.md)
+retains initial failures independently of the
+[mapped-read-source diagnostic](w210-original-program-admission/mapped-read-source-2026-10-13/README.md).
+Original occurrence correspondence works, but #2286 still returns zero W210
+warnings where two are expected. The
+[declared-flow producer diagnostic](w210-original-program-admission/declared-flow-producer-2026-10-13/README.md)
+locates the next refusal: evaluated continuation-containing bodies cannot
+issue contiguous executable source. A source-purpose read flow needs separate
+admission. Genuine Native formal fixtures separately lack complete retained
+request metadata; their original assertions remain failing.
+
+The [conditional receiver catalogue capture](../patterns/composed-callback-prefix/results/composed-callback-consumer/source-catalogue-20261013/README.md)
+passes two Compiler catalogue controls across C86/90/91 source contexts.
+Two of four Core controls pass; the original private builder and selector
+controls fail. The
+[private builder diagnostic](../patterns/composed-callback-prefix/results/composed-callback-consumer/private-builder-159-20261013/README.md)
+finds an authentic source producer with an unrepresented execution-purpose
+transition. Source catalogue admission must preserve its member-body issuer
+without granting execution, frame, read, edit or optimisation authority.
+
 ## Actual C8.6 constructor and startup
 
 The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actual

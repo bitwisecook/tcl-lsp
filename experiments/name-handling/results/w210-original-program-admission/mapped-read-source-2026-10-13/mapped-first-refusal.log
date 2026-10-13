@@ -1,0 +1,37 @@
+W210_MAPPED function=::top offset=None stage=actual-diagnostic dynamic_writes=true declaration_flow=false physical_missing=0
+W210_MAPPED function=::aliasControl offset=Some(441) stage=actual-diagnostic dynamic_writes=true declaration_flow=false physical_missing=0
+W210_MAPPED offset=441 stage=authored-advice-start
+W210_MAPPED offset=441 stage=native-recipe-start
+W210_MAPPED offset=441 stage=body-source contiguous=false
+W210_MAPPED offset=441 stage=body-correspondence original_producer=true evaluated=true mapped_bytes=225 producer_bytes=225 evaluated_bytes=225
+W210_MAPPED offset=441 stage=native-recipe-success
+W210_MAPPED offset=441 stage=authored-recipe available=true
+W210_MAPPED offset=441 stage=authored-agreement image=true body_offset=true body_text=true formal_text=true formal_names=true
+W210_MAPPED offset=441 stage=authored-advice-success
+W210_MAPPED function=::direct offset=Some(58) stage=actual-diagnostic dynamic_writes=true declaration_flow=false physical_missing=0
+W210_MAPPED offset=58 stage=authored-advice-start
+W210_MAPPED offset=58 stage=native-recipe-start
+W210_MAPPED offset=58 stage=body-source contiguous=false
+W210_MAPPED offset=58 stage=body-correspondence original_producer=true evaluated=true mapped_bytes=243 producer_bytes=243 evaluated_bytes=243
+W210_MAPPED offset=58 stage=native-recipe-success
+W210_MAPPED offset=58 stage=authored-recipe available=true
+W210_MAPPED offset=58 stage=authored-agreement image=true body_offset=true body_text=true formal_text=true formal_names=true
+W210_MAPPED offset=58 stage=authored-advice-success
+W210_MAPPED function=::stoppedSetup offset=Some(760) stage=actual-diagnostic dynamic_writes=true declaration_flow=false physical_missing=0
+W210_MAPPED offset=760 stage=authored-advice-start
+W210_MAPPED offset=760 stage=native-recipe-start
+W210_MAPPED offset=760 stage=body-source contiguous=false
+W210_MAPPED offset=760 stage=body-correspondence original_producer=true evaluated=true mapped_bytes=232 producer_bytes=232 evaluated_bytes=232
+W210_MAPPED offset=760 stage=native-recipe-success
+W210_MAPPED offset=760 stage=authored-recipe available=true
+W210_MAPPED offset=760 stage=authored-agreement image=true body_offset=true body_text=true formal_text=true formal_names=true
+W210_MAPPED offset=760 stage=authored-advice-success
+W210_MAPPED function=::opaqueResult offset=Some(1076) stage=actual-diagnostic dynamic_writes=true declaration_flow=false physical_missing=0
+W210_MAPPED offset=1076 stage=authored-advice-start
+W210_MAPPED offset=1076 stage=native-recipe-start
+W210_MAPPED offset=1076 stage=body-source contiguous=false
+W210_MAPPED offset=1076 stage=body-correspondence original_producer=true evaluated=true mapped_bytes=119 producer_bytes=119 evaluated_bytes=119
+W210_MAPPED offset=1076 stage=native-recipe-success
+W210_MAPPED offset=1076 stage=authored-recipe available=true
+W210_MAPPED offset=1076 stage=authored-agreement image=true body_offset=true body_text=true formal_text=true formal_names=true
+W210_MAPPED offset=1076 stage=authored-advice-success

@@ -1,0 +1,31 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+warning: method `namespace_child_token` is never used
+     --> rust/tcl-vm/src/interp.rs:18328:8
+      |
+11372 | impl Vm {
+      | ------- method in this implementation
+...
+18328 |     fn namespace_child_token(&self, parent: NsId, simple: impl AsRef<[u8]>) -> Option<NsId> {
+      |        ^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-vm` (lib) generated 1 warning
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 4m 04s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+running 2 tests
+test command_binding::source_catalogue_advice::tests::called_receiver_catalogue_keeps_source_barriers_and_currency ... ok
+test command_binding::source_catalogue_advice::tests::called_receiver_catalogue_uses_one_conditional_source_owner ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9569 filtered out; finished in 12.01s
+

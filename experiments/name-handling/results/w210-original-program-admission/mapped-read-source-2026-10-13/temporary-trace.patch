@@ -1,0 +1,168 @@
+--- rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ rust/tcl-compiler/src/command_binding/declaration_preview.rs (temporary diagnosis)
+@@ -1563,6 +1563,20 @@
+     registry: &tcl_registry::CommandRegistry,
+     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+ ) -> Option<OriginalProcedureReadDeclaration> {
++    #[cfg(test)]
++    let trace = std::env::var_os("TCL_LSP_TRACE_W210_MAPPED").is_some()
++        && site.source.source_image().bytes()
++            == include_bytes!(
++                "../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl"
++            )
++        && [58, 441, 760, 1076].contains(&site.offset);
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=native-recipe-start",
++            site.offset
++        );
++    }
+     let dialect = advice.dialect();
+     let effective = effective_words_for_target(tokens, target)?;
+     let values: Vec<_> = effective
+@@ -1620,6 +1634,14 @@
+         words.get(body_at)?.literal()?,
+         row.config,
+     );
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=body-source contiguous={}",
++            site.offset,
++            source.origin == site.source
++        );
++    }
+     let source = if source.origin == site.source {
+         ProcedureReadSource::Contiguous(source)
+     } else {
+@@ -1650,6 +1672,18 @@
+             producer.policy().string_protocol(),
+         )
+         .ok()?;
++        #[cfg(test)]
++        if trace {
++            eprintln!(
++                "W210_MAPPED offset={} stage=body-correspondence original_producer={} evaluated={} mapped_bytes={} producer_bytes={} evaluated_bytes={}",
++                site.offset,
++                correspondence.bytes() == producer.bytes(),
++                correspondence.bytes() == evaluated.as_ref(),
++                correspondence.bytes().len(),
++                producer.bytes().len(),
++                evaluated.len()
++            );
++        }
+         if correspondence.bytes() != producer.bytes()
+             || correspondence.bytes() != evaluated.as_ref()
+         {
+@@ -1660,6 +1694,13 @@
+             correspondence,
+         }
+     };
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=native-recipe-success",
++            site.offset
++        );
++    }
+     Some(OriginalProcedureReadDeclaration {
+         source,
+         formals: ProcedureReadFormals::Native(topology),
+--- rust/tcl-compiler/src/script_binds.rs
++++ rust/tcl-compiler/src/script_binds.rs (temporary diagnosis)
+@@ -395,6 +395,23 @@
+     analysis: &crate::analyser::AnalysisResult,
+     context: &tcl_registry::model::ContextRegistry,
+ ) -> Option<AuthoredProcedureReadAdvice> {
++    #[cfg(test)]
++    let trace = std::env::var_os("TCL_LSP_TRACE_W210_MAPPED").is_some()
++        && analysis.body_lexer_config.is_some_and(|config| {
++            analysis.matches_original_source_image(
++                &tcl_lexer::SourceImage::document(include_str!(
++                    "../../../experiments/name-handling/tcltest-shared-frame/probe.tcl"
++                )),
++                config,
++            )
++        });
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=authored-advice-start",
++            procedure.span.start()
++        );
++    }
+     let config = analysis.body_lexer_config?;
+     let input = analysis.resolved_input.as_ref()?;
+     let realm = analysis.retained_command_realm()?;
+@@ -409,9 +426,30 @@
+     tokens.source_binding = Some(binding);
+     let recipe = realm
+         .source_bindings_ref()
+-        .original_procedure_read_declaration(&tokens, context.commands(), input)?;
++        .original_procedure_read_declaration(&tokens, context.commands(), input);
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=authored-recipe available={}",
++            procedure.span.start(),
++            recipe.is_some()
++        );
++    }
++    let recipe = recipe?;
+     let body_span = recipe.original_body_span()?;
+     let body = procedure.body_source.as_ref()?;
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=authored-agreement image={} body_offset={} body_text={} formal_text={} formal_names={}",
++            procedure.span.start(),
++            recipe.original_image() == image,
++            body_span.start() == procedure.body_offset,
++            recipe.original_body_text() == Some(body.as_str()),
++            recipe.parameters_text() == Some(procedure.params_raw.as_str()),
++            recipe.parameter_names() == procedure.params
++        );
++    }
+     if recipe.original_image() != image
+         || body_span.start() != procedure.body_offset
+         || recipe.original_body_text()? != body
+@@ -422,6 +460,13 @@
+     }
+     if image.bytes().get(body_span.as_range()) != Some(body.as_bytes()) {
+         return None;
++    }
++    #[cfg(test)]
++    if trace {
++        eprintln!(
++            "W210_MAPPED offset={} stage=authored-advice-success",
++            procedure.span.start()
++        );
+     }
+     Some(AuthoredProcedureReadAdvice {
+         declaration: recipe,
+--- rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs (temporary diagnosis)
+@@ -1575,6 +1575,22 @@
+         let declared_flow = ir_proc.and_then(|procedure| {
+             function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
+         });
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_W210_MAPPED").is_some()
++            && self.source.as_bytes()
++                == include_bytes!(
++                    "../../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl"
++                )
++        {
++            eprintln!(
++                "W210_MAPPED function={} offset={:?} stage=actual-diagnostic dynamic_writes={} declaration_flow={} physical_missing={}",
++                fu.name,
++                ir_proc.map(|procedure| procedure.span.start()),
++                fu.dynamic_names.writes,
++                declared_flow.is_some(),
++                w210_min.len()
++            );
++        }
+ 
+         // Unknown writers retire physical absence proofs. Declaration advice
+         // must establish a particular original read; ownership of the whole

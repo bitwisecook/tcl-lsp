@@ -1,0 +1,77 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 12s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-78463101920c36d4)
+
+running 18 tests
+test analyser::diagnostics::tests::tcltest_import_is_namespace_scoped ... ok
+
+thread 'analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion' (38567) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13340:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... ok
+test analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported ... ok
+test command_binding::runtime_entry::tests::native_lookup_cursor_keeps_ambiguous_paths_and_later_failures_separate ... ok
+
+thread 'command_binding::runtime_entry::tests::retained_deleted_current_context_keeps_lazy_global_fallback' (38690) panicked at rust/tcl-compiler/src/command_binding/runtime_entry.rs:1226:13:
+assertion `left == right` failed
+  left: Ok([])
+ right: Err(RetainedDescendant)
+test command_binding::runtime_entry::tests::retained_deleted_current_context_keeps_lazy_global_fallback ... FAILED
+test lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier ... ok
+test provider_fixtures::tests::provider_read_domain_requires_the_same_current_complete_input ... ok
+test script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals ... ok
+
+thread 'script_binds::tests::original_procedure_read_scope_preserves_continuation_occurrences' (38772) panicked at rust/tcl-compiler/src/script_binds.rs:782:55:
+no entry found for key
+test script_binds::tests::original_procedure_read_scope_preserves_continuation_occurrences ... FAILED
+
+thread 'script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements' (38773) panicked at rust/tcl-compiler/src/script_binds.rs:873:13:
+assertion `left == right` failed: rename proc stock; stock p {arg} {puts $missing}
+  left: false
+ right: true
+test script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements ... FAILED
+
+thread 'script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate' (38775) panicked at rust/tcl-compiler/src/script_binds.rs:729:36:
+selected tcl8.4 formal source recipe
+test script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate ... FAILED
+test signature_scan::scope::original_key_tests::first_matching_publications_preserve_lookup_priority_and_all_records ... ok
+test signature_scan::scope::original_key_tests::opaque_source_lookup_and_publication_do_not_require_unicode_display ... ok
+test ssa::tests::structural_body_indices_tcltest_via_registry ... ok
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... ok
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion
+    command_binding::runtime_entry::tests::retained_deleted_current_context_keeps_lazy_global_fallback
+    script_binds::tests::original_procedure_read_scope_preserves_continuation_occurrences
+    script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements
+    script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate
+
+test result: FAILED. 13 passed; 5 failed; 0 ignored; 0 measured; 9549 filtered out; finished in 161.88s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

@@ -20,6 +20,8 @@ pub enum OriginalCatalogueSourceObligation {
     UnknownCurrentLookup,
     /// A retained deferred source body has no observed future entry or lookup.
     UnknownFutureEntry,
+    /// An independent receiver-body declaration supplies conditional source roles.
+    ConditionalReceiverSource,
     /// The independently retained source scope lacks an executing holder join.
     UnknownExecutingNamespace,
     /// The source coordinate path is conditional on unavailable lookup state.
@@ -150,10 +152,10 @@ impl SourceInvocationBinding {
             "original-rows",
             self.declaration_layout_observations
                 .as_deref()
-                .and_then(super::declaration_layout::original_declaration_layouts)
+                .and_then(super::declaration_layout::original_source_catalogue_layouts)
                 .is_some(),
         );
-        let rows = super::declaration_layout::original_declaration_layouts(
+        let rows = super::declaration_layout::original_source_catalogue_layouts(
             self.declaration_layout_observations.as_deref()?,
         )?;
         let first = rows.clone().next()?;
@@ -246,24 +248,22 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        // Source-schema advice borrows original observations, but does not
-        // require their execution frame/cell context to survive an unknown
-        // command. Those stronger checks remain on the execution issuer.
-        let rows = self
-            .declaration_layout_observations
-            .as_deref()?
-            .iter()
-            .filter(|row| {
-                row.issuer
-                    == super::declaration_layout::DeclarationLayoutIssuer::OriginalDeclaration
-            });
-        rows.clone().next()?;
+        let rows = super::declaration_layout::original_source_catalogue_layouts(
+            self.declaration_layout_observations.as_deref()?,
+        )?;
         let registry_key = registry.snapshot().semantic_key();
         let mut candidate = None;
         let mut paths = None;
         let mut obligations = Vec::new();
         let mut observations = Vec::new();
         for row in rows {
+            if row.issuer
+                == super::declaration_layout::DeclarationLayoutIssuer::ConditionalReceiverSource
+                && !obligations
+                    .contains(&OriginalCatalogueSourceObligation::ConditionalReceiverSource)
+            {
+                obligations.push(OriginalCatalogueSourceObligation::ConditionalReceiverSource);
+            }
             if row.words.as_ref() != tokens.words()
                 || row.config != key.lexer_config()
                 || row.entry.source().origin.as_ref() != head.site().source.as_ref()
@@ -306,5 +306,116 @@ impl SourceInvocationBinding {
             observations,
             registry: registry_key,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OriginalCatalogueSourceObligation;
+    use crate::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+    use crate::registry_invocation::source_structure::{
+        OriginalRegistrySource, source_registry_words,
+    };
+
+    const SOURCE: &str = include_str!(
+        "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+    );
+
+    fn analyse(source: &str, release: &str) -> AnalysisResult {
+        let environment = tcl_registry::model::ingress::resolve_environment(release);
+        let profile = environment.analyser_profile();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    fn callback(source: &str, analysis: &AnalysisResult) -> crate::segmenter::SegmentedCommand {
+        let offset = source.find("after idle $cb").unwrap();
+        crate::segmenter::segment_commands_with_offset_and_config(
+            &source[offset..offset + "after idle $cb".len()],
+            u32::try_from(offset).unwrap(),
+            analysis.resolved_input.as_ref().unwrap().lexer_config(),
+        )
+        .remove(0)
+    }
+
+    #[test]
+    fn called_receiver_catalogue_uses_one_conditional_source_owner() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = analyse(SOURCE, release);
+            let command = callback(SOURCE, &analysis);
+            let words = source_registry_words(SOURCE, &analysis, &command).expect(release);
+            let OriginalRegistrySource::Conditional(metadata) = words.source() else {
+                panic!("{release}: the declared receiver needs conditional source authority");
+            };
+            assert_eq!(metadata.command(), "after", "{release}");
+            assert!(
+                metadata
+                    .obligations()
+                    .contains(&OriginalCatalogueSourceObligation::ConditionalReceiverSource)
+            );
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let realm = analysis.retained_command_realm().unwrap();
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(SOURCE),
+                input.lexer_config(),
+                &command,
+            );
+            realm.stamp_original_tokens(&mut tokens);
+            let supplied = crate::registry_invocation::original_conditional_registry_metadata(
+                &input.context_registry(),
+                &tokens,
+                metadata.original_head(),
+                Some(metadata.original_namespace()),
+            )
+            .expect(release);
+            assert_eq!(&supplied, metadata.as_ref());
+
+            let binding = tokens.source_binding.as_ref().unwrap();
+            assert!(binding.proved_target().is_none(), "{release}");
+            assert!(
+                binding.declaration_operand_layout_advice(&tokens).is_none(),
+                "{release}"
+            );
+            assert!(
+                super::super::declaration_layout::original_declaration_layouts(
+                    binding.declaration_layout_observations.as_deref().unwrap(),
+                )
+                .is_none(),
+                "{release}: source rows cannot supply execution or read advice"
+            );
+            assert!(!metadata.matches_source(
+                &tcl_lexer::SourceImage::native(SOURCE.as_bytes()),
+                input.lexer_config(),
+            ));
+        }
+    }
+
+    #[test]
+    fn called_receiver_catalogue_keeps_source_barriers_and_currency() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for prefix in ["proc after args {}\n", "rename ::after {}\n"] {
+                let source = format!("{prefix}{SOURCE}");
+                let analysis = analyse(&source, release);
+                let command = callback(&source, &analysis);
+                assert!(
+                    source_registry_words(&source, &analysis, &command).is_none(),
+                    "{release}/{prefix}"
+                );
+            }
+            let analysis = analyse(SOURCE, release);
+            let command = callback(SOURCE, &analysis);
+            let changed = format!("{SOURCE}# changed whole source\n");
+            assert!(source_registry_words(&changed, &analysis, &command).is_none());
+            let mut foreign = analysis.clone();
+            foreign.body_lexer_config.as_mut().unwrap().expand_syntax ^= true;
+            assert!(source_registry_words(SOURCE, &foreign, &command).is_none());
+        }
     }
 }

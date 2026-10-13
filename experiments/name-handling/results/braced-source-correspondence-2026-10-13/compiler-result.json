@@ -1,0 +1,19 @@
+{
+  "exit_code": 101,
+  "counts": {
+    "passed": 13,
+    "failed": 5
+  },
+  "test_seconds": 161.88,
+  "build_seconds": 252,
+  "source_paths_unchanged": 5851,
+  "finished_utc": "2026-10-13T13:34:20.218753+00:00",
+  "failures": [
+    "original_program0W210_expected2_C8.4",
+    "retained_descendant_Ok_empty_expected_Err",
+    "new_read_scope_assumed_missing_installed_IR_procedure",
+    "existing_failed_publication_formal_recipe_None",
+    "existing_native_factory_alias_read_scope_false"
+  ],
+  "scope": "Frozen source/compiler tests only; no runtime entry/cell/edit or full-suite conformance claim"
+}

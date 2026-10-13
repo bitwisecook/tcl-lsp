@@ -1,0 +1,29 @@
+{
+  "binary_sha256": "1219fe351c4a3d096abd0c4a548d79fa076007dfe08085cfdf74fead097fc1d4",
+  "source_snapshot": "/tmp/name-callback-repair-20261013/before-refreshed.json",
+  "cold": {
+    "exit": 101,
+    "positive_body_sites": [
+      150,
+      158,
+      174,
+      211
+    ],
+    "private_body_sites": [
+      135,
+      143,
+      159,
+      196
+    ],
+    "after_positive_211_candidate_true": 31,
+    "after_private_196_candidate_true": 26,
+    "private_builder_159_rows_true": 20,
+    "private_builder_159_namespace_true": 20,
+    "private_builder_159_candidate_false": 20
+  },
+  "warm": {
+    "exit": 0,
+    "after_positive_211_candidate_true": 26
+  },
+  "conclusion": "The original reference assertion reports only release, not fixture. Its failing case is private-positive, after completed positive iteration. Query-order cache failure is not established; no cache repair selected. Private builder159 is occupied Alias, so direct catalogue refusal is expected. The next missing fact must be measured in shared selected-assistance or source-transition fallback."
+}

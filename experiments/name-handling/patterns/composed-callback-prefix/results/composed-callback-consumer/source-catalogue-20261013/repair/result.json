@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-10-13T13:57:56.603912+00:00",
+  "source_changes_during_capture": [],
+  "compiler": {
+    "exit_code": 0,
+    "passed": 2,
+    "failed": 0,
+    "filtered": 9569
+  },
+  "core": {
+    "exit_code": 101,
+    "passed": 2,
+    "failed": 2,
+    "filtered": 2999
+  },
+  "limitations": "The two fresh catalogue controls pass; original composed prefix ownership and public/private stored reference controls fail. Unknown/opaque writer and stale source/config controls pass.",
+  "compiler-refreshed_binaries": [
+    {
+      "path": "tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+      "sha256": "f373b9fba04a1e86f5b4d26b9d8e4cc34c74456c0f4321f4ee514b86ea14b738"
+    }
+  ],
+  "core_binaries": [
+    {
+      "path": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+      "sha256": "1219fe351c4a3d096abd0c4a548d79fa076007dfe08085cfdf74fead097fc1d4"
+    }
+  ]
+}

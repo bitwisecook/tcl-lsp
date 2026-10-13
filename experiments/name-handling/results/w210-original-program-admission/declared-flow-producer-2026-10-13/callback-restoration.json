@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-10-13T14:50:51.281936+00:00",
+  "captured_result": "/tmp/name-w210-producer-20261013/core-result.json",
+  "owners": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "restored_sha256": "80bb56d68a3148ec8b4abdfaa97bceca98e833c28881afc87118d1c5e0c53279",
+      "matches_preimage": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "restored_sha256": "ff024ebeac3736c15167f2e644a6c9e8a5c4345f9e5a2d07708826c7a9889262",
+      "matches_preimage": true
+    }
+  ],
+  "instrumented_binary_is_stale_to_restored_production": true
+}

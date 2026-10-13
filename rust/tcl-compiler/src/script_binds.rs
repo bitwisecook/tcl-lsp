@@ -377,19 +377,18 @@ fn literal_body_image(
 /// existential diagnostic advice, including a declaration whose runtime
 /// publication fails; it supplies no activation, physical absence or dispatch.
 pub(crate) struct AuthoredProcedureReadAdvice {
-    body: tcl_lexer::Span,
+    declaration: crate::command_binding::OriginalProcedureReadDeclaration,
 }
 
 impl AuthoredProcedureReadAdvice {
     /// Original diagnostic read span, without a physical contents verdict.
     pub(crate) fn owns(&self, span: tcl_lexer::Span) -> bool {
-        span.start() >= self.body.start() && span.end() <= self.body.end()
+        self.declaration.owns_original_read(span)
     }
 }
 
-/// Validate the original declaration/body/formal geometry using shared word
-/// and parameter owners. A materialised, substituted or malformed declaration
-/// cannot donate an authored local frame to this diagnostic projection.
+/// Validate the original declaration and selected body/formal correspondence.
+/// Only mapped original occurrences contribute diagnostic advice.
 pub(crate) fn authored_procedure_read_advice(
     image: &tcl_lexer::SourceImage,
     procedure: &crate::ir::Procedure,
@@ -411,25 +410,21 @@ pub(crate) fn authored_procedure_read_advice(
     let recipe = realm
         .source_bindings_ref()
         .original_procedure_read_declaration(&tokens, context.commands(), input)?;
-    let source = recipe.source();
+    let body_span = recipe.original_body_span()?;
     let body = procedure.body_source.as_ref()?;
-    if source.origin.source_image() != image
-        || source.base() != procedure.body_offset
-        || source.text.try_text().ok()? != body
+    if recipe.original_image() != image
+        || body_span.start() != procedure.body_offset
+        || recipe.original_body_text()? != body
         || recipe.parameters_text()? != procedure.params_raw
         || recipe.parameter_names() != procedure.params
     {
         return None;
     }
-    let base = usize::try_from(source.base()).ok()?;
-    if image.bytes().get(base..base.checked_add(body.len())?) != Some(body.as_bytes()) {
+    if image.bytes().get(body_span.as_range()) != Some(body.as_bytes()) {
         return None;
     }
     Some(AuthoredProcedureReadAdvice {
-        body: tcl_lexer::Span::new(
-            source.base(),
-            source.base().checked_add(u32::try_from(body.len()).ok()?)?,
-        ),
+        declaration: recipe,
     })
 }
 
@@ -640,25 +635,31 @@ mod tests {
         let binding = realm.invocation_at_source("", procedure.span.start());
         let (_, mut tokens) = binding.original_recorded_command().unwrap();
         assert!(tokens.source_binding.is_none());
-        assert!(realm
-            .source_bindings_ref()
-            .original_procedure_read_declaration(&tokens, context.commands(), input)
-            .is_none());
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .is_none()
+        );
         tokens.source_binding = Some(binding);
-        assert!(realm
-            .source_bindings_ref()
-            .original_procedure_read_declaration(&tokens, context.commands(), input)
-            .is_some());
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .is_some()
+        );
         let mut changed_tokens = tokens.clone();
         let crate::ir::WordExpr::Literal { text, .. } = &mut changed_tokens.word_exprs[1] else {
             panic!("literal procedure name");
         };
         *text = "q".into();
         changed_tokens.argv_texts[1] = "q".into();
-        assert!(realm
-            .source_bindings_ref()
-            .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
-            .is_none());
+        assert!(
+            realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&changed_tokens, context.commands(), input)
+                .is_none()
+        );
         let advice =
             super::authored_procedure_read_advice(&image, procedure, &analysis, &context).unwrap();
         assert!(advice.owns(tcl_lexer::Span::new(
@@ -721,13 +722,14 @@ mod tests {
             let context = input.context_registry();
             let realm = analysis.retained_command_realm().unwrap();
             let binding = realm.invocation_at_source("", 0);
-            let (_, tokens) = binding.original_recorded_command().unwrap();
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
             let recipe = realm
                 .source_bindings_ref()
                 .original_procedure_read_declaration(&tokens, context.commands(), input)
                 .unwrap_or_else(|| panic!("selected {dialect} formal source recipe"));
             assert_eq!(recipe.parameters_text(), Some(formals));
-            assert_eq!(recipe.source().text.try_text().unwrap(), "puts $missing");
+            assert_eq!(recipe.original_body_text(), Some("puts $missing"));
             assert_eq!(
                 recipe.parameter_names(),
                 if dialect == "jim" {
@@ -754,6 +756,69 @@ mod tests {
         }
     }
 
+    #[test]
+    fn original_procedure_read_scope_preserves_continuation_occurrences() {
+        let source = "proc p {arg} {puts $arg; \\\n puts $absent; puts ${cross\\\n boundary}}";
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = crate::provider_fixtures::analyse(
+                source,
+                profile,
+                &[crate::provider_fixtures::Provider::Tcltest],
+            );
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let (_, mut tokens) = binding.original_recorded_command().unwrap();
+            tokens.source_binding = Some(binding);
+            let recipe = realm
+                .source_bindings_ref()
+                .original_procedure_read_declaration(&tokens, context.commands(), input)
+                .unwrap_or_else(|| panic!("original {profile} continuation source"));
+            assert_eq!(recipe.parameter_names(), vec!["arg"]);
+            assert_eq!(
+                recipe.original_image(),
+                &tcl_lexer::SourceImage::document(source)
+            );
+            let start = u32::try_from(source.find("$absent").unwrap()).unwrap();
+            assert!(recipe.owns_original_read(tcl_lexer::Span::new(start, start + 7)));
+            let start = u32::try_from(source.find("${cross").unwrap()).unwrap();
+            let end = u32::try_from(source.rfind('}').unwrap()).unwrap();
+            assert!(!recipe.owns_original_read(tcl_lexer::Span::new(start, end)));
+            assert!(!recipe.owns_original_read(tcl_lexer::Span::new(0, 4)));
+            let mut changed_tokens = tokens.clone();
+            let crate::ir::WordExpr::BracedLiteral { text, .. } = &mut changed_tokens.word_exprs[3]
+            else {
+                panic!("original braced procedure body");
+            };
+            *text = "puts $changed".into();
+            changed_tokens.argv_texts[3] = "puts $changed".into();
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(
+                        &changed_tokens,
+                        context.commands(),
+                        input,
+                    )
+                    .is_none()
+            );
+            let foreign =
+                tcl_registry::model::ingress::resolve_environment(if profile == "tcl9.0" {
+                    "tcl8.4"
+                } else {
+                    "tcl9.0"
+                })
+                .default_context_registry();
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(&tokens, foreign.commands(), input)
+                    .is_none()
+            );
+        }
+    }
+
     fn native_read_scope(source: &str, declaration: &str) -> bool {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let (_owner, captured) =
@@ -773,9 +838,10 @@ mod tests {
             "",
             u32::try_from(source.rfind(declaration).unwrap()).unwrap(),
         );
-        let Some((_, tokens)) = binding.original_recorded_command() else {
+        let Some((_, mut tokens)) = binding.original_recorded_command() else {
             return false;
         };
+        tokens.source_binding = Some(binding);
         realm
             .source_bindings_ref()
             .original_procedure_read_declaration(&tokens, context.commands(), input)

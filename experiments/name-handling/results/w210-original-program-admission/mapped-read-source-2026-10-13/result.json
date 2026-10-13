@@ -1,0 +1,12 @@
+{
+  "exit_code": 101,
+  "elapsed_seconds": 343.5892016299995,
+  "finished_utc": "2026-10-13T14:15:05.470125+00:00",
+  "counts": {
+    "passed": 17,
+    "failed": 3
+  },
+  "test_seconds": 133.37,
+  "frozen_source_paths_unchanged": 6382,
+  "scope": "Bounded compiler controls with temporary readonly diagnostics; no new interpreter/native-cell/edit proof"
+}
