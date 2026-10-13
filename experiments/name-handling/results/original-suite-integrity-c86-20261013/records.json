@@ -1,0 +1,48 @@
+[
+  {
+    "engine": "c",
+    "stem": "proc",
+    "exit_code": 0,
+    "seconds": 0.018,
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "90",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "input_sha256": "863db6061c15cbc23b6f250c0d8c6cfc4ab5f82b32a532fd14204ece1998cbe3",
+    "test_sha256": "d79b4b1ad1a374e8839c46175b4f58daad1dfe4e18389e21af9f13f3cf20ece7",
+    "bootstrap_seen": true,
+    "bootstrap_record": "stdout NH_HARNESS",
+    "failed_ids": [],
+    "last_started_id": "proc-7.6",
+    "total": 38,
+    "passed": 29,
+    "skipped": 9,
+    "failed": 0,
+    "status": "pass"
+  },
+  {
+    "engine": "c",
+    "stem": "rename",
+    "exit_code": 0,
+    "seconds": 0.026,
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "90",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh"
+    ],
+    "input_sha256": "abb22fc37f7f1492a23361dc3dc44cb87805c15dfeee2717eb8a3a436ed4fe9c",
+    "test_sha256": "7404adea7e0f939698c398c2bdc2a7abaaaf854e8086f864ff006ade80c9d081",
+    "bootstrap_seen": true,
+    "bootstrap_record": "stdout NH_HARNESS",
+    "failed_ids": [],
+    "last_started_id": "rename-6.1",
+    "total": 19,
+    "passed": 11,
+    "skipped": 8,
+    "failed": 0,
+    "status": "pass"
+  }
+]

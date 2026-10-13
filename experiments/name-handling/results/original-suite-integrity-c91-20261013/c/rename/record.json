@@ -1,0 +1,23 @@
+{
+  "engine": "c",
+  "stem": "rename",
+  "exit_code": 0,
+  "seconds": 0.044,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh"
+  ],
+  "input_sha256": "f79791275cab71baa6b68a07743dd8ac8fc00da541047d3b4dc67585db1af54f",
+  "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "rename-6.1",
+  "total": 19,
+  "passed": 11,
+  "skipped": 8,
+  "failed": 0,
+  "status": "pass"
+}

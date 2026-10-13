@@ -5,6 +5,15 @@ structured identity throughout semantic work, shared lookup policy over
 appropriate state adapters, common variable/frame and binding facts, and
 presentation only at output. Both static and live consumers must follow it.
 
+## Scope and completion boundary
+
+One reusable name-lookup owner and adoption by every consumer is the central
+objective. Fix #2286 and issues entirely about naming. Treat unrelated runtime,
+clock, numeric and general OO behaviour only as a bounded dependency when it
+blocks relevant naming validation. A broad upstream suite result does not replace
+call-site migration acceptance. Complete the naming inventory, then the
+repository-wide documentation/comments cleanup and all required PR gates.
+
 ## Inventory required for every consumer
 
 Build a per-call-site ledger from every workspace member in `Cargo.toml`,

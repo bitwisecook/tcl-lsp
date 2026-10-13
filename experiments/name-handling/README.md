@@ -22,7 +22,9 @@ Existing command/variable/namespace vectors live in
 | [results/native-c84-declared-cell/README.md](results/native-c84-declared-cell/README.md) | Existing physical-cell observation and real C 8.4 startup |
 | [results/runtime-c84-real-suites/20261012T151253Z/README.md](results/runtime-c84-real-suites/20261012T151253Z/README.md) | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
 | [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |
-| [run_suites.py](run_suites.py) | Reusable original-suite capture across real C/VM/runtime; retains outputs and provenance |
+| [run_suites.py](run_suites.py) | Original-suite capture with matching source-built interpreter, original-input admission and retained provenance |
+| [upstream-integrity/README.md](upstream-integrity/README.md) | Immutable original library/test inventories selected through the shared reference manifest |
+| [results/shared-name-owner-current-20261013/README.md](results/shared-name-owner-current-20261013/README.md) | Scoped central command/variable/namespace and current Jim name controls |
 | [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
 | [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
@@ -79,6 +81,13 @@ support files/packages, constraints, invocation and raw harness transcript.
 Keep pass/fail/skip counts and reasons: a constrained or unexecuted case does
 not establish its expected behaviour. Preserve actual results and errors when
 reducing an upstream test to a shared conformance vector.
+
+The suite runner checks every retained original library/test input against the
+manifest-selected immutable upstream Git blob inventory before capture. It
+requires the source tree's built interpreter and verifies exact patchlevel,
+original library and Tcltest startup. It records observed input hashes
+separately from that upstream authority. Backend overlays remain labelled
+channels; skipped cases supply no oracle answer.
 
 For C cases, `tcl-test-support::upstream_test_definition` extracts a definition
 from a pinned source file using adjacent test markers;
@@ -176,6 +185,22 @@ Keep executable scripts, controls, machine-readable observations, explanations
 of experimental method, provenance and returned appliance answers. These
 assets describe experiments and measured facts. They contain no development
 phase diary, agent chronology or narrative of abandoned implementations.
+
+## Verified original harness captures
+
+All five release-specific captures below validate matching original init/Tcltest,
+suite/support inputs and source-built reference binary. They execute proc.test
+and rename.test without backend overlays. Frame-debug settings and skipped
+constraints remain explicit in each capture. These C results do not establish
+Runtime/VM or migrated-consumer equivalence.
+
+| Reference | Capture | Passed | Skipped | Failed |
+| --- | --- | --- | --- | --- |
+| C8.4.20 | [Original inputs and results](results/original-suite-integrity-c84-20261013/README.md) | 30 | 0 | 0 |
+| C8.5.19 | [Original inputs and results](results/original-suite-integrity-c85-20261013/README.md) | 36 | 16 | 0 |
+| C8.6.18 | [Original inputs and results](results/original-suite-integrity-c86-20261013/README.md) | 40 | 17 | 0 |
+| C9.0.4 | [Original inputs and results](results/original-suite-integrity-c90-20261013/README.md) | 40 | 17 | 0 |
+| C9.1.0 | [Original inputs and results](results/original-suite-integrity-c91-20261013/README.md) | 40 | 17 | 0 |
 
 ## Run original naming suites
 

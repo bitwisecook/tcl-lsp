@@ -41,9 +41,9 @@ e0277ec42124d26b36cc06daa760de6b21a1decb on 13 October 2026.
 Inspect the actual branch head before implementing: source, executable and
 oracle receipts certify their captured inputs rather than every later commit.
 The audit used read-only sub-agents for consumers, issues and oracle integrity.
-The newly started local checkout is older than remote work and Git fetch could
-not reach its configured proxy. Updates use the GitHub connection; no fresh
-implementation build or test is claimed.
+The checkout is synchronised to work. Current source-built C/Jim references
+and scoped shared-owner checks are recorded in current-state.md; no full PR
+gate or whole-codebase consumer completion is claimed.
 
 ## Acceptance and document lifecycle
 

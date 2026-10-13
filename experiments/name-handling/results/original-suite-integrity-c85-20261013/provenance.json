@@ -1,0 +1,43 @@
+{
+  "subject_commit": "000c431f05b4ef5fc88af538c524cff14e6d3072",
+  "source_root": "/workspace/tcl-lsp/tmp/tcl8.5.19",
+  "version": "8.5",
+  "reference_patchlevel": "8.5.19",
+  "reference_source_tag": "core-8-5-19",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "upstream_commit": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+  "upstream_integrity_sha256": "78c99229a589a330c2c669474c365041f2d6f918a09744e849ac571b678ef268",
+  "validated_upstream_inputs": "upstream-inputs.json",
+  "oracle_identity": {
+    "version": "8.5",
+    "patchlevel": "8.5.19",
+    "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "tcltest_version": "2.3.8",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "input_sha256": "89b08bf909b5e46840627c2b02a095696950049427dc7645cf4db2f823755af4",
+    "stdout": "8.5\n8.5.19\n/workspace/tcl-lsp/tmp/tcl8.5.19/library\n2.3.8\n",
+    "stderr": "",
+    "exit_code": 0
+  },
+  "execution_channel": "original-suite",
+  "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+  "tcltest_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+  "overlay_sha256": "b966abe9d580ba8d180926ddc1b301d30aba642f32bba9a150df5ffc8d0a1e54",
+  "runner_sha256": "59ef7d230e177cbb1be8e5190bded46feb84b27e2b9b5583b82ee07973e196b5",
+  "method": "C/runtime stdin configure+source; VM run_test original file",
+  "engines": {
+    "c": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ]
+  },
+  "binary_sha256": {
+    "c": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+  },
+  "timeout_seconds": 90,
+  "match": null,
+  "backend_constraints_applied": false,
+  "runner_source_snapshot": "runner-source.txt",
+  "started_utc": "2026-10-13T12:44:56Z"
+}

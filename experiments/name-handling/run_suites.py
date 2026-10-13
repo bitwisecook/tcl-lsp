@@ -77,6 +77,101 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def reference_selection(root, version):
+    manifest = root / "rust/tcl-dialect/data/reference-toolchains.tsv"
+    for line in manifest.read_text().splitlines():
+        if line and not line.startswith("#"):
+            release, patchlevel, tag = line.split("\t")
+            if release == version:
+                return patchlevel, tag, manifest
+    raise ValueError(f"unsupported reference release {version!r}")
+
+
+def validate_upstream(source, integrity_path):
+    integrity = json.loads(integrity_path.read_text())
+    required = {
+        "generic/tcl.h",
+        "library/init.tcl",
+        "library/tcltest/tcltest.tcl",
+        "library/tcltest/pkgIndex.tcl",
+        "tests/all.tcl",
+    }
+    if not required.issubset(integrity["git_blob_sha1"]):
+        raise ValueError(
+            "upstream integrity receipt lacks original startup/harness inputs"
+        )
+    hashes = {}
+    for name, expected in integrity["git_blob_sha1"].items():
+        path = source / name
+        if not path.is_file():
+            raise ValueError(f"missing original upstream input: {path}")
+        data = path.read_bytes()
+        actual = hashlib.sha1(
+            b"blob " + str(len(data)).encode() + b"\0" + data
+        ).hexdigest()
+        if actual != expected:
+            raise ValueError(
+                f"modified upstream input: {path}; expected Git blob {expected}, got {actual}"
+            )
+        hashes[name] = hashlib.sha256(data).hexdigest()
+    return integrity, hashes
+
+
+def oracle_environment(source):
+    env = os.environ.copy()
+    env["TCL_LIBRARY"] = str(source / "library")
+    env["LD_LIBRARY_PATH"] = os.pathsep.join(
+        [str(source / "unix"), env.get("LD_LIBRARY_PATH", "")]
+    ).rstrip(os.pathsep)
+    env.pop("TCLLIBPATH", None)
+    env.pop("TCL_BACKEND_CONSTRAINTS", None)
+    return env
+
+
+def validate_oracle(source, binary, version, patchlevel, timeout):
+    if binary != (source / "unix/tclsh").resolve():
+        raise ValueError("--tclsh must be the selected source tree's built unix/tclsh")
+    script = (
+        "puts [info tclversion]\nputs [info patchlevel]\nputs [info library]\n"
+        + "source "
+        + tcl_word(source / "library/tcltest/tcltest.tcl")
+        + "\n"
+        + "puts [package present tcltest]\n"
+    ).encode()
+    with tempfile.TemporaryDirectory(prefix="name-oracle-identity-") as cwd:
+        result = subprocess.run(
+            [str(binary)],
+            input=script,
+            env=oracle_environment(source),
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    lines = result.stdout.decode("utf-8", errors="strict").splitlines()
+    if result.returncode != 0 or result.stderr or len(lines) != 4:
+        raise ValueError(
+            f"reference startup failed: {result.stderr!r}; stdout {result.stdout!r}"
+        )
+    if lines[:2] != [version, patchlevel]:
+        raise ValueError(
+            f"reference reports {lines[:2]!r}, expected {[version, patchlevel]!r}"
+        )
+    if Path(lines[2]).resolve() != source / "library":
+        raise ValueError(f"reference loaded wrong init library: {lines[2]}")
+    return {
+        "version": lines[0],
+        "patchlevel": lines[1],
+        "library": lines[2],
+        "tcltest_version": lines[3],
+        "command": [str(binary)],
+        "input_sha256": hashlib.sha256(script).hexdigest(),
+        "stdout": result.stdout.decode(),
+        "stderr": result.stderr.decode(),
+        "exit_code": result.returncode,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tcl-root", type=Path, required=True)
@@ -100,11 +195,40 @@ def main():
     output = args.output.resolve()
     if output.exists() and any(output.iterdir()):
         parser.error("output must be new or empty to preserve existing measurements")
-    output.mkdir(parents=True, exist_ok=True)
     overlay = root / "tests/external/backend_constraints.tcl"
     library = source / "library"
-    assert (library / "init.tcl").is_file()
-    assert (library / "tcltest/tcltest.tcl").is_file()
+    if args.vm and args.version != "9.0":
+        parser.error("the VM suite driver supports only Tcl 9.0")
+    if args.version == "8.4" and not args.no_overlay:
+        parser.error(
+            "Tcl 8.4 requires --no-overlay; the backend overlay uses Tcl 8.5 syntax"
+        )
+    if args.workers < 1 or args.timeout < 1:
+        parser.error("--workers and --timeout must be positive")
+    if args.stem and any(
+        not re.fullmatch(r"[A-Za-z0-9_-]+", stem) for stem in args.stem
+    ):
+        parser.error("--stem must name an upstream test file without a path")
+    try:
+        patchlevel, tag, manifest = reference_selection(root, args.version)
+        integrity_path = Path(__file__).parent / "upstream-integrity" / (tag + ".json")
+        integrity, input_hashes = validate_upstream(source, integrity_path)
+        if integrity["source_tag"] != tag:
+            raise ValueError(
+                "upstream integrity receipt does not match the shared reference tag"
+            )
+        for stem in args.stem or STEMS:
+            name = f"tests/{stem}.test"
+            if (source / name).is_file() and name not in input_hashes:
+                raise ValueError(
+                    f"test file has no original upstream authority: {source / name}"
+                )
+        oracle_identity = validate_oracle(
+            source, args.tclsh.resolve(), args.version, patchlevel, args.timeout
+        )
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        parser.error(str(error))
+    output.mkdir(parents=True, exist_ok=True)
     engines = {"c": [str(args.tclsh.resolve())]}
     if args.vm:
         engines["vm"] = [str(args.vm.resolve())]
@@ -122,6 +246,16 @@ def main():
         ).strip(),
         "source_root": str(source),
         "version": args.version,
+        "reference_patchlevel": patchlevel,
+        "reference_source_tag": tag,
+        "reference_manifest_sha256": sha256(manifest),
+        "upstream_commit": integrity["commit"],
+        "upstream_integrity_sha256": sha256(integrity_path),
+        "validated_upstream_inputs": "upstream-inputs.json",
+        "oracle_identity": oracle_identity,
+        "execution_channel": "original-suite"
+        if args.no_overlay
+        else "original-suite-with-backend-overlay",
         "init_sha256": sha256(library / "init.tcl"),
         "tcltest_sha256": sha256(library / "tcltest/tcltest.tcl"),
         "overlay_sha256": sha256(overlay),
@@ -136,6 +270,11 @@ def main():
         "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     (output / "runner-source.txt").write_bytes(Path(__file__).read_bytes())
+    (output / "upstream-integrity.json").write_bytes(integrity_path.read_bytes())
+    (output / "reference-toolchains.tsv").write_bytes(manifest.read_bytes())
+    (output / "upstream-inputs.json").write_text(
+        json.dumps(input_hashes, indent=2) + "\n"
+    )
     (output / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
 
     def run_one(engine, stem):
@@ -144,6 +283,8 @@ def main():
         destination.mkdir(parents=True, exist_ok=True)
         if not testfile.is_file():
             return {"engine": engine, "stem": stem, "status": "missing"}
+        if sha256(testfile) != input_hashes[f"tests/{stem}.test"]:
+            raise ValueError(f"upstream test changed after validation: {testfile}")
         wrapper = destination / "input.tcl"
         match = (
             ""
@@ -152,7 +293,10 @@ def main():
         )
         wrapper.write_text(
             "if {[catch {interp debug {} -frame 1} frame_debug]} {puts [list NH_FRAME_DEBUG unavailable $frame_debug]} else {puts [list NH_FRAME_DEBUG enabled]}\n"
-            + "package require tcltest\nnamespace import -force ::tcltest::*\n"
+            + "source "
+            + tcl_word(library / "tcltest/tcltest.tcl")
+            + "\n"
+            + "namespace import -force ::tcltest::*\n"
             + "puts [list NH_HARNESS library [info library] tcl [package present Tcl] tcltest [package present tcltest] loader [package ifneeded tcltest [package present tcltest]]]\n"
             + "if {[file normalize [info library]] ne [file normalize "
             + tcl_word(library)
@@ -172,9 +316,7 @@ def main():
             if args.match:
                 command.extend(["--match", args.match])
             stdin = None
-        env = os.environ.copy()
-        env["TCL_LIBRARY"] = str(library)
-        env.pop("TCL_BACKEND_CONSTRAINTS", None)
+        env = oracle_environment(source)
         if engine == "vm":
             if not args.no_overlay:
                 env["TCL_BACKEND_CONSTRAINTS"] = str(overlay)

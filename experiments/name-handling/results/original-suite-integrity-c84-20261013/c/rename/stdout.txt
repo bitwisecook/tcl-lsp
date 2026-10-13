@@ -1,0 +1,14 @@
+NH_FRAME_DEBUG unavailable {bad option "debug": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer}
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.4.20/library tcl 8.4 tcltest 2.2.11 loader {}
+---- rename-1.1 start
+---- rename-1.2 start
+---- rename-1.3 start
+---- rename-2.1 start
+---- rename-3.1 start
+---- rename-3.2 start
+---- rename-3.3 start
+---- rename-3.4 start
+---- rename-3.5 start
+---- rename-5.1 start
+---- rename-6.1 start
+rename.test:	Total	11	Passed	11	Skipped	0	Failed	0

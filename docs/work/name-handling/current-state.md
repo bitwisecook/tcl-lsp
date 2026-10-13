@@ -45,16 +45,15 @@ Tcl source recognition is conditional advice. Preserve original input, configura
 
 A read-only issue/consumer/oracle audit on 13 October 2026 read remote work
 at e0277ec42124d26b36cc06daa760de6b21a1decb. No fresh implementation tests ran.
-The newly started local checkout is at 018587061 with a branch named work;
-its configured Git proxy was unreachable. Do not run acceptance on that older
-tree or treat its source as the remote continuation state. Synchronise before
-implementation; documentation updates use the authenticated GitHub connection.
+The checkout is synchronised to work at 000c431f05. Rust stable 1.99.0, all five
+source-built C references and Jim 5bac7c99 are provisioned. Latest upstream Jim
+HEAD was checked on 13 October and matches that revision. Source /tmp/name-env.sh
+and select an explicitly leased target; no full PR gate is green from setup.
 
-- C source/binary patchlevel and file-existence checks do not prove original
-  init.tcl/tcltest.tcl integrity. run_suites.py accepts tree, shell and version
-  independently. Verify exact upstream bytes, matching source/library selection
-  and actual loaded harness; label overlays/debug launch settings separately.
-  The VM driver remains fixed to 9.0.
+- Original-suite runner admission now checks immutable upstream library/test
+  inventories, shared manifest pin and source-built original init/Tcltest
+  startup. Seven admission controls and all five C proc/rename captures pass.
+  Overlays/debug settings remain separate; the VM driver is fixed to 9.0.
 - The Jim pin 5bac7c99ad65864c87da513e22e2f01703fa4e03 reported
   0.84-9-g5bac7c9 and was checked against upstream on 12 October.
   Rediscover latest on the next run; provisioning that pin does not discover
@@ -69,6 +68,22 @@ implementation; documentation updates use the authenticated GitHub connection.
 - Repository-wide comment cleanup still includes migration explanations in
   rust/tcl-compiler/src/codegen/mod.rs (artifact moves and former emitter state).
   Audit current source before editing; preserve actual how/why contracts.
+
+## Centralisation scope and current validation
+
+The primary goal is one reusable owner for name lookup and every consumer
+delegating to it. Fix #2286 and issues entirely caused by naming: context,
+identity, lookup order, roles, binding lifetime and consumer disagreement.
+General runtime/clock/numeric/OO conformance is a dependency only where needed
+to execute naming controls; it is not an independent completion programme.
+
+[Central-owner controls](../../../experiments/name-handling/results/shared-name-owner-current-20261013/README.md) pass 12 tests: command 3, variable 2, namespace 2, Jim 5.
+[Original harness integrity](../../../experiments/name-handling/upstream-integrity/README.md) has 7 passing admission controls and measured original proc/rename
+suites for all five C references. Consumer migration still needs its own
+public positive/negative controls. W210 fresh unchanged baseline remains 8/9
+with original C8.4 control returns 0 instead of 2; later declaration refusal is under
+bounded measurement. CLI exact-name migration and Runtime array-state blocker
+repair are in progress. No fresh full rust-check/prep-pr/proof gate passes.
 
 ## Current execution priorities
 
