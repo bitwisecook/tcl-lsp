@@ -1,0 +1,25 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::native_namespace_origin_tests::original_namespace_origin_jim",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_origin_tests::original_namespace_origin_jim",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "51a10f67614d52572a90681c0e0dd8ab18c563e9ad3790c3b3b4a68a5a6025cc",
+  "stderr_sha256": "b793c041f7643fa5f0bba08d15b27177815e7d100eb5a5e5ea2fd3df4bec0a96",
+  "time": "2026-10-13T21:12:23.188672+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_vm-48d40b80675d74df": "5d960cdb970fc369bc78fe1723b22ede092f3560f5681c5e0d383755022215a8"
+  }
+}

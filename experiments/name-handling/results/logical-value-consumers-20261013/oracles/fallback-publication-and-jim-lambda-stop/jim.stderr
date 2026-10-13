@@ -1,0 +1,3 @@
+/tmp/name-value-consumers-20261013/oracles/probe.tcl:18: Error: can't read "::N::lambda": no such variable
+Traceback (most recent call last):
+  File "/tmp/name-value-consumers-20261013/oracles/probe.tcl", line 18

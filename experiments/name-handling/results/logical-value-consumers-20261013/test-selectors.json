@@ -1,0 +1,16 @@
+{
+  "package": "tcl-compiler",
+  "selectors": [
+    "analyser::scope::tests::logical_const_value_uses_variable_frame_not_command_namespace",
+    "analyser::scope::tests::logical_const_value_preserves_relative_qualified_namespace",
+    "analyser::scope::tests::logical_const_value_requires_original_source_context_and_snapshot",
+    "analyser::scope::tests::logical_const_value_does_not_resolve_array_receiver_from_literal_element",
+    "analyser::scope::tests::logical_const_value_does_not_borrow_native_or_linked_cell_provenance",
+    "analyser::scope::tests::logical_const_value_does_not_guess_an_object_method_namespace",
+    "analyser::scope::tests::logical_const_value_refuses_non_dominating_and_future_writes",
+    "analyser::handlers::tests::dynamic_apply_value_uses_checked_logical_variable_declaration",
+    "analyser::handlers::tests::logical_defined_symbol_word_uses_current_value_provenance",
+    "analyser::handlers::tests::dict_with_value_uses_checked_logical_scope"
+  ],
+  "status": "unexecuted"
+}

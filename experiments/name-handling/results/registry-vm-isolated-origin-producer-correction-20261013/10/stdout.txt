@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_namespace_origin_tests::origin_retired_world_refuses_instead_of_reporting_a_missing_command ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1226 filtered out; finished in 0.17s
+

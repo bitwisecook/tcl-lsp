@@ -226,6 +226,8 @@ pub struct LogicalVariableScopeAdvice<'a> {
     eligible: Vec<usize>,
     kind: LogicalVariableScopeKind,
     namespace: Option<String>,
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
 }
 
 impl<'a> LogicalVariableScopeAdvice<'a> {
@@ -255,11 +257,47 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
             && let Some(qualified) = self.namespace_variable_coordinate(name)
         {
             let (holder, tail) = crate::naming::key_holder_and_tail(&qualified);
-            if let Some(definition) = lookup_var_in_namespace(self.root(), holder, tail) {
-                return Some(definition);
-            }
+            return self.namespace_variable_definition(holder, tail);
         }
         self.variable_declaration_scope(name)?.variables.get(name)
+    }
+
+    fn namespace_variable_definition(&self, holder: &str, tail: &str) -> Option<&'a VarDef> {
+        fn collect<'a>(
+            advice: &LogicalVariableScopeAdvice<'a>,
+            scope: &'a Scope,
+            holder: &str,
+            tail: &str,
+            found: &mut Vec<&'a VarDef>,
+        ) {
+            if matches!(scope.kind, ScopeKind::Global | ScopeKind::Namespace)
+                && let Some(definition) = scope.variables.get(tail)
+                && let Some(frame) = advice.analysis.logical_variable_scope_advice(
+                    &advice.image,
+                    advice.config,
+                    definition.definition_span.start(),
+                )
+                && matches!(
+                    frame.kind,
+                    LogicalVariableScopeKind::Root | LogicalVariableScopeKind::Namespace
+                )
+                && frame.namespace() == Some(holder)
+                && frame
+                    .eligible_scopes()
+                    .any(|eligible| std::ptr::eq(eligible, scope))
+            {
+                found.push(definition);
+            }
+            for child in &scope.children {
+                collect(advice, child, holder, tail, found);
+            }
+        }
+        let mut found = Vec::new();
+        collect(self, self.root(), holder, tail, &mut found);
+        let [definition] = found.as_slice() else {
+            return None;
+        };
+        Some(*definition)
     }
 
     fn variable_declaration_scope(&self, name: &str) -> Option<&'a Scope> {
@@ -332,6 +370,53 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
 }
 
 impl super::types::AnalysisResult {
+    /// A complete retained Logical word reproduces this readonly input.
+    /// Native words, computed values and unretained source vectors cannot use this correspondence.
+    #[must_use]
+    pub fn logical_original_word_input_matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        span: Span,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+    ) -> bool {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        let SignatureSourceNameInput::OriginalWord(retained) = input else {
+            return false;
+        };
+        if !self.allows_lexical_declaration_advice()
+            || !self.matches_original_source_image(image, config)
+        {
+            return false;
+        }
+        let Some(resolved) = self.resolved_input.as_ref() else {
+            return false;
+        };
+        if !resolved.has_logical_source_name_context() {
+            return false;
+        }
+        let Some(policy) = tcl_registry::InvocationDialect::of_profile(resolved.analyser_profile())
+            .authored_name_policy()
+        else {
+            return false;
+        };
+        if input.policy() != policy {
+            return false;
+        }
+        let Some((word, _)) = self
+            .retained_command_realm()
+            .and_then(|realm| realm.original_written_word_at_span_in_source(image, span, config))
+        else {
+            return false;
+        };
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+        crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+            &word, rules, policy,
+        )
+        .as_ref()
+            == Some(retained)
+    }
+
     /// Current source scope eligibility for independently retained Logical advice.
     /// Original Native/hosted bodies and readonly alias receipts cannot issue it.
     #[must_use]
@@ -437,6 +522,8 @@ impl super::types::AnalysisResult {
             eligible,
             kind,
             namespace,
+            image: image.clone(),
+            config,
         })
     }
 }
@@ -1685,6 +1772,15 @@ fn settle_prebuilt_candidates<A>(
     }
 }
 
+#[derive(Debug, Clone)]
+pub(super) struct LogicalConstStringProvenance {
+    image: tcl_lexer::SourceImage,
+    input: super::ResolvedAnalysisInput,
+    declaration: Span,
+    value: String,
+    value_span: Span,
+}
+
 impl Analyser {
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
@@ -1695,6 +1791,33 @@ impl Analyser {
         value_span: Span,
         scope_path: &[usize],
     ) {
+        let provenance = self.result.resolved_input.as_ref().and_then(|input| {
+            let declaration = scope_at(&self.result.global_scope, scope_path)?
+                .variables
+                .get(var_name)?;
+            let image = self
+                .result
+                .retained_command_realm()?
+                .original_source_image()?
+                .clone();
+            (self.result.allows_lexical_declaration_advice() && declaration.link_target.is_none())
+                .then(|| LogicalConstStringProvenance {
+                    image,
+                    input: input.clone(),
+                    declaration: declaration.definition_span,
+                    value: value.clone(),
+                    value_span,
+                })
+        });
+        let records = self
+            .logical_const_string_provenance
+            .entry(scope_path.to_vec())
+            .or_default();
+        if let Some(provenance) = provenance {
+            records.insert(var_name.to_owned(), provenance);
+        } else {
+            records.remove(var_name);
+        }
         self.const_strings
             .entry(scope_path.to_vec())
             .or_default()
@@ -1717,6 +1840,9 @@ impl Analyser {
     /// Remove constant-value knowledge for `var_name` (re-assigned
     /// dynamically).
     pub fn clear_const_string(&mut self, var_name: &str, scope_path: &[usize]) {
+        if let Some(map) = self.logical_const_string_provenance.get_mut(scope_path) {
+            map.remove(var_name);
+        }
         if let Some(map) = self.const_strings.get_mut(scope_path) {
             map.remove(var_name);
         }
@@ -1786,67 +1912,75 @@ impl Analyser {
         None
     }
 
-    /// The constant-string value recorded for `base_name` in the namespace
-    /// whose fully-qualified, `::`-rooted resolution path is `target_ns`
-    /// — the `const_strings` analogue of
-    /// [`lookup_var_in_namespace`], needed because a namespace-qualified
-    /// reference (`$lexical::body`) must resolve against wherever that
-    /// namespace's own `set` lives, not the lexical ancestor chain
-    /// [`Self::lookup_const_string_with_span`] walks. `const_strings` is
-    /// keyed by scope *path* (`Vec<usize>`), not a [`super::types::Scope`]
-    /// reference, so — unlike `lookup_var_in_namespace`'s pure namespace-
-    /// string accumulation — this walk must also track the running
-    /// child-index path as it descends. Deliberately never a
-    /// [`super::types::ScopeKind::Proc`] / [`super::types::ScopeKind::Method`]
-    /// node's own table, even when its command-resolution namespace happens
-    /// to equal `target_ns`: a proc-local `set` is never the namespace's
-    /// own cell, mirroring `lookup_var_in_namespace`'s identical guard.
-    #[must_use]
-    pub fn lookup_const_string_in_namespace(
+    /// A dominating value from the exact declaration selected by Logical source advice.
+    /// Linked cells and array elements require independent value provenance.
+    pub(super) fn lookup_logical_const_string_at(
         &self,
-        target_ns: &str,
-        base_name: &str,
+        written: &str,
+        span: Span,
     ) -> Option<(&str, Span)> {
-        fn walk<'a>(
-            ns: &str,
-            node: &'a super::types::Scope,
-            path: &mut Vec<usize>,
-            target: &str,
-            name: &str,
-            const_strings: &'a std::collections::HashMap<
-                Vec<usize>,
-                std::collections::HashMap<String, (String, Span)>,
-            >,
-        ) -> Option<(&'a str, Span)> {
-            if ns == target
-                && matches!(
-                    node.kind,
-                    super::types::ScopeKind::Namespace | super::types::ScopeKind::Global
-                )
-                && let Some(map) = const_strings.get(path.as_slice())
-                && let Some((value, span)) = map.get(name)
-            {
-                return Some((value.as_str(), *span));
-            }
-            for (i, child) in node.children.iter().enumerate() {
-                path.push(i);
-                let child_ns = advance_command_resolution_namespace(ns, child);
-                if let Some(hit) = walk(&child_ns, child, path, target, name, const_strings) {
-                    return Some(hit);
-                }
-                path.pop();
-            }
-            None
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let advice = self.result.logical_variable_scope_advice(
+            &image,
+            self.file_lexer_config(),
+            span.start(),
+        )?;
+        let declaration = advice.variable_definition(written)?;
+        if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
+            return None;
         }
-        let mut path: Vec<usize> = Vec::new();
-        walk(
-            "::",
-            &self.result.global_scope,
-            &mut path,
-            target_ns,
-            base_name,
-            &self.const_strings,
-        )
+        let input = self.result.resolved_input.as_ref()?;
+        let mut candidates =
+            self.logical_const_string_provenance
+                .iter()
+                .flat_map(|(path, records)| {
+                    records.iter().filter_map(move |(name, provenance)| {
+                        let scope = scope_at(&self.result.global_scope, path)?;
+                        let retained = scope.variables.get(name)?;
+                        if !std::ptr::eq(retained, declaration)
+                            || provenance.declaration != declaration.definition_span
+                            || &provenance.input != input
+                            || !self.result.matches_original_source_image(
+                                &provenance.image,
+                                self.file_lexer_config(),
+                            )
+                            || self
+                                .nondominating_consts
+                                .get(path)
+                                .is_some_and(|names| names.contains(name))
+                        {
+                            return None;
+                        }
+                        let (value, value_span) = self.const_strings.get(path)?.get(name)?;
+                        (value == &provenance.value
+                            && *value_span == provenance.value_span
+                            && value_span.end() < span.start())
+                        .then_some((value.as_str(), *value_span))
+                    })
+                });
+        let value = candidates.next()?;
+        candidates.next().is_none().then_some(value)
+    }
+
+    /// A scalar substitution retains its original braced-name form.
+    pub(super) fn lookup_logical_const_substitution(&self, token: Token) -> Option<(&str, Span)> {
+        if token.kind != TokenType::Var {
+            return None;
+        }
+        let map = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
+        let name = map.token_text(token);
+        if token.content_offset != 2
+            && crate::naming::split_array_name_braced(name, false)
+                .1
+                .is_some()
+        {
+            return None;
+        }
+        self.lookup_logical_const_string_at(name, token.span)
     }
 
     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
@@ -3504,6 +3638,263 @@ mod tests {
             .children
             .push(Scope::new(ScopeKind::Namespace, ns_name));
         a
+    }
+
+    fn logical_value_token(analyser: &Analyser, written: &str) -> Token {
+        let start = analyser.source.rfind(written).expect("retained source use");
+        let mut token = tcl_lexer::Lexer::with_config(
+            &analyser.source[start..],
+            analyser.file_lexer_config().nested(),
+        )
+        .tokenise_all()
+        .expect("valid retained source")
+        .into_iter()
+        .next()
+        .unwrap();
+        token.span = Span::new(
+            token.span.start() + u32::try_from(start).unwrap(),
+            token.span.end() + u32::try_from(start).unwrap(),
+        );
+        token
+    }
+
+    #[test]
+    fn logical_write_card_correspondence_uses_original_word_without_native_recipe() {
+        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let span_start = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
+        let advice = analyser
+            .result
+            .original_variable_write_advice
+            .iter()
+            .find(|advice| advice.span().start() == span_start)
+            .expect("actual Registry-selected Logical write card");
+        let span = advice.span();
+        let input = advice.original_name_input().clone();
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analyser.file_lexer_config();
+        assert!(
+            analyser
+                .result
+                .logical_original_word_input_matches_source(&image, config, span, &input)
+        );
+        let changed = tcl_lexer::SourceImage::document(&source.replace("AGAIN", "OTHER"));
+        assert!(
+            !analyser
+                .result
+                .logical_original_word_input_matches_source(&changed, config, span, &input)
+        );
+        let mut wrong = config;
+        wrong.strict_quoting = !wrong.strict_quoting;
+        assert!(
+            !analyser
+                .result
+                .logical_original_word_input_matches_source(&image, wrong, span, &input)
+        );
+        let shifted = Span::new(span.start() + 1, span.end() + 1);
+        assert!(
+            !analyser
+                .result
+                .logical_original_word_input_matches_source(&image, config, shifted, &input)
+        );
+        let mut absent = analyser.result.clone();
+        absent.resolved_input = None;
+        assert!(!absent.logical_original_word_input_matches_source(&image, config, span, &input));
+        let retained = analyser.result.resolved_input.as_ref().unwrap();
+        let foreign = std::sync::Arc::new(retained.borrowed_context_registry().with_command_store(
+            std::sync::Arc::new(tcl_registry::CommandRegistry::build_default()),
+        ));
+        let mut changed_store = analyser.result.clone();
+        changed_store.resolved_input = Some(super::super::ResolvedAnalysisInput::new(
+            retained.analyser_profile(),
+            retained.unit_profile(),
+            foreign,
+            retained.lexer_config(),
+        ));
+        assert!(
+            !changed_store.logical_original_word_input_matches_source(&image, config, span, &input)
+        );
+        let mut native = Analyser::new();
+        native.analyse_and_retain_result_for_test(source, "tcl8.6");
+        assert!(!native.result.logical_original_word_input_matches_source(
+            &image,
+            native.file_lexer_config(),
+            span,
+            &input
+        ));
+    }
+
+    #[test]
+    fn logical_const_value_uses_variable_frame_not_command_namespace() {
+        let source = "set x ROOT\nnamespace eval N {set x NAMESPACE; proc p {} {set x LOCAL; uplevel 0 {puts $x}; uplevel #0 {puts $x}; uplevel 1 {puts $x}}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        for (context, expected) in [
+            ("uplevel 0", Some("LOCAL")),
+            ("uplevel #0", Some("ROOT")),
+            ("uplevel 1", None),
+        ] {
+            let offset = source.find(context).unwrap();
+            let start = source[offset..].find("$x").unwrap() + offset;
+            let token = Token::with_content_offset(
+                TokenType::Var,
+                Span::new(
+                    u32::try_from(start).unwrap(),
+                    u32::try_from(start + 2).unwrap(),
+                ),
+                1,
+            );
+            assert_eq!(
+                analyser
+                    .lookup_logical_const_substitution(token)
+                    .map(|(value, _)| value),
+                expected,
+                "{context}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_const_value_preserves_relative_qualified_namespace() {
+        let source = "namespace eval N {namespace eval child {set x VALUE}; puts $child::x}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&analyser, "$child::x");
+        assert_eq!(
+            analyser
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("VALUE")
+        );
+    }
+
+    #[test]
+    fn logical_const_value_requires_original_source_context_and_snapshot() {
+        let source = "set x VALUE; puts $x";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&analyser, "$x");
+        assert_eq!(
+            analyser
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("VALUE")
+        );
+        let snapshot = analyser.snapshot();
+        let input = analyser.result.resolved_input.as_ref().unwrap().clone();
+        let mut changed_config = input.lexer_config();
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        analyser.result.resolved_input = Some(super::super::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            input.context_registry(),
+            changed_config,
+        ));
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        let foreign_store = std::sync::Arc::new(tcl_registry::CommandRegistry::build_default());
+        let foreign = std::sync::Arc::new(
+            input
+                .borrowed_context_registry()
+                .with_command_store(foreign_store),
+        );
+        analyser.result.resolved_input = Some(super::super::ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            foreign,
+            input.lexer_config(),
+        ));
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        analyser.result.resolved_input = Some(input);
+        analyser.source = source.replace("VALUE", "OTHER");
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        analyser.source = source.to_owned();
+        analyser.result.resolved_input = None;
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        analyser.restore(snapshot);
+        assert_eq!(
+            analyser
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("VALUE")
+        );
+        analyser
+            .const_strings
+            .get_mut(&Vec::new())
+            .unwrap()
+            .get_mut("x")
+            .unwrap()
+            .0 = "OTHER".to_owned();
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+    }
+
+    #[test]
+    fn logical_const_value_does_not_resolve_array_receiver_from_literal_element() {
+        let source = "set which live; set {targets($which)} FALSE; set targets(live) CORRECT; puts $targets($which)";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&analyser, "$targets($which)");
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        let source = "set {scalar(open} SCALAR; puts ${scalar(open}";
+        let mut scalar = Analyser::new();
+        scalar.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&scalar, "${scalar(open}");
+        assert_eq!(
+            scalar
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("SCALAR")
+        );
+    }
+
+    #[test]
+    fn logical_const_value_does_not_borrow_native_or_linked_cell_provenance() {
+        let source = "set x ROOT; proc p {} {global x; puts $x}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&analyser, "$x");
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        let source = "set x VALUE; puts $x";
+        let mut native = Analyser::new();
+        native.analyse_and_retain_result_for_test(source, "tcl8.6");
+        let token = logical_value_token(&native, "$x");
+        assert!(!native.result.allows_lexical_declaration_advice());
+        assert!(native.lookup_logical_const_substitution(token).is_none());
+    }
+
+    #[test]
+    fn logical_const_value_does_not_guess_an_object_method_namespace() {
+        let source = "namespace eval lexical {namespace eval lexical {set x DEFINING}; oo::class create C {method read {} {puts $lexical::x}}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = logical_value_token(&analyser, "$lexical::x");
+        let image = tcl_lexer::SourceImage::document(source);
+        let advice = analyser
+            .result
+            .logical_variable_scope_advice(&image, analyser.file_lexer_config(), token.span.start())
+            .expect("actual method source frame");
+        assert_eq!(
+            advice.eligible_scopes().last().unwrap().kind,
+            ScopeKind::Method
+        );
+        assert!(advice.namespace_variable_coordinate("lexical::x").is_none());
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+    }
+
+    #[test]
+    fn logical_const_value_refuses_non_dominating_and_future_writes() {
+        for source in [
+            "if {$flag} {set x BRANCH}; puts $x",
+            "puts $x; set x FUTURE",
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            let token = logical_value_token(&analyser, "$x");
+            assert!(
+                analyser.lookup_logical_const_substitution(token).is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,2 @@
+    Finished `test` profile [unoptimized] target(s) in 0.09s
+     Running unittests src/lib.rs (target/debug/deps/tcl_syntax-d16b323745d6e16a)

@@ -1,0 +1,12 @@
+provider 8.4.20
+relative-qualified-code 1
+relative-qualified-result can't read "child::x": no such variable
+current0 LOCAL
+root0 VALUE
+caller1 VALUE
+lambda unsupported
+dictionary unsupported
+linked-value VALUE
+array-literal FALSE
+array-substituted CORRECT
+braced-scalar SCALAR

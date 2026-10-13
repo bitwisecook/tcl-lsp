@@ -1,0 +1,11 @@
+
+running 1 test
+test interp::native_namespace_origin_tests::original_namespace_origin_c86 ... FAILED
+
+failures:
+
+failures:
+    interp::native_namespace_origin_tests::original_namespace_origin_c86
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1226 filtered out; finished in 3.67s
+

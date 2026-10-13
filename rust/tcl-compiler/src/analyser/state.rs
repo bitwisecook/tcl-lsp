@@ -432,6 +432,8 @@ pub struct Analyser {
     /// Keyed on the path vector so snapshot/restore doesn't have to
     /// remap pointers.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    pub(super) logical_const_string_provenance:
+        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
     /// Per-scope set of const-string bindings whose *current* value was
     /// last written inside an ``if`` / ``try`` body (``conditional_depth >
     /// 0``) — a write that does **not** dominate code after the conditional
@@ -1546,6 +1548,7 @@ impl Analyser {
             last_comment: String::new(),
             file_path: None,
             const_strings: HashMap::new(),
+            logical_const_string_provenance: HashMap::new(),
             nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,

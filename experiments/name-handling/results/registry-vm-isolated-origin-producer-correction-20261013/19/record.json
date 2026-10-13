@@ -1,0 +1,25 @@
+{
+  "package": "tcl-vm",
+  "selector": "interp::original_name_residual_tests::original_jim_alias_creation_reaches_no_c_loop_string_worker",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::original_name_residual_tests::original_jim_alias_creation_reaches_no_c_loop_string_worker",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "e963d5a0d93dcd1accbb3e9adc6d44b179c10bc2a8edcc3711356a59ce71d0a5",
+  "stderr_sha256": "2c6b04d96f0e15ac38c0540b9affa68be3ae9254134f572086aba3a58383450a",
+  "time": "2026-10-13T21:13:05.090164+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_vm-48d40b80675d74df": "5d960cdb970fc369bc78fe1723b22ede092f3560f5681c5e0d383755022215a8"
+  }
+}

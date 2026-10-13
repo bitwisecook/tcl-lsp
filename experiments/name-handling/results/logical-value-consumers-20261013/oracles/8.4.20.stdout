@@ -1,0 +1,14 @@
+provider 8.4.20
+child-holder ::N::child
+child-rooted-exists 1
+relative-qualified-code 0
+relative-qualified-result VALUE
+current0 LOCAL
+root0 ROOT
+caller1 NAMESPACE
+lambda unsupported
+dictionary unsupported
+linked-value ROOT
+array-literal FALSE
+array-substituted CORRECT
+braced-scalar SCALAR

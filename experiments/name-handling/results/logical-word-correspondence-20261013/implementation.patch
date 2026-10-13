@@ -1,0 +1,130 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -370,6 +370,53 @@
+ }
+ 
+ impl super::types::AnalysisResult {
++    /// A complete retained Logical word reproduces this readonly input.
++    /// Native words, computed values and unretained source vectors cannot use this correspondence.
++    #[must_use]
++    pub fn logical_original_word_input_matches_source(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        config: tcl_lexer::LexerConfig,
++        span: Span,
++        input: &crate::signature_scan::scope::SignatureSourceNameInput,
++    ) -> bool {
++        use crate::signature_scan::scope::SignatureSourceNameInput;
++        let SignatureSourceNameInput::OriginalWord(retained) = input else {
++            return false;
++        };
++        if !self.allows_lexical_declaration_advice()
++            || !self.matches_original_source_image(image, config)
++        {
++            return false;
++        }
++        let Some(resolved) = self.resolved_input.as_ref() else {
++            return false;
++        };
++        if !resolved.has_logical_source_name_context() {
++            return false;
++        }
++        let Some(policy) = tcl_registry::InvocationDialect::of_profile(resolved.analyser_profile())
++            .authored_name_policy()
++        else {
++            return false;
++        };
++        if input.policy() != policy {
++            return false;
++        }
++        let Some((word, _)) = self
++            .retained_command_realm()
++            .and_then(|realm| realm.original_written_word_at_span_in_source(image, span, config))
++        else {
++            return false;
++        };
++        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
++        crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
++            &word, rules, policy,
++        )
++        .as_ref()
++            == Some(retained)
++    }
++
+     /// Current source scope eligibility for independently retained Logical advice.
+     /// Original Native/hosted bodies and readonly alias receipts cannot issue it.
+     #[must_use]
+@@ -3609,6 +3656,73 @@
+             token.span.end() + u32::try_from(start).unwrap(),
+         );
+         token
++    }
++
++    #[test]
++    fn logical_write_card_correspondence_uses_original_word_without_native_recipe() {
++        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let span_start = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
++        let advice = analyser
++            .result
++            .original_variable_write_advice
++            .iter()
++            .find(|advice| advice.span().start() == span_start)
++            .expect("actual Registry-selected Logical write card");
++        let span = advice.span();
++        let input = advice.original_name_input().clone();
++        let image = tcl_lexer::SourceImage::document(source);
++        let config = analyser.file_lexer_config();
++        assert!(
++            analyser
++                .result
++                .logical_original_word_input_matches_source(&image, config, span, &input)
++        );
++        let changed = tcl_lexer::SourceImage::document(&source.replace("AGAIN", "OTHER"));
++        assert!(
++            !analyser
++                .result
++                .logical_original_word_input_matches_source(&changed, config, span, &input)
++        );
++        let mut wrong = config;
++        wrong.strict_quoting = !wrong.strict_quoting;
++        assert!(
++            !analyser
++                .result
++                .logical_original_word_input_matches_source(&image, wrong, span, &input)
++        );
++        let shifted = Span::new(span.start() + 1, span.end() + 1);
++        assert!(
++            !analyser
++                .result
++                .logical_original_word_input_matches_source(&image, config, shifted, &input)
++        );
++        let mut absent = analyser.result.clone();
++        absent.resolved_input = None;
++        assert!(!absent.logical_original_word_input_matches_source(&image, config, span, &input));
++        let retained = analyser.result.resolved_input.as_ref().unwrap();
++        let foreign = std::sync::Arc::new(retained.borrowed_context_registry().with_command_store(
++            std::sync::Arc::new(tcl_registry::CommandRegistry::build_default()),
++        ));
++        let mut changed_store = analyser.result.clone();
++        changed_store.resolved_input = Some(super::super::ResolvedAnalysisInput::new(
++            retained.analyser_profile(),
++            retained.unit_profile(),
++            foreign,
++            retained.lexer_config(),
++        ));
++        assert!(
++            !changed_store.logical_original_word_input_matches_source(&image, config, span, &input)
++        );
++        let mut native = Analyser::new();
++        native.analyse_and_retain_result_for_test(source, "tcl8.6");
++        assert!(!native.result.logical_original_word_input_matches_source(
++            &image,
++            native.file_lexer_config(),
++            span,
++            &input
++        ));
+     }
+ 
+     #[test]

@@ -1,0 +1,72 @@
+{
+  "probe_sha256": "0ce873402b65df84c944c086abcd6a897bbfae29bdd256128f5b5039b48ebd48",
+  "runner_sha256": "1aae7625122f7cb263b65e077cb87bb72201e6248c47874b2f8bd2b86e6d86ed",
+  "results": [
+    {
+      "provider": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 1,
+      "seconds": 0.007986068725585938,
+      "input_count": 103,
+      "input_drift": false,
+      "stdout_sha256": "fae76411d27c3019aad1e9932b9c7ea24032a60959c007e1817009157be809e1",
+      "stderr_sha256": "8e0db52be016c84ad96f15b06507cbc8b2f0228f4f5074de2eb1b4783cd6d96a"
+    },
+    {
+      "provider": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 1,
+      "seconds": 0.025825977325439453,
+      "input_count": 827,
+      "input_drift": false,
+      "stdout_sha256": "1a4b98332dcc3a6233a73f59c3cf47199a8a3bee3a2b1f8c63d7ff9075927a29",
+      "stderr_sha256": "8e0db52be016c84ad96f15b06507cbc8b2f0228f4f5074de2eb1b4783cd6d96a"
+    },
+    {
+      "provider": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 1,
+      "seconds": 0.037561655044555664,
+      "input_count": 833,
+      "input_drift": false,
+      "stdout_sha256": "474d4d2d20e48ede3ff9b4da212f0559c65577a37503b319bd4b0c3a54a3e667",
+      "stderr_sha256": "8e0db52be016c84ad96f15b06507cbc8b2f0228f4f5074de2eb1b4783cd6d96a"
+    },
+    {
+      "provider": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.04237008094787598,
+      "input_count": 841,
+      "input_drift": false,
+      "stdout_sha256": "ced4325d111138159e579e857eb54830f4e2f1ebcd339d478d51d10d6100101d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.03917503356933594,
+      "input_count": 842,
+      "input_drift": false,
+      "stdout_sha256": "6fa3c887361c704f1997d3e6a43f71204ea4644189260d948d25627e2797780d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "library": "/workspace/tcl-lsp/tmp/jimtcl-oracle/tclcompat",
+      "exit_code": 1,
+      "seconds": 0.00909733772277832,
+      "input_count": 1,
+      "input_drift": false,
+      "stdout_sha256": "583aa3d0f68a996270723e56bad9d0a7d2875f590f687fa61d3b9ff196fa93b2",
+      "stderr_sha256": "6d912462872d8e95fffe666fecacb068ac68d39f199101d7c6da0bf4094ae31f"
+    }
+  ]
+}

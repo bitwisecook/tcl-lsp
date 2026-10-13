@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::original_name_residual_tests::original_alias_source_header_refusal_precedes_publication_and_keeps_prior_cause ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1226 filtered out; finished in 0.20s
+

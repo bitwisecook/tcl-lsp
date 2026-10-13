@@ -1,0 +1,13 @@
+provider 9.0.4
+relative-qualified VALUE
+current0 LOCAL
+root0 ROOT
+caller1 NAMESPACE
+lambda VALUE
+dictionary-key LOCAL
+dictionary-proc-code 1
+dictionary-proc-result can't read "d": no such variable
+linked-value ROOT
+array-literal FALSE
+array-substituted CORRECT
+braced-scalar SCALAR

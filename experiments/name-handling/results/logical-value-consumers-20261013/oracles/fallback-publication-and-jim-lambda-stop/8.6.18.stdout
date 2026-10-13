@@ -1,0 +1,14 @@
+provider 8.6.18
+relative-qualified-code 1
+relative-qualified-result can't read "child::x": no such variable
+current0 LOCAL
+root0 VALUE
+caller1 VALUE
+lambda VALUE
+dictionary-key LOCAL
+dictionary-proc-code 1
+dictionary-proc-result can't read "d": no such variable
+linked-value VALUE
+array-literal FALSE
+array-substituted CORRECT
+braced-scalar SCALAR

@@ -1856,7 +1856,7 @@ impl Analyser {
             let tok = arg_tokens.get(di).copied()?;
             let text = args.get(di)?;
             let single = arg_single.get(di).copied().unwrap_or(false);
-            self.resolve_const_word(text, tok, single, scope_path)
+            self.resolve_const_word(text, tok, single)
                 .map(|d| summarise_detail(&d))
         });
 
@@ -2263,7 +2263,7 @@ impl Analyser {
         name_text: &str,
         name_tok: Token,
         name_single: bool,
-        scope_path: &[usize],
+        _scope_path: &[usize],
     ) -> Option<String> {
         if let Some(input) = original_name_input {
             std::str::from_utf8(input.bytes())
@@ -2294,7 +2294,7 @@ impl Analyser {
                 })
         } else if self.result.allows_lexical_declaration_advice() {
             // Explicit logical-only declaration advice has no native recipe.
-            self.resolve_const_word(name_text, name_tok, name_single, scope_path)
+            self.resolve_const_word(name_text, name_tok, name_single)
         } else {
             None
         }
@@ -2394,28 +2394,15 @@ impl Analyser {
     /// bare `$var` resolves through the constant-string lattice
     /// ([`Self::lookup_const_string`]); anything with embedded substitution or
     /// concatenation is not statically known.
-    fn resolve_const_word(
-        &self,
-        text: &str,
-        tok: Token,
-        is_single: bool,
-        scope_path: &[usize],
-    ) -> Option<String> {
+    fn resolve_const_word(&self, text: &str, tok: Token, is_single: bool) -> Option<String> {
         if !is_single {
             return None;
         }
         match tok.kind {
             TokenType::Str | TokenType::Esc => Some(text.to_string()),
-            TokenType::Var => {
-                let sm = Analyser::source_map(
-                    &self.source,
-                    &self.cached_line_index,
-                    self.cached_line_index_source_len,
-                );
-                let var_name = sm.token_text(tok);
-                self.lookup_const_string(var_name, scope_path)
-                    .map(str::to_string)
-            }
+            TokenType::Var => self
+                .lookup_logical_const_substitution(tok)
+                .map(|(value, _)| value.to_owned()),
             _ => None,
         }
     }
@@ -3388,57 +3375,9 @@ impl Analyser {
         (real_params, opt_locals)
     }
 
-    /// Split an `apply` call's lambda-literal first argument
-    /// (`{{params} body ?ns?}`) into its list elements — `(token, text)`
-    /// pairs carrying absolute source spans, in declaration order (params,
-    /// body, and an optional target-namespace pin).
-    ///
-    /// Returns `None` when there are no arguments or the first argument
-    /// isn't a *braced* literal (a `$var` / `[cmd]` / quoted lambda is
-    /// opaque — its element boundaries can't be split statically).  Both
-    /// callers gate on [`tcl_registry::hooks::AnalyserHookId::Apply`]
-    /// first. Shared by [`Self::handle_apply_command`] (body
-    /// / scope walk) and the `apply` direct-call arity check
-    /// ([`super::diagnostics::validity::Analyser::emit_arity_diagnostics`])
-    /// so both consumers agree on exactly what counts as a
-    /// statically-inspectable lambda, rather than each re-implementing the
-    /// brace-literal guard and segmentation independently.
-    /// Resolve a *dynamic* `apply` lambda argument — `apply $lambda …` or
-    /// `apply [list {params} $body ns] …` — one hop through the constant-
-    /// value lattice, to the same `Vec<(Token, String)>` shape
-    /// [`Self::parse_apply_lambda_elements`] returns for a literal braced
-    /// lambda: so `handle_apply_command`'s downstream
-    /// code (`elements[0]` = params, `[1]` = body, `[2]` = namespace)
-    /// needs no changes regardless of which path supplied it.
-    ///
-    /// `arg_tok`'s kind decides the strategy:
-    /// - `Var` (`$lambda` / `$ns::lambda`): resolve the variable — a bare
-    ///   name via [`Self::lookup_const_string_with_span`] (the lexical
-    ///   ancestor-chain lookup), a `::`-qualified one via the namespace-
-    ///   targeted [`Self::lookup_const_string_in_namespace`] (Tcl variable
-    ///   qualifiers never search — exactly one namespace is consulted).
-    ///   A braced-literal resolution (`{` at the resolved span's start,
-    ///   the same guard `parse_apply_lambda_elements` itself applies)
-    ///   delegates straight to it — no re-implementation.
-    /// - `Cmd` (`[list {params} $body ns]`): the mined idiom's actual
-    ///   shape — a `list`-constructor call whose own arguments *are* the
-    ///   three lambda elements, positionally. Requires the inner command's
-    ///   head to be literally `"list"`; each of its own arguments is kept
-    ///   verbatim (already a real absolute span) unless it is itself a
-    ///   `Var`, which gets exactly one more hop through the same bare/
-    ///   qualified lookup (no further recursion — a deliberate depth
-    ///   bound). Anything else at any position aborts the whole fold
-    ///   (`None`) rather than emit a partial, misleading result.
-    ///
-    /// Bounded to one hop by design: `set a $lambda; apply $a` remains
-    /// unresolved (a second `$var`-to-`$var` forward), as does any deeper
-    /// list-element indirection — see the type's own module docs on the
-    /// `apply`-namespace-override limitation for the full rationale.
-    fn resolve_dynamic_apply_lambda(
-        &self,
-        arg_tok: Token,
-        scope_path: &[usize],
-    ) -> Option<Vec<(Token, String)>> {
+    /// One-hop lambda inspection from original list builders or checked Logical values.
+    /// Element spans retain their defining source; unavailable receivers stay opaque.
+    fn resolve_dynamic_apply_lambda(&self, arg_tok: Token) -> Option<Vec<(Token, String)>> {
         let one_hop = |word_tok: Token| -> Option<(Token, String)> {
             if word_tok.kind != TokenType::Var {
                 let word_text = Analyser::source_slice(
@@ -3448,24 +3387,7 @@ impl Analyser {
                 )?;
                 return Some((word_tok, word_text.to_string()));
             }
-            let sm = Self::source_map(
-                &self.source,
-                &self.cached_line_index,
-                self.cached_line_index_source_len,
-            );
-            let var_name = sm.token_text(word_tok);
-            let (holder, base_name) = crate::naming::key_holder_and_tail(var_name);
-            let (value, span) = if holder.is_empty() {
-                self.lookup_const_string_with_span(var_name, scope_path)?
-            } else {
-                let target_ns = if holder.starts_with("::") {
-                    holder.to_string()
-                } else {
-                    let caller_ns = self.command_resolution_namespace(scope_path);
-                    crate::naming::qualify(&caller_ns, holder)
-                };
-                self.lookup_const_string_in_namespace(&target_ns, base_name)?
-            };
+            let (value, span) = self.lookup_logical_const_substitution(word_tok)?;
             Some((
                 Token::with_content_offset(TokenType::Str, span, 1),
                 value.to_string(),
@@ -3620,7 +3542,7 @@ impl Analyser {
             let Some(&arg_tok) = arg_tokens.first() else {
                 return false;
             };
-            let Some(elements) = self.resolve_dynamic_apply_lambda(arg_tok, scope_path) else {
+            let Some(elements) = self.resolve_dynamic_apply_lambda(arg_tok) else {
                 return false;
             };
             elements
@@ -6182,8 +6104,8 @@ impl Analyser {
             return;
         }
         let Some(const_val) = self
-            .lookup_const_string(&args[1], scope_path)
-            .map(str::to_owned)
+            .lookup_logical_const_string_at(&args[1], arg_tokens[1].span)
+            .map(|(value, _)| value.to_owned())
         else {
             return;
         };
@@ -6385,19 +6307,8 @@ impl Analyser {
         );
     }
 
-    /// Resolve one command argument word to a constant string: the word
-    /// unchanged when it's already static, else an attempt to
-    /// constant-fold it through the same lexical (last-write-wins)
-    /// constant-string lattice [`Self::lookup_const_string`] already
-    /// serves [`Self::resolve_expansion_count`] for the analogous
-    /// `{*}$var`-with-known-value case — first via
-    /// [`Self::resolve_const_word`] (a pure single `Var`/literal token),
-    /// then via [`crate::text::fold_interpolation_single`] for a
-    /// multi-token concatenation (`::mypkg::${c}_$key`). `None` means
-    /// genuinely unresolvable: no token to inspect, a command
-    /// substitution (`[…]`) anywhere in the word, or a variable that
-    /// isn't a tracked constant.
-    ///
+    /// Static words and dominating interpolations supply constant argument values.
+    /// Command substitutions and unavailable variable values stay unresolved.
     /// Shared by any command whose argument names something else purely
     /// as data rather than computing it — [`Self::handle_rename`]'s
     /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
@@ -12541,6 +12452,88 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_apply_value_uses_checked_logical_variable_declaration() {
+        let source = "namespace eval N {set lambda {{p} {puts $p} ::N}}; apply $::N::lambda VALUE";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = tcl_lexer::Lexer::with_config(source, analyser.file_lexer_config())
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::Var)
+            .unwrap();
+        let elements = analyser
+            .resolve_dynamic_apply_lambda(token)
+            .expect("original Logical namespace value");
+        assert_eq!(
+            elements
+                .iter()
+                .map(|(_, value)| value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["p", "puts $p", "::N"]
+        );
+        analyser.source = source.replace("VALUE", "OTHER");
+        assert!(analyser.resolve_dynamic_apply_lambda(token).is_none());
+    }
+
+    #[test]
+    fn logical_defined_symbol_word_uses_current_value_provenance() {
+        let source = "set name SYMBOL; puts $name";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = tcl_lexer::Lexer::with_config(source, analyser.file_lexer_config())
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::Var)
+            .unwrap();
+        assert_eq!(
+            analyser.defined_symbol_reporting_name(None, None, "$name", token, true, &[]),
+            Some("SYMBOL".to_owned())
+        );
+        let original = analyser.snapshot();
+        analyser.result.resolved_input = None;
+        assert!(
+            analyser
+                .defined_symbol_reporting_name(None, None, "$name", token, true, &[])
+                .is_none()
+        );
+        analyser.restore(original);
+        assert_eq!(
+            analyser.resolve_const_word("$name", token, true),
+            Some("SYMBOL".to_owned())
+        );
+    }
+
+    #[test]
+    fn dict_with_value_uses_checked_logical_scope() {
+        let source =
+            "set d {root ROOT}; namespace eval N {set d {local LOCAL}; dict with d {puts $local}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let namespace = analyser
+            .result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == super::super::types::ScopeKind::Namespace)
+            .unwrap();
+        assert!(namespace.variables.contains_key("local"));
+        assert!(!namespace.variables.contains_key("root"));
+        let source = "set d {root ROOT}; proc p {} {dict with d {puts $root}}";
+        let mut procedure = Analyser::new();
+        procedure.analyse_and_retain_result_for_test(source, "tcl");
+        let local = procedure
+            .result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == super::super::types::ScopeKind::Proc)
+            .unwrap();
+        assert!(!local.variables.contains_key("root"));
+    }
+
+    #[test]
     fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
@@ -12561,14 +12554,14 @@ mod tests {
             .find(|token| token.kind == tcl_lexer::TokenType::Cmd)
             .expect("command token");
         let elements = analyser
-            .resolve_dynamic_apply_lambda(token, &[])
+            .resolve_dynamic_apply_lambda(token)
             .expect("original literal list lambda");
         assert_eq!(elements.len(), 3, "iRules list elements: {elements:?}");
         let mut missing = Analyser::new();
         missing.source = source.to_owned();
         missing.profile = tcl_dialect::DialectProfile::irules();
         assert!(
-            missing.resolve_dynamic_apply_lambda(token, &[]).is_none(),
+            missing.resolve_dynamic_apply_lambda(token).is_none(),
             "a profile and authored source do not supply the original builder"
         );
     }

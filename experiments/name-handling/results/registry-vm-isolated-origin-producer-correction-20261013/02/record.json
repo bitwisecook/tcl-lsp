@@ -1,0 +1,25 @@
+{
+  "package": "tcl-registry",
+  "selector": "native_alias_registration::tests::alias_registration_coordinates_are_provider_and_purpose_selected",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-registry",
+    "--lib",
+    "native_alias_registration::tests::alias_registration_coordinates_are_provider_and_purpose_selected",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "e5968420bde17ef000850c2a5b4255cf8cdf0c368020ac5eaf6219341d082ec0",
+  "stderr_sha256": "2f94f37d5770260efcaeca2ce6f489a26188563dc0156e523457f066c2bc049a",
+  "time": "2026-10-13T21:09:43.788639+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_registry-30152f1b62ed4924": "828a0bd53d1b4891e886fdc25c9fe260ce7eecfe8d5dc655d07c90c787837fbb"
+  }
+}

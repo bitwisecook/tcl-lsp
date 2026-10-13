@@ -1,0 +1,29 @@
+{
+  "patch_sha256": "31bde07a7d87d3f37f314f97bbf7f5903812dfe1b2427fe1542d78879623c3be",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "48aaf5c53f408642d37446a25ebf4a5493d399d553e67e3eeda978fa737c49cd",
+      "after_sha256": "3a436c7e52c1bc3341fe3914605db9a2c33eca5f6b4fbf9f4b37d2798758054e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "603b8182d1e6d505681dd981acfd28c9ae0c48e8fc9cdf56325b95e8a127c55d",
+      "after_sha256": "7281974615fbe8df9d47d7787bc996be42ba39a770eee1859c4886f545f72580"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "8a033bb2f138173bedc39fd465d38735c303cb61861f504a430ad5e6e8ae0ecb",
+      "after_sha256": "0b002fef6954debe1af3095b4d740189f1bdc7c58d3160c7f36f3f54b3ac47c2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/snapshot.rs",
+      "before_sha256": "9872f7f68881409e597ac656883702ecc1f90676fe5923703fa3759b065c8d10",
+      "after_sha256": "14c500e4174518ec6d4fe7fcbfe62a2640c94b5b8c823bec36c7be0be4fccd20"
+    }
+  ],
+  "rust_validation": "not executed; root owns build lease",
+  "formatting": "rustfmt edition 2024 on four owned files; git diff --check passed",
+  "oracle_path": "/tmp/name-value-consumers-20261013/oracles",
+  "scope": "Logical value lookup; no Native execution, entered cell, array element or alias value grant"
+}

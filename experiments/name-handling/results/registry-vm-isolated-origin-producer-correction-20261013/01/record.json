@@ -1,0 +1,25 @@
+{
+  "package": "tcl-syntax",
+  "selector": "native_jim_lookup::origin_canonical_roles_keep_query_names_independent_of_reports",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-syntax",
+    "--lib",
+    "native_jim_lookup::origin_canonical_roles_keep_query_names_independent_of_reports",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "stdout_sha256": "621fcc8edba12e1f3099b23cbe1ed2919a92e0875bcd89e081f6bfb62c718d4d",
+  "stderr_sha256": "b28649c737a2c1b9775d7bb026d533bd2743329ed7fcdb54482f5612bd4b95de",
+  "time": "2026-10-13T21:06:44.304078+00:00",
+  "actual_test_count": 1,
+  "test_binaries": {
+    "target/debug/deps/tcl_syntax-d16b323745d6e16a": "9376767f15893a3dc48eb04e43b46f09c1cadb7202b28675bdad0dedb6535365"
+  }
+}

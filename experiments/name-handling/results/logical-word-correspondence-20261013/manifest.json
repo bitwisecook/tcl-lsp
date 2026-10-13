@@ -1,0 +1,10 @@
+{
+  "api": "AnalysisResult::logical_original_word_input_matches_source",
+  "patch_sha256": "eed56f6e8a9a22acf0af36388b3c35d827d729cf38f0eed584ac21b5d6fc8b4a",
+  "before_sha256": "3a436c7e52c1bc3341fe3914605db9a2c33eca5f6b4fbf9f4b37d2798758054e",
+  "after_sha256": "3aca1043f51601e327dc4a52a92332e8f058816d2085e4f35194d83c051f857b",
+  "dependency": "/tmp/name-value-consumers-20261013/implementation.patch",
+  "selector": "analyser::scope::tests::logical_write_card_correspondence_uses_original_word_without_native_recipe",
+  "rust_status": "unexecuted",
+  "scope": "Exact complete Logical word correspondence; not Native or execution admission"
+}

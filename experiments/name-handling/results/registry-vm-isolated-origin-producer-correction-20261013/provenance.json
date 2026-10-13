@@ -1,0 +1,17 @@
+{
+  "source_stable": true,
+  "checkout_commit": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "checkout": "/workspace/name-implementation-worktrees/registry_vm",
+  "target": "/workspace/name-implementation-worktrees/registry_vm/target",
+  "jobs": "1",
+  "compiled_rust_inputs": "all materialized rust files including restored tracked fixture/C/build inputs; retained experiment files excluding results; root manifest/lock/toolchain",
+  "test_debug": "0",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "selectors": 21,
+  "successful_processes": 18,
+  "accepted_exact_tests": 18,
+  "zero_test_attempts": 0,
+  "build_blocked_attempts": 0,
+  "scope": "1 pure origin constructor/report owner,1 selected alias coordinate/table owner control,6 genuine VM origin+helper-root reference comparisons (252 total observed rows acrossC5/latestJim),3 genuine Core ownership/unsupported controls,6 unchanged publicWhich reference comparisons (150query observations) after explicit helperROOT lookup-context correction; 4 existing genuine alias target/header/retirement/selected-Jim controls after actual rename-source transaction migration; no guest cycle answer orNativeCallocation/F5claim"
+}

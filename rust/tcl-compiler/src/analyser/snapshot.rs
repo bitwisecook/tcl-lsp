@@ -89,6 +89,8 @@ pub struct AnalyserSnapshot {
     pub renamed_commands: HashMap<String, String>,
     /// Per-scope const-string tracker.
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+    pub(super) logical_const_string_provenance:
+        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
     /// Per-scope set of const-string names whose current value was written
     /// conditionally (see [`Analyser::nondominating_consts`]).
     pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
@@ -159,6 +161,7 @@ impl Analyser {
             command_aliases: self.command_aliases.clone(),
             renamed_commands: self.renamed_commands.clone(),
             const_strings: self.const_strings.clone(),
+            logical_const_string_provenance: self.logical_const_string_provenance.clone(),
             nondominating_consts: self.nondominating_consts.clone(),
             regex_vars: self.regex_vars.clone(),
             var_command_sites: self.var_command_sites.clone(),
@@ -207,6 +210,7 @@ impl Analyser {
         self.command_aliases = snap.command_aliases;
         self.renamed_commands = snap.renamed_commands;
         self.const_strings = snap.const_strings;
+        self.logical_const_string_provenance = snap.logical_const_string_provenance;
         self.nondominating_consts = snap.nondominating_consts;
         self.regex_vars = snap.regex_vars;
         self.var_command_sites = snap.var_command_sites;

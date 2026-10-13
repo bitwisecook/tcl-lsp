@@ -1,0 +1,12 @@
+can't read "child::x": no such variable
+    while executing
+"puts "relative-qualified $child::x""
+    (in namespace eval "::N" script line 4)
+    invoked from within
+"namespace eval N {
+    set x NAMESPACE
+    namespace eval child {set x VALUE}
+    puts "relative-qualified $child::x"
+    proc p {} {
+        set x LO..."
+    (file "/tmp/name-value-consumers-20261013/oracles/probe.tcl" line 3)
