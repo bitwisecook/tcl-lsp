@@ -56,20 +56,25 @@ The final check reconciles all matches and all workspace members with the ledger
 ## Current execution priorities
 
 Use [current state](current-state.md) and its exact receipts before selecting
-work. Original C8.6 var-13.2 reproduces SIGABRT in Runtime; C8.6 completes the
-isolated original case. Investigate actual array-search/element-unset lifetime
-before applying the original-argv codegen proposal. Retired-namespace diagnostic
-metadata, callback catalogue/store, #2286 original declaration guards, VM OO
-boundaries and public middleware fixtures remain separate obligations.
+work. The array iterator validation dependency is repaired and exact original
+var13.2 replay completes in Runtime/C86. Complete the shared lookup adapters,
+#2286 original procedure-read correspondence, callback source catalogue and
+registry metadata consumers. Run genuine retained-context/refusal and current
+public consumer controls; preserve failures and operational refusals separately.
 
-Original-library startup and a release-selectable VM driver need validation;
-the current VM suite driver is fixed to 9.0. The C8.4 and other-release captures
-contain completed failures and early refusals, not universal bootstrap absence.
-Use the [suite index](../../../experiments/name-handling/results/RESULTS.md)
-to select exact questions, preserving frozen capture scopes and revalidating
-current source. A focused pass cannot establish an unexecuted upstream file.
-Static consumers, every backend, latest Jim and reached F5 contexts remain
-required independently.
+Original evaluated-argv codegen publication is in progress; require actual
+Runtime/module ABI compatibility, once-only operands and emitted WASM execution.
+Follow with structured identity map/collision coverage and the remaining variable,
+alias, generation and namespace consumers. The owner/drift gates complement a
+complete callsite audit rather than replace it.
+
+The original C suite runner checks immutable release-specific library/test
+inventories; original proc/rename captures complete for all five C references.
+The VM suite driver remains fixed to9.0; changing that requires real selected
+runtime support. Use the [suite index](../../../experiments/name-handling/results/RESULTS.md)
+to select exact naming questions, retaining capture scopes and current source
+bindings. A focused pass cannot establish an unexecuted upstream file. Every
+backend, latest Jim and actually reached F5 contexts remain separate evidence.
 
 ## Dynamic-pattern coverage and abstention
 

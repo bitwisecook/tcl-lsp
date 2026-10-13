@@ -1,8 +1,7 @@
 # Bounded name lookup consumer inventory
 
-Inspected at local HEAD 000c431f05 with shared in-progress changes. This is a
-callsite audit, not a claim of complete workspace coverage. No runtime/compiler
-files reserved by other agents were changed. Validation statuses distinguish
+Current bounded callsite audit on `work`; captures bind exact source versions. This is a
+callsite audit, not a claim of complete workspace coverage. Validation statuses distinguish
 source inspection from execution.
 
 | Callsite | Operation/input/context | Shared owner/API and disposition | Tests/evidence or next action |
@@ -42,3 +41,27 @@ and is not plain Tcl namespace parsing; actual F5 questions belong provider
 handoffs. Unrelated clock, allocator, glob platform and OO return/evaluation
 compatibility failures do not become naming fixes merely because a suite
 contains naming tests.
+
+## LSP, database and workspace adapters
+
+The following source inspection adds provider boundaries; it does not claim fresh
+execution. Audit all callers and existing controls before marking verified.
+
+| Callsite | Shared selection and retained input | Remaining completion |
+| --- | --- | --- |
+| Core `definition::resolve_called_proc` | Original providers delegate `original_declaration::select_at_offset` and retained procedure metadata. Explicit Logical providers consume retained references before lexical namespace/import advice. | Logical simple-tail fallback remains assistance only; import/currentness/collision tests and final comment cleanup. |
+| Core `definition::lookup_var_read_at` | Explicit lexical-advice guard, original source applicability and one shared Core scope lookup. Original providers refuse this compatibility adapter. | Audit native variable/provider entry separately. Current scope-chain policy is Core-owned and needs central reusable variable-policy migration with frame-specific guards. |
+| Core `definition::lookup_var_in_scope_chain` | Logical namespace-frame current/global policy, constructed-key helper and recorded uplevel scope chain. Qualified geometry delegates Syntax; table/lexical scope selection remains local. | Centralise policy without substituting command namespace for variable/frame identity; preserve actual apply/uplevel/interp purpose and release controls. |
+| Core `completion::array_element_completions` | Partial source operand plus scope adapter above; suggests recorded array indices. | Verify explicit Logical caller guard and partial-source grammar; completion metadata cannot establish original cell identity. |
+| Core `rename::rename_var` | Matches actual document/config, source spans and Core scope adapter; collision gate checks a different declaration span. | Audit all ingress advice guards and original-variable rename path; same display or tail cannot authorise edits. |
+| Core `graphs::resolve_invocation_target` | Original providers use retained declaration targeting and compiled-label matching; Logical providers delegate common `references::invocation_calls_proc`. | Compiled string-key collisions remain #1778 dependency; graph display must not promote opaque source rows into compiled bodies. |
+| Core `graphs::build_nodes` | Original rows require exactly one matching compiled label before exposing effects/purity. | Verify all generated graph/tooling consumers and currency/collision controls. |
+| DB `callback_command_keys` | Refuses original callback/input records; retained resolved slot/candidates precede explicit legacy absolute-name helper. | Existing legacy policy is bounded, not original lookup authority; test same-tail, ambiguous/colliding and missing-receipt controls. |
+| DB `merge_command_arities` | Uses Syntax `key_tail`; complete key and bare-tail assistance are separately aggregated. Original qualified source spelling is checked before exact-key contribution. | Item signature firewall and original publication keys require full audit; bare-tail arity cannot select a live target. |
+| Server workspace settlement | Retained candidates plus shared context registry and original package/transition facts, indexed document existence. | Current Document literal-positive/computed-negative autoload-definition test and load-order/cache invalidation acceptance. |
+
+The broad naming searches currently produce223 name-related source paths and113
+paths matching the focused lookup heuristics. These include tests, geometry,
+presentation and providers; neither count is an audited consumer count. Reconcile
+the complete workspace/backend/editor roster and every semantic match before
+completion. The source manifests and exact acceptance receipts remain authoritative.

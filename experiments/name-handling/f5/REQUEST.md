@@ -7,7 +7,11 @@ it does not claim that stock Tcl behaviour describes the F5 interpreter.
 ## Handoff prompt
 
 You have BIG-IP access. On `bitwisecook/tcl-lsp` branch `work`, prepare and run
-isolated name-handling oracle probes for questions F5-N01 through F5-N16 below.
+isolated name-handling oracle probes for the unanswered variants of questions
+F5-N01 through F5-N16 below. Read `answers/README.md` and
+`answers/outstanding-operation-audit.md` first, then map existing answers to
+exact contexts, operands and entered frames. Request only missing variants;
+do not rerun answered operations as though their evidence were absent.
 Read `AGENTS.md`, `experiments/name-handling/README.md`, this request,
 `scripts/dev/bigip-probes/README.md` and the four-context generator/cleanup
 contracts first. Preserve any incoming answers and branch changes.
@@ -32,7 +36,9 @@ Commit answer documents and raw transcripts under
 `experiments/name-handling/f5/answers/<run-id>/`, and reusable materialised
 scripts/probes under that run or a shared experiment source directory. Use
 `ANSWER-TEMPLATE.md`; include the input hash and map every result to question
-and case IDs. Run required repository gates before pushing `work`. Do not
+and case IDs. Commit and push answer batches regularly on `work`; the user authorises
+development pushes while checks are red. Record actual checks and failures.
+All required repository gates must pass before the final PR. Do not
 rewrite existing answers or erase contradictory measurements. Return a concise
 list of answered, unsupported and still-pending questions and the branch
 commit. No implementation/development diary belongs in the answer document.
