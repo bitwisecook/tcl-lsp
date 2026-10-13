@@ -32,4 +32,4 @@ targets. The dedicated outstanding audit routes new gaps; root integrates
 reviewed patches and owns tooling/AI migrations. Sparse fixture omissions and
 failed builds are retained separately from fresh acceptance. The17:20 BST
 tracking checkpoint was delayed during disk recovery; this17:32 checkpoint
-records current obligations, with the next update due17:35 BST.
+records current obligations, The17:35 BST update records the DB test compile failure, sparse input repairs and sequential heavy-build lease; the next update is due17:50 BST.
