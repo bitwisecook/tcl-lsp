@@ -28,7 +28,7 @@ digests or restore scrubbed sensitive material.
 
 Implementation editing is parallel in isolated checkouts. Heavy builds use one
 explicit lease and distinct targets; jobs1/test-debug0 bounds resource use.
-VM17 currently owns that lease. SourceReadScope fifth build/closure passes and38 frozen-binary tests run; Lookup third check reaches Compiler67 type errors. The prepared queue is SourceReadScope,
+Scope15 currently owns that lease. SourceReadScope fifth capture33pass/4fail/1timeout; sixth measured repair unbuilt. Lookup third check reaches Compiler67 type errors; owning repairs are authored. Corrected VM17 has10pass/6fail and1 test-build block. The prepared queue is SourceReadScope,
 Jim-origin/alias17, LSP scope/publication13, revised ProcedureId typecheck, then combined
 Main CLI/SpecTcl/generator controls. Root reviews owned source patches and sealed
 receipts before integration. Failed builds, zero-test attempts and real test

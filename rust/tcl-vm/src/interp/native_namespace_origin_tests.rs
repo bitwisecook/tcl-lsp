@@ -96,7 +96,7 @@ fn origin_canonical_root_relative_retains_the_actual_original_header() {
     use tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend;
     let profile = crate::environment::profile_for_dialect("jim");
     let mut vm = crate::native_fixture::interpreter(profile);
-    let original = super::Value::from_native_string_bytes(b"puts");
+    let original = super::Value::from_native_string_bytes(b"puts".as_slice());
     let entered =
         super::native_original_lookup::OriginalLookup::enter(&mut vm, super::ROOT_NS, &original)
             .unwrap();
@@ -112,7 +112,7 @@ fn origin_canonical_root_relative_retains_the_actual_original_header() {
     };
     let canonical = backend.canonical(&original).unwrap();
     assert!(canonical.is_same_object(&original));
-    let absolute = super::Value::from_native_string_bytes(b"::::puts");
+    let absolute = super::Value::from_native_string_bytes(b"::::puts".as_slice());
     let canonical = backend.canonical(&absolute).unwrap();
     assert!(!canonical.is_same_object(&absolute));
     assert_eq!(canonical.resident_string_bytes().unwrap().as_ref(), b"puts");

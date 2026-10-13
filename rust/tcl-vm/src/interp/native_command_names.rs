@@ -61,7 +61,7 @@ impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "Jim origin canonical append issuer",
                     ))?;
-                let separator = Value::from_native_string_bytes(b"::");
+                let separator = Value::from_native_string_bytes(b"::".as_slice());
                 let mut prepared = tcl_cmd_core::native_append::append_object(
                     &crate::value::VmAppendObjects,
                     append.recipe(),
