@@ -1,0 +1,3 @@
+PATCHLEVEL 8.5.19
+EXECUTABLE /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh
+LIBRARY 0 /workspace/tcl-lsp/tmp/tcl8.5.19/library

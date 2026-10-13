@@ -35,3 +35,5 @@ tracking checkpoint was delayed during disk recovery; this17:32 checkpoint
 records current obligations, The18:58 BST update records integrated Runtime variables, passing DB8/server8 and routed outstanding consumer gaps; the next update is due19:13 BST.
 
 Current: integrated BPF shared descriptor consumers (88 scoped passes); integrated SourceScope admission controls pending combined validation. Query, procedure identity, publication/replay and snapshot consumers remain active implementations. Build binary removed from retained publication experiment; source/log/hash retained. Next tracking checkpoint 18:13 UTC.
+
+Checkpoint18:13 UTC: command-trace and rename source adapters integrated but Runtime acceptance queued; qualified-report window map removed. Core22 executed15pass7fail, source unchanged. Native classfallback repair prepared and Logical sourceproducer tracing pending. Query correction first22actualpass, Compiler testimportblock explicit; VMremainder pending. Originalsource_read_flow continuation owns common readcatalogue; no allconsumer/PR green claim. Next tracking18:28 UTC, hourly19:06 UTC.

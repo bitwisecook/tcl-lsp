@@ -1,0 +1,9 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+{info setup} 0 {} {}
+{info A-before-call} 0 {B ::__nh_collision:} {}
+{info A-before-which} 0 ::__nh_collision:::p {}
+{info B-before-call} 0 {B ::__nh_collision:} {}
+{info B-before-which} 0 ::__nh_collision:::p {}
+{info A-trace-install} 1 {invalid command name "trace"} NONE
+{info B-trace-install} 1 {invalid command name "trace"} NONE
+{info unsupported-command-trace} 1 {window body not reached; initial physical holders retained above} {}

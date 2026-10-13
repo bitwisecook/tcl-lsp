@@ -1,0 +1,9 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+{nested setup} 0 {} {}
+{nested A-before-call} 0 {B ::__nh_collision:} {}
+{nested A-before-which} 0 ::__nh_collision:::p {}
+{nested B-before-call} 0 {B ::__nh_collision:} {}
+{nested B-before-which} 0 ::__nh_collision:::p {}
+{nested A-trace-install} 1 {invalid command name "trace"} NONE
+{nested B-trace-install} 1 {invalid command name "trace"} NONE
+{nested unsupported-command-trace} 1 {window body not reached; initial physical holders retained above} {}

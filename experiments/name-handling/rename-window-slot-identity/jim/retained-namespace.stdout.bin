@@ -1,0 +1,9 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+{retained-namespace setup} 0 {} {}
+{retained-namespace A-before-call} 0 {B ::__nh_collision:} {}
+{retained-namespace A-before-which} 0 ::__nh_collision:::p {}
+{retained-namespace B-before-call} 0 {B ::__nh_collision:} {}
+{retained-namespace B-before-which} 0 ::__nh_collision:::p {}
+{retained-namespace A-trace-install} 1 {invalid command name "trace"} NONE
+{retained-namespace B-trace-install} 1 {invalid command name "trace"} NONE
+{retained-namespace unsupported-command-trace} 1 {window body not reached; initial physical holders retained above} {}

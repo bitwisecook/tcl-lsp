@@ -1,0 +1,6 @@
+
+running 1 test
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 6.48s
+

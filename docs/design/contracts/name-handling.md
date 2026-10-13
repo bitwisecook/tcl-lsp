@@ -56,7 +56,7 @@ A name's spelling, identity and presentation are different values:
 
 Distinct slots can render as the same FQN: namespace segment `a:` with
 simple name `p`, and segment `a` with simple name `:p`, both render
-`::a:::p`. No string normaliser can recover which slot produced that text.
+`::a:::p`. No string normaliser can recover which slot produced that text. Runtime trace add/remove/info retain the checked CommandId generation and project only that live token for reporting. Rename source selection uses the original operand and the same generation's current physical slot; a vacating C entry and its destination share that token. Reports never select or redirect a rename window.
 The same applies to caches, workspace aggregation and editing identities.
 
 `NameBytes`, `ByteNamespacePath` and `ByteCommandSlot` retain exact bytes and

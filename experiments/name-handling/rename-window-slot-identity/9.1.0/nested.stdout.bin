@@ -1,0 +1,21 @@
+PATCHLEVEL 9.1.0
+{nested setup} 0 {} {}
+{nested A-before-call} 0 {A ::__nh_collision} {}
+{nested A-before-which} 0 ::__nh_collision:::p {}
+{nested B-before-call} 0 {B ::__nh_collision:} {}
+{nested B-before-which} 0 ::__nh_collision:::p {}
+{nested A-trace-install} 0 {} {}
+{nested B-trace-install} 0 {} {}
+{nested trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{nested trace-B} 0 {::__nh_collision:::p ::__nh_dst::b rename} {}
+{nested B-nested-rename} 0 {} {}
+{nested B-vacated-call} 1 {invalid command name "p"} {TCL LOOKUP COMMAND p}
+{nested B-new-call} 0 {B ::__nh_dst} {}
+{nested A-destination-call} 0 {A ::__nh_dst} {}
+{nested trace-A-exit} 0 {} {}
+{nested A-outer-rename} 0 {} {}
+{nested A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{nested B-after-call} 1 {invalid command name "p"} {TCL LOOKUP COMMAND p}
+{nested B-after-traces} 1 {unknown command "p"} {TCL LOOKUP COMMAND p}
+{nested A-after-destination-call} 0 {A ::__nh_dst} {}
+{nested B-after-new-call} 0 {B ::__nh_dst} {}

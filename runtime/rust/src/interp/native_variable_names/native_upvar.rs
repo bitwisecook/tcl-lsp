@@ -34,7 +34,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("original compiled upvar receiver")
                         .into(),
-                )
+                );
             }
             Err(code) => return code,
         };

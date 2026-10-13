@@ -6,7 +6,9 @@ use crate::{interp::Code, list, obj};
 include!(
     "../../../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/cases.rs"
 );
-const WINDOWS: &str = include_str!("../../../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/windows.tsv");
+const WINDOWS: &str = include_str!(
+    "../../../../../../rust/tcl-registry/tests/data/native_info_commands_literal_original/windows.tsv"
+);
 
 fn unhex(bytes: &str) -> Vec<u8> {
     bytes

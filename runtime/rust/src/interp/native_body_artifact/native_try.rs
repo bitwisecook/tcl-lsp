@@ -160,7 +160,7 @@ impl BodyProtectedCompletion {
                     code: self.code,
                     storage,
                     original,
-                })
+                });
             }
         };
         let result_original = result.as_ptr();

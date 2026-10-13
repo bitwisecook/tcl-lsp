@@ -1,0 +1,17 @@
+[
+  {
+    "path": "runtime/rust/src/namespace.rs",
+    "before_sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+    "proposed_sha256": "f0f8287e6e56ab8ad97338368b94909861e72fc6d2b061c16d9c094eed66fbd4"
+  },
+  {
+    "path": "runtime/rust/src/interp.rs",
+    "before_sha256": "7e85c05f0b02e486f09a585504f11e6307da5af68968aadc4e2cf4ef342ddc46",
+    "proposed_sha256": "06d95e3d1c58fa8031c04719ccbc444cfff3c5843609a0b478ee943cbc53251d"
+  },
+  {
+    "path": "runtime/rust/src/cmd_trace.rs",
+    "before_sha256": "4585459ecc46892cd6cafc64b1d270f896a99b782f0f22daf85ccbdf528cb145",
+    "proposed_sha256": "386925b89db139465623354744a28369ae23e75ea49038dc7a42f1fd4e859286"
+  }
+]

@@ -24,10 +24,12 @@ fn original_no_tower_body_keeps_non_expression_commands_and_actual_cached_owner(
     assert_eq!(interpreter.result_bytes(), b"BEFOREAFTER");
     let original = interpreter.proc_def(b"plain").unwrap();
     let artifact = cache(original.body.as_ptr()).expect("actual non-expression body cache");
-    assert!(artifact.scripts.values().any(|script| script
-        .commands
-        .iter()
-        .any(|command| matches!(command.operation, Operation::Store(..)),)));
+    assert!(artifact.scripts.values().any(|script| {
+        script
+            .commands
+            .iter()
+            .any(|command| matches!(command.operation, Operation::Store(..)))
+    }));
     assert!(!interpreter.host_refusal_pending());
     assert_eq!(interpreter.entered_native_operation_count(), 0);
 }

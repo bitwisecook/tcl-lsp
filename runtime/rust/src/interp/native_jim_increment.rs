@@ -494,7 +494,7 @@ impl Interp {
                     None => {
                         return Err(JimDictionaryPathFailure::MissingKey(
                             member.key_bytes().to_vec(),
-                        ))
+                        ));
                     }
                 };
                 // Install the copied/new child immediately, before SetDictFromAny
@@ -659,7 +659,7 @@ impl Interp {
                                 "uncaptured original Jim read root",
                             )
                             .into(),
-                        ))
+                        ));
                     }
                 }
             };

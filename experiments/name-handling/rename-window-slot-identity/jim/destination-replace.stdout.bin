@@ -1,0 +1,9 @@
+PATCHLEVEL 0.84-9-g5bac7c9
+{destination-replace setup} 0 {} {}
+{destination-replace A-before-call} 0 {B ::__nh_collision:} {}
+{destination-replace A-before-which} 0 ::__nh_collision:::p {}
+{destination-replace B-before-call} 0 {B ::__nh_collision:} {}
+{destination-replace B-before-which} 0 ::__nh_collision:::p {}
+{destination-replace A-trace-install} 1 {invalid command name "trace"} NONE
+{destination-replace B-trace-install} 1 {invalid command name "trace"} NONE
+{destination-replace unsupported-command-trace} 1 {window body not reached; initial physical holders retained above} {}

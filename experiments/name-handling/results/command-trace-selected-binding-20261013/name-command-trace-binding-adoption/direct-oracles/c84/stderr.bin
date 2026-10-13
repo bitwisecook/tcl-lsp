@@ -1,0 +1,7 @@
+unknown command "p"
+    while executing
+"trace add command p rename observer_b"
+    (in namespace eval "::A:" script line 1)
+    invoked from within
+"namespace eval A: {trace add command p rename observer_b}"
+    (file "/tmp/name-command-trace-binding-adoption/direct-oracles/input.tcl" line 20)

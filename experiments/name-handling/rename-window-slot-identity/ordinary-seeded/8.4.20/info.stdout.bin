@@ -1,0 +1,25 @@
+PATCHLEVEL 8.4.20
+{info setup} 0 {} {}
+{info A-before-call} 0 {A ::__nh_collision} {}
+{info A-before-which} 0 ::__nh_collision:::p {}
+{info B-before-call} 0 {B ::__nh_collision:} {}
+{info B-before-which} 0 ::__nh_collision:::p {}
+{info A-trace-install} 0 {} {}
+{info B-trace-install} 0 {} {}
+{info trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{info B-current-call} 0 {B ::__nh_collision:} {}
+{info B-current-traces} 0 {{rename ::__nh_trace_b}} {}
+{info B-current-which} 0 ::__nh_collision:::p {}
+{info B-add-trace} 0 {} {}
+{info B-added-traces} 0 {{rename ::__nh_trace_extra} {rename ::__nh_trace_b}} {}
+{info B-remove-trace} 0 {} {}
+{info B-remaining-traces} 0 {{rename ::__nh_trace_b}} {}
+{info A-destination-call} 0 {A ::__nh_dst} {}
+{info A-destination-traces} 0 {{rename ::__nh_trace_a}} {}
+{info trace-A-exit} 0 {} {}
+{info A-outer-rename} 0 {} {}
+{info A-after-source-call} 1 {invalid command name ":p"} NONE
+{info B-after-call} 0 {B ::__nh_collision:} {}
+{info B-after-traces} 0 {{rename ::__nh_trace_b}} {}
+{info A-after-destination-call} 0 {A ::__nh_dst} {}
+{info B-after-new-call} 1 {invalid command name "::__nh_dst::b"} NONE

@@ -1,0 +1,23 @@
+PATCHLEVEL 9.0.4
+{destination-replace setup} 0 {} {}
+{destination-replace A-before-call} 0 {A ::__nh_collision} {}
+{destination-replace A-before-which} 0 ::__nh_collision:::p {}
+{destination-replace B-before-call} 0 {B ::__nh_collision:} {}
+{destination-replace B-before-which} 0 ::__nh_collision:::p {}
+{destination-replace A-trace-install} 0 {} {}
+{destination-replace B-trace-install} 0 {} {}
+{destination-replace trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{destination-replace A-destination-delete} 0 {} {}
+{destination-replace A-source-during-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{destination-replace A-source-during-traces} 0 {} {}
+{destination-replace B-current-call} 0 {B ::__nh_collision:} {}
+{destination-replace B-current-traces} 0 {{{rename delete} ::__nh_trace_b}} {}
+{destination-replace A-replacement-call} 0 {A-new ::__nh_dst} {}
+{destination-replace A-replacement-traces} 0 {} {}
+{destination-replace trace-A-exit} 0 {} {}
+{destination-replace A-outer-rename} 0 {} {}
+{destination-replace A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{destination-replace B-after-call} 0 {B ::__nh_collision:} {}
+{destination-replace B-after-traces} 0 {{{rename delete} ::__nh_trace_b}} {}
+{destination-replace A-after-destination-call} 0 {A-new ::__nh_dst} {}
+{destination-replace B-after-new-call} 1 {invalid command name "::__nh_dst::b"} {TCL LOOKUP COMMAND ::__nh_dst::b}

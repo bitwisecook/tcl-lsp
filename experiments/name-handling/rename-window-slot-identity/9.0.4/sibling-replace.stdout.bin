@@ -1,0 +1,21 @@
+PATCHLEVEL 9.0.4
+{sibling-replace setup} 0 {} {}
+{sibling-replace A-before-call} 0 {A ::__nh_collision} {}
+{sibling-replace A-before-which} 0 ::__nh_collision:::p {}
+{sibling-replace B-before-call} 0 {B ::__nh_collision:} {}
+{sibling-replace B-before-which} 0 ::__nh_collision:::p {}
+{sibling-replace A-trace-install} 0 {} {}
+{sibling-replace B-trace-install} 0 {} {}
+{sibling-replace trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{sibling-replace trace-B} 0 {::__nh_collision:::p {} delete} {}
+{sibling-replace B-delete} 0 {} {}
+{sibling-replace B-replacement-call} 0 {B-new ::__nh_collision:} {}
+{sibling-replace B-replacement-traces} 0 {} {}
+{sibling-replace A-destination-call} 0 {A ::__nh_dst} {}
+{sibling-replace trace-A-exit} 0 {} {}
+{sibling-replace A-outer-rename} 0 {} {}
+{sibling-replace A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{sibling-replace B-after-call} 0 {B-new ::__nh_collision:} {}
+{sibling-replace B-after-traces} 0 {} {}
+{sibling-replace A-after-destination-call} 0 {A ::__nh_dst} {}
+{sibling-replace B-after-new-call} 1 {invalid command name "::__nh_dst::b"} {TCL LOOKUP COMMAND ::__nh_dst::b}

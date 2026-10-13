@@ -79,14 +79,52 @@ mod tests {
     use std::ffi::{c_int, c_void};
 
     const ORIGINALS: [(&str, &str, &str); 6] = [
-        ("tcl8.4", "8.4.20", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.stdout")),
-        ("tcl8.5", "8.5.19", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.stdout")),
-        ("tcl8.6", "8.6.18", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.stdout")),
-        ("tcl9.0", "9.0.4", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.stdout")),
-        ("tcl9.1", "9.1.0", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.stdout")),
-        ("jim", "jim", include_str!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/execute.stdout")),
+        (
+            "tcl8.4",
+            "8.4.20",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.4.20/execute.stdout"
+            ),
+        ),
+        (
+            "tcl8.5",
+            "8.5.19",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.5.19/execute.stdout"
+            ),
+        ),
+        (
+            "tcl8.6",
+            "8.6.18",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/8.6.18/execute.stdout"
+            ),
+        ),
+        (
+            "tcl9.0",
+            "9.0.4",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.0.4/execute.stdout"
+            ),
+        ),
+        (
+            "tcl9.1",
+            "9.1.0",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/9.1.0/execute.stdout"
+            ),
+        ),
+        (
+            "jim",
+            "jim",
+            include_str!(
+                "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/capture/jim/execute.stdout"
+            ),
+        ),
     ];
-    const INVOCATION: &[u8] = include_bytes!("../../../../rust/tcl-registry/tests/data/native_command_recreation_original/request/invoke.tcl");
+    const INVOCATION: &[u8] = include_bytes!(
+        "../../../../rust/tcl-registry/tests/data/native_command_recreation_original/request/invoke.tcl"
+    );
 
     struct Probe {
         interpreter: WeakInterp,

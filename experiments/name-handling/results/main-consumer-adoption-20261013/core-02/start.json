@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-10-13T18:01:15.538306+00:00",
+  "label": "shared-consumer-adapters",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34628,
+  "plan": {
+    "filters": [
+      "references::tests::composed_callback_prefix_tests",
+      "logical_variable_scope_owner_tests"
+    ],
+    "exact": [
+      "code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text",
+      "code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication",
+      "code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable",
+      "namespace_import::original_export_tests::original_export_fold_preserves_counted_identity_and_clear_at_import_time",
+      "workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes",
+      "workspace_index::tests::literal_colon_namespace_keys_keep_definitions_and_variables_distinct",
+      "workspace_index::tests::literal_colon_import_sources_survive_workspace_ingestion",
+      "workspace_index::tests::literal_colon_alias_targets_survive_workspace_and_indirection",
+      "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

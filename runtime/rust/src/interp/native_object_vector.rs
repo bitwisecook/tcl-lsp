@@ -304,11 +304,36 @@ mod tests {
     #[test]
     fn empty_public_vectors_reset_original_result_owners_without_dispatch() {
         let fixtures = [
-            ("tcl8.4", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv")),
-            ("tcl8.5", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv")),
-            ("tcl8.6", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv")),
-            ("tcl9.0", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv")),
-            ("tcl9.1", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv")),
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv"
+                ),
+            ),
         ];
         for (environment, observations) in fixtures {
             let mut interp = interpreter(environment);

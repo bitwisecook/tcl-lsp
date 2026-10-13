@@ -1,0 +1,9 @@
+PATCHLEVEL 8.5.19
+{info setup} 0 {} {}
+{info A-before-call} 0 {A ::__nh_collision} {}
+{info A-before-which} 0 ::__nh_collision:::p {}
+{info B-before-call} 1 {invalid command name "p"} NONE
+{info B-before-which} 0 {} {}
+{info A-trace-install} 0 {} {}
+{info B-trace-install} 1 {unknown command "p"} {TCL LOOKUP COMMAND p}
+{info unsupported-command-trace} 1 {window body not reached; initial physical holders retained above} {}

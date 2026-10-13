@@ -451,7 +451,7 @@ impl Interp {
             Err(crate::frame::VarError::NameProtocolUnavailable) => {
                 return Err(self.report_cmd_error(
                     original.refuse(unavailable("original compiled append result scalar role")),
-                ))
+                ));
             }
             Ok(None) | Err(_) => self.set_result_bytes(b""),
         }

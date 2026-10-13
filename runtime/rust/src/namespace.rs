@@ -2181,14 +2181,7 @@ impl Namespaces {
         new: &[u8],
         original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     ) -> Option<RenamePublication> {
-        let (old_ns, old_simple) = if self
-            .variable_name_protocol
-            .is_some_and(|protocol| protocol.is_jim084())
-        {
-            self.original_jim_rename_source_of(current, old)?
-        } else {
-            self.home_of(current, old)?
-        };
+        let (old_ns, old_simple) = self.original_rename_source_of(current, old)?;
         // Unreachable for a non-empty, non-separator-terminated name; nothing
         // has moved yet, so there is nothing to put back.
         let (ns, simple) = self.destination_of(current, new)?;
@@ -2349,15 +2342,25 @@ impl Namespaces {
         command
     }
 
-    /// The `(namespace, simple name)` a written destination name binds — the
-    /// split C's `TclGetNamespaceForQualName(…, TCL_CREATE_NS_IF_UNKNOWN)`
-    /// performs for `rename`'s new name, creating any intermediate namespaces
-    /// (C creates them even when the rename is later refused). A trailing
-    /// separator run names the empty-string `{}` command in the full qualifier
-    /// chain (`rename foo x::` binds `::x::`, `rename bar ::` the global `{}` —
-    /// tclsh 8.6/9.0-pinned), matching `command_home_ns` / `home_of`.
-    /// JimRename uses its qualified source hash entry without command-lookup
-    /// global fallback. The selected source purpose supplies only slot bytes.
+    /// Select the original rename operand, then retain the token's current slot.
+    /// During a C rename callback both entries refer to that same token.
+    pub(crate) fn original_rename_source_of(
+        &self,
+        current: NsId,
+        old: &[u8],
+    ) -> Option<(NsId, Vec<u8>)> {
+        if self
+            .variable_name_protocol
+            .is_some_and(|protocol| protocol.is_jim084())
+        {
+            return self.original_jim_rename_source_of(current, old);
+        }
+        let (holder, simple) = self.home_of(current, old)?;
+        let generation = self.arena[holder].commands.generation(&simple)?;
+        self.native_command_slot_at_node(generation)
+    }
+
+    /// Jim rename uses its original qualified source key without global fallback.
     pub(crate) fn original_jim_rename_source_of(
         &self,
         current: NsId,
@@ -2414,7 +2417,7 @@ impl Namespaces {
         {
             return None;
         }
-        let (old_ns, old_simple) = self.home_of(current, old)?;
+        let (old_ns, old_simple) = self.original_rename_source_of(current, old)?;
         let binding = self.arena[old_ns].commands.binding(&old_simple)?.clone();
         if !matches!(binding.command, Command::Alias { .. }) {
             return None;

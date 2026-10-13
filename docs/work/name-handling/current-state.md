@@ -23,19 +23,29 @@ and store currency; refuse missing, foreign, stale or dynamic evidence.
 
 ## Current acceptance and gaps
 
-| Work | Evidence and current limit | Next action |
+Consumer migration remains incomplete. Counts below cover exact captured controls,
+not the proportion of all consumers migrated. Integrated, prepared and validated
+changes are separate states. Root owns Main integration and build leases; agents
+implement independently while the consumer audit continues.
+
+| Consumer group | Current implementation and evidence | Remaining implementation or validation |
 | --- | --- | --- |
-| Shared naming owners | [12 baseline controls](../../../experiments/name-handling/results/shared-name-owner-current-20261013/README.md): C command3, variable2, namespace2 and Jim5 pass. | Audit every actual consumer; owner vectors alone do not certify adapters. |
-| Command lookup ordering | [Shared current/path/root capture](../../../experiments/name-handling/results/shared-command-lookup-bases-20261013/results.md):133 Syntax naming controls, C command3, Jim5 and115 actual Runtime slot comparisons pass. Shared primitive serves logical helpers, source metadata, compiler adapters, Runtime API snapshots, Runtime and VM. | The retained-descendant refusal now passes after routing Native contexts through the checked adapter; three other occupied-current/path controls pass. VM live209-slot comparisons plus7 publication/retained-namespace controls pass; CLI/other compiler tests remain pending. The two VM variable-geometry adapters compiled here, without separate variable-winner acceptance. |
-| Original braced-source correspondence | Real C5/Jim LF/CRLF programs are retained under [braced correspondence](../../../experiments/name-handling/braced-source-correspondence/).25 Syntax escape/source mapping controls and6 Registry word controls pass. | Compiler mapped-read and original occurrence controls pass, and all four real W210 headers obtain read advice. The declaration-flow consumer still refuses; preserve separate execution/frame authority. |
-| #2286/W210 | Original nine cleanup controls still include C8.4 result0 versus expected2. Four original factory programs pass earlier guards. First measured refusal was continuation-folded body origin; source correspondence addresses that geometry but has not fixed the public result. [Compiler capture](../../../experiments/name-handling/results/braced-source-correspondence-2026-10-13/compiler.log) retains current failures. | Actual next refusal is missing declaration-flow advice under dynamic writes: physical missing reads are0. Refreshed20 controls pass17/fail3 (original W210 and two Native-formal metadata controls). Trace the exact source-purpose producer and complete-input metadata, retaining all assertions. |
-| Callback source catalogue | Shared conditional receiver/member-body source catalogue is integrated; ordinary execution layouts retain strict frame evidence. [Frozen consumer capture](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/member-catalogue-production-20261013/README.md) passes4 Compiler and12 Core controls, including all4 unchanged original callback assertions and hosted/export/colon controls. | Fresh DB8 and server8 controls pass after an assertion-preserving supported-flags correction to an existing DB test. [Current-input receipts](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/database-server-current-inputs-20261013/README.md) retain the initial zero-test compile failure separately. Shared source-frame selection and remaining LSP adapters are being migrated in an isolated checkout. No Native execution authority follows from source catalogue acceptance. |
-| CLI and registry metadata | CLI uses exact `ResolvedContext::resolve_spec`; literal case/whitespace/empty-name C5/Jim observations retained in [CLI results](../../../experiments/name-handling/results/cli-command-name-literal/). MCP exact-name and static-source results remain separately scoped. Initial Registry129 scoped controls pass. [Broader descriptor/cache capture](../../../experiments/name-handling/results/registry-descriptor-root-cache/README.md) passes83 distinct Registry/store controls with unchanged frozen inputs, including exact original cache labels and over-root negatives. | Execute CLI exact-name and actual pack-discovery controls. Mixed original-head/constructed-label operand selection still needs explicit selected-registration layout; measured private-worker probes remain separate from compiler acceptance. Written names and metadata labels stay distinct. |
-| WASM/codegen | Original evaluated-argv transport is implemented. Runtime6 and API18 controls pass. [Compiler/API/CLI/strict-WASM capture](../../../experiments/name-handling/results/codegen-root-colon-publication/compiler-wasm-validation-01/README.md) records49 effective Rust controls:34pass/15fail, including CLI11 exact-name cases passing. | [Writable-cache real-WASM capture](../../../experiments/name-handling/results/codegen-root-colon-publication/wasm-cache-validation-02/README.md) passes6/8 actual Runtime-linked controls: once-only name/body, inert body, unknown-name abort and general/native-tier replaced-definer fallback. Two compiled publication/table positives still fail before linking. Four selected Compiler positives/refusals, tail positive and two table-plan positives need exact producer repairs; #1778 map identity remains. No compiled-entry acceptance follows from generic execution. |
-| Variables, aliases and lifetimes | Existing source/split/trim, detached-cell and namespace-forget receipts remain indexed in [results](../../../experiments/name-handling/results/RESULTS.md). #2287 and #2300 are closed only for their recorded scopes. New query-specific geometry/bases and typed empty-namespace handling pass16 owner/C5/Jim conformance controls. [Actual Runtime query capture](../../../experiments/name-handling/results/variable-namespace-query-bases-20261013/runtime/README.md) passes48 C5/Jim rows, with unchanged source/binary and complete compiled-input coverage. | [VM namespace/query capture](../../../experiments/name-handling/results/vm-namespace-query-20261013/README.md) executes13 selectors:6 pass/7 fail.12 C84 namespace rows and24 C84/C85/Jim query rows pass; four namespace tests incorrectly require global errorCode after direct object entry, and three C86+ query fixtures refuse compiler preflight. Correct the observation to actual completion metadata, investigate the genuine admission producer, then rerun. Core adapter tests, Runtime empty namespace-address migration, retained contexts, roles, links, generations and publication collisions remain. |
-| Original oracle harness | [Immutable upstream inventories](../../../experiments/name-handling/upstream-integrity/README.md) and7 admission controls pass. All five original proc/rename suites complete with0 failures. | Use each release's original init.tcl/Tcltest/support files. Keep overlays separate and bind every new result to actual input/source/binary identities. |
-| Naming-test runtime dependency | [Array iterator repair](../../../experiments/name-handling/results/runtime-array-search-var132-current/results.md): two regressions and exact original var13.2 Runtime/C86 replay pass. | Full var.test or runtime parity is not claimed; use scoped naming suites as needed. |
-| Gates and proof currency | No fresh full rust-check/prep-pr, resolution drift or strict proof gate passes. Fresh strict checker reports2606 questions,7069 candidates and1739 errors:769 evidence-digest changes,952 scrub census-digest changes,2 missing annotation bindings,4 document assertions and12 census-path changes. | Review actual semantics and narrow proof bindings; never bulk-refresh hashes. Required formatting, generated drift and all gates must be green before PR. |
+| Shared naming | Current/path/root owner serves Syntax, source metadata, Compiler, Runtime API, Runtime and VM.133 Syntax controls, C command3/Jim5, Runtime115, VM209 and7 publication/retained-holder controls pass. Original braced-source mapping passes25 Syntax/6 Registry controls with original C5/Jim LF/CRLF evidence. | Close every adapter in the [consumer inventory](consumer-inventory.md) and [outstanding audit](outstanding-consumer-audit.md); pure owner tests do not certify consumers. |
+| Registry, Compiler selection and VM queries | Exact descriptors, original registration cache labels, typed role hooks and shared query geometry are integrated or isolated for review. Earlier Registry129 and descriptor/cache83 controls pass. Corrected VM namespace/query capture passes13 selectors, including60 C5 ASCII namespace and48 C5/Jim query rows. | Latest isolated Registry/Compiler/VM capture has36 passes,4 assertion failures,5 build-blocked selectors and1 zero-test attempt. Central provider-specific Which parsing, Jim actual-object query candidates, named-role/layout separation and ensemble selected-worker repairs await a fresh capture and integration. |
+| #2286 and source reads | Conditional original procedure read-flow carrier is integrated. Original C5 factory assertions pass on unchanged instrumented source in two captures. Isolated production35 controls pass31/fail4; Main production run was incomplete. All C5 Native source records are present. | Finish original conditional-body source selection. The Jim formal control failed at a catalog-alias unwrap; central environment ingress correction is prepared. Three other measured producer/layout failures remain. Preserve execution/frame guards and all original assertions. |
+| Callback catalogue and database/server | Shared original conditional member/receiver catalogue is integrated. Frozen Compiler4/Core12 controls pass, including all4 unchanged callback assertions and hosted/export/colon controls. DB8/server8 fresh controls pass. | Finish remaining source-scope and class-navigation consumers; source catalogue acceptance issues no Native execution authority. |
+| LSP | Definition, completion, workspace variable coordinates and rename consume shared LogicalVariableScopeAdvice. Root/current/unknown-caller distinction, exact source image/configuration, child-interpreter refusal and unknown namespace coordinates are integrated. | Combined Core capture01 compiled zero tests because the new measurement insertion duplicated two fixture definitions. Duplicate removal preserves assertions. Frozen capture02 executes22 selectors:15 pass/7 fail. The12 existing callback/vendor/export/colon controls still pass; three new source-scope controls pass, six fail, and the Native class-fallback measurement exposes deleted-head navigation. Editor/extension inventory traversal is under audit. |
+| Runtime variables and namespaces | Shared ordinary-variable bases, Jim global/cache handling, counted namespace geometry and destination selection are integrated. Ordinary variables16 controls pass; namespace geometry5 selectors include60 C5 rows and the48 C5/Jim query comparisons. | Retained aliases, generations, imports, traces and original publication contexts still require consumer closure. |
+| Runtime publication and queries | Bootstrap/publication consumers use shared WrittenCommandParts and version-specific NativeOoVarnameLookup. Publication30 selectors pass29/fail1; the import-source failure reproduces on pre-change inputs. Runtime Which patch is sealed:5 selectors pass,1 existing info-commands failure reproduces unchanged. | Integrate Which with reviewed peer Registry helpers. Finish rename-window consumers by genuine generation/slot, without reparsing generated reports. Command-trace add/remove/info use the one checked original selection. Rename source selection now retains the actual token placement; the generated-report window map is removed. New Runtime controls await execution. |
+| Bytecode, WASM and procedure identity | Original evaluated argv transport is integrated, with Runtime6/API18 controls passing. General Runtime-linked WASM controls pass, including two newer renamed-definer/materialised-name positives. Actual compiled-entry/table positives still refuse before linking. | Retain genuine source publication independently of physical compiler permission; migrate every procedure map, interprocedural/report/DB join to typed source identity, preserving same-display bodies (#1778). Native CPU/GPU/FPGA capability declarations have no current emitter found. |
+| BPF | Production BPF consumers use shared exact CommandSpec descriptor keys and typed BpfOpKind/BpfDeclKind. Frozen isolated IR60/codegen28 controls pass; all attempts and source seals are retained under [BPF results](../../../experiments/name-handling/results/codegen-bpf-source-selection/). | Fresh combined workspace gates remain. The procedure identity migration must include this backend. |
+| Tooling, SpecTcl and AI | Shared SimulatorMockName serves generator/pure-function consumers and exact authored mock publication; Registry owns native argument-role hook identity parsing. CLI pack presence uses shared literal glob projection.48 C5/Jim presence rows pass. | Run actual Cargo consumer controls and full simulator generation/drift checks. Snapshot/reporting adapter must retain original root words and context: real C5/Jim evidence proves report readdressing and universal qualified-prefix escaping invalid. EngineWasm root replay is prepared; authentic callback-context transport is being implemented separately from live receipt authority. Remaining AI/tool/editor surfaces stay in the audit. |
+| Oracle conformance | Original C8.4–9.1 release trees/libraries and current Jim source are provisioned. Original upstream proc/rename suites complete without failures; seven upstream admission controls pass. | Every new test must cite real scoped observations. Use the original matching init.tcl/tcltest.tcl when using Tcltest. F5 observations remain separately scoped below. |
+| PR gates | Current Main formatting has been applied; no all-consumer, full rust-check/prep-pr, generated drift, resolution-drift or strict-proof acceptance. Previous strict checker reports1739 errors across evidence/scrub currency, annotations, docs and census paths. | Finish consumers first, review affected proof semantics and narrow bindings, then whole-repository docs/comment cleanup and every required green gate. Never bulk-refresh proof hashes. |
+
+Receipts retain exact source/artifact identities, actual executed selector counts,
+failed attempts and build limitations. The publication experiment's accidentally
+copied test executable was removed; its reproducible source, logs and hash remain.
 
 ## References and build coordination
 
@@ -46,82 +56,18 @@ Rediscover latest when collecting new Jim results. Record flags and extensions.
 Rust stable1.99.0 and repository-pinned Ruff0.16.10 are available. Source
 `/tmp/name-env.sh` and select an explicitly leased target. Only one Cargo build
 uses a cache at a time; source mutations must not invalidate another capture.
-WASM tools are provisioned from verified upstream assets, separately from
-the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM controls pass; two compiled-entry/table positives still fail before linking.
+WASM tools are provisioned from verified upstream assets. No worktrees share a
+Cargo target. Heavy Compiler/Core builds are serial under explicit leases; source
+changes wait for capture completion. Main uses tmp/name-target-names, agents use
+separate isolated targets. Build caches are expendable; sealed sources/results
+and oracle provenance are retained. Sparse fixtures are checked against Git
+before claiming an input absent.
 
-The active cadence is a tracking-document update plus reviewed commit/push every
-15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is18:58 BST; the next tracking
-checkpoint is19:13 BST and the next hourly report19:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
-source captures retain their exclusive build/cache leases. Checkpoints may be
-red, but must state exact failures and unexecuted checks.
-
-Both codegen captures are sealed; source/executable identities and selected
-compiled-input coverage are retained, with post-build-only generated/third-party
-inputs explicitly separate. The next shared edit window covers original source
-declaration flow, private member catalogue advice, Runtime namespace geometry,
-VM error metadata and the measured namespace.which compile-hook decline.
-The [backend audit](codegen-consumers.md) identifies Tcl bytecode,
-WASM and separate BPF emitters. Native/GPU/FPGA capability declarations have no
-current production emitters found and must not be reported as migrated targets.
-
-The expanded [Runtime consumer audit](runtime-consumers.md) identifies remaining
-namespace-address, variable geometry, publication/rename and import adapters.
-The [LSP consumer audit](lsp-consumers.md) records current shared delegation and
-remaining source-frame, hosted helper/export bridge and primitive geometry
-adapters. Its330 lexical candidates are pending reconciliation, not330 completed
-consumers. Read-only audit does not establish fresh execution.
-
-The refreshed [issue roster](issues.md) verifies the previously open58 rows,
-adds the direct #2093 source/frame dispatch blocker and35 closed naming
-regression issues. State and semantic acceptance remain separate; related
-package/value/server issues are dependencies only for their naming subset.
-[Verified issue reads](verified-issues.json) and
-[open search results](open-issue-search.json) retain the compact observations.
-The [surface roster](surface-roster.json) enumerates52 workspace and11 excluded
-packages plus editor/script/AI surfaces; unexamined rows remain unfinished.
-
-The current source-read flow, private member catalogue, descriptor-roster and
-namespace.which hook adapters are applied and formatted. Compiler production
-captures01/02 execute zero tests after a slice iterator error and an omitted
-Core obligation conversion respectively; both errors are corrected. Production03
-compiles and completes three controls, then its original #2286 program remains
-busy. The bounded capture is terminated with SIGTERM after915 seconds total,
-without a failed assertion or completed result for the remaining32 controls.
-Its exact source and binary remain unchanged. Worklist convergence needs
-measurement; #2286 remains unaccepted.
-
-The follow-up four exact Compiler catalogue controls pass under that same
-unchanged production binary: two new member-body source/authority/currency
-controls and two existing conditional receiver catalogue controls. The fresh Core
-callback/hosted/export capture passes12 exact controls, including all4 original
-callback assertions. An initial incorrect roster selection executed zero tests
-and is retained separately. Both accepted binaries were sealed before the
-checkout provisioning disk exhaustion; DB/server builds had not started then.
-
-Implementation priority is adoption by every audited consumer. Agents use
-five isolated sparse source checkouts with exclusive build targets so Runtime variables,
-Registry/VM, source-frame/LSP and compiler/codegen migrations can proceed in
-parallel. A dedicated audit agent reconciles the remaining package/callsite
-roster and routes concrete gaps to the implementation owners. The primary
-checkout owns reviewed integration, tracking, regular commits/pushes and gates.
-
-Runtime variables, Registry/VM and compiler descriptor adapters, codegen, original
-source-read flow, and LSP source-frame selection each have separate implementation
-owners and targets. The dedicated read-only audit feeds remaining callsites to
-those owners; root owns tooling/AI integration. Sparse checkout omissions are
-restored byte-exact from the shared baseline before fresh captures; failed builds
-remain explicit. No concurrent worktrees share Cargo targets. Full checkout
-provisioning exhausted disk and was stopped; unused copies were removed and
-replaced with154 MiB sparse checkouts. Build/cache budgets remain bounded.
-
-[Runtime namespace geometry](../../../experiments/name-handling/results/runtime-namespace-geometry-20261013/README.md)
-passes five exact selectors:60 actual original-object namespace rows across C5,
-independent Logical simulation/ownerless internal-creation authority, existing
-variable-root geometry and cell-sensitive fallback, and the previous48 query
-rows across C5/Jim.31,697 inputs and artifacts are unchanged;4,907 actual compiled
-inputs are covered with no omission. Namespace Unicode/NUL rows remain outside
-the60 ASCII observations. Other consumer captures are queued, not accepted.
+Tracking documents and coherent development commits/pushes are updated every15
+minutes, even while red. The current checkpoint is18:13 UTC on13 October2026;
+next tracking checkpoint18:28 UTC and next hourly progress report19:06 UTC.
+Root checks the clock between bounded operations. The last checkpoint's brief
+integration delay is explicit; no missed check is represented as executed.
 
 ## F5
 
@@ -220,3 +166,5 @@ opaqueWhich/named operand layout and C84/Jim query differences remain measured
 repairs; no zero-test process establishes acceptance. Full gates remain pending.
 
 Current consumer integration checkpoint (2026-10-13 17:58 UTC): BPF descriptor consumers are integrated with scoped IR60/codegen28 passes retained. Logical variable scope admission now declines child-interpreter roots and retains unknown-namespace body tables without inventing a namespace coordinate; the additional public controls await the combined Main build. Runtime Which is sealed and awaits the shared version-specific query helpers. Original C5/latest-Jim snapshot-pattern evidence is retained: qualified prefixes have different purposes across queries; neither universal escaping nor qualified report readdressing is valid. The accidentally copied Runtime test executable is removed from repository files; reproducible source, logs and artifact hash remain. Formatting and combined Main LSP/tooling validation are next. All-consumer acceptance and PR gates remain open.
+
+Current integration: original command trace/rename consumers use retained generations and actual physical slots; their new Runtime checks are queued. Original C3 direct rename controls pass; C84/C85 fixture refusal and Jim trace unavailability remain explicit. Fresh isolated Registry/query capture22 exact controls pass; later Compiler test import build blockage is retained, remaining VM/Compiler results pending. #2286 SourceReadScope/body catalogue work continues under a fresh source_read_flow agent, with no source loss or new acceptance claim. The measured Native class fallback repair is prepared; remaining Logical scope producers are under direct audit.

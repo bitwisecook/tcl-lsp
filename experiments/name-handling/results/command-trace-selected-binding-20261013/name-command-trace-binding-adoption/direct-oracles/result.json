@@ -1,0 +1,60 @@
+{
+  "time_utc": "2026-10-13T18:01:36.701884+00:00",
+  "input_sha256": "a7de0a64b58a99ca6da3726c4252e8df7e7c38cbb574852119fe3526db38e469",
+  "rows": [
+    {
+      "provider": "c84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "before_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "after_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "unknown command \"p\"\n    while executing\n\"trace add command p rename observer_b\"\n    (in namespace eval \"::A:\" script line 1)\n    invoked from within\n\"namespace eval A: {trace add command p rename observer_b}\"\n    (file \"/tmp/name-command-trace-binding-adoption/direct-oracles/input.tcl\" line 20)\n"
+    },
+    {
+      "provider": "c85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "before_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "after_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "unknown command \"p\"\n    while executing\n\"trace add command p rename observer_b\"\n    (in namespace eval \"::A:\" script line 1)\n    invoked from within\n\"namespace eval A: {trace add command p rename observer_b}\"\n    (file \"/tmp/name-command-trace-binding-adoption/direct-oracles/input.tcl\" line 20)\n"
+    },
+    {
+      "provider": "c86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "before_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "after_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "stdout": "{{rename observer_b}} {{rename observer_b}} {{rename observer_a}}\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "before_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "after_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "stdout": "{{rename observer_b}} {{rename observer_b}} {{rename observer_a}}\n",
+      "stderr": ""
+    },
+    {
+      "provider": "c91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "before_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "after_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "stdout": "{{rename observer_b}} {{rename observer_b}} {{rename observer_a}}\n",
+      "stderr": ""
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "before_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "after_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "/tmp/name-command-trace-binding-adoption/direct-oracles/input.tcl:20: Error: invalid command name \"trace\"\nTraceback (most recent call last):\n  File \"/tmp/name-command-trace-binding-adoption/direct-oracles/input.tcl\", line 20\n"
+    }
+  ]
+}

@@ -3606,16 +3606,6 @@ impl Interp {
                 }
             }
         }
-        // Inside an open `rename` window the vacating name still resolves, but
-        // it *is* the destination command — C's two hash entries reference the
-        // one `Command` — so a callback's `rename <old> <third>` or `rename
-        // <old> {}` moves or destroys that command rather than a second copy
-        // standing at the vacating name. Resolved up front, because every guard
-        // below and both halves address the binding through this name.
-        let through_window = self
-            .resolve_cmd_fqn(old)
-            .and_then(|fqn| self.renamed_cmd_key(&fqn));
-        let old: &[u8] = through_window.as_deref().unwrap_or(old);
         // C's `TclPreventAliasLoop` guards `rename` too, and refuses before
         // anything observable happens — no rename trace fires for a rename that
         // does not take place.
@@ -3683,20 +3673,7 @@ impl Interp {
         }
     }
 
-    /// The `rename old new` half, after [`Self::rename_command`]'s guards.
-    ///
-    /// C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
-    /// entry, fires the `rename` traces, and only *then* deletes the source
-    /// one; both entries reference the one `Command`, and the traces hang off
-    /// that rather than off either entry. So for the callbacks' duration the
-    /// vacating name **is** the destination command: both names resolve and are
-    /// callable, `trace info` answers the same list through either, a `trace
-    /// add`/`remove` through either edits it, and a `rename` or delete through
-    /// either moves or destroys that one command. Everything the command
-    /// carries therefore moves to the destination *before* the callbacks run,
-    /// and the window
-    /// ([`rename_windows`](crate::cmd_trace::TraceTable::rename_windows))
-    /// records the equivalence our name-keyed registries cannot express.
+    /// Publish the new entry before callbacks; both slots retain one generation.
     fn move_bound_command(
         &mut self,
         old: &[u8],
@@ -3706,7 +3683,10 @@ impl Interp {
         // Both Jim qualification temporaries survive AddHashEntry and the
         // original source-slot retirement; keyDup owns a separate reference.
         let _qualified_destination = original_key.as_ref().map(Rc::clone);
-        let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
+        let Some(old_fqn) = self
+            .resolve_cmd_token(old)
+            .and_then(|generation| self.namespaces().command_fqn_by_generation(generation))
+        else {
             return RenameOutcome::NoSuchCommand;
         };
         let oo_object = match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
@@ -3747,10 +3727,6 @@ impl Interp {
         if let Some(object) = oo_object {
             self.oo_command_renamed(object, Some(&new_fqn));
         }
-        self.traces
-            .borrow_mut()
-            .rename_windows
-            .push((old_fqn.clone(), new_fqn.clone()));
         self.fire_cmd_trace_of_token(
             &new_fqn,
             &old_fqn,
@@ -3758,7 +3734,6 @@ impl Interp {
             crate::cmd_trace::ops::RENAME,
             Some(publication.generation),
         );
-        self.traces.borrow_mut().rename_windows.pop();
         // C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`:
         // a plain table removal, firing no `delete` trace, after which the
         // command stands under its new name alone. Whatever occupies the slot
@@ -7364,7 +7339,7 @@ impl Interp {
                             "namespace creation name purpose",
                         )
                         .into(),
-                    )
+                    );
                 }
             };
             let geometry = match policy.recipe().namespace_address_path(context, name) {
@@ -10108,35 +10083,9 @@ impl Interp {
         override_code.unwrap_or(code)
     }
 
-    /// The name a command's identity lives under now, following any open
-    /// `rename` window (see [`crate::cmd_trace::TraceTable::rename_windows`]) —
-    /// `None` outside one. Inside a rename's callbacks the vacating name still
-    /// resolves, but it *is* the destination command, so a `trace`, a `rename`
-    /// or a delete through it must reach the destination's state.
-    pub(crate) fn renamed_cmd_key(&self, fqn: &[u8]) -> Option<Vec<u8>> {
-        self.traces
-            .borrow()
-            .rename_windows
-            .iter()
-            .find(|(from, _)| from == fqn)
-            .map(|(_, to)| to.clone())
-    }
-
-    /// A command moved `old_fqn` → `new_fqn`: point every open `rename` window
-    /// and every in-flight firing record that named the old key at the new one.
-    /// C needs no equivalent — both its hash entries reference one `Command`, so
-    /// a nested rename cannot strand them — but our name-keyed state would
-    /// otherwise be left on a name the move just vacated: an enclosing window
-    /// would stop answering through the vacating name, and the
-    /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
-    /// suppressing the command's own remaining callbacks.
+    /// Keep a moved token's in-flight trace suppression attached to that token.
     fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
         let mut traces = self.traces.borrow_mut();
-        for (_, destination) in &mut traces.rename_windows {
-            if destination == old_fqn {
-                *destination = new_fqn.to_vec();
-            }
-        }
         for (firing, token) in &mut traces.firing_cmd_traces {
             if firing == old_fqn && *token == Some(generation) {
                 *firing = new_fqn.to_vec();
@@ -14486,14 +14435,12 @@ impl Interp {
                     ) { return code; }
                 }
                 let token = selected.and_then(|(_, generation)| generation);
-                let fqn = token
-                    .and_then(|generation| {
-                        self.namespaces
-                            .borrow()
-                            .native_command_at_node(generation)
-                            .map(|(_, fqn)| fqn)
-                    })
-                    .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
+                let fqn = token.and_then(|generation| {
+                    self.namespaces
+                        .borrow()
+                        .native_command_at_node(generation)
+                        .map(|(_, fqn)| fqn)
+                });
                 (fqn, token, None)
             }
             CommandDispatchSelection::Missing { .. } => (None, None, None),

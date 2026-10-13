@@ -36,7 +36,7 @@
 //!
 //! Variable traces are keyed by the resolved variable identity (home namespace
 //! or local call frame, plus simple name). Command and execution traces are
-//! keyed by the resolved FQN (`Interp::resolve_cmd_fqn`).
+//! keyed by the selected command generation and its current report.
 //!
 //! The deprecated 8.x `trace variable|vdelete|vinfo` forms are supported too.
 //! C compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES` and Tcl 9.0
@@ -309,16 +309,6 @@ pub struct TraceTable {
     /// deletion), not interpreter-wide: a callback that deletes a *different*
     /// command still fires that command's own delete traces, nested.
     pub firing_cmd_traces: Vec<(Vec<u8>, Option<u64>)>,
-    /// Source→destination FQN pairs for the `rename` windows currently open,
-    /// innermost last. C creates the destination hash entry, fires the
-    /// `rename` traces and only then deletes the source, and *both* entries
-    /// reference the one `Command` — so for the callbacks' duration the
-    /// vacating name **is** the destination command: it answers `trace info`,
-    /// takes `trace add`/`remove`, and a `rename` or delete through it moves
-    /// or destroys the destination (tclsh 8.6.16 and 9.0.4 identical). Our
-    /// registries are keyed by name, so each open window records that
-    /// equivalence; [`crate::interp::Interp::renamed_cmd_key`] reads it.
-    pub rename_windows: Vec<(Vec<u8>, Vec<u8>)>,
     /// The error message a read/write variable-trace callback left, captured so
     /// the variable access can fail with `can't read/set "name": <msg>` (C's
     /// `TclCallVarTraces` propagation). Taken by the access chokepoint.
@@ -546,19 +536,12 @@ fn cmd_trace_add_remove(
     };
     // Both add and remove require the command to exist (C's `Tcl_TraceCommand`
     // / `Tcl_FindCommand` with `TCL_LEAVE_ERR_MSG`).
-    let fqn = match checked_command_trace_key(interp, &name) {
-        Ok(Some(fqn)) => fqn,
+    let (fqn, generation) = match checked_command_trace_binding(interp, &name) {
+        Ok(Some(binding)) => binding,
         Ok(None) => return interp.unknown_command(&name),
         Err(code) => return code,
     };
-    // Inside a rename's callbacks the vacating name reaches the destination's
-    // list: C hangs the traces off the shared `Command`, not off either hash
-    // entry, so both names edit the one list.
-    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
-    let token = interp.resolve_cmd_token(&fqn);
-    let Some(generation) = token else {
-        return interp.unknown_command(&name);
-    };
+    let token = Some(generation);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`).
@@ -627,20 +610,34 @@ fn note_execution_trace_boundary(interp: &Interp, generation: u64) {
         .note_native_compiler_mutation(None, NativeCompilerCacheMutation::ExecutionTrace { hook });
 }
 
-fn checked_command_trace_key(interp: &mut Interp, name: &[u8]) -> Result<Option<Vec<u8>>, Code> {
+fn checked_command_trace_binding(
+    interp: &mut Interp,
+    name: &[u8],
+) -> Result<Option<(Vec<u8>, u64)>, Code> {
     let command = interp
         .find_command_bytes_checked(Namespaces::current(interp), name)
         .map_err(|error| interp.report_cmd_error(error.into()))?;
     command
         .map(|command| {
-            interp.command_name_bytes(command).ok_or_else(|| {
-                interp.report_cmd_error(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "command trace reporting token",
+            let generation = interp
+                .command_identity(command.0)
+                .map(|(_, generation)| generation);
+            generation
+                .and_then(|generation| {
+                    interp
+                        .namespaces()
+                        .native_command_slot_at_node(generation)?;
+                    let report = interp.command_name_bytes(command)?;
+                    Some((report, generation))
+                })
+                .ok_or_else(|| {
+                    interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "command trace selected binding",
+                        )
+                        .into(),
                     )
-                    .into(),
-                )
-            })
+                })
         })
         .transpose()
 }
@@ -672,15 +669,12 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
         Ok(name) => name,
         Err(error) => return interp.report_cmd_error(error.into()),
     };
-    let fqn = match checked_command_trace_key(interp, &name) {
-        Ok(Some(fqn)) => fqn,
+    let (fqn, generation) = match checked_command_trace_binding(interp, &name) {
+        Ok(Some(binding)) => binding,
         Ok(None) => return interp.unknown_command(&name),
         Err(code) => return code,
     };
-    // As in `cmd_trace_add_remove`: a rename's vacating name answers with the
-    // destination's list, because C keeps one list on the shared `Command`.
-    let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
-    let token = interp.resolve_cmd_token(&fqn);
+    let token = Some(generation);
     // (bit, label) pairs in C's print order for each category.
     let order: &[(u8, &[u8])] = if category == ops::EXEC_ANY {
         &[

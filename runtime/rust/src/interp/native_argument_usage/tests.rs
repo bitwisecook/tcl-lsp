@@ -804,14 +804,11 @@ fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context(
                 .as_deref(),
             Some(b"".as_slice())
         );
-        assert!(interpreter
-            .exc
-            .borrow()
-            .info
-            .as_ref()
-            .is_none_or(|info| !info
+        assert!(interpreter.exc.borrow().info.as_ref().is_none_or(|info| {
+            !info
                 .windows(b"while parsing result".len())
-                .any(|window| window == b"while parsing result")));
+                .any(|window| window == b"while parsing result")
+        }));
         assert!(interpreter.native_execution_refusal().is_some());
         assert!(NESTED.with(Cell::get));
         assert_eq!(interpreter.entered_native_operation_count(), 0);

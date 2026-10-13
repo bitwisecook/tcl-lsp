@@ -32,7 +32,7 @@
 //! synchronous computation over the supplied source and analysis.
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
+use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_registry::CommandRegistry;
 
 mod original_context;

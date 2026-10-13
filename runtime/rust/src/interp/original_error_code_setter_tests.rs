@@ -337,11 +337,21 @@ fn original_header_observer_field<'a>(line: &'a str, field: &str) -> &'a str {
 
 fn original_header_observer(name: &str) -> &'static str {
     match name {
-        "tcl8.4" => include_str!("../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.stdout"),
-        "tcl8.5" => include_str!("../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.stdout"),
-        "tcl8.6" => include_str!("../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.stdout"),
-        "tcl9.0" => include_str!("../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.stdout"),
-        "tcl9.1" => include_str!("../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.stdout"),
+        "tcl8.4" => include_str!(
+            "../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.4.20/execute.stdout"
+        ),
+        "tcl8.5" => include_str!(
+            "../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.5.19/execute.stdout"
+        ),
+        "tcl8.6" => include_str!(
+            "../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/8.6.18/execute.stdout"
+        ),
+        "tcl9.0" => include_str!(
+            "../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.0.4/execute.stdout"
+        ),
+        "tcl9.1" => include_str!(
+            "../../tests/data/native_explicit_error_code_header_setter_original/614c/providers/9.1.0/execute.stdout"
+        ),
         _ => panic!("fixed original five-provider observer inventory"),
     }
 }

@@ -244,3 +244,47 @@ fn variable_trace_prefix_copy_and_purpose_extents_match_public_native_controls()
         }
     }
 }
+
+#[test]
+fn command_trace_keeps_same_display_slots_distinct_during_rename() {
+    for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut interp = interpreter(release);
+        let script = br#"
+            namespace eval A {
+                proc original {} {return A}
+                rename original :p
+            }
+            namespace eval A: {proc p {} {return B}}
+            namespace eval D {}
+            proc observer_b {old new operation} {}
+            proc extra {old new operation} {}
+            proc observer_a {old new operation} {
+                namespace eval A: {
+                    if {[trace info command p] ne {{rename observer_b}}} {error wrong-before}
+                    trace add command p rename extra
+                    if {[trace info command p] ne {{rename extra} {rename observer_b}}} {error wrong-added}
+                    trace remove command p rename extra
+                    if {[trace info command p] ne {{rename observer_b}}} {error wrong-removed}
+                    if {[p] ne {B}} {error wrong-command}
+                }
+            }
+            namespace eval A: {trace add command p rename observer_b}
+            namespace eval A {trace add command :p rename observer_a}
+            set before [namespace eval A: {trace info command p}]
+            namespace eval A {rename :p ::D::m}
+            list $before [namespace eval A: {trace info command p}] [trace info command ::D::m]
+        "#;
+        assert_eq!(
+            interp.eval_str(script),
+            Code::Ok,
+            "{release}: {:?}",
+            interp.result_bytes()
+        );
+        assert_eq!(
+            interp.result_bytes(),
+            b"{{rename observer_b}} {{rename observer_b}} {{rename observer_a}}",
+            "{release}"
+        );
+        assert!(!interp.host_refusal_pending());
+    }
+}

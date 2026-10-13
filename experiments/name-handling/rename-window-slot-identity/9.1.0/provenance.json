@@ -1,0 +1,88 @@
+{
+  "name": "9.1.0",
+  "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "identity_exit": 0,
+  "identity_stdout_sha256": "b5d31b25ea031862c4eac39a8371454ae0df152f55586d62dcf20dea19f0bcf0",
+  "identity_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "experiments": [
+    {
+      "scenario": "info",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/input.tcl",
+        "info"
+      ],
+      "exit": 0,
+      "seconds": 0.009503990999292,
+      "stdout_sha256": "c724dcf6598b59dec821ab1b555c3672ece122fc3dbd803e5e864e730863bfda",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_lines": 21,
+      "unsupported_command_trace": false,
+      "outer_rename_result_reached": true
+    },
+    {
+      "scenario": "nested",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/input.tcl",
+        "nested"
+      ],
+      "exit": 0,
+      "seconds": 0.01111064399992756,
+      "stdout_sha256": "4a13ec517b39fd61f1db416bd074fa27e53cb875d3778699032272717c4f4742",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_lines": 21,
+      "unsupported_command_trace": false,
+      "outer_rename_result_reached": true
+    },
+    {
+      "scenario": "sibling-replace",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/input.tcl",
+        "sibling-replace"
+      ],
+      "exit": 0,
+      "seconds": 0.010683728998628794,
+      "stdout_sha256": "5441b119b028772720790131f33489b9ebfdded2279649fac32b46ac55f8db24",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_lines": 21,
+      "unsupported_command_trace": false,
+      "outer_rename_result_reached": true
+    },
+    {
+      "scenario": "destination-replace",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/input.tcl",
+        "destination-replace"
+      ],
+      "exit": 0,
+      "seconds": 0.01054714400015655,
+      "stdout_sha256": "86206da6354513c9e837059847c063fa38b1aa1d3acaebc6c74501952721289e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_lines": 23,
+      "unsupported_command_trace": false,
+      "outer_rename_result_reached": true
+    },
+    {
+      "scenario": "retained-namespace",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/rename-window-slot-identity/input.tcl",
+        "retained-namespace"
+      ],
+      "exit": 0,
+      "seconds": 0.009459052998863626,
+      "stdout_sha256": "e31d86ae373062877101e1aaecbe2b8aa379da3c1b70b0da34c70deaaed0a648",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_lines": 25,
+      "unsupported_command_trace": false,
+      "outer_rename_result_reached": true
+    }
+  ],
+  "original_library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+  "init_tcl_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "tcltest_unused": true
+}

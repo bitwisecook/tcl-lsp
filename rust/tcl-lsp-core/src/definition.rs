@@ -8538,6 +8538,47 @@ mod logical_variable_scope_owner_tests {
     use tcl_compiler::analyser::Analyser;
 
     #[test]
+    fn native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, missing) in [
+                ("oo::class create C {}\nrename C {}\nC new\n", "C new"),
+                (
+                    "oo::class create C {}\nunknown_command C\n",
+                    "unknown_command C",
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, release);
+                assert!(!analysis.allows_lexical_declaration_advice());
+                let (_, line, character) = cursor(source, "oo::class create C");
+                assert_eq!(
+                    definition(source, line, character, &analysis)
+                        .iter()
+                        .map(|range| range.start_line)
+                        .collect::<Vec<_>>(),
+                    vec![0],
+                    "current source header {release}"
+                );
+                let missing_offset = u32::try_from(
+                    source.find(missing).unwrap()
+                        + if missing == "C new" {
+                            0
+                        } else {
+                            "unknown_command ".len()
+                        },
+                )
+                .unwrap();
+                let missing_position =
+                    LineIndex::new(source).position_at_utf16(missing_offset, source);
+                let (line, character) = (missing_position.line, missing_position.character.get());
+                assert!(
+                    definition(source, line, character, &analysis).is_empty(),
+                    "{release}: {source}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn logical_unknown_namespace_retains_body_tables_without_a_coordinate() {
         let source = "set root ROOT\nnamespace eval $unknown {\n set local OWN\n puts $local\n puts $Target::x\n}\n";
         let analysis = Analyser::new().analyse(source, "tcl");

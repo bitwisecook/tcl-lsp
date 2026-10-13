@@ -4,11 +4,26 @@
 const OBSERVATIONS: &str =
     include_str!("../../../../rust/tcl-syntax/tests/data/native_error_log/observations.txt");
 const CASES: &[(&str, &str)] = &[
-    ("caught", "proc p {} {catch {error BODY} m o; list [dict get $o -errorstack] [dict keys $o]}; p"),
-    ("unwound", "proc q {} {error BODY}; catch {q} m o; list [dict get $o -errorstack] [dict keys $o]"),
-    ("return", "proc r {} {return -code error BODY}; catch {r} m o; list [dict get $o -errorstack] [dict keys $o]"),
-    ("shifted", "proc u {} {catch {uplevel 1 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; u"),
-    ("explicit", "proc e {} {catch {return -level 0 -code error -options {-custom kept -errorcode CUSTOM} BODY} m o; list [dict get $o -errorstack] [dict keys $o]}; e"),
+    (
+        "caught",
+        "proc p {} {catch {error BODY} m o; list [dict get $o -errorstack] [dict keys $o]}; p",
+    ),
+    (
+        "unwound",
+        "proc q {} {error BODY}; catch {q} m o; list [dict get $o -errorstack] [dict keys $o]",
+    ),
+    (
+        "return",
+        "proc r {} {return -code error BODY}; catch {r} m o; list [dict get $o -errorstack] [dict keys $o]",
+    ),
+    (
+        "shifted",
+        "proc u {} {catch {uplevel 1 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; u",
+    ),
+    (
+        "explicit",
+        "proc e {} {catch {return -level 0 -code error -options {-custom kept -errorcode CUSTOM} BODY} m o; list [dict get $o -errorstack] [dict keys $o]}; e",
+    ),
 ];
 
 fn check(native: &str, phase: &str, actual: &str) {
@@ -80,17 +95,48 @@ fn special_and_nested_frames_match_12_native_command_logs() {
         let mut interp = super::Interp::new();
         interp.set_runtime_version(version);
         for (phase, script, special) in [
-            ("root", "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]", false),
-            ("special-shift", "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]", true),
-            ("special-same", "catch {uplevel 0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]", true),
-            ("nested-shift", "proc p {} {catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; namespace eval N {p}", false),
+            (
+                "root",
+                "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
+                false,
+            ),
+            (
+                "special-shift",
+                "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
+                true,
+            ),
+            (
+                "special-same",
+                "catch {uplevel 0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
+                true,
+            ),
+            (
+                "nested-shift",
+                "proc p {} {catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; namespace eval N {p}",
+                false,
+            ),
         ] {
             if special {
-                interp.frames.borrow_mut().push_namespace(crate::namespace::GLOBAL);
+                interp
+                    .frames
+                    .borrow_mut()
+                    .push_namespace(crate::namespace::GLOBAL);
             }
-            assert_eq!(interp.eval_str(script.as_bytes()), super::Code::Ok, "{native} {phase}");
-            let expected = observations.lines().find_map(|row| row.strip_prefix(&format!("{native}|{phase}|0|"))).unwrap();
-            check_record(native, phase, expected, core::str::from_utf8(&interp.result_bytes()).unwrap());
+            assert_eq!(
+                interp.eval_str(script.as_bytes()),
+                super::Code::Ok,
+                "{native} {phase}"
+            );
+            let expected = observations
+                .lines()
+                .find_map(|row| row.strip_prefix(&format!("{native}|{phase}|0|")))
+                .unwrap();
+            check_record(
+                native,
+                phase,
+                expected,
+                core::str::from_utf8(&interp.result_bytes()).unwrap(),
+            );
             if special {
                 interp.frames.borrow_mut().pop();
             }

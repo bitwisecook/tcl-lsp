@@ -1116,7 +1116,9 @@ mod original_syntax_transport_tests {
                     drop(scope);
                     let error = match interpreter.capture_original_c_syntax_options() {
                         Err(error) => error,
-                        Ok(_) => panic!("original duplicate callback must refuse before syntax-option publication"),
+                        Ok(_) => panic!(
+                            "original duplicate callback must refuse before syntax-option publication"
+                        ),
                     };
                     let first = interpreter.native_execution_refusal().unwrap();
                     assert_eq!(error.native_execution_refusal(), Some(&first));

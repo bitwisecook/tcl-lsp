@@ -1,0 +1,72 @@
+PATCHLEVEL 8.6.18
+{info setup} 0 {} {}
+{info A-before-call} 0 {A ::__nh_collision} {}
+{info A-before-which} 0 ::__nh_collision:::p {}
+{info B-before-call} 0 {B ::__nh_collision:} {}
+{info B-before-which} 0 ::__nh_collision:::p {}
+{info A-trace-install} 0 {} {}
+{info B-trace-install} 0 {} {}
+{info trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{info B-current-call} 0 {B ::__nh_collision:} {}
+{info B-current-traces} 0 {{{rename delete} ::__nh_trace_b}} {}
+{info B-current-which} 0 ::__nh_collision:::p {}
+{info A-destination-call} 0 {A ::__nh_dst} {}
+{info A-destination-traces} 0 {{rename ::__nh_trace_a}} {}
+{info trace-A-exit} 0 {} {}
+{info A-outer-rename} 0 {} {}
+{info A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{info B-after-call} 0 {B ::__nh_collision:} {}
+{info B-after-traces} 0 {{{rename delete} ::__nh_trace_b}} {}
+{info A-after-destination-call} 0 {A ::__nh_dst} {}
+{info B-after-new-call} 1 {invalid command name "::__nh_dst::b"} {TCL LOOKUP COMMAND ::__nh_dst::b}
+{cleanup trace-B} 0 {::__nh_collision:::p {} delete} {}
+{nested setup} 0 {} {}
+{nested A-before-call} 0 {A ::__nh_collision} {}
+{nested A-before-which} 0 ::__nh_collision:::p {}
+{nested B-before-call} 0 {B ::__nh_collision:} {}
+{nested B-before-which} 0 ::__nh_collision:::p {}
+{nested A-trace-install} 0 {} {}
+{nested B-trace-install} 0 {} {}
+{nested trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{nested trace-B} 0 {::__nh_collision:::p ::__nh_dst::b rename} {}
+{nested B-nested-rename} 0 {} {}
+{nested B-vacated-call} 1 {invalid command name "p"} {TCL LOOKUP COMMAND p}
+{nested B-new-call} 0 {B ::__nh_dst} {}
+{nested A-destination-call} 0 {A ::__nh_dst} {}
+{nested trace-A-exit} 0 {} {}
+{nested A-outer-rename} 0 {} {}
+{nested A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{nested B-after-call} 1 {invalid command name "p"} {TCL LOOKUP COMMAND p}
+{nested B-after-traces} 1 {unknown command "p"} {TCL LOOKUP COMMAND p}
+{nested A-after-destination-call} 0 {A ::__nh_dst} {}
+{nested B-after-new-call} 0 {B ::__nh_dst} {}
+{cleanup trace-B} 0 {::__nh_dst::b {} delete} {}
+{sibling-replace setup} 0 {} {}
+{sibling-replace A-before-call} 0 {A ::__nh_collision} {}
+{sibling-replace A-before-which} 0 ::__nh_collision:::p {}
+{sibling-replace B-before-call} 0 {B ::__nh_collision:} {}
+{sibling-replace B-before-which} 0 ::__nh_collision:::p {}
+{sibling-replace A-trace-install} 0 {} {}
+{sibling-replace B-trace-install} 0 {} {}
+{sibling-replace trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{sibling-replace trace-B} 0 {::__nh_collision:::p {} delete} {}
+{sibling-replace B-delete} 0 {} {}
+{sibling-replace B-replacement-call} 0 {B-new ::__nh_collision:} {}
+{sibling-replace B-replacement-traces} 0 {} {}
+{sibling-replace A-destination-call} 0 {A ::__nh_dst} {}
+{sibling-replace trace-A-exit} 0 {} {}
+{sibling-replace A-outer-rename} 0 {} {}
+{sibling-replace A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{sibling-replace B-after-call} 0 {B-new ::__nh_collision:} {}
+{sibling-replace B-after-traces} 0 {} {}
+{sibling-replace A-after-destination-call} 0 {A ::__nh_dst} {}
+{sibling-replace B-after-new-call} 1 {invalid command name "::__nh_dst::b"} {TCL LOOKUP COMMAND ::__nh_dst::b}
+{destination-replace setup} 0 {} {}
+{destination-replace A-before-call} 0 {A ::__nh_collision} {}
+{destination-replace A-before-which} 0 ::__nh_collision:::p {}
+{destination-replace B-before-call} 0 {B ::__nh_collision:} {}
+{destination-replace B-before-which} 0 ::__nh_collision:::p {}
+{destination-replace A-trace-install} 0 {} {}
+{destination-replace B-trace-install} 0 {} {}
+{destination-replace trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{destination-replace A-destination-delete} 0 {} {}

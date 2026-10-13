@@ -1,0 +1,25 @@
+PATCHLEVEL 8.6.18
+{retained-namespace setup} 0 {} {}
+{retained-namespace A-before-call} 0 {A ::__nh_collision} {}
+{retained-namespace A-before-which} 0 ::__nh_collision:::p {}
+{retained-namespace B-before-call} 0 {B ::__nh_collision:} {}
+{retained-namespace B-before-which} 0 ::__nh_collision:::p {}
+{retained-namespace A-trace-install} 0 {} {}
+{retained-namespace B-trace-install} 0 {} {}
+{retained-namespace trace-A-enter} 0 {::__nh_collision:::p ::__nh_dst::m rename} {}
+{retained-namespace B-retained-before-call} 0 {B ::__nh_collision:} {}
+{retained-namespace B-namespace-delete} 0 {} {}
+{retained-namespace B-retained-current} 0 ::__nh_collision: {}
+{retained-namespace B-retained-after-call} 0 {B ::__nh_collision:} {}
+{retained-namespace B-retained-after-traces} 0 {{{rename delete} ::__nh_trace_b}} {}
+{retained-namespace B-visible-new-call} 0 {B-new ::__nh_collision:} {}
+{retained-namespace B-visible-new-traces} 0 {} {}
+{retained-namespace trace-B} 0 {::__nh_collision:::p {} delete} {}
+{retained-namespace A-destination-call} 0 {A ::__nh_dst} {}
+{retained-namespace trace-A-exit} 0 {} {}
+{retained-namespace A-outer-rename} 0 {} {}
+{retained-namespace A-after-source-call} 1 {invalid command name ":p"} {TCL LOOKUP COMMAND :p}
+{retained-namespace B-after-call} 0 {B-new ::__nh_collision:} {}
+{retained-namespace B-after-traces} 0 {} {}
+{retained-namespace A-after-destination-call} 0 {A ::__nh_dst} {}
+{retained-namespace B-after-new-call} 1 {invalid command name "::__nh_dst::b"} {TCL LOOKUP COMMAND ::__nh_dst::b}

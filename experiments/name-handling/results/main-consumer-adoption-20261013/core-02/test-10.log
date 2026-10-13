@@ -1,0 +1,17 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables ... 
+thread 'definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables' (109465) panicked at rust/tcl-lsp-core/src/definition.rs:8710:35:
+assertion `left == right` failed: uplevel #0 {puts $x
+  left: []
+ right: [0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.56s
+

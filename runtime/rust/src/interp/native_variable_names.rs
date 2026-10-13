@@ -855,7 +855,7 @@ impl Interp {
                     _ => {
                         return Err(
                             self.original_c_lookup_var_error_using(original, purpose, error, stage)
-                        )
+                        );
                     }
                 };
                 return Err(self.original_c_variable_failure_for_object_using(
@@ -1106,10 +1106,10 @@ impl Interp {
         let (link, source) = match selected {
             Ok(selected) => selected,
             Err(crate::frame::JimLinkStoreError::Variable(error)) => {
-                return crate::builtins::var_error(self, name, error)
+                return crate::builtins::var_error(self, name, error);
             }
             Err(crate::frame::JimLinkStoreError::Command(error)) => {
-                return self.report_cmd_error(error)
+                return self.report_cmd_error(error);
             }
         };
         if let Err(error) = source.check(self, operation.currency()) {
@@ -1128,7 +1128,7 @@ impl Interp {
                         "original compiled resolver target receipt",
                     )
                     .into(),
-                )
+                );
             }
         };
         let target = OriginalCLinkTarget {
@@ -1371,7 +1371,7 @@ impl Interp {
                     ValueError::CommandProtocolUnavailable("original local alias table receipt")
                         .into(),
                     stage,
-                )
+                );
             }
         };
         let bound = match home {
@@ -1636,7 +1636,7 @@ impl Interp {
                     original,
                     NativeVariableNameLookupPurpose::Link,
                     error,
-                )
+                );
             }
         };
         self.bind_selected_c_alias_local(
@@ -2598,7 +2598,7 @@ impl Interp {
                 return self.report_cmd_error(
                     ValueError::CommandProtocolUnavailable("selected increment constant failure")
                         .into(),
-                )
+                );
             }
         };
         let mut message = b"can't incr \"".to_vec();
@@ -5069,8 +5069,12 @@ mod tests {
     fn retired_namespace_c86_source_entries_preserve_scalar_and_element_sites() {
         trace_source_observation(
             "tcl8.6",
-            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"),
-            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"),
+            include_bytes!(
+                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+            ),
+            include_bytes!(
+                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
+            ),
         );
     }
 
@@ -5078,8 +5082,12 @@ mod tests {
     fn retired_namespace_c86_variable_heads_preserve_original_root_tuple() {
         trace_source_observation(
             "tcl8.6",
-            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"),
-            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"),
+            include_bytes!(
+                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"
+            ),
+            include_bytes!(
+                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+            ),
         );
     }
 
@@ -5126,7 +5134,9 @@ mod tests {
         );
         let protocol =
             tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
-        let capture = include_str!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt");
+        let capture = include_str!(
+            "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+        );
         let line = capture
             .lines()
             .find(|line| line.starts_with("ROW variable-head-element "))
@@ -5172,8 +5182,12 @@ mod tests {
     fn detached_element_c86_recreated_root_admits_new_link_write() {
         trace_source_observation(
             "tcl8.6",
-            include_bytes!("../../tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl"),
-            include_bytes!("../../tests/data/native_detached_element_write_sites/root-recreated-current-link.txt"),
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl"
+            ),
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/root-recreated-current-link.txt"
+            ),
         );
     }
 

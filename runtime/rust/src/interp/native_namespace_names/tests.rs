@@ -582,17 +582,44 @@ fn compare_empty_namespace_address_rows(environment: &str, observation: &str) {
     }
     assert_eq!(compared, 12);
     assert_eq!(outside_ascii_scope.len(), 6);
-    eprintln!("{environment}: 12 original ASCII namespace getter/creation rows; six Unicode-NUL STRING rows outside this direct ASCII receiver scope: {outside_ascii_scope:?}; errorInfo formatting untested");
+    eprintln!(
+        "{environment}: 12 original ASCII namespace getter/creation rows; six Unicode-NUL STRING rows outside this direct ASCII receiver scope: {outside_ascii_scope:?}; errorInfo formatting untested"
+    );
 }
 
 #[test]
 fn original_empty_namespace_address_controls_match_five_c_oracles() {
     for (environment, observation) in [
-        ("tcl8.4", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin")),
-        ("tcl8.5", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin")),
-        ("tcl8.6", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin")),
-        ("tcl9.0", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin")),
-        ("tcl9.1", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin")),
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin"
+            ),
+        ),
     ] {
         compare_empty_namespace_address_rows(environment, observation);
     }

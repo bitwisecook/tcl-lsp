@@ -1,0 +1,2 @@
+PATCHLEVEL 8.4.20
+{retained-namespace setup} 1 {can't create procedure ":p" in non-global namespace with name starting with ":"} {}
