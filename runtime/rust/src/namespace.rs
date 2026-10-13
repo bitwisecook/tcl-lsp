@@ -2691,6 +2691,27 @@ impl Namespaces {
         self.namespace_is_live(ns).then_some(ns)
     }
 
+    pub(crate) fn namespace_at_path(
+        &self,
+        path: &tcl_core_types::ByteNamespacePath,
+    ) -> Option<NsId> {
+        let mut namespace = GLOBAL;
+        for part in path.as_segments() {
+            namespace = self
+                .arena
+                .get(namespace)?
+                .children
+                .get(part.as_bytes())
+                .copied()
+                .or_else(|| {
+                    self.dying_children
+                        .get(&(namespace, part.as_bytes().to_vec()))
+                        .copied()
+                })?;
+        }
+        self.namespace_is_live(namespace).then_some(namespace)
+    }
+
     /// Whether `ns` still denotes a public namespace token. A dying arena node
     /// remains command-addressable during delete callbacks, but namespace
     /// introspection must reject even an empty relative name resolved from its
@@ -3632,8 +3653,7 @@ impl Namespaces {
         n.vars = VarTable::default(); // drop → release variable refcounts
     }
 
-    /// The `(simple_name, source_fqn)` of every imported redirect in `ns`
-    /// (`namespace forget` walks these).
+    /// The reporting `(simple_name, source_fqn)` of every imported redirect in `ns`.
     #[must_use]
     pub fn imported_in(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
         self.arena[ns]
@@ -3652,6 +3672,82 @@ impl Namespaces {
                 _ => None,
             })
             .collect()
+    }
+
+    fn original_import_origin_slot(&self, mut generation: u64) -> Option<(NsId, Vec<u8>)> {
+        let mut visited = BTreeSet::new();
+        loop {
+            if !visited.insert(generation) {
+                return None;
+            }
+            let (namespace, simple) = self.native_command_slot_at_node(generation)?;
+            match self.arena[namespace].commands.get(&simple)? {
+                Command::Imported {
+                    source_generation, ..
+                } => generation = *source_generation,
+                _ => return Some((namespace, simple)),
+            }
+        }
+    }
+
+    pub(crate) fn imported_forget_bindings(
+        &self,
+        namespace: NsId,
+        source: Option<NsId>,
+        pattern: &[u8],
+        matcher: tcl_syntax::native_glob::NativeGlobProtocol,
+    ) -> Result<Vec<(Vec<u8>, u64)>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::native_glob::NativeNameGlobPurpose;
+        use tcl_syntax::value::ValueError;
+
+        let mut bindings = Vec::new();
+        for (simple, command) in self.arena[namespace].commands.iter() {
+            let Command::Imported {
+                source_generation, ..
+            } = command
+            else {
+                continue;
+            };
+            let matches = if let Some(source) = source {
+                let (origin_namespace, origin_tail) = self
+                    .original_import_origin_slot(*source_generation)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "namespace forget original import origin",
+                    ))?;
+                let (match_namespace, match_tail) = if origin_namespace == source {
+                    (origin_namespace, origin_tail)
+                } else {
+                    self.native_command_slot_at_node(*source_generation).ok_or(
+                        ValueError::CommandProtocolUnavailable(
+                            "namespace forget immediate import source",
+                        ),
+                    )?
+                };
+                match_namespace == source
+                    && matcher
+                        .match_name_pattern(
+                            NativeNameGlobPurpose::ForgetOriginFilter,
+                            pattern,
+                            &match_tail,
+                        )
+                        .map_err(|_| {
+                            ValueError::CommandProtocolUnavailable("namespace forget origin filter")
+                        })?
+            } else {
+                matcher
+                    .match_name_pattern(NativeNameGlobPurpose::ForgetOwnSearch, pattern, simple)
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("namespace forget own-name search")
+                    })?
+            };
+            if matches {
+                let generation = self.arena[namespace].commands.generation(simple).ok_or(
+                    ValueError::CommandProtocolUnavailable("namespace forget import binding"),
+                )?;
+                bindings.push((simple.clone(), generation));
+            }
+        }
+        Ok(bindings)
     }
 
     /// Remove the simple-named command `name` directly from `ns` (no resolution

@@ -1,0 +1,12 @@
+FIELD setup_code 30
+FIELD setup_result 
+FIELD ultimate_code 30
+FIELD ultimate_result 3020312031
+FIELD immediate_code 30
+FIELD immediate_result 3020312031
+FIELD middle_code 30
+FIELD middle_result 3120312031
+FIELD tail_precedence_code 30
+FIELD tail_precedence_result 31203a3a54413a3a672031
+FIELD own_name_code 30
+FIELD own_name_result 302031

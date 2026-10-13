@@ -1,0 +1,203 @@
+{
+  "question": "Ultimate-source precedence, immediate-source fallback, middle-hop exclusion and own-name matching",
+  "issue_url": "https://github.com/bitwisecook/tcl-lsp/issues/2300",
+  "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+  "runner_sha256": "7ee4a52c1f22dd8739faa46bf1646e7dbec35e47ed9bbd60766dbbea905e7bec",
+  "jim_revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "providers": [
+    {
+      "provider": "tcl8.4.20",
+      "outcome": "captured-original-native-control",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.097626+00:00",
+      "completed_utc": "2026-10-13T00:10:38.106067+00:00",
+      "elapsed_seconds": 0.008441653997579124,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "0",
+        "ultimate_result": "0 1 1",
+        "immediate_code": "0",
+        "immediate_result": "0 1 1",
+        "middle_code": "0",
+        "middle_result": "1 1 1",
+        "tail_precedence_code": "0",
+        "tail_precedence_result": "1 ::TA::g 1",
+        "own_name_code": "0",
+        "own_name_result": "0 1"
+      },
+      "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "outcome": "captured-original-native-control",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.099073+00:00",
+      "completed_utc": "2026-10-13T00:10:38.109706+00:00",
+      "elapsed_seconds": 0.01063085599889746,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "0",
+        "ultimate_result": "0 1 1",
+        "immediate_code": "0",
+        "immediate_result": "0 1 1",
+        "middle_code": "0",
+        "middle_result": "1 1 1",
+        "tail_precedence_code": "0",
+        "tail_precedence_result": "1 ::TA::g 1",
+        "own_name_code": "0",
+        "own_name_result": "0 1"
+      },
+      "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "outcome": "captured-original-native-control",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.100590+00:00",
+      "completed_utc": "2026-10-13T00:10:38.107256+00:00",
+      "elapsed_seconds": 0.0066627159976633266,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "0",
+        "ultimate_result": "0 1 1",
+        "immediate_code": "0",
+        "immediate_result": "0 1 1",
+        "middle_code": "0",
+        "middle_result": "1 1 1",
+        "tail_precedence_code": "0",
+        "tail_precedence_result": "1 ::TA::g 1",
+        "own_name_code": "0",
+        "own_name_result": "0 1"
+      },
+      "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "outcome": "captured-original-native-control",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.106467+00:00",
+      "completed_utc": "2026-10-13T00:10:38.121987+00:00",
+      "elapsed_seconds": 0.015521287001320161,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "0",
+        "ultimate_result": "0 1 1",
+        "immediate_code": "0",
+        "immediate_result": "0 1 1",
+        "middle_code": "0",
+        "middle_result": "1 1 1",
+        "tail_precedence_code": "0",
+        "tail_precedence_result": "1 ::TA::g 1",
+        "own_name_code": "0",
+        "own_name_result": "0 1"
+      },
+      "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "outcome": "captured-original-native-control",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.110307+00:00",
+      "completed_utc": "2026-10-13T00:10:38.123541+00:00",
+      "elapsed_seconds": 0.013234317004389595,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "0",
+        "ultimate_result": "0 1 1",
+        "immediate_code": "0",
+        "immediate_result": "0 1 1",
+        "middle_code": "0",
+        "middle_result": "1 1 1",
+        "tail_precedence_code": "0",
+        "tail_precedence_result": "1 ::TA::g 1",
+        "own_name_code": "0",
+        "own_name_result": "0 1"
+      },
+      "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "provider": "jim-5bac7c9",
+      "outcome": "original-operation-refusal",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+      ],
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+      "started_utc": "2026-10-13T00:10:38.107505+00:00",
+      "completed_utc": "2026-10-13T00:10:38.113383+00:00",
+      "elapsed_seconds": 0.005879675998585299,
+      "timeout_seconds": 30,
+      "process_exit_code": 0,
+      "timed_out": false,
+      "fields": {
+        "setup_code": "0",
+        "setup_result": "",
+        "ultimate_code": "1",
+        "ultimate_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+        "immediate_code": "1",
+        "immediate_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+        "middle_code": "1",
+        "middle_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+        "tail_precedence_code": "1",
+        "tail_precedence_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+        "own_name_code": "1",
+        "own_name_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which"
+      },
+      "stdout_sha256": "55a957bf1944a6f282ba9dc1f6ae97a6f7d9bbf555746a4ce68b591d492a7156",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "Rust_consumer_execution": "not measured",
+  "F5": "pending; not executed"
+}

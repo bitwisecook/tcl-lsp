@@ -1,0 +1,8 @@
+{
+  "files": 1852,
+  "missing_paths": 0,
+  "membership_in_precommand_envelope": 375,
+  "membership_in_during_build_fixture_context": 173,
+  "paths_without_prior_capture": 1304,
+  "changed_from_prior_capture": 0
+}

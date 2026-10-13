@@ -1,0 +1,58 @@
+{
+  "question": "Three genuine Native C8.6 namespace-forget tests against retained native answers",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--lib",
+    "native_c86_forget_",
+    "--",
+    "--test-threads=1"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "started_utc": "2026-10-13T00:14:42.710345+00:00",
+  "completed_utc": "2026-10-13T00:15:52.524445+00:00",
+  "elapsed_seconds": 69.814106636004,
+  "process_exit_code": 0,
+  "source_scope": "Conservative declared local normal/build/root-dev and target/optional dependency closure, source/include/csrc/manifests/config plus exact retained test inputs; not a claim that every recorded file compiled",
+  "local_crate_roots": [
+    "runtime/rust",
+    "rust/tcl-bytecode",
+    "rust/tcl-cmd-core",
+    "rust/tcl-core-types",
+    "rust/tcl-dialect",
+    "rust/tcl-engine-api",
+    "rust/tcl-host-c-abi",
+    "rust/tcl-host-native",
+    "rust/tcl-lexer",
+    "rust/tcl-platform",
+    "rust/tcl-regex",
+    "rust/tcl-registry",
+    "rust/tcl-runtime-api",
+    "rust/tcl-syntax",
+    "rust/tcl-test-support"
+  ],
+  "source_file_count": 2897,
+  "changed_source_paths": [],
+  "source_before_sha256": "0f25ca9e2ef39fc1f94ff599caf36ed949071e6e5ebd00d12b4317023f7bb01f",
+  "source_after_sha256": "8f5ddbd0471c4ecf6463e0b2aa7c013e9b8959646f740814749c3668e11c03fd",
+  "log_sha256": "b8643f443738231eab1d455ad4fc181a5421ffbbb14d74e8a26a27017328f7f7",
+  "executed_test_binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "sha256": "7d54bbbb7b7a8c6ef51d7ff3fefe8274dc4fc0790ec33ae0a246664ddecf9493",
+    "size_bytes": 87589560
+  },
+  "test_lines": [
+    "test cmd_namespace::tests::native_c86_forget_global_origin_matches_original_adverse_controls ... ok",
+    "test cmd_namespace::tests::native_c86_forget_global_origin_matches_original_issue_witness ... ok",
+    "test cmd_namespace::tests::native_c86_forget_matches_original_import_chain_controls ... ok",
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2086 filtered out; finished in 1.46s"
+  ],
+  "F5": "pending; not executed",
+  "broader_import_lifetimes": "#1778 remains unproved"
+}

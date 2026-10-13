@@ -1140,54 +1140,82 @@ fn ns_import_source_names(
     Code::Ok
 }
 
-/// `namespace forget ?pattern ...?` — remove imported redirects in the current
-/// ns whose source FQN matches each (resolved) pattern.
+/// `namespace forget ?pattern ...?` — remove matching imported bindings.
 fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArguments) -> Code {
+    use tcl_syntax::naming::{NativeNameContext, NativeNamespacePatternSource};
+    use tcl_syntax::value::ValueError;
+
     let dest = interp.current_ns();
     for index in 2..argv.len() {
-        let pat = match namespace_pattern(
-            interp,
-            arguments,
-            index,
+        let original = match arguments.bytes(index) {
+            Ok(original) => original,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let Some(policy) = interp.name_policy_protocol() else {
+            return interp.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("namespace forget pattern issuer").into(),
+            );
+        };
+        let path = interp.namespaces().native_context_path(dest);
+        let Some(path) = path else {
+            return interp.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("namespace forget current namespace").into(),
+            );
+        };
+        let parts = match policy.recipe().namespace_pattern_parts(
+            NativeNameContext::new(&path),
+            &original,
             tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
         ) {
-            Ok(pattern) => pattern,
-            Err(error) => return interp.report_cmd_error(error),
+            Ok(parts) => parts,
+            Err(_) => {
+                return interp.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("namespace forget pattern purpose")
+                        .into(),
+                );
+            }
         };
-        // Resolve the pattern's namespace to an absolute FQN so we match against
-        // the redirect's stored source FQN.
-        let q = match tcl_cmd_core::namespace::qualifier(&pat) {
-            tcl_cmd_core::namespace::Qualifier::Absolute(q)
-            | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
-            tcl_cmd_core::namespace::Qualifier::Unqualified => b"",
+        let source = match &parts.source {
+            Some(NativeNamespacePatternSource::C(path)) => {
+                let source = interp.namespaces().namespace_at_path(path);
+                let Some(source) = source else {
+                    let mut message = b"unknown namespace in namespace forget pattern \"".to_vec();
+                    message.extend_from_slice(parts.selected.as_bytes());
+                    message.push(b'"');
+                    if interp.runtime_version() >= tcl_dialect::TclVersion::V8_5 {
+                        let error_code = error_code_list(&[
+                            b"TCL",
+                            b"LOOKUP",
+                            b"NAMESPACE",
+                            parts.selected.as_bytes(),
+                        ]);
+                        return interp.error_with_code(&message, &error_code);
+                    }
+                    return interp.set_error(&message);
+                };
+                Some(source)
+            }
+            None => None,
+            Some(NativeNamespacePatternSource::Jim(_)) => {
+                return interp.report_cmd_error(
+                    ValueError::CommandProtocolUnavailable("Jim namespace forget pattern").into(),
+                );
+            }
         };
-        let tail_pat = tcl_cmd_core::namespace::tail(&pat);
-        let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
-            // C's `Tcl_ForgetImport` errors if the pattern's namespace qualifier
-            // names a namespace that does not exist (an unqualified pattern
-            // resolves to the current namespace, which always exists).
-            let mut m = b"unknown namespace in namespace forget pattern \"".to_vec();
-            m.extend_from_slice(&pat);
-            m.push(b'"');
-            return interp.set_error(&m);
+        let victims = interp.namespaces().imported_forget_bindings(
+            dest,
+            source,
+            parts.tail.as_bytes(),
+            tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy),
+        );
+        let victims = match victims {
+            Ok(victims) => victims,
+            Err(error) => return interp.report_cmd_error(error.into()),
         };
-        let mut src_fqn = interp.namespaces().qualified_name(src_ns);
-        src_fqn.extend_from_slice(b"::");
-        src_fqn.extend_from_slice(tail_pat);
-        let victims: Vec<Vec<u8>> = interp
-            .namespaces()
-            .imported_in(dest)
-            .into_iter()
-            .filter(|(_, source)| glob_match_bytes(&src_fqn, source))
-            .map(|(simple, _)| simple)
-            .collect();
-        for simple in victims {
+        for (simple, generation) in victims {
             if interp.uses_original_c_command_retirement() {
-                let generation = interp.namespaces().command_generation(dest, &simple);
-                if let Some(generation) = generation {
-                    interp.finish_original_command_deletion(generation, true);
-                }
-            } else {
+                interp.finish_original_command_deletion(generation, true);
+            } else if interp.namespaces().command_generation(dest, &simple) == Some(generation) {
                 interp.namespaces_mut().remove_in(dest, &simple);
             }
             if let Err(error) = arguments.check() {
@@ -3198,6 +3226,178 @@ namespace eval ::caller {
             );
             assert_eq!(i.eval_str(b"namespace eval app { greet hi }"), Code::Error);
         });
+    }
+
+    fn forget_native_fields(
+        stdout: &'static str,
+    ) -> std::collections::BTreeMap<&'static str, Vec<u8>> {
+        stdout
+            .lines()
+            .map(|line| {
+                let (name, hex) = line
+                    .strip_prefix("FIELD ")
+                    .unwrap()
+                    .split_once(' ')
+                    .unwrap();
+                let bytes = hex
+                    .as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                (name, bytes)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn native_c86_forget_global_origin_matches_original_issue_witness() {
+        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"));
+        leak_free_with(
+            || native_namespace_interp(tcl_dialect::TclVersion::V8_6),
+            |interp| {
+                assert_eq!(fields["setup_code"], b"0");
+                let code = interp.eval_str(include_bytes!("../../../experiments/name-handling/results/namespace-forget-global-origin/issue-witness.tcl"));
+                assert_eq!(
+                    code.as_int().to_string().as_bytes(),
+                    fields["positive_code"]
+                );
+                assert_eq!(interp.result_bytes(), fields["positive_result"]);
+                assert!(!interp.host_refusal_pending());
+            },
+        );
+    }
+
+    #[test]
+    fn native_c86_forget_global_origin_matches_original_adverse_controls() {
+        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"));
+        let probe = include_str!(
+            "../../../experiments/name-handling/results/namespace-forget-global-origin/probe.tcl"
+        );
+        let block = |start: &str, end: &str| {
+            probe
+                .split_once(start)
+                .unwrap()
+                .1
+                .split_once(end)
+                .unwrap()
+                .0
+                .as_bytes()
+        };
+        let line = |prefix: &str| {
+            probe
+                .lines()
+                .find(|line| line.starts_with(prefix))
+                .unwrap()
+                .as_bytes()
+        };
+        leak_free_with(
+            || native_namespace_interp(tcl_dialect::TclVersion::V8_6),
+            |interp| {
+                assert_eq!(
+                    interp.eval_str(block("set setup_code [catch {\n", "} setup_result]")),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), fields["setup_result"]);
+                assert_eq!(
+                    interp.eval_str(block("set positive_code [catch {\n", "} positive_result]")),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), fields["positive_result"]);
+                assert_eq!(
+                    interp.eval_str(block(
+                        "set adverse_setup_code [catch {\n",
+                        "} adverse_setup_result]"
+                    )),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), fields["adverse_setup_result"]);
+                assert_eq!(interp.eval_str(line("set adverse_code ")), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["adverse_code"]);
+                assert_eq!(interp.eval_str(b"set adverse_result"), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["adverse_result"]);
+                assert_eq!(interp.eval_str(b"set ::errorCode"), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["adverse_error_code"]);
+                assert_eq!(interp.eval_str(b"llength [info commands ::n::h]"), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["imported_other_present"]);
+                let local_forget = line("field local_forget_code ")
+                    .strip_prefix(b"field local_forget_code [")
+                    .unwrap()
+                    .strip_suffix(b"]")
+                    .unwrap();
+                assert_eq!(interp.eval_str(local_forget), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["local_forget_code"]);
+                assert_eq!(interp.eval_str(b"set local_forget_result"), Code::Ok);
+                assert_eq!(interp.result_bytes(), fields["local_forget_result"]);
+                for (query, field) in [
+                    (
+                        b"llength [info commands ::n::local]".as_slice(),
+                        "local_present",
+                    ),
+                    (
+                        b"llength [info commands ::n::h]".as_slice(),
+                        "imported_other_after_local_forget",
+                    ),
+                    (
+                        b"llength [info commands ::g]".as_slice(),
+                        "global_source_present",
+                    ),
+                ] {
+                    assert_eq!(interp.eval_str(query), Code::Ok);
+                    assert_eq!(interp.result_bytes(), fields[field]);
+                }
+                assert!(!interp.host_refusal_pending());
+            },
+        );
+    }
+
+    #[test]
+    fn native_c86_forget_matches_original_import_chain_controls() {
+        let fields = forget_native_fields(include_str!("../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt"));
+        let probe = include_str!(
+            "../../../experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+        );
+        let block = |start: &str, end: &str| {
+            probe
+                .split_once(start)
+                .unwrap()
+                .1
+                .split_once(end)
+                .unwrap()
+                .0
+                .as_bytes()
+        };
+        leak_free_with(
+            || native_namespace_interp(tcl_dialect::TclVersion::V8_6),
+            |interp| {
+                let setup = interp.eval_str(block("set setup_code [catch {\n", "} setup_result]"));
+                assert_eq!(setup.as_int().to_string().as_bytes(), fields["setup_code"]);
+                assert_eq!(interp.result_bytes(), fields["setup_result"]);
+                for case in [
+                    "ultimate",
+                    "immediate",
+                    "middle",
+                    "tail_precedence",
+                    "own_name",
+                ] {
+                    let start = format!("set {case}_code [catch {{\n");
+                    let end = format!("}} {case}_result]");
+                    let code = interp.eval_str(block(&start, &end));
+                    assert_eq!(
+                        code.as_int().to_string().as_bytes(),
+                        fields[format!("{case}_code").as_str()],
+                        "{case}"
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        fields[format!("{case}_result").as_str()],
+                        "{case}"
+                    );
+                    assert!(!interp.host_refusal_pending(), "{case}");
+                }
+            },
+        );
     }
 
     #[test]

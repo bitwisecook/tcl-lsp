@@ -1,0 +1,19 @@
+{
+  "scope": "Inspected original Tcl_ForgetImport ultimate-source and immediate-first-source selection, plus current two Runtime owner files. Hashes establish inspected source only; no compiled Rust source or execution equivalence is claimed.",
+  "files": {
+    "runtime/rust/src/cmd_namespace.rs": "f8d264c03bdf6a2c2a2aa5d1603c7f134389529824a1d715af743a9a5e5ad311",
+    "runtime/rust/src/namespace.rs": "bcdea686f4c51403d68bfd20876a51f395fa993499e17d78535a10288ba5c78a",
+    "tmp/tcl8.4.20/generic/tclNamesp.c": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+    "tmp/tcl8.5.19/generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+    "tmp/tcl8.6.18/generic/tclNamesp.c": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+    "tmp/tcl9.0.4/generic/tclNamesp.c": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+    "tmp/tcl9.1.0/generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815"
+  },
+  "provider_receipts": [
+    "experiments/name-handling/patterns/results/provenance.json",
+    "experiments/name-handling/patterns/jim-results-5bac7c9/provenance.json"
+  ],
+  "original_issue_evidence": "experiments/name-handling/results/namespace-forget-global-origin",
+  "Rust_consumer_execution": "not measured",
+  "F5": "pending; not executed"
+}

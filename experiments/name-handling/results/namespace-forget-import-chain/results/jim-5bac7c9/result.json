@@ -1,0 +1,32 @@
+{
+  "provider": "jim-5bac7c9",
+  "outcome": "original-operation-refusal",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+  ],
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+  "started_utc": "2026-10-13T00:10:38.107505+00:00",
+  "completed_utc": "2026-10-13T00:10:38.113383+00:00",
+  "elapsed_seconds": 0.005879675998585299,
+  "timeout_seconds": 30,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "",
+    "ultimate_code": "1",
+    "ultimate_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "immediate_code": "1",
+    "immediate_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "middle_code": "1",
+    "middle_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "tail_precedence_code": "1",
+    "tail_precedence_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which",
+    "own_name_code": "1",
+    "own_name_result": "namespace, unknown command \"forget\": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which"
+  },
+  "stdout_sha256": "55a957bf1944a6f282ba9dc1f6ae97a6f7d9bbf555746a4ce68b591d492a7156",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

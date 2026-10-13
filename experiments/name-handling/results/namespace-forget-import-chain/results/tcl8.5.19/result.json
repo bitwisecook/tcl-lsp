@@ -1,0 +1,32 @@
+{
+  "provider": "tcl8.5.19",
+  "outcome": "captured-original-native-control",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
+  ],
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "input_sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836",
+  "started_utc": "2026-10-13T00:10:38.099073+00:00",
+  "completed_utc": "2026-10-13T00:10:38.109706+00:00",
+  "elapsed_seconds": 0.01063085599889746,
+  "timeout_seconds": 30,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "",
+    "ultimate_code": "0",
+    "ultimate_result": "0 1 1",
+    "immediate_code": "0",
+    "immediate_result": "0 1 1",
+    "middle_code": "0",
+    "middle_result": "1 1 1",
+    "tail_precedence_code": "0",
+    "tail_precedence_result": "1 ::TA::g 1",
+    "own_name_code": "0",
+    "own_name_result": "0 1"
+  },
+  "stdout_sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
