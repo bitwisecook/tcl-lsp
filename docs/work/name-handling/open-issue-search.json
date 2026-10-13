@@ -1,0 +1,289 @@
+{
+  "query_state": "open",
+  "verified_at": "2026-10-13T15:11:22.088Z",
+  "queries": [
+    "namespace",
+    "\"name lookup\"",
+    "\"name resolution\"",
+    "alias",
+    "symbol",
+    "naming"
+  ],
+  "issues": [
+    {
+      "id": 2437,
+      "title": "A container built by a command with no value route (`lrange`, `lreverse`, `lrepeat`, `concat`, `join`) is never a proven value for diagnostics: W230 is silent after `set l [lrange …]` where the optimiser folds it",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2437"
+    },
+    {
+      "id": 2370,
+      "title": "A `::name` write in the top-level body does not alias the plain `name`, so O102, O109 and O100 fold the stale value",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2370"
+    },
+    {
+      "id": 2424,
+      "title": "A `proc` whose namespace does not exist is taken as defined, where every tclsh raises `unknown namespace`",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2424"
+    },
+    {
+      "id": 2423,
+      "title": "A `proc` replacing an ensemble implementation (`::tcl::dict::size`) does not stop the O129 fold of `dict size` or its qualified spelling (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2423"
+    },
+    {
+      "id": 2414,
+      "title": "W220 false positive: a caller's local is reported never read when a callee writes a same-named namespace variable through `variable`",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2414"
+    },
+    {
+      "id": 2410,
+      "title": "A callee's write through a `::`-qualified `upvar` name argument, or a caller's `upvar #0` alias passed as one, is not a global write: the top level forwards and deletes the stale store (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2410"
+    },
+    {
+      "id": 2367,
+      "title": "A procedure's global-write summary misses a plain write inside its `namespace eval ::` body, so a caller's read of that global is folded",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2367"
+    },
+    {
+      "id": 2323,
+      "title": "Writes inside a `catch` body nested in a command substitution are invisible to the value lattice: wrong I230 and false W210",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2323"
+    },
+    {
+      "id": 2356,
+      "title": "An iRules `when` handler's binding walk runs in `::when` while its binding sites are recorded in `::`, so every command in the handler looks unbound",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2356"
+    },
+    {
+      "id": 2315,
+      "title": "Subcommand availability gates in both runtimes answer one question three ways (release name, surface profile name, gate profile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2315"
+    },
+    {
+      "id": 2311,
+      "title": "runtime/rust: `upvar 1` from a procedure called inside `namespace eval` cannot read the namespace-eval frame's variable",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2311"
+    },
+    {
+      "id": 2305,
+      "title": "SSA treats `::name` and `name` as different places at the top level: wrong I230/O112 fold, false W210 and W211",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2305"
+    },
+    {
+      "id": 2292,
+      "title": "tcl-vm: the `Namespace` and `UnknownHandling` guard domains move on fewer events than the runtime's, and `namespace unknown` never invalidates",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2292"
+    },
+    {
+      "id": 2269,
+      "title": "tclvm: `interp alias` with a qualified alias name does not create the namespace, and the two-argument describe form is missing",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2269"
+    },
+    {
+      "id": 2193,
+      "title": "tclvm: a qualified interp alias under a new parent namespace is not dispatchable",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2193"
+    },
+    {
+      "id": 2259,
+      "title": "`namespace upvar`'s `otherVar` word carries no `ArgRole`, so every role-driven consumer is blind to the word that names the aliased cell",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2259"
+    },
+    {
+      "id": 2254,
+      "title": "hover.rs keeps a dead, test-only hover path that recognises `format`/`scan`/`regexp`/`regsub`/`clock` by whitespace-token spelling under a standing `#[allow(dead_code)]`",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2254"
+    },
+    {
+      "id": 2217,
+      "title": "O103 folds a pure-proc call without the `expr`-trust gate O110 consults: a shadowed `expr` is evaluated as the builtin",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2217"
+    },
+    {
+      "id": 1778,
+      "title": "Replace non-injective flat command/namespace keys for colon-edge Tcl names",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1778"
+    },
+    {
+      "id": 2093,
+      "title": "O129 never folds `[self class]` in the spelling anyone actually writes",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2093"
+    },
+    {
+      "id": 1956,
+      "title": "clay::define declares no class to the analyser, so nothing in a clay-based file navigates",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1956"
+    },
+    {
+      "id": 1797,
+      "title": "Key compiler effect summaries by stable procedure generation",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1797"
+    },
+    {
+      "id": 1755,
+      "title": "Retain compiled descendant command tokens across activation-delayed parent namespace deletion",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1755"
+    },
+    {
+      "id": 2426,
+      "title": "Use structured payloads for all diagnostics and eliminate message parsing in consumers",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2426"
+    },
+    {
+      "id": 2343,
+      "title": "runtime/rust: \"invalid command name\" carries `-errorcode NONE` where C Tcl gives `TCL LOOKUP COMMAND name`",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2343"
+    },
+    {
+      "id": 2270,
+      "title": "An unscoped pack `-override` loses to a scoped shipped spec in every profile-aware lookup (`best_visible` prefers scoped specs)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2270"
+    },
+    {
+      "id": 2233,
+      "title": "A relative builtin spelling (`tcl::dict::set d k v`) is unknown to the registry, so its store is deleted as unread",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2233"
+    },
+    {
+      "id": 2205,
+      "title": "tclvm: missing tcl::unsupported::representation blocks real format-20.1",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2205"
+    },
+    {
+      "id": 2247,
+      "title": "`::tcl::dict::with` draws W002 and W211 under `tcl8.6` where `dict with` draws neither",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2247"
+    },
+    {
+      "id": 2210,
+      "title": "`existStk` re-resolves an already-resolved braced variable name, so `info exists {{zz}}` answers 0",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2210"
+    },
+    {
+      "id": 2286,
+      "title": "W210 false triggering",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2286"
+    },
+    {
+      "id": 2327,
+      "title": "O125 code sinking moves a store past an intervening write or an unseen call in the target body (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2327"
+    },
+    {
+      "id": 2413,
+      "title": "iRules: a `sharedvar` variable's writes are deleted as unused or dead stores, with false W211 and W220 (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2413"
+    },
+    {
+      "id": 2412,
+      "title": "O126 removes a bare write to a `::`-qualified `variable`'s tail as an unused assignment, and W211 reports it (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2412"
+    },
+    {
+      "id": 2408,
+      "title": "A module that rebinds any builtin has no transfer summaries for any of its procedures",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2408"
+    },
+    {
+      "id": 2398,
+      "title": "O103 folds a builtin's call through a same-named `proc` defined later in the file, where the earlier call ran the builtin (miscompile)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2398"
+    },
+    {
+      "id": 2306,
+      "title": "A same-frame `upvar 0` alias write is not a write of its target: false I230 and W241",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2306"
+    },
+    {
+      "id": 2297,
+      "title": "W220 false positive: a global assignment read by a procedure through `upvar` is reported as never read",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2297"
+    },
+    {
+      "id": 2189,
+      "title": "tclvm: portable package command validation and discovery differ from Tcl 9",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2189"
+    },
+    {
+      "id": 2276,
+      "title": "tclvm: interp create treats a multi-component interpreter path as a literal child name",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2276"
+    },
+    {
+      "id": 2275,
+      "title": "tclvm: child interpreter commands lack alias and aliases subcommands",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2275"
+    },
+    {
+      "id": 2277,
+      "title": "tclvm test runner: forward focused test arguments to child interpreters through argv",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2277"
+    },
+    {
+      "id": 2273,
+      "title": "tclvm: interp exists and issafe ignore nested interpreter paths",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2273"
+    },
+    {
+      "id": 2188,
+      "title": "tclvm: real Tcl 9 package.test cannot autoload ::pkg::create",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2188"
+    },
+    {
+      "id": 2195,
+      "title": "tclvm: children of a safe interpreter are created unsafe by default",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2195"
+    },
+    {
+      "id": 2253,
+      "title": "`make rust-check` never runs the dialect-drift gate: `xtask-dialect-drift` sits after the `##` help comment on the `xtask-check` line, and 8 sites on `rust` fail it",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2253"
+    },
+    {
+      "id": 2138,
+      "title": "Stub sidecar flags are parsed and dropped: `StubFlags` has no consumer",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2138"
+    },
+    {
+      "id": 1796,
+      "title": "Centralize compiler frame reach and preserve exact composed eval, uplevel, and upvar distance",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1796"
+    },
+    {
+      "id": 1712,
+      "title": "Post-release: adversarial audit and normalization of command semantics",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1712"
+    },
+    {
+      "id": 2295,
+      "title": "Flaky e2e test under load: `workspace_symbol_waits_out_the_startup_scan` (tcl-lsp-server document_symbols)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2295"
+    },
+    {
+      "id": 2165,
+      "title": "`! $x contains \"y\"`: the compiler and the iRule harness group a prefix operator before a custom comparison differently, and neither grouping is measured",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2165"
+    },
+    {
+      "id": 2170,
+      "title": "`regsub -all {}` on a supplementary scalar counts positions by scalar, not by the release's character model",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2170"
+    },
+    {
+      "id": 1657,
+      "title": "server: the LSP server stops answering everything for ~100s under concurrent load, after pack-association churn",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/1657"
+    },
+    {
+      "id": 2406,
+      "title": "O100 reports inlining a proved read inside a quoted word but the rewrite is never applied",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2406"
+    },
+    {
+      "id": 2261,
+      "title": "An `uplevel 0 {…}` body records no reads or writes, so O126 and O109 delete stores the body reads",
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2261"
+    }
+  ]
+}

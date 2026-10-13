@@ -4,6 +4,10 @@ Current bounded callsite audit on `work`; captures bind exact source versions. T
 callsite audit, not a claim of complete workspace coverage. Validation statuses distinguish
 source inspection from execution.
 
+[The surface roster](surface-roster.json) enumerates52 workspace and11 excluded
+packages plus editor/script/AI surfaces. It is a reconciliation checklist;
+package membership and lexical search absence do not certify semantic coverage.
+
 The [Runtime audit](runtime-consumers.md) records actual policy/geometry and
 physical-adapter boundaries. The [LSP/DB/server/editor audit](lsp-consumers.md)
 adds23 bounded semantic priorities and an accompanying sealed roster of330

@@ -51,14 +51,19 @@ the retained historical Wasmtime notice. Genuine linked execution remains pendin
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026; the next tracking checkpoint is16:20 BST and the
-next hourly report17:05 BST. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is16:21 BST; the next tracking
+checkpoint is16:35 BST and the next hourly report17:05 BST. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
-The active codegen capture has passed18 Runtime API ABI descriptor/layout controls
-and is compiling its selected Compiler/CLI/WASM controls. Its source remains
-frozen; no later result is inferred. The backend audit identifies Tcl bytecode,
+The active codegen capture has passed18 Runtime API ABI descriptor/layout controls.
+The selected Compiler group executes9 controls with4 failures; seven additional
+lookup-base controls pass, while the tail-positive control fails. Two shared-table
+plan positives decline and the general Host-refusal control passes. The actual
+Runtime WASM builds; initial strict execution hits a read-only default Wasmtime
+cache in six tests, with two Native positives separately failing on missing
+tables. CLI and a corrected writable-cache WASM channel are in progress. Its
+source remains frozen; no later result is inferred. The backend audit identifies Tcl bytecode,
 WASM and separate BPF emitters. Native/GPU/FPGA capability declarations have no
 current production emitters found and must not be reported as migrated targets.
 
@@ -68,6 +73,15 @@ The [LSP consumer audit](lsp-consumers.md) records current shared delegation and
 remaining source-frame, hosted helper/export bridge and primitive geometry
 adapters. Its330 lexical candidates are pending reconciliation, not330 completed
 consumers. Read-only audit does not establish fresh execution.
+
+The refreshed [issue roster](issues.md) verifies the previously open58 rows,
+adds the direct #2093 source/frame dispatch blocker and35 closed naming
+regression issues. State and semantic acceptance remain separate; related
+package/value/server issues are dependencies only for their naming subset.
+[Verified issue reads](verified-issues.json) and
+[open search results](open-issue-search.json) retain the compact observations.
+The [surface roster](surface-roster.json) enumerates52 workspace and11 excluded
+packages plus editor/script/AI surfaces; unexamined rows remain unfinished.
 
 ## F5
 

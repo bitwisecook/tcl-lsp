@@ -138,6 +138,28 @@ describe current semantics and retained regressions.
 | [#1468](https://github.com/bitwisecook/tcl-lsp/issues/1468), [#1469](https://github.com/bitwisecook/tcl-lsp/issues/1469), [#1789](https://github.com/bitwisecook/tcl-lsp/issues/1789) | CLOSED | AI prompt, editor grammar and generated sample drift; fix generators and all outputs together. |
 | [#2450](https://github.com/bitwisecook/tcl-lsp/issues/2450) | CLOSED | W210 KCS must describe current behaviour, removing pre-registry migration history; repository-wide cleanup remains required. |
 
+## Refreshed naming consumers and regression coverage
+
+A read-only GitHub refresh on 13 October 2026 verifies all 58 previously open
+rows as OPEN, #2286 as OPEN, and #2287/#2300 as CLOSED. Source and oracle
+acceptance remain independently measured; issue state cannot substitute for it.
+
+| Issues | Verified state | Coverage or remaining acceptance |
+| --- | --- | --- |
+| [#2093](https://github.com/bitwisecook/tcl-lsp/issues/2093) | OPEN | Unqualified TclOO self-dispatch leaves frame selection and embedded-substitution lookup opaque. Preserve runtime-selected-frame guards; use checked source/dispatch scope before any fold. |
+| [#1594](https://github.com/bitwisecook/tcl-lsp/issues/1594), [#1305](https://github.com/bitwisecook/tcl-lsp/issues/1305), [#1049](https://github.com/bitwisecook/tcl-lsp/issues/1049), [#1312](https://github.com/bitwisecook/tcl-lsp/issues/1312), [#1013](https://github.com/bitwisecook/tcl-lsp/issues/1013) | CLOSED | Renamed object/metaclass/constructor identity, named instance dispatch and deletion liveness. |
+| [#1705](https://github.com/bitwisecook/tcl-lsp/issues/1705), [#990](https://github.com/bitwisecook/tcl-lsp/issues/990), [#1296](https://github.com/bitwisecook/tcl-lsp/issues/1296), [#1263](https://github.com/bitwisecook/tcl-lsp/issues/1263), [#991](https://github.com/bitwisecook/tcl-lsp/issues/991) | CLOSED | Cross-file effective providers, inherited callback visibility, class-proc/metaclass dispatch and renamed member enumeration. |
+| [#1611](https://github.com/bitwisecook/tcl-lsp/issues/1611), [#1281](https://github.com/bitwisecook/tcl-lsp/issues/1281), [#1104](https://github.com/bitwisecook/tcl-lsp/issues/1104) | CLOSED | Ensemble prefix selection, renamed map-target identity and ordered import/export visibility. |
+| [#1578](https://github.com/bitwisecook/tcl-lsp/issues/1578), [#1729](https://github.com/bitwisecook/tcl-lsp/issues/1729), [#1617](https://github.com/bitwisecook/tcl-lsp/issues/1617), [#1933](https://github.com/bitwisecook/tcl-lsp/issues/1933), [#2173](https://github.com/bitwisecook/tcl-lsp/issues/2173) | CLOSED | Scalar/array identity, versioned variable spelling, private instance variables and constant visibility. |
+| [#1026](https://github.com/bitwisecook/tcl-lsp/issues/1026), [#1050](https://github.com/bitwisecook/tcl-lsp/issues/1050), [#1101](https://github.com/bitwisecook/tcl-lsp/issues/1101), [#1081](https://github.com/bitwisecook/tcl-lsp/issues/1081), [#1277](https://github.com/bitwisecook/tcl-lsp/issues/1277), [#1660](https://github.com/bitwisecook/tcl-lsp/issues/1660) | CLOSED | Method-context helpers, method mutation/declaration symbols, reflective names without invented signatures and deferred metaclass identity. |
+| [#999](https://github.com/bitwisecook/tcl-lsp/issues/999), [#1025](https://github.com/bitwisecook/tcl-lsp/issues/1025), [#1123](https://github.com/bitwisecook/tcl-lsp/issues/1123), [#1192](https://github.com/bitwisecook/tcl-lsp/issues/1192), [#82](https://github.com/bitwisecook/tcl-lsp/issues/82) | CLOSED | Constructed command prefixes, interpreter-domain list paths, stable source identity, observable array keys and rename sigils. |
+| [#1337](https://github.com/bitwisecook/tcl-lsp/issues/1337), [#790](https://github.com/bitwisecook/tcl-lsp/issues/790), [#1707](https://github.com/bitwisecook/tcl-lsp/issues/1707) | CLOSED | Uncalled procedure hover, Tcltest named declaration/navigation and scoped iRulesLX remote-method symbols. |
+
+Related OPEN #2315 is pinned subcommand availability, #2138 is broader stub
+effect flags, and #2189 is package/autoload conformance. Their naming subsets
+are dependencies; they do not broaden this task to all value/effect semantics.
+URI identity #1214 is CLOSED and remains a source-correspondence dependency.
+
 ### Adjacent dependencies
 
 | Issue | Verified state | Scope |

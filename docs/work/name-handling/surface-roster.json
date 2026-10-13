@@ -1,0 +1,522 @@
+{
+  "captured_at_utc": "2026-10-13T15:19:31Z",
+  "workspace_manifest_sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+  "packages": [
+    {
+      "path": "rust/tcl-version",
+      "package": "tcl-version",
+      "membership": "members",
+      "source_files": 2,
+      "manifest_sha256": "1edc597275aaa9c6c3d9adfa9c86d8de31ddaa922177c716f797b4e3aa717e41",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-core-types",
+      "package": "tcl-core-types",
+      "membership": "members",
+      "source_files": 11,
+      "manifest_sha256": "8f82bfe7a9702e74d997584962d5ce7806cf9ba8aa24b9531221ff017fc64e5b",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-dialect",
+      "package": "tcl-dialect",
+      "membership": "members",
+      "source_files": 21,
+      "manifest_sha256": "03616ce8a2edb0430e3da0597572bf4ea3d7aa3326b525e3ca53b0754c022482",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-test-support",
+      "package": "tcl-test-support",
+      "membership": "members",
+      "source_files": 14,
+      "manifest_sha256": "6af96ab3f661490f76d396f1a60abe0d49f6df7976d6d7fb5d516a55f1407f0a",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lexer",
+      "package": "tcl-lexer",
+      "membership": "members",
+      "source_files": 22,
+      "manifest_sha256": "6869933eb199f815c9bf1203650e10c5d033288e556332bd01e406dd2bea031a",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-syntax",
+      "package": "tcl-syntax",
+      "membership": "members",
+      "source_files": 100,
+      "manifest_sha256": "dc7ea13baaf4eff947a8ad93a1653dce5136bd8d8fc10c5c6aa130db86db6b4f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-platform",
+      "package": "tcl-platform",
+      "membership": "members",
+      "source_files": 4,
+      "manifest_sha256": "5887bc9d46a18b5bdf630aa0545ecb33f2432ed73aba0a1bbba6ca7d8d160cc4",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-userdirs",
+      "package": "tcl-userdirs",
+      "membership": "members",
+      "source_files": 1,
+      "manifest_sha256": "4069c7c60316b9f963d955beb92a4ed0c7ef00379b7328a692022e45db5a9987",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-host-native",
+      "package": "tcl-host-native",
+      "membership": "members",
+      "source_files": 1,
+      "manifest_sha256": "175ae344cb2e44df9220afc99d924244551b68d3c1be742319705cefcccb2743",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-host-c-abi",
+      "package": "tcl-host-c-abi",
+      "membership": "members",
+      "source_files": 4,
+      "manifest_sha256": "f6fd7f37406cba1274040a334227045f1afeedfdeaa3d069a716235e03876f56",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-cmd-core",
+      "package": "tcl-cmd-core",
+      "membership": "members",
+      "source_files": 64,
+      "manifest_sha256": "7e3ad75ad7af18760c25a1bb3f77f2bc6f86a09ae2e83eca51e8db7925ba1700",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-bytecode",
+      "package": "tcl-bytecode",
+      "membership": "members",
+      "source_files": 3,
+      "manifest_sha256": "db244a03549d3df13720393bf374e37946caf3f66d9ded2cec82ce45ab2192ed",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-runtime-api",
+      "package": "tcl-runtime-api",
+      "membership": "members",
+      "source_files": 37,
+      "manifest_sha256": "13b93280fd965ba23beb88d1688b0427e5ec608584fd1fb8191f6e78b53ce92d",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-registry",
+      "package": "tcl-registry",
+      "membership": "members",
+      "source_files": 2175,
+      "manifest_sha256": "1ba577f5ab933da5670d00024f24f30ea857aa67eb48388368f9f4419158875d",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-spectcl",
+      "package": "tcl-spectcl",
+      "membership": "members",
+      "source_files": 30,
+      "manifest_sha256": "49252663bf54b0617484fa2bc7f970b39e1ffea0df87d1b022256bcbb5090680",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-sslictcl",
+      "package": "tcl-sslictcl",
+      "membership": "members",
+      "source_files": 17,
+      "manifest_sha256": "3bfefc1344c6fb95c213f52cc9d9576cbfd49784ab1b6523c1c14510b2eeb1d1",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-regex",
+      "package": "tcl-regex",
+      "membership": "members",
+      "source_files": 7,
+      "manifest_sha256": "5bde9535812b00a2c44619fc5f8ee65100175e5c7f38acbdfdc91e759f8e8aef",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-compiler",
+      "package": "tcl-compiler",
+      "membership": "members",
+      "source_files": 569,
+      "manifest_sha256": "4ea9a8c7986c315595ed0c061a0133aaa5ef21abae2eee4f27d63905e3b64cf0",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-diagram",
+      "package": "tcl-diagram",
+      "membership": "members",
+      "source_files": 4,
+      "manifest_sha256": "1664cfc0189bd2653b024fc1cca5979e8ceb209996f19971c20b6c865da6beb4",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-vm",
+      "package": "tcl-vm",
+      "membership": "members",
+      "source_files": 269,
+      "manifest_sha256": "bfd2be9a8647c3d4b4a6e8d661b880c1851834b6a3d01b8df5e9e5d55f02dd89",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-vm-cli",
+      "package": "tcl-vm-cli",
+      "membership": "members",
+      "source_files": 1,
+      "manifest_sha256": "a80a8b2bf60d691bd37e79bd85633c7a7f668740ce0d3b1d2028ad2b771d36c7",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-engine-api",
+      "package": "tcl-engine-api",
+      "membership": "members",
+      "source_files": 2,
+      "manifest_sha256": "131864bb1f645b3fe544e3d546dab4598228328be799c2ea61c01fe76509bc9f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-engine-tclvm",
+      "package": "tcl-engine-tclvm",
+      "membership": "members",
+      "source_files": 3,
+      "manifest_sha256": "5966e1272793feb5ffa957fa9eb9780c2011ceec80b660a843e8b119845b145f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-engine-wasm",
+      "package": "tcl-engine-wasm",
+      "membership": "members",
+      "source_files": 7,
+      "manifest_sha256": "0d7fe2ad8f865f9131da9ac4831205e619ff6020d77eb5263ccc1053d821d76c",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-spec-hooks",
+      "package": "tcl-spec-hooks",
+      "membership": "members",
+      "source_files": 8,
+      "manifest_sha256": "7bcdf6ccbdef95c76a7b0684f5af9173c7a11d2754e5d11c4898fa3acbd815ad",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-cshim",
+      "package": "tcl-cshim",
+      "membership": "members",
+      "source_files": 7,
+      "manifest_sha256": "49f6546f8ed7b7f57f4100577769644c53dec3fe58df548dbd77456d9e9e0186",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bpf-tcl-ir",
+      "package": "bpf-tcl-ir",
+      "membership": "members",
+      "source_files": 18,
+      "manifest_sha256": "d567c6be2cf76425ee291324da2f1e2704457fe965bab06c905a47be8c6cfd99",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bpf-tcl-codegen",
+      "package": "bpf-tcl-codegen",
+      "membership": "members",
+      "source_files": 8,
+      "manifest_sha256": "f78e083a647563ecc97f24f4013c1a86ec76a7519ff2ebbc218c902d3de770c4",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bpf-tcl",
+      "package": "bpf-tcl",
+      "membership": "members",
+      "source_files": 3,
+      "manifest_sha256": "dec650e1010581015f99ec38afe9f1fa0807c350c77aee9bb31cb377976508e8",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-bigip",
+      "package": "tcl-bigip",
+      "membership": "members",
+      "source_files": 84,
+      "manifest_sha256": "8b36c1002e5aeafbbea2e0e9f75c662cca1bcf72f72ef62cb0606eca9802341d",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-bigip-io",
+      "package": "tcl-bigip-io",
+      "membership": "members",
+      "source_files": 5,
+      "manifest_sha256": "4b15055c891f259f1d78410e70ab823b3b874fc7f6aa597c78f295144a5e6567",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-bigip-query",
+      "package": "tcl-bigip-query",
+      "membership": "members",
+      "source_files": 40,
+      "manifest_sha256": "91d0cf4fb713b7926cf61ca18d21bc03313a0db1741b635ae2af11ce637a5ad2",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bigip-report-gen/rust",
+      "package": "bigip-report-gen-rust",
+      "membership": "members",
+      "source_files": 19,
+      "manifest_sha256": "42ee6a4b3f4f709eab874f644420807bb37ea9376d20d26b811127fe1af58ad2",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-f5mku",
+      "package": "tcl-f5mku",
+      "membership": "members",
+      "source_files": 1,
+      "manifest_sha256": "9a74ed2dbbb37c58c9272cb2d71556bde0130406000c4800099b7550448b7fda",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-irules",
+      "package": "tcl-irules",
+      "membership": "members",
+      "source_files": 8,
+      "manifest_sha256": "05d34a559cb01366fa4ebf73354ef934a9006820a4ea8188b6a893f1b1092555",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lsp-core",
+      "package": "tcl-lsp-core",
+      "membership": "members",
+      "source_files": 122,
+      "manifest_sha256": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lsp-db",
+      "package": "tcl-lsp-db",
+      "membership": "members",
+      "source_files": 11,
+      "manifest_sha256": "0933e4ea251b87a7aa819067358fafdea5d7d1ad8e6b1cb67d2d2f1690ee747e",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lsp-server",
+      "package": "tcl-lsp-server",
+      "membership": "members",
+      "source_files": 19,
+      "manifest_sha256": "4b70d87e1b4c554f45df593996ba55750d4ebe0b7d4efcd2f628b7f83c34bb9c",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-explorer",
+      "package": "tcl-explorer",
+      "membership": "members",
+      "source_files": 11,
+      "manifest_sha256": "62cf1bc7a18ac203b1f89131c43411181591437c972362ab2f549cc7b7458536",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-spec-studio",
+      "package": "tcl-spec-studio",
+      "membership": "members",
+      "source_files": 23,
+      "manifest_sha256": "a80383d68cdebfa72583d2d40e040c6249b629f55a8704cb046aebda6356ebb2",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-cli-support",
+      "package": "tcl-cli-support",
+      "membership": "members",
+      "source_files": 10,
+      "manifest_sha256": "5cff7d7ee26c16fc7a2d1907fe81fa31d99581a4d92e43d395dcce280f9f0e09",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-cli",
+      "package": "tcl-cli",
+      "membership": "members",
+      "source_files": 27,
+      "manifest_sha256": "4c8504659f1b7d6fa9fd23be95450552e15e6dd4814095eeb66fedbcd4d6254b",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-pkg",
+      "package": "tcl-pkg",
+      "membership": "members",
+      "source_files": 12,
+      "manifest_sha256": "e7bbc214fc0ad020d573be7138ac9731f4eca3cb116fc1eae93ab537171111c4",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-pkg-model",
+      "package": "tcl-pkg-model",
+      "membership": "members",
+      "source_files": 7,
+      "manifest_sha256": "a0c4be8a658a50ac6b7adfb6fbca6dd9037a4e2bd8a8ea6166389cf25f142c65",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-sandbox",
+      "package": "tcl-sandbox",
+      "membership": "members",
+      "source_files": 2,
+      "manifest_sha256": "922ee3e97690f8877ecc80a0c78996bb793b46711cedba09563860c28418e136",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-mcp",
+      "package": "tcl-mcp",
+      "membership": "members",
+      "source_files": 13,
+      "manifest_sha256": "5aedde23bd12c134ba7e7b9981dd26ab5d447441dbe8f2a040c65edb99b117dd",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/f5-cli",
+      "package": "f5-cli",
+      "membership": "members",
+      "source_files": 39,
+      "manifest_sha256": "6cf0e8946b2ad31b933e7c0070705c69cb1ccca9a1620ad34bc9488feb874ee5",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/f5-xc",
+      "package": "f5-xc",
+      "membership": "members",
+      "source_files": 9,
+      "manifest_sha256": "b46bde81f69e093a159fdaa9bd8bb6a6867b4879345b68081113f840b5e3993b",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-fuzz",
+      "package": "tcl-fuzz",
+      "membership": "members",
+      "source_files": 13,
+      "manifest_sha256": "8721e8cc706628f4ccc9c9beb2c46daea41fd8bc6f306816f7105916f6e78f99",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-irule-test",
+      "package": "tcl-irule-test",
+      "membership": "members",
+      "source_files": 9,
+      "manifest_sha256": "fedd628f4fe4950e54e61e7a0e45c4f70f5071422984b8f6ddb64e2793d66b04",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-debugger",
+      "package": "tcl-debugger",
+      "membership": "members",
+      "source_files": 6,
+      "manifest_sha256": "6b9d7c10e62ea78e8c0dcc990f969a4343088a9ecaa018067bd6635fce3f65e7",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/xtask",
+      "package": "xtask",
+      "membership": "members",
+      "source_files": 44,
+      "manifest_sha256": "63d4444541a184de744c0afc645790e8783c261d7ba8b412b46e46a31a4f3c30",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "editors/zed",
+      "package": "tcl-lsp-zed",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "187c0a33dd3b5a8493aaf5ca0bd3e3a43a6d2e51172c2870689aabfacdfe7a93",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bigip-report-gen/python",
+      "package": "bigip-report-gen-py",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "a66978e7086caa8336298d6ea5e8a3a62c5c6adac94f3446d346a2770c587872",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bigip-query-wasm",
+      "package": "bigip-query-wasm",
+      "membership": "exclude",
+      "source_files": 2,
+      "manifest_sha256": "b13f3cf989d5e224c7ff48e194afb3d27e6ad32d174335bc70653838a5b3eddf",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/bigip-report-gen/wasm",
+      "package": "bigip-report-wasm",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "fa4abca5e8ae49125928f779a3c4eadb6c6f465d6d953633ed244f5fe42ea32f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-explorer-wasm",
+      "package": "tcl-explorer-wasm",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "f4f51b1e6f2c66ed90bfef39679bd9015d3ae1411cb13556a3bd4893c86b6e9f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-spec-studio-wasm",
+      "package": "tcl-spec-studio-wasm",
+      "membership": "exclude",
+      "source_files": 4,
+      "manifest_sha256": "faead0a475829022f0f0139263860beef8a152d8ba97a885c5822d78fb8c97ab",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm",
+      "package": "tcl-lsp-server-wasm",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "21a540aa63ee4c29841d96e2e2411e15cd31dfe6e820894e230e55e464f62cc5",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasi",
+      "package": "tcl-lsp-server-wasi",
+      "membership": "exclude",
+      "source_files": 4,
+      "manifest_sha256": "6a797c7531261c23ebfa86b51b0f7edbf4cd19ff24aa10a6455c87afdee5dd15",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "runtime/rust",
+      "package": "tcl-runtime",
+      "membership": "exclude",
+      "source_files": 375,
+      "manifest_sha256": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/zed-query-check",
+      "package": "zed-query-check",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "4b25cf823c70805684a1a0063e54e90f04ed3a06428430c494639ad0b1929729",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    },
+    {
+      "path": "rust/tcl-vm-wasm",
+      "package": "tcl-vm-wasm",
+      "membership": "exclude",
+      "source_files": 1,
+      "manifest_sha256": "f01d1b0ceb0b583d8e72699d8615b880cc4b4ecc20797c2ad64bb15cb3bb990f",
+      "disposition": "consumer owner audit required; membership alone is not semantic acceptance"
+    }
+  ],
+  "other_surfaces": [
+    "editors/vscode",
+    "editors/jetbrains",
+    "editors/neovim",
+    "editors/emacs",
+    "editors/helix",
+    "editors/sublime",
+    "scripts",
+    "ai",
+    ".claude"
+  ],
+  "scope": "Tracked package roster, not a completed callsite audit; external/build/generated source and packages outside this manifest need separate reconciliation."
+}
