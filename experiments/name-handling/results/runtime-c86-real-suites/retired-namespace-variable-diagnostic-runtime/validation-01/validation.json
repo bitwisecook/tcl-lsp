@@ -1,0 +1,164 @@
+{
+  "status": "Fresh Runtime14 build PASS; all three exact independent Runtime controls executed once and FAILED their original assertions. No fix, adaptation, assertion change or retry.",
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "started_utc": "2026-10-13 01:40:15 UTC",
+    "initial_free_bytes": 2682990592,
+    "minimum_free_bytes": 2574598144,
+    "disk_abort_threshold_bytes": 201326592,
+    "status": "completed",
+    "exit_code": 0,
+    "finished_utc": "2026-10-13 01:41:19 UTC",
+    "messages_sha256": "b4ea1390b0c902e19bea567b584d4132efa5da2ceca5210b24a8d0cad3d03487",
+    "stderr_sha256": "6d31cd2d1b03285a0c90f8118847ea3e0bffdbb7d49b1be77e64f87aa1407e99",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "binary_sha256": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+    "artifact_fresh": false,
+    "cargo_profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "disk_abort_triggered": false
+  },
+  "checks": [
+    {
+      "name": "interp::native_variable_names::tests::retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "01-retired_namespace_c86_source_entries_preserve_scalar_and_element_sites.log",
+      "log_sha256": "69cfa103124110ab8c2e6347498732b313ecd08611c9d81df954f38ca05d2f6f",
+      "binary_sha256_before": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "binary_sha256_after": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "actual_assertion_bytes": {
+        "path": "01-actual-assertion-bytes.txt",
+        "sha256": "518d446f9914dcfda93f10d2a0676f63d59ca6245c8d422ef2f5effc9e5a16c2",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      },
+      "expected_assertion_bytes": {
+        "path": "01-expected-assertion-bytes.txt",
+        "sha256": "0644d64e204b8b0d7b1fd9e5fd55a1b34e985e91cd93126331375f52c391c025",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      },
+      "differing_output_rows": [
+        {
+          "line": 6,
+          "actual": "ROW dynamic-scalar 0 {0 2 1 {can't set \"foo\": upvar refers to variable in deleted namespace} {NH UNSET}} {NH UNSET}",
+          "expected": "ROW dynamic-scalar 0 {0 2 1 {can't set \"foo\": upvar refers to variable in deleted namespace} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}"
+        },
+        {
+          "line": 8,
+          "actual": "ROW dynamic-element 0 {0 2 1 {can't set \"foo(3)\": upvar refers to variable in deleted namespace} {NH UNSET}} {NH UNSET}",
+          "expected": "ROW dynamic-element 0 {0 2 1 {can't set \"foo(3)\": upvar refers to variable in deleted namespace} {TCL LOOKUP VARNAME}} {TCL LOOKUP VARNAME}"
+        }
+      ]
+    },
+    {
+      "name": "interp::native_variable_names::tests::retired_namespace_c86_variable_heads_preserve_original_root_tuple",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::retired_namespace_c86_variable_heads_preserve_original_root_tuple",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "02-retired_namespace_c86_variable_heads_preserve_original_root_tuple.log",
+      "log_sha256": "bcbe250f2a0a299cc978408bacf3f2b1666d54afd92c70fa57729d6c0998a1e3",
+      "binary_sha256_before": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "binary_sha256_after": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "actual_assertion_bytes": {
+        "path": "02-actual-assertion-bytes.txt",
+        "sha256": "1f6327ef3065e294e3f2f144675a7d13ddd6f74747eb100a0e693468d6f9ecec",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      },
+      "expected_assertion_bytes": {
+        "path": "02-expected-assertion-bytes.txt",
+        "sha256": "555214bade0280d51b565720017a6b8bb2fce5b7b7cc7c2a946f8be1024e2252",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      },
+      "differing_output_rows": [
+        {
+          "line": 4,
+          "actual": "ROW variable-head-element 0 {0 2 1 {can't set \"foo(3)\": upvar refers to variable in deleted namespace} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+          "expected": "ROW variable-head-element 0 {0 2 1 {can't set \"foo(3)\": upvar refers to variable in deleted namespace} {TCL LOOKUP VARNAME foo}} {TCL LOOKUP VARNAME foo}"
+        }
+      ]
+    },
+    {
+      "name": "interp::native_variable_names::tests::retired_namespace_original_object_vector_keeps_root_despite_compiled_cell",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::retired_namespace_original_object_vector_keeps_root_despite_compiled_cell",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "log": "03-retired_namespace_original_object_vector_keeps_root_despite_compiled_cell.log",
+      "log_sha256": "cb7eae79d5310358b7aaeee8337bf4b06db3f06ef5359fea4a597240697765c1",
+      "binary_sha256_before": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "binary_sha256_after": "c7bc2325823df5673477c63aa25150261d823a544eea9ff5f8b8468360ad13e6",
+      "actual_assertion_bytes": {
+        "path": "03-actual-assertion-bytes.txt",
+        "sha256": "8b196c0c563c07deae93ac2a769ebebe96033ca21494de36ecb96ecbab2b819a",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      },
+      "expected_assertion_bytes": {
+        "path": "03-expected-assertion-bytes.txt",
+        "sha256": "dee0968235f265ef5cba7752f2baa4c6fd25886753f643a8026779059e0bb3b8",
+        "scope": "Decoded existing Rust assertion byte vector only; no second probe/test invocation."
+      }
+    }
+  ],
+  "unexecuted_names": [],
+  "metadata_exit_code": 0,
+  "changed_source_during_build": [],
+  "observed_exact_names": [
+    "interp::native_variable_names::tests::retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+    "interp::native_variable_names::tests::retired_namespace_c86_variable_heads_preserve_original_root_tuple",
+    "interp::native_variable_names::tests::retired_namespace_original_object_vector_keeps_root_despite_compiled_cell"
+  ],
+  "first_failure": "interp::native_variable_names::tests::retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+  "source_comparison": {
+    "changed": [],
+    "actual_owner_sha256": {
+      "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+      "runtime/rust/src/interp/native_body_artifact.rs": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe",
+      "runtime/rust/src/interp/native_variable_names.rs": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473"
+    }
+  },
+  "validation_scope": "Two source controls compare all retained C86 rows and reached completion/output assertions; original-object vector reached normal guest diagnostics and proves actual parsed-root local cache. Failures concern dynamic assignment/ordinary lookup errorCode metadata and site propagation; no Runtime conformance PASS claimed.",
+  "sealed_question_integrity": [
+    {
+      "path": "retired-namespace-variable-diagnostic-question",
+      "count": 46,
+      "sha256": "63a349b1cd5e9a59157cd0305811dcdf3c42acb9cb57de43cb08fb2f95b1c932",
+      "changed": []
+    },
+    {
+      "path": "retired-namespace-variable-diagnostic-runtime/route-diagnostic-01",
+      "count": 20,
+      "sha256": "c229134d7c87e3df01aff52729f1b5085373db24c7e07831f2bc6335dff0483d",
+      "changed": []
+    }
+  ]
+}
