@@ -1,0 +1,16 @@
+import importlib.util,pathlib,json,os,time,shutil,re,subprocess
+spec=importlib.util.spec_from_file_location('capture','/tmp/codegen-original-argv-capture-02.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+ROOT=c.ROOT
+first=ROOT/'experiments/name-handling/results/codegen-root-colon-publication/compiler-wasm-validation-01'
+record1=json.loads((first/'validation.json').read_text())
+out=ROOT/'experiments/name-handling/results/codegen-root-colon-publication/wasm-cache-validation-02';out.mkdir(exist_ok=False)
+meta=[str(first/'metadata-0.json'),str(first/'metadata-1.json')];packages=c.local_packages(meta)
+targets=[str(ROOT/'tmp/name-target-names'),str(ROOT/'target/tcl_reserved_runtime')]
+shutil.copyfile('/tmp/codegen-original-argv-capture-02.py',out/'capture.py');shutil.copyfile(__file__,out/'run.py')
+record={'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'scope':'Same frozen source and exact selected real-link executable; writable Wasmtime cache environment correction only. Native table-positive checks may fail before actual linking. All failures in compiler-wasm-validation-01 retained.','prior_validation_sha256':c.digest(first/'validation.json'),'git_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'environment':{k:os.environ.get(k) for k in ['CARGO_TARGET_DIR','CARGO_NET_OFFLINE','TCL_REQUIRE_WASM_LINK','XDG_CACHE_HOME','WASI_SDK_PATH','TCL_TOMMATH_DIR']},'tests':[],'tools':record1['tools']}
+before=c.static_inputs(packages,targets);(out/'inputs-before.json').write_text(json.dumps(before,indent=2)+'\n');print('retry frozen',len(before),flush=True)
+b=record1['executables']['wasm_real_link']['path'];record['executable']={'path':b,'sha256_before':c.digest(pathlib.Path(b))}
+for i,test in enumerate(t for t in record1['tests'] if t['selector'].startswith(('root_colon_publication','original_argv_descriptor','general_original_definition','native_original_definition'))):
+ print('retry',i,test['selector'],flush=True)
+ tr=c.command_record([b,test['selector'],'--nocapture','--test-threads=1'],out,'test-'+str(i),1200);tr['selector']=test['selector'];tr['classification']='strict genuine runtime-linked WASM control';tr['executed_test_count']=sum(int(x) for x in re.findall(r'^running (\d+) tests?$',(out/tr['stdout']).read_text(),re.M));record['tests'].append(tr);print('result',i,tr['exit_code'],flush=True)
+after=c.static_inputs(packages,targets);(out/'inputs-after.json').write_text(json.dumps(after,indent=2)+'\n');record['preexisting_inputs_unchanged']=all(after.get(k)==v for k,v in before.items());record['changed_preexisting_inputs']={k:{'before':v,'after':after.get(k)} for k,v in before.items() if after.get(k)!=v};record['executable']['sha256_after']=c.digest(pathlib.Path(b));record['reserved_wasm_runtime']={'path':str(ROOT/'target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm'),'sha256':c.digest(ROOT/'target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm')};record['finished_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime());(out/'compiled-input-coverage.json').write_text(json.dumps(c.coverage(before,after,targets),indent=2)+'\n');(out/'validation.json').write_text(json.dumps(record,indent=2)+'\n');print('retry complete',record['preexisting_inputs_unchanged'],flush=True)

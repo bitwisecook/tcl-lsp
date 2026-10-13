@@ -1,0 +1,6 @@
+
+running 1 test
+test general_original_definition_materialises_its_body_once ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 12.19s
+

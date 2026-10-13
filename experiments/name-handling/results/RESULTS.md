@@ -53,6 +53,21 @@ instructions are not established by these metadata controls. The separate
 [private-worker operand experiment](../registry-operand-layout/README.md)
 retains C5/Jim observations and unavailable workers without a compiler claim.
 
+## Original argv codegen consumers
+
+The [Compiler/API/CLI/strict-WASM capture](codegen-root-colon-publication/compiler-wasm-validation-01/README.md)
+retains49 effective Rust controls,34 passing and15 failing. All18 API layout
+controls and the CLI11-case exact-query control pass. Compiler declaration,
+control, tail and shared-table positives remain failing. All initial strict
+WASM controls fail, with two missing tables and six default-cache refusals.
+
+The independent [writable-cache strict-WASM channel](codegen-root-colon-publication/wasm-cache-validation-02/README.md)
+uses the same source/executable and passes six actual Runtime-linked programs:
+once-only body/name evaluation, inert body, unknown-name abort and replaced
+definers through both emitter tiers. Two compiled-entry positives still fail
+before linking because no shared table exists. Neither software callbacks nor
+generic execution establish the unaccepted compiled-entry path.
+
 ## Actual C8.6 constructor and startup
 
 The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actual

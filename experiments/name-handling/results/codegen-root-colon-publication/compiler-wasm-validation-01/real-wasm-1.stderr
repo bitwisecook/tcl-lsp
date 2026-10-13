@@ -1,0 +1,4 @@
+
+thread 'original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint' (59333) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:
+"proc :audit {} {return ORIGINAL}\nset answer [:audit]\n" must import the runtime's shared function table
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

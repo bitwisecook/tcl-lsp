@@ -1,0 +1,982 @@
+{
+  "scope": "Actual Cargo compiler-artifact local-package outputs from the three recorded builds. Dependency records are bound to output names; custom build-script outputs without sibling dep-info remain separate coverage constraints.",
+  "selected": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-d3841e0d7c771bc1.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-d3841e0d7c771bc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-d3841e0d7c771bc1.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-d3841e0d7c771bc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-a89d777abc9e779a.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-a89d777abc9e779a.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-a89d777abc9e779a.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-a89d777abc9e779a.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-6ee1bec8d812a872.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-6ee1bec8d812a872.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-6ee1bec8d812a872.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-6ee1bec8d812a872.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "target": "tcl_runtime_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-ce9a9e76e269bece",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-ce9a9e76e269bece.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-d3841e0d7c771bc1.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-d3841e0d7c771bc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-d3841e0d7c771bc1.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-d3841e0d7c771bc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-a89d777abc9e779a.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-a89d777abc9e779a.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-a89d777abc9e779a.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-a89d777abc9e779a.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-15e01aa0042e9264.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-15e01aa0042e9264.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-15e01aa0042e9264.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-15e01aa0042e9264.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "target": "tcl_platform",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_platform-45b8a54831524ec4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_platform-45b8a54831524ec4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "target": "tcl_platform",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_platform-45b8a54831524ec4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_platform-45b8a54831524ec4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "target": "tcl_runtime_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_runtime_api-627ace3b7b8f89c4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-627ace3b7b8f89c4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "target": "tcl_runtime_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_runtime_api-627ace3b7b8f89c4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-627ace3b7b8f89c4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "target": "tcl_cmd_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cmd_core-819872025211acc1.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cmd_core-819872025211acc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "target": "tcl_cmd_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cmd_core-819872025211acc1.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cmd_core-819872025211acc1.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "target": "tcl_regex",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_regex-5c2a744c9a2f7fe4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_regex-5c2a744c9a2f7fe4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "target": "tcl_regex",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_regex-5c2a744c9a2f7fe4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_regex-5c2a744c9a2f7fe4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "target": "tcl_registry",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_registry-2399959063f6b955.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-2399959063f6b955.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "target": "tcl_registry",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_registry-2399959063f6b955.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-2399959063f6b955.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "target": "tcl_bytecode",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bytecode-1bdf23900c5c705b.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bytecode-1bdf23900c5c705b.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "target": "tcl_bytecode",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bytecode-1bdf23900c5c705b.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bytecode-1bdf23900c5c705b.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "tcl_compiler",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-0ddc6207e90fbe77.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "tcl_compiler",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_compiler-0ddc6207e90fbe77.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-0ddc6207e90fbe77.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "tcl_host_c_abi",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_c_abi-70dfcb593dc2e822.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_c_abi-70dfcb593dc2e822.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "tcl_host_c_abi",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_c_abi-70dfcb593dc2e822.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_c_abi-70dfcb593dc2e822.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "target": "tcl_host_native",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_native-c0805584e131f794.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_native-c0805584e131f794.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "target": "tcl_host_native",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_native-c0805584e131f794.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_native-c0805584e131f794.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0",
+      "target": "tcl_sslictcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sslictcl-b38b2313b968c1d9.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sslictcl-b38b2313b968c1d9.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0",
+      "target": "tcl_sslictcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sslictcl-b38b2313b968c1d9.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sslictcl-b38b2313b968c1d9.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "target": "tcl_vm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_vm-a3afa9f34cdafd90.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-a3afa9f34cdafd90.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "target": "tcl_vm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_vm-a3afa9f34cdafd90.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-a3afa9f34cdafd90.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "target": "tcl_irules",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_irules-1ee753931bc32a89.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_irules-1ee753931bc32a89.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "target": "tcl_irules",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_irules-1ee753931bc32a89.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_irules-1ee753931bc32a89.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0",
+      "target": "tcl_engine_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_api-37bc478f065a451d.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_api-37bc478f065a451d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0",
+      "target": "tcl_engine_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_api-37bc478f065a451d.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_api-37bc478f065a451d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0",
+      "target": "tcl_bigip",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bigip-f6f84c63e8b2f738.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bigip-f6f84c63e8b2f738.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0",
+      "target": "tcl_bigip",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bigip-f6f84c63e8b2f738.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bigip-f6f84c63e8b2f738.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0",
+      "target": "tcl_engine_tclvm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_tclvm-8487194362f6a667.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_tclvm-8487194362f6a667.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0",
+      "target": "tcl_engine_tclvm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_tclvm-8487194362f6a667.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_tclvm-8487194362f6a667.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0",
+      "target": "tcl_spec_hooks",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_hooks-9db320f9b3a3fb4d.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_hooks-9db320f9b3a3fb4d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0",
+      "target": "tcl_spec_hooks",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_hooks-9db320f9b3a3fb4d.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_hooks-9db320f9b3a3fb4d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "target": "tcl_lsp_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lsp_core-e1e95c84b8b6072d.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_core-e1e95c84b8b6072d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "target": "tcl_lsp_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lsp_core-e1e95c84b8b6072d.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_core-e1e95c84b8b6072d.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0",
+      "target": "tcl_pkg_model",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg_model-e742dceedb876097.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg_model-e742dceedb876097.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0",
+      "target": "tcl_pkg_model",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg_model-e742dceedb876097.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg_model-e742dceedb876097.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0",
+      "target": "tcl_userdirs",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_userdirs-844095934b5daf26.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_userdirs-844095934b5daf26.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0",
+      "target": "tcl_userdirs",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_userdirs-844095934b5daf26.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_userdirs-844095934b5daf26.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "target": "tcl_spectcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spectcl-7ec2a9cec030bd83.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spectcl-7ec2a9cec030bd83.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "target": "tcl_spectcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spectcl-7ec2a9cec030bd83.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spectcl-7ec2a9cec030bd83.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+      "target": "tcl_test_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_test_support-0b0f217917d6e8b0.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_test_support-0b0f217917d6e8b0.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+      "target": "tcl_test_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_test_support-0b0f217917d6e8b0.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_test_support-0b0f217917d6e8b0.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "wasm_codegen",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_codegen-69ea3ceda00ab623",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_codegen-69ea3ceda00ab623.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "wasm_real_link",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "tcl_compiler",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "target": "tcl_core_types",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_core_types-fa13c7206fd1e2d4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_core_types-fa13c7206fd1e2d4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-56bbef1db81f2fac.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-56bbef1db81f2fac.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "tcl_dialect",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_dialect-56bbef1db81f2fac.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_dialect-56bbef1db81f2fac.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "target": "tcl_platform",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_platform-45b8a54831524ec4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_platform-45b8a54831524ec4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "target": "tcl_platform",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_platform-45b8a54831524ec4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_platform-45b8a54831524ec4.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-238b559062dad8a2.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-238b559062dad8a2.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "target": "tcl_lexer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lexer-238b559062dad8a2.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lexer-238b559062dad8a2.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-e18015d11eb55089.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-e18015d11eb55089.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "target": "tcl_syntax",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-e18015d11eb55089.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_syntax-e18015d11eb55089.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "target": "tcl_runtime_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_runtime_api-38e0d0e4f0e215f0.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-38e0d0e4f0e215f0.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "target": "tcl_runtime_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_runtime_api-38e0d0e4f0e215f0.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_runtime_api-38e0d0e4f0e215f0.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "target": "tcl_bytecode",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bytecode-0bd41a5e977ef944.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bytecode-0bd41a5e977ef944.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "target": "tcl_bytecode",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bytecode-0bd41a5e977ef944.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bytecode-0bd41a5e977ef944.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "target": "tcl_cmd_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cmd_core-ef6a72cb9d5a552e.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cmd_core-ef6a72cb9d5a552e.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "target": "tcl_cmd_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cmd_core-ef6a72cb9d5a552e.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cmd_core-ef6a72cb9d5a552e.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "target": "tcl_regex",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_regex-279fe42e5517fb09.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_regex-279fe42e5517fb09.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "target": "tcl_regex",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_regex-279fe42e5517fb09.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_regex-279fe42e5517fb09.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "tcl_host_c_abi",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_c_abi-70dfcb593dc2e822.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_c_abi-70dfcb593dc2e822.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "tcl_host_c_abi",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_c_abi-70dfcb593dc2e822.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_c_abi-70dfcb593dc2e822.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "target": "tcl_host_native",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_native-c0805584e131f794.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_native-c0805584e131f794.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "target": "tcl_host_native",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_host_native-c0805584e131f794.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_host_native-c0805584e131f794.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0",
+      "target": "tcl_engine_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_api-c722c556b34df4b0.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_api-c722c556b34df4b0.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0",
+      "target": "tcl_engine_api",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_api-c722c556b34df4b0.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_api-c722c556b34df4b0.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0",
+      "target": "tcl_pkg_model",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg_model-0164ef66e618c67a.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg_model-0164ef66e618c67a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0",
+      "target": "tcl_pkg_model",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg_model-0164ef66e618c67a.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg_model-0164ef66e618c67a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0",
+      "target": "tcl_userdirs",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_userdirs-844095934b5daf26.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_userdirs-844095934b5daf26.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0",
+      "target": "tcl_userdirs",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_userdirs-844095934b5daf26.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_userdirs-844095934b5daf26.d",
+      "fresh": true
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "target": "tcl_registry",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_registry-38ca8331e3cd9bd4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-38ca8331e3cd9bd4.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "target": "tcl_registry",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_registry-38ca8331e3cd9bd4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-38ca8331e3cd9bd4.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "target": "tcl_vm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_vm-ad6b3507ceaace5a.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-ad6b3507ceaace5a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "target": "tcl_vm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_vm-ad6b3507ceaace5a.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-ad6b3507ceaace5a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "target": "tcl_irules",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_irules-d1af5b24516b15c6.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_irules-d1af5b24516b15c6.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "target": "tcl_irules",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_irules-d1af5b24516b15c6.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_irules-d1af5b24516b15c6.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0",
+      "target": "tcl_sslictcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sslictcl-fc49d5f85ba663dc.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sslictcl-fc49d5f85ba663dc.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0",
+      "target": "tcl_sslictcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sslictcl-fc49d5f85ba663dc.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sslictcl-fc49d5f85ba663dc.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0",
+      "target": "tcl_bigip",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bigip-0e1e4ff4c2e4607a.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bigip-0e1e4ff4c2e4607a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0",
+      "target": "tcl_bigip",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_bigip-0e1e4ff4c2e4607a.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_bigip-0e1e4ff4c2e4607a.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0",
+      "target": "tcl_engine_tclvm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_tclvm-51d13d2ada020d88.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_tclvm-51d13d2ada020d88.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0",
+      "target": "tcl_engine_tclvm",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_engine_tclvm-51d13d2ada020d88.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_engine_tclvm-51d13d2ada020d88.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0",
+      "target": "tcl_spec_hooks",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_hooks-87b9df255ada972e.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_hooks-87b9df255ada972e.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0",
+      "target": "tcl_spec_hooks",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_hooks-87b9df255ada972e.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_hooks-87b9df255ada972e.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "target": "tcl_lsp_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lsp_core-584939aa72143ed6.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_core-584939aa72143ed6.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "target": "tcl_lsp_core",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_lsp_core-584939aa72143ed6.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_core-584939aa72143ed6.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "target": "tcl_spectcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spectcl-39f0450b31ba3d5c.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spectcl-39f0450b31ba3d5c.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "target": "tcl_spectcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spectcl-39f0450b31ba3d5c.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spectcl-39f0450b31ba3d5c.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "tcl_compiler",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_compiler-fc145416a0ffc130.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-fc145416a0ffc130.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "target": "tcl_compiler",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_compiler-fc145416a0ffc130.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-fc145416a0ffc130.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sandbox#0.1.0",
+      "target": "tcl_sandbox",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sandbox-fa344b855faa6951.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sandbox-fa344b855faa6951.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sandbox#0.1.0",
+      "target": "tcl_sandbox",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_sandbox-fa344b855faa6951.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_sandbox-fa344b855faa6951.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg#0.1.0",
+      "target": "tcl_pkg",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg-b46a841f9ddf17b4.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg-b46a841f9ddf17b4.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg#0.1.0",
+      "target": "tcl_pkg",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_pkg-b46a841f9ddf17b4.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_pkg-b46a841f9ddf17b4.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "target": "tcl_version",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_version-e5e27343053eefbc.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_version-e5e27343053eefbc.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "target": "tcl_version",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_version-e5e27343053eefbc.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_version-e5e27343053eefbc.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli-support#0.1.0",
+      "target": "tcl_cli_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cli_support-70033bb1aa2d40c5.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cli_support-70033bb1aa2d40c5.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli-support#0.1.0",
+      "target": "tcl_cli_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cli_support-70033bb1aa2d40c5.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cli_support-70033bb1aa2d40c5.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-studio#0.1.0",
+      "target": "tcl_spec_studio",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_studio-14f1c1593d7b3a40.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_studio-14f1c1593d7b3a40.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-studio#0.1.0",
+      "target": "tcl_spec_studio",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_spec_studio-14f1c1593d7b3a40.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_spec_studio-14f1c1593d7b3a40.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-diagram#0.1.0",
+      "target": "tcl_diagram",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_diagram-61ba375393fcfa93.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_diagram-61ba375393fcfa93.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-diagram#0.1.0",
+      "target": "tcl_diagram",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_diagram-61ba375393fcfa93.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_diagram-61ba375393fcfa93.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+      "target": "tcl_explorer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_explorer-fdc0b12464912243.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_explorer-fdc0b12464912243.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+      "target": "tcl_explorer",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_explorer-fdc0b12464912243.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_explorer-fdc0b12464912243.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+      "target": "tcl_test_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_test_support-e648a19b8bf25655.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_test_support-e648a19b8bf25655.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+      "target": "tcl_test_support",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_test_support-e648a19b8bf25655.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_test_support-e648a19b8bf25655.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "tcl_cli",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cli-079d914260236018.rlib",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cli-079d914260236018.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "tcl_cli",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_cli-079d914260236018.rmeta",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_cli-079d914260236018.d",
+      "fresh": false
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "cli",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/cli-a85132285398aa98",
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/cli-a85132285398aa98.d",
+      "fresh": false
+    }
+  ],
+  "without_sibling_dep_info": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-version-1e907ba347c684c5/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-version-1e907ba347c684c5/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-cli-e9dae8a41630f641/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-cli-e9dae8a41630f641/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ]
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "tcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl.d",
+      "kind": [
+        "bin"
+      ]
+    }
+  ]
+}

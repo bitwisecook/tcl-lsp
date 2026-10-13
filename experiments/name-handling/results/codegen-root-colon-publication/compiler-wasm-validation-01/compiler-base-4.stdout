@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_command_table::tests::original_catalogue_advice_stops_at_earlier_occupied_namespace_cells ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9570 filtered out; finished in 0.15s
+

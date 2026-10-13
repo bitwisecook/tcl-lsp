@@ -1,0 +1,16 @@
+
+thread 'native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity' (58185) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:958:9:
+tcl8.4: [LogicalNot, ConditionalJump]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal' (58189) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1177:9:
+assertion failed: unit.ir_module.top_level.statements.iter().all(|statement|
+        matches!(statement, crate::ir::Statement::If { .. }))
+
+thread 'native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand' (58190) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1278:9:
+assertion `left == right` failed: a QName-only or wholly declined control cannot establish the transport
+  left: [GenericInvoke, GenericInvoke]
+ right: [NativeDefinition, GenericInvoke]
+
+thread 'native_lowering::tests::original_unknown_name_and_replaced_definer_keep_generic_invocation' (58192) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:179:9:
+actual source builds executable IR; retained availability=SourceDeclined(InconsistentCommandTokens { statement_index: 1 }); module metadata current=true; function metadata current=true; module grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }; function grammar=LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }

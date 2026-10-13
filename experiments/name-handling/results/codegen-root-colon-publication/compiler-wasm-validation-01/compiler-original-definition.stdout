@@ -1,0 +1,22 @@
+
+running 9 tests
+test native_lowering::tests::original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches ... ok
+test native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity ... FAILED
+test native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner ... ok
+test native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers ... ok
+test native_lowering::tests::original_definition_without_argv_is_rejected_as_invalid_executable_ir ... ok
+test native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal ... FAILED
+test native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand ... FAILED
+test native_lowering::tests::original_substituted_name_retains_generic_evaluated_argv ... ok
+test native_lowering::tests::original_unknown_name_and_replaced_definer_keep_generic_invocation ... FAILED
+
+failures:
+
+failures:
+    native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity
+    native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal
+    native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand
+    native_lowering::tests::original_unknown_name_and_replaced_definer_keep_generic_invocation
+
+test result: FAILED. 5 passed; 4 failed; 0 ignored; 0 measured; 9562 filtered out; finished in 7.55s
+

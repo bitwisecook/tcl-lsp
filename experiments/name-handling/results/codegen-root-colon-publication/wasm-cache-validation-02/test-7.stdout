@@ -1,0 +1,6 @@
+
+running 1 test
+test native_original_definition_preserves_a_replaced_definer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 5.97s
+

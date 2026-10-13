@@ -1,0 +1,11 @@
+
+running 1 test
+test root_colon_publication_runs_its_own_compiled_table_entry ... FAILED
+
+failures:
+
+failures:
+    root_colon_publication_runs_its_own_compiled_table_entry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 22 filtered out; finished in 1.08s
+

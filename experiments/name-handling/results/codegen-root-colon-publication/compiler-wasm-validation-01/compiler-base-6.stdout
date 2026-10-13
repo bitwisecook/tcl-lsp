@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_command_table::tests::closed_original_lookup_retains_missing_holder_absence_without_a_slot ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9570 filtered out; finished in 0.58s
+

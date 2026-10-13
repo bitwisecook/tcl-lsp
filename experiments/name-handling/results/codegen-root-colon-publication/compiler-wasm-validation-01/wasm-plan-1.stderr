@@ -1,0 +1,6 @@
+
+thread 'only_the_definition_whose_body_was_compiled_binds_an_entry' (58224) panicked at rust/tcl-compiler/tests/wasm_codegen.rs:1701:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

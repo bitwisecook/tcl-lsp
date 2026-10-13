@@ -1,0 +1,11 @@
+
+running 1 test
+test optimiser::tail_call::tests::original_allocation_and_grouped_names_control_tail_rewrites ... FAILED
+
+failures:
+
+failures:
+    optimiser::tail_call::tests::original_allocation_and_grouped_names_control_tail_rewrites
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9570 filtered out; finished in 0.22s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test command_info_preserves_exact_command_names ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 61 filtered out; finished in 62.92s
+

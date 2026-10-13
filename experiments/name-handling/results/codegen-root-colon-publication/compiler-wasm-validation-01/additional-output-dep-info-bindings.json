@@ -1,0 +1,102 @@
+{
+  "scope": "Additional dependency records bound to actual recorded Cargo outputs. No sources reclassified as frozen merely from this post-build normalization.",
+  "bound": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build_script_build-df53d3296da3c812.d",
+      "dep_info_sha256": "fd88309a84effe724d7cf8a7c0a33668111cb54efbcd4e1f6c0b202a04d305f0",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build_script_build-df53d3296da3c812.d",
+      "dep_info_sha256": "fd88309a84effe724d7cf8a7c0a33668111cb54efbcd4e1f6c0b202a04d305f0",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build_script_build-a05ea1001814456f.d",
+      "dep_info_sha256": "edfde0732798af0075fda7cf85bcf87c65b30937998fe11c516f75177dc86b08",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-dialect-df53d3296da3c812/build_script_build-df53d3296da3c812.d",
+      "dep_info_sha256": "fd88309a84effe724d7cf8a7c0a33668111cb54efbcd4e1f6c0b202a04d305f0",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-host-c-abi-a05ea1001814456f/build_script_build-a05ea1001814456f.d",
+      "dep_info_sha256": "edfde0732798af0075fda7cf85bcf87c65b30937998fe11c516f75177dc86b08",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-version-1e907ba347c684c5/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-version-1e907ba347c684c5/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-version-1e907ba347c684c5/build_script_build-1e907ba347c684c5.d",
+      "dep_info_sha256": "a9ed827ec061b41c1bd311819f407e5bc8bf67140301656b9c034892bdb673ba",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "build-script-build",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-cli-e9dae8a41630f641/build-script-build",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-cli-e9dae8a41630f641/build-script-build.d",
+      "kind": [
+        "custom-build"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/build/tcl-cli-e9dae8a41630f641/build_script_build-e9dae8a41630f641.d",
+      "dep_info_sha256": "394e4f89910b9c51b09eeb303211a22bb4205844380ca765ec0bf4b9ecd33d97",
+      "binding": "single build_script_build sibling under recorded output directory"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "target": "tcl",
+      "artifact": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl",
+      "candidate": "/workspace/tcl-lsp/tmp/name-target-names/debug/tcl.d",
+      "kind": [
+        "bin"
+      ],
+      "dep_info": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl-ed13457c0b500def.d",
+      "dep_info_sha256": "c1f3e9466b172f81a72b91d2ebcf58432e694efafa1bee46f90288bee3d27fdd",
+      "binding": "hash-equal copied CLI executable with matching sibling dep-info"
+    }
+  ],
+  "unbound": []
+}

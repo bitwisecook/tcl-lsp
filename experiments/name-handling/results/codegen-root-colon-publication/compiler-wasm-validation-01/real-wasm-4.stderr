@@ -1,0 +1,11 @@
+
+thread 'general_original_definition_evaluates_its_name_once' (59394) panicked at rust/tcl-compiler/tests/common/wasm_link.rs:378:13:
+the runtime would not state its identity:
+--- stderr ---
+Error: failed to create cache directory: /home/agent/.cache/wasmtime
+
+Caused by:
+    Read-only file system (os error 30)
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,11 @@
+
+running 1 test
+test only_the_definition_whose_body_was_compiled_binds_an_entry ... FAILED
+
+failures:
+
+failures:
+    only_the_definition_whose_body_was_compiled_binds_an_entry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 48 filtered out; finished in 0.33s
+

@@ -1,0 +1,117 @@
+   Compiling syn v3.0.6
+   Compiling bitflags v2.13.2
+   Compiling memchr v2.8.3
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling foldhash v0.2.0
+   Compiling hashbrown v0.17.1
+   Compiling serde_core v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling aho-corasick v1.1.5
+   Compiling regex-automata v0.4.18
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling regex v1.13.1
+   Compiling indexmap v2.14.2
+   Compiling nom v7.1.3
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde_derive v1.0.229
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling serde v1.0.229
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling serde_json v1.0.151
+   Compiling rusticata-macros v4.1.0
+   Compiling displaydoc v0.2.7
+   Compiling asn1-rs v0.7.2
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling crc32fast v1.5.2
+   Compiling x509-parser v0.18.1
+   Compiling pkg-config v0.3.34
+   Compiling vcpkg v0.2.15
+   Compiling log v0.4.34
+   Compiling simd-adler32 v0.3.10
+   Compiling libsqlite3-sys v0.38.2
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling rustls-pki-types v1.15.1
+   Compiling adler2 v2.0.1
+   Compiling utf8parse v0.2.2
+   Compiling httparse v1.10.1
+   Compiling anstyle-parse v1.0.0
+   Compiling miniz_oxide v0.9.1
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling zlib-rs v0.6.8
+   Compiling anstyle-query v1.1.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling rustls v0.23.45
+   Compiling bytes v1.12.1
+   Compiling colorchoice v1.0.5
+   Compiling anstyle v1.0.14
+   Compiling anstream v1.0.0
+   Compiling http v1.5.0
+   Compiling flate2 v1.1.10
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling rustls-webpki v0.103.15
+   Compiling hashlink v0.12.2
+   Compiling bumpalo v3.20.3
+   Compiling fallible-iterator v0.3.0
+   Compiling once_cell v1.21.4
+   Compiling winnow v1.0.4
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling zopfli v0.8.3
+   Compiling ureq-proto v0.6.4
+   Compiling webpki-roots v1.0.9
+   Compiling xattr v1.6.1
+   Compiling terminal_size v0.4.4
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling wait-timeout v0.2.1
+   Compiling filetime v0.2.29
+   Compiling clap_lex v1.1.1
+   Compiling fnv v1.0.7
+   Compiling typed-path v0.12.3
+   Compiling percent-encoding v2.3.2
+   Compiling strsim v0.11.1
+   Compiling heck v0.5.0
+   Compiling unicode-width v0.2.2
+   Compiling iana-time-zone v0.1.65
+   Compiling utf8-zero v0.8.1
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling rusqlite v0.40.2
+   Compiling ureq v3.4.2
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling chrono v0.4.45
+   Compiling papergrid v0.18.0
+   Compiling clap_derive v4.6.7
+   Compiling clap_builder v4.6.7
+   Compiling zip v8.6.0
+   Compiling tar v0.4.46
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling rtoolbox v0.0.6
+   Compiling anyhow v1.0.104
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+   Compiling rpassword v7.5.4
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling clap v4.6.7
+   Compiling tabled v0.22.0
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling clap_complete v4.6.11
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 41s

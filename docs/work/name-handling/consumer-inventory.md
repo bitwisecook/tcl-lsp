@@ -15,6 +15,11 @@ lexical candidates across381 tracked files. Candidate attribution is lexical;
 unreconciled rows remain unfinished. These reports supersede stale individual
 statuses below where explicitly stated; they are not whole-surface acceptance.
 
+The [codegen/middle-end audit](codegen-consumers.md) reconciles actual bytecode,
+WASM and BPF emitters, contract-only target families, and remaining #1778 map
+consumers. String labels, DSL map symbols and genuine command slots have
+separate contracts; a map audit is not execution acceptance.
+
 | Callsite | Operation/input/context | Shared owner/API and disposition | Tests/evidence or next action |
 | --- | --- | --- | --- |
 | `rust/tcl-cli/src/commands/lookup.rs::run_command_info` | User-provided exact registry command name + dialect + actual pack-layered store; JSON/human output | Implementation ready; consumer tests pending. Uses one `ResolvedContext::resolve_spec` call, removing independent trim/case-insensitive candidate scan and supplied-empty-name rejection. Retains literal output spelling; metadata, not live binding. | New `tests/cli.rs::command_info_preserves_exact_command_names` (2 positive/9 negative); existing project pack discovery control. No Rust test run yet. Original C5/Jim custom probe retained under `experiments/name-handling/results/cli-command-name-literal`. |

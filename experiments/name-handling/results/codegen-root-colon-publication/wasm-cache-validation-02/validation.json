@@ -1,0 +1,190 @@
+{
+  "started_utc": "2026-10-13T15:22:42Z",
+  "scope": "Same frozen source and exact selected real-link executable; writable Wasmtime cache environment correction only. Native table-positive checks may fail before actual linking. All failures in compiler-wasm-validation-01 retained.",
+  "prior_validation_sha256": "fa3d60bb767d7abc567c5faeda24166e99d2349143ec1675e4eb6d1f2deaf05d",
+  "git_head": "fec11755eda5a2c7ed1e086e5ae708977e234cc2",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_NET_OFFLINE": "true",
+    "TCL_REQUIRE_WASM_LINK": "1",
+    "XDG_CACHE_HOME": "/workspace/tcl-lsp/tmp/name-wasmtime-cache",
+    "WASI_SDK_PATH": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk",
+    "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath"
+  },
+  "tests": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "root_colon_publication_runs_its_own_compiled_table_entry",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.0851422630003071,
+      "stdout": "test-0.stdout",
+      "stderr": "test-0.stderr",
+      "selector": "root_colon_publication_runs_its_own_compiled_table_entry",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6482466249999561,
+      "stdout": "test-1.stdout",
+      "stderr": "test-1.stderr",
+      "selector": "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "general_original_definition_materialises_its_body_once",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 12.201555327999813,
+      "stdout": "test-2.stdout",
+      "stderr": "test-2.stderr",
+      "selector": "general_original_definition_materialises_its_body_once",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "general_original_definition_keeps_braced_body_text_inert",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.213986366001336,
+      "stdout": "test-3.stdout",
+      "stderr": "test-3.stderr",
+      "selector": "general_original_definition_keeps_braced_body_text_inert",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "general_original_definition_evaluates_its_name_once",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.261029187000531,
+      "stdout": "test-4.stdout",
+      "stderr": "test-4.stderr",
+      "selector": "general_original_definition_evaluates_its_name_once",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "general_original_definition_preserves_unknown_name_error",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.05399614199996,
+      "stdout": "test-5.stdout",
+      "stderr": "test-5.stderr",
+      "selector": "general_original_definition_preserves_unknown_name_error",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "general_original_definition_resolves_a_replaced_definer",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.090249118000429,
+      "stdout": "test-6.stdout",
+      "stderr": "test-6.stderr",
+      "selector": "general_original_definition_resolves_a_replaced_definer",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+        "native_original_definition_preserves_a_replaced_definer",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 5.980735952000032,
+      "stdout": "test-7.stdout",
+      "stderr": "test-7.stderr",
+      "selector": "native_original_definition_preserves_a_replaced_definer",
+      "classification": "strict genuine runtime-linked WASM control",
+      "executed_test_count": 1
+    }
+  ],
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+      "exit_code": 0,
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14",
+      "exit_code": 0,
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    },
+    "wasmtime": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasmtime/wasmtime",
+      "sha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635",
+      "exit_code": 0,
+      "stdout": "wasmtime 49.0.2 (3c8a3e79a 2026-10-02)\n",
+      "stderr": ""
+    },
+    "wasm-merge": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/binaryen/bin/wasm-merge",
+      "sha256": "4b55992e09b833bcc6719dbc0540783dfdb05dba319c03eb1059ade20211c957",
+      "exit_code": 0,
+      "stdout": "wasm-merge version 133 (version_133)\n",
+      "stderr": ""
+    },
+    "cc": {
+      "path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exit_code": 0,
+      "stdout": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "stderr": ""
+    },
+    "wasi_clang": {
+      "path": "/workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/clang-23",
+      "sha256": "061f88b9f4c48f3742434c2513d5038ab7fa4dc27abff5cb13b5eaedcb51d6ea",
+      "version": "clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: /workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin\nConfiguration file: /workspace/tcl-lsp/tmp/name-wasm-tools/wasi-sdk/bin/clang.cfg\n"
+    }
+  },
+  "executable": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/wasm_real_link-3b468e4f410b7e0a",
+    "sha256_before": "bd11be528d9ad8c5bc7eeefd3ef0c5eeb49e201fcd97d6acef9c80894b37d53f",
+    "sha256_after": "bd11be528d9ad8c5bc7eeefd3ef0c5eeb49e201fcd97d6acef9c80894b37d53f"
+  },
+  "preexisting_inputs_unchanged": true,
+  "changed_preexisting_inputs": {},
+  "reserved_wasm_runtime": {
+    "path": "/workspace/tcl-lsp/target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm",
+    "sha256": "c125a90b5c71cba7f80c7cb65624547decab4c3410fded2ccc8e845794dec299"
+  },
+  "finished_utc": "2026-10-13T15:23:43Z"
+}

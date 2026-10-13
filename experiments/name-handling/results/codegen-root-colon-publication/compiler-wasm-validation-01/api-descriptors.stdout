@@ -1,0 +1,23 @@
+
+running 18 tests
+test codegen_abi::tests::compiled_activation_imports_bracket_generated_code_with_a_status_and_a_code ... ok
+test codegen_abi::tests::every_import_is_in_the_abi_table ... ok
+test codegen_abi::tests::every_layout_constant_is_in_the_abi_fingerprint ... ok
+test codegen_abi::tests::guard_and_completion_layouts_are_explicit_for_wasm32_transport ... ok
+test codegen_abi::tests::guarded_intrinsic_imports_keep_identity_token_and_completion_abi ... ok
+test codegen_abi::tests::host_refusal_query_is_distinct_from_guest_completion_and_cleanup ... ok
+test codegen_abi::tests::indexed_slot_imports_address_a_cell_and_keep_the_legacy_local_spellings ... ok
+test codegen_abi::tests::legacy_and_general_import_descriptors_preserve_the_wasm_abi ... ok
+test codegen_abi::tests::native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter ... ok
+test codegen_abi::tests::native_proc_entry_statuses_and_the_table_import_name_have_one_spelling ... ok
+test codegen_abi::tests::native_tier_imports_carry_names_argv_and_completion_storage ... ok
+test codegen_abi::tests::native_wide_int_materialisation_uses_the_owned_i64_to_object_abi ... ok
+test codegen_abi::tests::original_boolean_imports_separate_operand_purpose_from_expression_production ... ok
+test codegen_abi::tests::original_proc_definition_borrows_argv_and_writes_completion ... ok
+test codegen_abi::tests::the_abi_version_moves_with_the_table ... ok
+test codegen_abi::tests::the_runtime_identity_import_takes_a_buffer_and_answers_a_length ... ok
+test codegen_abi::tests::trace_barrier_imports_answer_a_boolean_for_a_name_or_a_slot ... ok
+test codegen_abi::tests::typed_value_imports_carry_native_scalars_and_an_out_pointer_status ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.00s
+

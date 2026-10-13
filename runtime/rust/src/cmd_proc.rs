@@ -25,7 +25,7 @@
 //! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
 use crate::interp::native_arguments::OriginalArguments;
-use crate::interp::{CallMeta, Code, Interp, Param, ProcFrame, obj_bytes};
+use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
 use crate::obj::{self, Owned};
 use tcl_cmd_core::CmdError;
@@ -469,7 +469,7 @@ pub(crate) fn parse_params_object(
     spec: *mut TclObj,
     procedure: &[u8],
 ) -> Result<Vec<Param>, CmdError> {
-    use tcl_syntax::formal_params::{FormalParameterValueError, parse_formal_parameter_values};
+    use tcl_syntax::formal_params::{parse_formal_parameter_values, FormalParameterValueError};
     let protocol = interp
         .name_policy_protocol()
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(

@@ -1,0 +1,4 @@
+
+thread 'optimiser::tail_call::tests::original_allocation_and_grouped_names_control_tail_rewrites' (58206) panicked at rust/tcl-compiler/src/optimiser/tail_call.rs:794:25:
+tcl8.4: exact original scalar self call []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

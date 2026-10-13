@@ -1,0 +1,4 @@
+
+thread 'top_installs_one_table_entry_per_bound_body' (58222) panicked at rust/tcl-compiler/tests/wasm_codegen.rs:1415:5:
+the module imports the shared table
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

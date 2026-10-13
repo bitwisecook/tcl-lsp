@@ -1,0 +1,4 @@
+
+thread 'root_colon_publication_runs_its_own_compiled_table_entry' (61953) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:
+"proc :audit {a b} {return [expr {$a + $b}]}\nproc ordinary {a b} {return [expr {$a - $b}]}\nset colon_result [:audit 40 2]\nset ordinary_result [ordinary 10 3]\n" must import the runtime's shared function table
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

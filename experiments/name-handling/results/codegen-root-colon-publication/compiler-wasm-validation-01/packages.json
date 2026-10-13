@@ -1,0 +1,267 @@
+[
+  {
+    "name": "bigip-report-gen-rust",
+    "manifest_path": "/workspace/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "bpf-tcl",
+    "manifest_path": "/workspace/tcl-lsp/rust/bpf-tcl/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "bpf-tcl-codegen",
+    "manifest_path": "/workspace/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "bpf-tcl-ir",
+    "manifest_path": "/workspace/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "f5-cli",
+    "manifest_path": "/workspace/tcl-lsp/rust/f5-cli/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "f5-xc",
+    "manifest_path": "/workspace/tcl-lsp/rust/f5-xc/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-bigip",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-bigip/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-bigip-io",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-bigip-io/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-bigip-query",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-bigip-query/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-bytecode",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-bytecode/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-cli",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-cli/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-cli-support",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-cli-support/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-cmd-core",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-compiler",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-core-types",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-core-types/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-cshim",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-cshim/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-debugger",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-debugger/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-diagram",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-diagram/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-dialect",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-dialect/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-engine-api",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-engine-api/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-engine-tclvm",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-engine-wasm",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-explorer",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-explorer/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-f5mku",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-f5mku/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-fuzz",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-fuzz/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-host-c-abi",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-host-native",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-native/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-irule-test",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-irule-test/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-irules",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-irules/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-lexer",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-lexer/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-lsp-core",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-lsp-core/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-lsp-db",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-lsp-db/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-lsp-server",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-mcp",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-mcp/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-pkg",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-pkg/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-pkg-model",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-pkg-model/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-platform",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-platform/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-regex",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-regex/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-registry",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-runtime",
+    "manifest_path": "/workspace/tcl-lsp/runtime/rust/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-runtime-api",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-sandbox",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-sandbox/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-spec-hooks",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-spec-studio",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-spec-studio/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-spectcl",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-sslictcl",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-sslictcl/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-syntax",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-syntax/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-test-support",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-test-support/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-userdirs",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-userdirs/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-version",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-version/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-vm",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-vm/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "tcl-vm-cli",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-vm-cli/Cargo.toml",
+    "version": "0.1.0"
+  },
+  {
+    "name": "xtask",
+    "manifest_path": "/workspace/tcl-lsp/rust/xtask/Cargo.toml",
+    "version": "0.1.0"
+  }
+]
