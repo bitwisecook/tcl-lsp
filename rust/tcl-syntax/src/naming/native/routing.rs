@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Command qualifier routing retains its purpose independently of display paths.
 
-use super::super::{CommandLookupBase, command_lookup_bases};
+use super::super::{CommandLookupBase, command_lookup_bases, written_command_parts};
 use super::{
     NameProjectionUnavailable, NativeNameContext, NativeNameProjection, NativeNameProtocol,
-    NativeNamePurpose, NativeNameQualification, TclVersion, ends_with_separator,
-    qualifier_segments, written_command_tail,
+    NativeNamePurpose, NativeNameQualification, TclVersion,
 };
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 
@@ -335,13 +334,8 @@ pub(super) fn command_slot_projection(
         } else {
             NativeCommandNamespaceRoute::Context
         };
-    let segments = qualifier_segments(input.selected());
-    let count = if ends_with_separator(input.selected()) {
-        segments.len()
-    } else {
-        segments.len().saturating_sub(1)
-    };
-    let qualifiers = ByteNamespacePath::from_segments(segments[..count].iter().copied());
+    let parts = written_command_parts(input.selected());
+    let qualifiers = ByteNamespacePath::from_segments(parts.qualifiers);
     let mut namespace = match namespace_route {
         NativeCommandNamespaceRoute::Root => ByteNamespacePath::root(),
         NativeCommandNamespaceRoute::Context | NativeCommandNamespaceRoute::ContextParent => {
@@ -352,10 +346,7 @@ pub(super) fn command_slot_projection(
         namespace.push(segment.clone());
     }
     Ok(NativeCommandSlotProjection {
-        slot: ByteCommandSlot::new(
-            namespace,
-            NameBytes::from(written_command_tail(input.selected())),
-        ),
+        slot: ByteCommandSlot::new(namespace, NameBytes::from(parts.simple)),
         namespace_route,
         qualifiers,
         protocol: input.protocol,

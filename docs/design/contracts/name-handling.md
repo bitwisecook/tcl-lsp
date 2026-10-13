@@ -17,6 +17,26 @@ Missing ownership is terminal for definite identity or mutation. Logical
 candidate helpers provide bounded assistance; their strings cannot manufacture
 native objects, command entries, completed worlds or editable occurrences.
 
+## Logical variable source scopes
+
+`AnalysisResult::logical_variable_scope_advice` is the shared Compiler entry
+for source table eligibility under independently retained Logical advice.
+It requires the exact complete image/channel, lexer configuration and a cursor
+within that image. Missing input, Native/hosted source and original readonly
+alias receipts cannot issue this owner. Core definition, completion and rename
+adapters use its eligible scopes; they retain table selection, cell identity,
+collision checks and their independent edit requirements.
+
+The Compiler owns smallest-containing-body descent and uses the selected
+Registry frame-level parser. Namespace tables retain their selected root
+alternative. Procedure/method source bodies retain local tables. Absolute zero
+uplevel selects root source tables, relative zero retains the source caller's
+frame, and an unknown caller cannot donate enclosing local/namespace/root
+lookup tables. A nested declared body selects its own source boundary.
+Independent root completion candidates require rooted insertion when the
+selected source scope cannot use their bare names. This source view supplies
+no entered activation, completed alias, current contents or Native capability.
+
 ## Representations
 
 A name's spelling, identity and presentation are different values:
@@ -327,3 +347,9 @@ The experiment protocol and executable observations are retained under
 proc/class scans. Neither gate proves that every consumer has adopted the
 owners; representation-aware consumer tests and a complete inventory are
 also necessary.
+
+Runtime bootstrap/support publication consumes shared `WrittenCommandParts`
+without acquiring Original publication authority. Its selected last-nonempty
+bootstrap policy and physical retained/dying holders remain adapter-owned.
+`NativeOoVarnameLookup` carries original-versus-constructed operand selection;
+actual caller objects, lookup purposes, cells and currency remain separate.

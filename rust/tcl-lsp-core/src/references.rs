@@ -2573,7 +2573,9 @@ fn collect_stored_callback_writes(
                 has_scope_alias = true;
                 continue;
             };
-            if var.contains("::") || tcl_syntax::naming::split_element_ref(&var).is_some() {
+            if tcl_syntax::naming::is_qualified(var.as_bytes())
+                || tcl_syntax::naming::split_element_ref(&var).is_some()
+            {
                 continue;
             }
             *counts.entry(var.clone()).or_default() += 1;

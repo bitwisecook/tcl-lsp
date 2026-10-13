@@ -38,7 +38,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::OoId;
-use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
+use tcl_syntax::naming::{qualifier_segments as split_qualifier, written_command_parts};
 
 use crate::frame::VarTable;
 use crate::interp::{BuiltinFn, Command, OoCommandRole};
@@ -1935,13 +1935,16 @@ impl Namespaces {
             self.insert_bound_after_entry(entry, key.clone(), command);
             return Some((namespace, key));
         }
-        let segments = split_qualifier(name);
-        let (simple, ns_parts) = segments.split_last()?;
+        let mut parts = written_command_parts(name);
+        // Bootstrap registration binds the last nonempty component.
+        if parts.simple.is_empty() {
+            parts.simple = parts.qualifiers.pop()?;
+        }
         let mut ns = GLOBAL;
-        for part in ns_parts {
+        for part in parts.qualifiers {
             ns = self.ensure_child(ns, part);
         }
-        let simple = (*simple).to_vec();
+        let simple = parts.simple.to_vec();
         self.insert_bound(ns, simple.clone(), command);
         Some((ns, simple))
     }
@@ -2110,16 +2113,19 @@ impl Namespaces {
         binding: CommandBinding,
         original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     ) -> Result<(), RetiredCommandSlot> {
-        let segments = split_qualifier(name);
-        let Some((simple, ns_parts)) = segments.split_last() else {
-            return Err(RetiredCommandSlot {
-                procedure: None,
-                original_jim_key,
-                binding: Some(binding),
-            });
-        };
+        let mut parts = written_command_parts(name);
+        if parts.simple.is_empty() {
+            let Some(simple) = parts.qualifiers.pop() else {
+                return Err(RetiredCommandSlot {
+                    procedure: None,
+                    original_jim_key,
+                    binding: Some(binding),
+                });
+            };
+            parts.simple = simple;
+        }
         let mut ns = GLOBAL;
-        for part in ns_parts {
+        for part in parts.qualifiers {
             ns = self.ensure_child(ns, part);
         }
         let hook = self
@@ -2129,7 +2135,7 @@ impl Namespaces {
             None,
             tcl_registry::native_procedure::NativeCompilerCacheMutation::CommandToken { hook },
         );
-        self.insert_moved_binding(ns, (*simple).to_vec(), binding, original_jim_key);
+        self.insert_moved_binding(ns, parts.simple.to_vec(), binding, original_jim_key);
         self.invalidate_native_command_lookup(ns);
         Ok(())
     }
@@ -2587,36 +2593,23 @@ impl Namespaces {
         }
     }
 
-    /// The namespace a (possibly qualified) **command** `name` lives in, creating
-    /// any intermediate namespaces — i.e. everything before the simple tail
-    /// (`::a::b::foo` → `::a::b`; `foo` → `current`). For `proc`/`define_proc`,
-    /// which needs the proc's home ns id (its run-time current namespace).
+    /// Select the holder of an authored bootstrap or support command name.
+    /// Original publication selects its own operation-specific slot.
     pub(crate) fn command_home_ns(&mut self, current: NsId, name: &[u8]) -> NsId {
-        let absolute = name.starts_with(b"::");
-        let segments = split_qualifier(name);
-        let mut ns = if absolute { GLOBAL } else { current };
-        // A written name ending in a separator run names the empty-string
-        // `{}` command inside its FULL qualifier chain — every segment is a
-        // namespace part, none is the tail (`proc x:: {} {}` defines
-        // `::x::`, tclsh 8.6/9.0-pinned) — mirroring `home_of`'s
-        // resolution split so definition and dispatch agree.
-        let ns_parts: &[&[u8]] = if ends_with_separator(name) || name.is_empty() {
-            &segments[..]
-        } else {
-            segments
-                .split_last()
-                .map_or(&[][..], |(_tail, ns_parts)| ns_parts)
-        };
-        // Command definition may target an *exact* detached namespace token
-        // during its delete callback (`proc ::N::q ...`). Namespace creation
-        // is different: a longer missing path below an original dying
-        // descendant (`namespace eval ::N::C::X ...`) must build an entirely
-        // fresh visible `N::C::X` tree. Resolve the whole qualifier first and
-        // retain a dying token only when every qualifier segment already names
-        // that exact token; otherwise creation below uses visible edges only.
+        self.command_home_parts(current, &written_command_parts(name))
+    }
+
+    fn command_home_parts(
+        &mut self,
+        current: NsId,
+        parts: &tcl_syntax::naming::WrittenCommandParts<'_>,
+    ) -> NsId {
+        let mut ns = if parts.absolute { GLOBAL } else { current };
+        // Retain a complete dying holder; a missing longer chain creates
+        // visible children from the supplied token anchor.
         let mut existing = ns;
         let mut complete = true;
-        for part in ns_parts {
+        for part in &parts.qualifiers {
             let next = self.arena[existing]
                 .children
                 .get(*part)
@@ -2631,7 +2624,7 @@ impl Namespaces {
         if complete {
             return existing;
         }
-        for part in ns_parts {
+        for part in &parts.qualifiers {
             ns = self.ensure_child(ns, part);
         }
         ns
@@ -2643,12 +2636,12 @@ impl Namespaces {
     /// created by a delete trace must join that generation and its fixed-point
     /// sweep, not recreate the visible qualifier chain.
     pub(crate) fn ensure_command_owned_namespace(&mut self, current: NsId, name: &[u8]) -> NsId {
-        let home = self.command_home_ns(current, name);
-        let tail = tcl_syntax::naming::written_command_tail(name);
-        if tail.is_empty() {
+        let parts = written_command_parts(name);
+        let home = self.command_home_parts(current, &parts);
+        if parts.simple.is_empty() {
             return home;
         }
-        self.ensure_child(home, tail)
+        self.ensure_child(home, parts.simple)
     }
 
     /// Find (creating if needed) the namespace named `qualified`, rooted at
@@ -3873,6 +3866,35 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn bootstrap_registration_and_restore_keep_the_last_nonempty_component() {
+        let mut namespaces = Namespaces::new();
+        assert!(namespaces.register_at(b"", cmd()).is_none());
+        assert!(namespaces.register_at(b"::::", cmd()).is_none());
+        for name in [b"::A:::b::".as_slice(), b"\xff::k\0tail::"] {
+            let (namespace, simple) = namespaces.register_at(name, cmd()).unwrap();
+            assert_eq!(
+                simple,
+                if name.starts_with(b"::A") {
+                    b"b".as_slice()
+                } else {
+                    b"k\0tail".as_slice()
+                },
+            );
+            let generation = namespaces.command_generation(namespace, &simple).unwrap();
+            let binding = namespaces.arena[namespace]
+                .commands
+                .remove_binding(&simple)
+                .unwrap();
+            assert!(namespaces.restore(b"::D:::moved::", binding));
+            let destination = namespaces.find_namespace(GLOBAL, b"D").unwrap();
+            assert_eq!(
+                namespaces.command_generation(destination, b"moved"),
+                Some(generation)
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,9 @@
+{
+  "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+  "environment": "TCL_LIBRARY/TCLLIBPATH/LD_LIBRARY_PATH unset",
+  "exit": 1,
+  "stdout": "root ROOT_TARGET\n",
+  "stderr": "/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl:6: Error: can't read \"Target::x\": no such variable\nTraceback (most recent call last):\n  File \"/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl\", line 15\n    ::Caller::c\n  File \"/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl\", line 13, in Caller::c\n    ::N::p\n  File \"/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl\", line 6, in N::p\n"
+}

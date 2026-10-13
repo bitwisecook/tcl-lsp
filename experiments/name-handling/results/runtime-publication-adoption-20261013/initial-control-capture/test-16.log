@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_publication_tests::private_dispatcher_refuses_retired_namespace_without_adopting_recreated_holder ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2115 filtered out; finished in 1.70s
+

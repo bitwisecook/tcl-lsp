@@ -1,0 +1,9 @@
+{
+  "runtime/rust/src/namespace.rs": "14d6e32b462691ca3876dc9f84638af2823093f1397157bd7db2b98afbaa9d99",
+  "runtime/rust/src/cmd_namespace.rs": "b71f6da0d03950d5486e84f724e8fe339e20f76891a86b33506769cecc7a50c0",
+  "runtime/rust/src/interp/native_variable_names/native_tcloo.rs": "b07d6d6dc5769104a5e640a75d2bcc3d0dd10b066bdeda1d6d64b2f2c2b2ca89",
+  "rust/tcl-syntax/src/naming.rs": "2f6f2ce976b0b8827d63b5ffedf2eea4088a0e5ca10b8e48a6c5740fa2a1779b",
+  "rust/tcl-syntax/src/naming/oo_variables.rs": "80516be607200ce5da7711a692b61dada19144e1f330d071ebcb0b0aaa110e72",
+  "rust/tcl-syntax/src/naming/native/routing.rs": "6206f6d88982eae4abc3aa10c674a3b6aef0a0de1bc772d1b1551597d5ce43b4",
+  "rust/tcl-syntax/src/naming/native.rs": "b6a416afdf8e7c1a285beb824142f3dc36ff2686ab4a20cefda68b263d3181ba"
+}

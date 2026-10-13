@@ -378,13 +378,7 @@ fn variable_trigger_completions(
         return Some(Vec::new());
     }
     Some(variable_completions(
-        source,
-        line,
-        character,
-        &analysis.global_scope,
-        &partial,
-        trigger,
-        analysis.ns_var_global_fallback(),
+        source, line, character, analysis, &partial, trigger,
     ))
 }
 
@@ -691,10 +685,9 @@ fn variable_completions(
     source: &str,
     line: u32,
     character: u32,
-    scope: &Scope,
+    analysis: &AnalysisResult,
     partial: &str,
     trigger: char,
-    ns_global_fallback: bool,
 ) -> Vec<CompletionItem> {
     let line_text = source.split('\n').nth(line as usize).unwrap_or("");
     let chars: Vec<char> = line_text.chars().collect();
@@ -752,35 +745,29 @@ fn variable_completions(
 
     let line_index = tcl_lexer::LineIndex::new(source);
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    let Some(advice) = analysis.logical_variable_scope_advice(
+        &tcl_lexer::SourceImage::document(source),
+        config,
+        byte_offset,
+    ) else {
+        return Vec::new();
+    };
 
     // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
     // indices of `arr` as `$arr(index)`.  A `(` in the partial always
     // resolves here (to suggestions or an empty list); it never falls
     // through to plain-name completion.
     if partial.contains('(') {
-        return array_element_completions(
-            line_text,
-            scope,
-            byte_offset,
-            partial,
-            end,
-            edit_start,
-            ns_global_fallback,
-        );
+        return array_element_completions(line_text, &advice, partial, end, edit_start);
     }
 
-    // Scope-aware: union of variables visible at the cursor (innermost scope
-    // first, then enclosing scopes up to the global root).
-    let names = visible_substitutable_names(scope, byte_offset, partial);
+    // Source visibility and rooted insertion share the checked scope selector.
+    let names = visible_substitutable_names(&advice, partial);
 
-    // Inside a proc / nested namespace, a global variable is only reachable
-    // via its `::`-qualified name (a bare `$foo` there is a local / namespace
-    // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
-    let qualify_globals = crate::definition::global_vars_needing_qualification(
-        scope,
-        byte_offset,
-        ns_global_fallback,
-    );
+    let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
 
     let edit = VarEdit {
         start: edit_start,
@@ -792,7 +779,7 @@ fn variable_completions(
     // Cross-namespace candidates — variables in *other* namespaces, offered in
     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
     // chain are already above as bare names).
-    push_cross_namespace_vars(&mut items, scope, byte_offset, partial, edit);
+    push_cross_namespace_vars(&mut items, &advice, partial, edit);
     if !items.is_empty() {
         return items;
     }
@@ -803,11 +790,11 @@ fn variable_completions(
     let mut universe = Vec::new();
     push_local_var_items(
         &mut universe,
-        visible_substitutable_names(scope, byte_offset, ""),
+        visible_substitutable_names(&advice, ""),
         qualify_globals.as_ref(),
         edit,
     );
-    push_cross_namespace_vars(&mut universe, scope, byte_offset, "", edit);
+    push_cross_namespace_vars(&mut universe, &advice, "", edit);
     let FilteredCandidates {
         candidates: mut fallback,
         fuzzy,
@@ -827,10 +814,12 @@ fn variable_completions(
     fallback
 }
 
-/// Sorted, deduplicated variable names visible at `byte_offset` that
-/// start with `partial` and survive the substitutability check.
-fn visible_substitutable_names(scope: &Scope, byte_offset: u32, partial: &str) -> Vec<String> {
-    let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
+/// Sorted source candidates matching the fragment and substitution grammar.
+fn visible_substitutable_names(
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+    partial: &str,
+) -> Vec<String> {
+    let mut names: Vec<String> = crate::definition::visible_variable_names(advice)
         .into_iter()
         .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
         .collect();
@@ -891,13 +880,23 @@ struct VarEdit {
 /// cursor's own lexical chain, deduped against the labels already in `items`.
 fn push_cross_namespace_vars(
     items: &mut Vec<CompletionItem>,
-    scope: &Scope,
-    byte_offset: u32,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
     partial: &str,
     edit: VarEdit,
 ) {
     let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
-    let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
+    let scope = advice.root();
+    let chain = advice
+        .eligible_scopes()
+        .filter(|scope| {
+            matches!(
+                scope.kind,
+                tcl_compiler::analyser::ScopeKind::Namespace
+                    | tcl_compiler::analyser::ScopeKind::Global
+            )
+        })
+        .map(|scope| scope.name.clone())
+        .collect::<FxHashSet<_>>();
     let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
     qnames.sort_unstable();
     qnames.dedup();
@@ -939,25 +938,18 @@ fn push_cross_namespace_vars(
 /// preventing command completion from replacing an array-element response.
 fn array_element_completions(
     line_text: &str,
-    scope: &Scope,
-    byte_offset: u32,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
     partial: &str,
     end: usize,
     edit_start: Option<u32>,
-    ns_global_fallback: bool,
 ) -> Vec<CompletionItem> {
     // The caller dispatches here exactly when `partial` contains a `(`.
-    let Some(paren) = partial.find('(') else {
+    let Some((arr_name, elem_prefix)) =
+        tcl_syntax::naming::array_variable_completion_prefix(partial)
+    else {
         return Vec::new();
     };
-    let arr_name = partial[..paren].trim_start_matches('{');
-    let elem_prefix = &partial[paren + 1..];
-    let Some(arr_def) = crate::definition::lookup_var_in_scope_chain(
-        scope,
-        byte_offset,
-        arr_name,
-        ns_global_fallback,
-    ) else {
+    let Some(arr_def) = crate::definition::lookup_var_in_logical_scope(advice, arr_name) else {
         return Vec::new();
     };
     if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {

@@ -1,0 +1,62 @@
+[
+  {
+    "version": "8.4.20",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+    "TCLLIBPATH": "unset",
+    "exit": 0,
+    "stdout": "root ROOT_TARGET\ncurrent N_TARGET\ncaller CALLER_TARGET\nexplicit-root ROOT_TARGET\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.5.19",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+    "TCLLIBPATH": "unset",
+    "exit": 0,
+    "stdout": "root ROOT_TARGET\ncurrent N_TARGET\ncaller CALLER_TARGET\nexplicit-root ROOT_TARGET\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6.18",
+    "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "TCLLIBPATH": "unset",
+    "exit": 0,
+    "stdout": "root ROOT_TARGET\ncurrent N_TARGET\ncaller CALLER_TARGET\nexplicit-root ROOT_TARGET\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0.4",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+    "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+    "TCLLIBPATH": "unset",
+    "exit": 0,
+    "stdout": "root ROOT_TARGET\ncurrent N_TARGET\ncaller CALLER_TARGET\nexplicit-root ROOT_TARGET\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1.0",
+    "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+    "probe_sha256": "785a82c0a1ac6318efec0355a4f4757b28a58b457f318f0b6e565e1e809c3676",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "TCLLIBPATH": "unset",
+    "exit": 0,
+    "stdout": "root ROOT_TARGET\ncurrent N_TARGET\ncaller CALLER_TARGET\nexplicit-root ROOT_TARGET\n",
+    "stderr": ""
+  }
+]

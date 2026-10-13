@@ -1,0 +1,16 @@
+{
+  "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+  "sha256": "eb4c72a0e6ca15b9837ef0dcbb69fec83cd299219d15f2d3afebadd210b6cdcd",
+  "command": [
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 101,
+  "elapsed_seconds": 1.6217279869997583,
+  "source_receipt": "../baseline-source-before.json.gz",
+  "binary_unchanged": true,
+  "log_sha256": "64f515e2956fa4fe5635c9e6ed4c8def48a28e95112da19b8f530360ab8bd670"
+}

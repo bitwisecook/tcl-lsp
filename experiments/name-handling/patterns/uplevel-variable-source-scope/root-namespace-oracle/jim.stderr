@@ -1,0 +1,3 @@
+/tmp/lsp-name-source-frame-next/root-namespace-oracle/probe.tcl:3: Error: can't read "x": no such variable
+Traceback (most recent call last):
+  File "/tmp/lsp-name-source-frame-next/root-namespace-oracle/probe.tcl", line 3

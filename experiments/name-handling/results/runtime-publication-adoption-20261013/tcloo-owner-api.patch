@@ -1,0 +1,129 @@
+diff --git a/rust/tcl-syntax/src/naming.rs b/rust/tcl-syntax/src/naming.rs
+index 0deb7d1aa..ab467391b 100644
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -73,11 +73,11 @@ pub use compiled_variables::{
+ };
+ pub use oo_variables::{
+     NativeOoPrivateVariablePurpose, NativeOoVariableError, NativeOoVariableResolverPurpose,
+-    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, apply_native_oo_slot_records,
+-    apply_native_oo_variable_slot, native_oo_explicit_variable_local_name,
+-    native_oo_private_variable_matches, native_oo_variable_key_report,
+-    native_oo_variable_resolver_matches, native_oo_variable_slot, native_oo_varname_lookup_bytes,
+-    validate_native_oo_variable,
++    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, NativeOoVarnameLookup,
++    apply_native_oo_slot_records, apply_native_oo_variable_slot,
++    native_oo_explicit_variable_local_name, native_oo_private_variable_matches,
++    native_oo_variable_key_report, native_oo_variable_resolver_matches, native_oo_variable_slot,
++    native_oo_varname_lookup, native_oo_varname_lookup_bytes, validate_native_oo_variable,
+ };
+ mod namespace_spans;
+ pub use namespace_spans::{
+diff --git a/rust/tcl-syntax/src/naming/oo_variables.rs b/rust/tcl-syntax/src/naming/oo_variables.rs
+index c138634bf..cd60ec02e 100644
+--- a/rust/tcl-syntax/src/naming/oo_variables.rs
++++ b/rust/tcl-syntax/src/naming/oo_variables.rs
+@@ -98,22 +98,32 @@ pub fn native_oo_explicit_variable_local_name(
+     Ok(Ok(local))
+ }
+ 
+-/// Construct the stock varname lookup operand from an actual object's
++/// Selected stock varname lookup operand and its construction rule.
++/// Original bytes supply no native object, namespace or cell authority.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum NativeOoVarnameLookup<'a> {
++    /// The caller retains its actual original operand.
++    Original(&'a [u8]),
++    /// The caller constructs a fresh counted String from these bytes.
++    Constructed(Vec<u8>),
++}
++
++/// Select the stock varname lookup operand from an actual object's
+ /// namespace and selected private storage name. It grants no namespace or cell.
+ /// Absolute original names retain their original counted bytes. Relative C9.0
+ /// interpolation is `CString`; C8.6/C9.1 append the selected original object bytes.
+ ///
+ /// # Errors
+ /// Refuses an unavailable `TclOO` recipe.
+-pub fn native_oo_varname_lookup_bytes(
++pub fn native_oo_varname_lookup<'a>(
+     protocol: NativeNameProtocol,
+     namespace: &[u8],
+-    original: &[u8],
++    original: &'a [u8],
+     storage: &[u8],
+-) -> Result<Vec<u8>, NameProjectionUnavailable> {
++) -> Result<NativeOoVarnameLookup<'a>, NameProjectionUnavailable> {
+     let version = version(protocol)?;
+     if original.starts_with(b"::") {
+-        return Ok(original.to_vec());
++        return Ok(NativeOoVarnameLookup::Original(original));
+     }
+     let mut lookup = namespace.to_vec();
+     lookup.extend_from_slice(b"::");
+@@ -122,7 +132,23 @@ pub fn native_oo_varname_lookup_bytes(
+     } else {
+         storage
+     });
+-    Ok(lookup)
++    Ok(NativeOoVarnameLookup::Constructed(lookup))
++}
++
++/// Counted bytes of the selected stock varname lookup operand.
++///
++/// # Errors
++/// Refuses an unavailable `TclOO` recipe.
++pub fn native_oo_varname_lookup_bytes(
++    protocol: NativeNameProtocol,
++    namespace: &[u8],
++    original: &[u8],
++    storage: &[u8],
++) -> Result<Vec<u8>, NameProjectionUnavailable> {
++    native_oo_varname_lookup(protocol, namespace, original, storage).map(|lookup| match lookup {
++        NativeOoVarnameLookup::Original(bytes) => bytes.to_vec(),
++        NativeOoVarnameLookup::Constructed(bytes) => bytes,
++    })
+ }
+ 
+ /// Selected namespace variable-key presentation after a successful lookup.
+@@ -535,6 +561,40 @@ mod tests {
+ mod explicit_variable_tests {
+     use super::*;
+ 
++    #[test]
++    fn varname_lookup_plan_retains_absolute_original_and_separates_constructed_inputs() {
++        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
++            let protocol = NativeNameProtocol::C(version);
++            let absolute = b"::global\0tail";
++            let NativeOoVarnameLookup::Original(bytes) =
++                native_oo_varname_lookup(protocol, b"::object", absolute, b"ignored").unwrap()
++            else {
++                panic!("absolute varname retains its original operand");
++            };
++            assert!(std::ptr::eq(bytes, absolute.as_slice()));
++            let NativeOoVarnameLookup::Constructed(bytes) =
++                native_oo_varname_lookup(protocol, b"::object", b"k\0tail", b"k\0tail").unwrap()
++            else {
++                panic!("relative varname constructs its lookup operand");
++            };
++            assert_eq!(
++                bytes,
++                if version == TclVersion::V9_0 {
++                    b"::object::k".as_slice()
++                } else {
++                    b"::object::k\0tail".as_slice()
++                }
++            );
++        }
++        for protocol in [
++            NativeNameProtocol::C(TclVersion::V8_4),
++            NativeNameProtocol::C(TclVersion::V8_5),
++            NativeNameProtocol::Jim084,
++        ] {
++            assert!(native_oo_varname_lookup(protocol, b"N", b"::k", b"k").is_err());
++        }
++    }
++
+     #[test]
+     fn explicit_local_and_varname_lookup_keep_their_independent_byte_extents() {
+         // Source proof: naming.tcloo.explicit-variable-object-lookup-source

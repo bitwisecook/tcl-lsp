@@ -1,0 +1,3 @@
+namespace_queries_match_original_source_reports: test
+
+1 test, 0 benchmarks

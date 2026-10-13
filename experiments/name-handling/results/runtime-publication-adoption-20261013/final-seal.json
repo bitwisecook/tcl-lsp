@@ -1,0 +1,56 @@
+{
+  "baseline": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "base_context": "prior sealed three-file ordinary variable patch plus inherited rename destination hunk",
+  "patch_sha256": "0b8ca503cef1f96c7ece16141753de6375fb9d38ede4ff39e85d6ab06ea57599",
+  "owned_files": {
+    "runtime/rust/src/namespace.rs": {
+      "preimage_sha256": "14d6e32b462691ca3876dc9f84638af2823093f1397157bd7db2b98afbaa9d99",
+      "tested_sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a"
+    },
+    "runtime/rust/src/cmd_namespace.rs": {
+      "preimage_sha256": "b71f6da0d03950d5486e84f724e8fe339e20f76891a86b33506769cecc7a50c0",
+      "tested_sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848"
+    },
+    "runtime/rust/src/interp/native_variable_names/native_tcloo.rs": {
+      "preimage_sha256": "b07d6d6dc5769104a5e640a75d2bcc3d0dd10b066bdeda1d6d64b2f2c2b2ca89",
+      "tested_sha256": "92bd760d9642edca80422f05542a8cfbd6d9eef75867b2bc19910ddf28016b42"
+    },
+    "rust/tcl-syntax/src/naming.rs": {
+      "preimage_sha256": "2f6f2ce976b0b8827d63b5ffedf2eea4088a0e5ca10b8e48a6c5740fa2a1779b",
+      "tested_sha256": "d4fa233397dcd6e663f6626028f4f7646f912cdabe0d834ce9b5c8929c035ccd"
+    },
+    "rust/tcl-syntax/src/naming/oo_variables.rs": {
+      "preimage_sha256": "80516be607200ce5da7711a692b61dada19144e1f330d071ebcb0b0aaa110e72",
+      "tested_sha256": "0b7ce75e1e631521fb27a8ae1eae182ba0700943d95e76a8c489d48ea0022ab0"
+    },
+    "rust/tcl-syntax/src/naming/native/routing.rs": {
+      "preimage_sha256": "6206f6d88982eae4abc3aa10c674a3b6aef0a0de1bc772d1b1551597d5ce43b4",
+      "tested_sha256": "9f72eaaf5c66cdd0bddf0dc7c18b4b05245b96a182ef7bc02ddcda14d734bead"
+    },
+    "rust/tcl-syntax/src/naming/native.rs": {
+      "preimage_sha256": "b6a416afdf8e7c1a285beb824142f3dc36ff2686ab4a20cefda68b263d3181ba",
+      "tested_sha256": "8fb35607bde74a00fd9576b47773c136dc83b7110c4b952a60e8d187ee092502"
+    }
+  },
+  "source_paths": 10325,
+  "source_changes": {},
+  "compiled_inputs": 4990,
+  "uncovered": [],
+  "unresolved": [],
+  "binary_hashes": {
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a": "26720617920da6ac7358e91a4186738ef097306bcfd11f47ab4fafe5310f195a",
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235": "35a9607a6b2ad446404c32e999e530d4da8f4993ab33baba456bc2d2d99467e8",
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_query_bases-1a3cc40d7f7663fe": "9144c83031fd5c971c67bf6066dba64cdbfcb5d66bddb4851c2d50c1b4cc155c"
+  },
+  "compiled_input_changes": {},
+  "binary_changes": {},
+  "exact_tests": 30,
+  "passed": 29,
+  "failed": [
+    "cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct"
+  ],
+  "failure_reproduced_on_prior_source": true,
+  "failure_reproduced_without_inherited_destination_hunk": true,
+  "namespace_query_comparison_rows": 48,
+  "fresh_native_oracle_execution_claimed": false
+}

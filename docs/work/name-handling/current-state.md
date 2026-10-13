@@ -51,8 +51,8 @@ the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM 
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is18:18 BST; the next tracking
-checkpoint is18:33 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is18:36 BST; the next tracking
+checkpoint is18:51 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -168,7 +168,7 @@ publication/bootstrap and TclOO holder-selection consumers have separate owners.
 
 The [outstanding consumer audit](outstanding-consumer-audit.md) reconciles63
 package boundaries and330 current-hash/function-attributed LSP candidates, routing
-32 bounded semantic handoffs. It establishes no exhaustive acceptance. Source
+36 bounded semantic handoffs. It establishes no exhaustive acceptance. Source
 procedure identities still need propagation into compiler maps, DB cascades and
 reporting schemas. Root prepares the exact simulator mock table and SpecTcl/CLI
 tooling boundaries; Registry/VM, compiler descriptors, LSP and codegen are active
@@ -203,3 +203,18 @@ positives with complete selected-local inputs and explicit post-only SDK inputs.
 Further Runtime publication/TclOO owner validation initially passes29/30; the
 retained/recreated-import failure also reproduces before that migration and
 without the inherited destination hunk. It remains an unresolved naming control.
+
+Runtime publication/TclOO7-file migration and LSP shared scope/primitive/partial
+array adapters are integrated. [Runtime receipt](../../../experiments/name-handling/results/runtime-publication-adoption-20261013/validation.md)
+seals29/30 exact controls, with the retained/recreated-import failure reproduced
+before the migration and without the destination hunk. Six new public LSP
+controls and actual Logical array-completion ingress validation remain pending.
+C5 frame/scope probes and distinct Jim refusals are retained in the source-scope
+pattern; no C execution expectation transfers to Jim. BPF owner reports88
+controls passing (IR60/eBPF28); source integration and receipt retention are next.
+
+Registry/VM acceptance count audit corrects a zero-test selector: revised46
+processes contain36 actual passes,4 assertion failures,5 Compiler build-blocked
+selectors and1 zero-test attempt. The corrected VM13 group passes. Registry
+opaqueWhich/named operand layout and C84/Jim query differences remain measured
+repairs; no zero-test process establishes acceptance. Full gates remain pending.

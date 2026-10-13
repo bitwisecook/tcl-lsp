@@ -59,7 +59,7 @@ impl Interp {
             .version();
         let protocol = tcl_syntax::naming::NativeNameProtocol::C(version);
         let namespace_name = self.namespaces.borrow().qualified_name(namespace);
-        let lookup = match tcl_syntax::naming::native_oo_varname_lookup_bytes(
+        let lookup = match tcl_syntax::naming::native_oo_varname_lookup(
             protocol,
             &namespace_name,
             &bytes,
@@ -72,8 +72,12 @@ impl Interp {
                 );
             }
         };
-        let owned =
-            (!bytes.starts_with(b"::")).then(|| Owned::fresh(obj::new_string_bytes(&lookup)));
+        let owned = match lookup {
+            tcl_syntax::naming::NativeOoVarnameLookup::Original(_) => None,
+            tcl_syntax::naming::NativeOoVarnameLookup::Constructed(bytes) => {
+                Some(Owned::fresh(obj::new_string_bytes(&bytes)))
+            }
+        };
         let lookup = owned.as_ref().map_or(original, Owned::as_ptr);
         let purpose = NativeVariableNameLookupPurpose::Refer;
         let selected = match self.prepare_original_c_name_in(lookup, purpose, Some(namespace)) {

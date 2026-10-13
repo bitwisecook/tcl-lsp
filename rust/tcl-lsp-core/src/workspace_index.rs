@@ -6958,7 +6958,7 @@ impl<'a> WildcardImportIndex<'a> {
         resolution_candidates: &[String],
         call: CallSite<'_>,
     ) -> bool {
-        if name.contains("::") {
+        if tcl_syntax::naming::is_qualified(name.as_bytes()) {
             return false;
         }
         resolution_candidates.iter().any(|cand| {

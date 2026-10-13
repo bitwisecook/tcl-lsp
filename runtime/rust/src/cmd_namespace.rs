@@ -904,7 +904,6 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
         let src_ns = validated.source.0 as usize;
         let tail_pat = validated.tail;
         // Collect the matching, exported source commands first (borrow ends).
-        let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
         for name in interp.visible_command_names_in(src_ns) {
             if glob_match_bytes(&tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name)
@@ -913,11 +912,6 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj], arguments: &OriginalArgu
             }
         }
         for simple in to_import {
-            let mut source = src_fqn.clone();
-            if source != b"::" {
-                source.extend_from_slice(b"::");
-            }
-            source.extend_from_slice(&simple);
             let Some((source, source_generation, ensemble)) =
                 interp.import_metadata_in(src_ns, &simple)
             else {

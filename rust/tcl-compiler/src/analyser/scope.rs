@@ -208,6 +208,166 @@ fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope
         .map(|(c, _)| c)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LogicalVariableScopeKind {
+    Root,
+    Namespace,
+    Local,
+    UnknownCaller,
+}
+
+/// Eligible variable declaration scopes from the current Logical source.
+/// Cell identities, entered links and editable symbols require their own owners.
+#[derive(Debug)]
+pub struct LogicalVariableScopeAdvice<'a> {
+    analysis: &'a super::types::AnalysisResult,
+    scopes: Vec<&'a Scope>,
+    eligible: Vec<usize>,
+    kind: LogicalVariableScopeKind,
+    namespace: Option<String>,
+}
+
+impl<'a> LogicalVariableScopeAdvice<'a> {
+    /// Root declaration table, independently of its lookup eligibility.
+    #[must_use]
+    pub fn root(&self) -> &'a Scope {
+        &self.analysis.global_scope
+    }
+
+    /// Eligible source tables in outer-to-inner order.
+    #[must_use]
+    pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
+        self.eligible.iter().map(|&index| self.scopes[index])
+    }
+
+    /// Known source namespace; an unknown caller cannot supply one.
+    #[must_use]
+    pub fn namespace(&self) -> Option<&str> {
+        self.namespace.as_deref()
+    }
+
+    /// Namespace tables use their selected root alternative independently.
+    #[must_use]
+    pub fn is_namespace_frame(&self) -> bool {
+        self.kind == LogicalVariableScopeKind::Namespace
+    }
+
+    /// Root names require explicit rooted insertion outside a root frame.
+    #[must_use]
+    pub fn root_names_require_qualification(&self) -> bool {
+        match self.kind {
+            LogicalVariableScopeKind::Root => false,
+            LogicalVariableScopeKind::Namespace => !self.analysis.ns_var_global_fallback(),
+            LogicalVariableScopeKind::Local | LogicalVariableScopeKind::UnknownCaller => true,
+        }
+    }
+
+    /// Fallback policy from the same independently retained Logical input.
+    #[must_use]
+    pub fn namespace_global_fallback(&self) -> bool {
+        self.analysis.ns_var_global_fallback()
+    }
+}
+
+impl super::types::AnalysisResult {
+    /// Current source scope eligibility for independently retained Logical advice.
+    /// Original Native/hosted bodies and readonly alias receipts cannot issue it.
+    #[must_use]
+    pub fn logical_variable_scope_advice(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+        offset: u32,
+    ) -> Option<LogicalVariableScopeAdvice<'_>> {
+        if !self.allows_lexical_declaration_advice()
+            || !self.matches_original_source_image(image, config)
+            || usize::try_from(offset).ok()? > image.bytes().len()
+        {
+            return None;
+        }
+        let registry = self.resolved_registry()?;
+        let mut scopes = vec![&self.global_scope];
+        let mut cursor = &self.global_scope;
+        while let Some(child) = innermost_containing_child(cursor, offset) {
+            scopes.push(child);
+            cursor = child;
+        }
+        let mut eligible = vec![0];
+        let mut kind = LogicalVariableScopeKind::Root;
+        let mut namespace = Some("::".to_owned());
+        for (index, scope) in scopes.iter().enumerate().skip(1) {
+            match scope.kind {
+                ScopeKind::Global => eligible.push(index),
+                ScopeKind::Namespace => {
+                    eligible.clear();
+                    eligible.push(index);
+                    kind = LogicalVariableScopeKind::Namespace;
+                    namespace = if namespace.is_none()
+                        && tcl_syntax::naming::unroot_rooted_key(&scope.name).is_none()
+                    {
+                        None
+                    } else {
+                        scope
+                            .naming_scope
+                            .as_ref()
+                            .and_then(|owner| owner.display())
+                            .or_else(|| {
+                                namespace
+                                    .as_deref()
+                                    .map(|base| crate::naming::qualify(base, &scope.name))
+                            })
+                    };
+                    if namespace
+                        .as_deref()
+                        .is_some_and(|name| tcl_syntax::naming::unroot_rooted_key(name) == Some(""))
+                    {
+                        eligible.insert(0, 0);
+                        kind = LogicalVariableScopeKind::Root;
+                    }
+                }
+                ScopeKind::Proc | ScopeKind::Method => {
+                    eligible.clear();
+                    eligible.push(index);
+                    kind = LogicalVariableScopeKind::Local;
+                    namespace = if namespace.is_none()
+                        && tcl_syntax::naming::unroot_rooted_key(&scope.name).is_none()
+                    {
+                        None
+                    } else {
+                        scope
+                            .naming_scope
+                            .as_ref()
+                            .and_then(|owner| owner.display())
+                    };
+                }
+                ScopeKind::Uplevel => {
+                    let level = tcl_registry::FrameLevel::parse_in(&scope.name, registry);
+                    if level.is_some_and(tcl_registry::FrameLevel::is_current_frame) {
+                        eligible.push(index);
+                    } else if level.is_some_and(tcl_registry::FrameLevel::is_global_frame) {
+                        eligible.clear();
+                        eligible.extend([0, index]);
+                        kind = LogicalVariableScopeKind::Root;
+                        namespace = Some("::".to_owned());
+                    } else {
+                        eligible.clear();
+                        eligible.push(index);
+                        kind = LogicalVariableScopeKind::UnknownCaller;
+                        namespace = None;
+                    }
+                }
+            }
+        }
+        Some(LogicalVariableScopeAdvice {
+            analysis: self,
+            scopes,
+            eligible,
+            kind,
+            namespace,
+        })
+    }
+}
+
 /// Namespace an unqualified command invoked at `byte_offset` resolves
 /// against, per Tcl's command-resolution rule.
 ///

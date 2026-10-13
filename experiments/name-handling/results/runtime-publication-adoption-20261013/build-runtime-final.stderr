@@ -1,0 +1,8 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-registry)
+   Compiling tcl-runtime v0.1.0 (/workspace/name-implementation-worktrees/runtime/runtime/rust)
+    Finished `test` profile [unoptimized] target(s) in 1m 18s

@@ -360,3 +360,5 @@ timezone-name/Dict child identity remain explicit. Empty-table native localtime
 refuses. Four original workers and full seven-worker lifetime remain unsupported.
 Original all.tcl reaches orchestration but selects zero test files; no complete
 upstream-suite or F5 worker conformance is established.
+
+[Uplevel variable source scope](uplevel-variable-source-scope/README.md) retains exact root/current/unknown-caller and nested-body C oracle probes; source eligibility remains separate from entered frames and edits.

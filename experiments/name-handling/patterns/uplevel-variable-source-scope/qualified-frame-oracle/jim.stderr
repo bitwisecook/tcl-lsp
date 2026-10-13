@@ -1,0 +1,7 @@
+/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl:6: Error: can't read "Target::x": no such variable
+Traceback (most recent call last):
+  File "/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl", line 15
+    ::Caller::c
+  File "/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl", line 13, in Caller::c
+    ::N::p
+  File "/tmp/lsp-name-source-frame-next/qualified-frame-oracle/probe.tcl", line 6, in N::p

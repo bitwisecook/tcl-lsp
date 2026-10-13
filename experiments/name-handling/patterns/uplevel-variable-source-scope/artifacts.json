@@ -1,0 +1,54 @@
+{
+  "README.md": {
+    "sha256": "08dbfe20ad99adc5fd3ffc1f48821101d63a51fb95b7e78c0a97a5c0602e6038",
+    "bytes": 1346
+  },
+  "nested-c8.6.18.stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "nested-c8.6.18.stdout": {
+    "sha256": "d27079fae9531fc07844b1195192e100f6bded2d2f46c5f4405def2dd19404c6",
+    "bytes": 6
+  },
+  "nested-c9.0.4.stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "nested-c9.0.4.stdout": {
+    "sha256": "d27079fae9531fc07844b1195192e100f6bded2d2f46c5f4405def2dd19404c6",
+    "bytes": 6
+  },
+  "nested-oracle-results.json": {
+    "sha256": "1aed6af5e99b6f163f6efd7b3e371fc8d26007cf5a5ca511d687198611ed3ae1",
+    "bytes": 1009
+  },
+  "nested-oracle.tcl": {
+    "sha256": "54664357c0f1d145370bf136e49810e2e51f2a3779928f971a334ca50497dbd4",
+    "bytes": 98
+  },
+  "oracle-c8.6.18.stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "oracle-c8.6.18.stdout": {
+    "sha256": "12dba753a515588a257907c594993b8c2d47937509b2d6b6accc26afd3ff702e",
+    "bytes": 104
+  },
+  "oracle-c9.0.4.stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "oracle-c9.0.4.stdout": {
+    "sha256": "12dba753a515588a257907c594993b8c2d47937509b2d6b6accc26afd3ff702e",
+    "bytes": 104
+  },
+  "oracle-probe.tcl": {
+    "sha256": "694b98bc7bbe497f4aa06de8463c860d069f1405dc01aba29c9ce0d8cf2a05ef",
+    "bytes": 574
+  },
+  "oracle-results.json": {
+    "sha256": "c34d3b710655e576601d1719a00cd66928f29d242bab833e520fd271600d1249",
+    "bytes": 1210
+  }
+}

@@ -1,0 +1,122 @@
+[
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::shared_boundary_tests::written_command_parts_keep_empty_tail_and_counted_components"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::oo_variables::explicit_variable_tests::varname_lookup_plan_retains_absolute_original_and_separates_constructed_inputs"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::oo_variables::explicit_variable_tests::explicit_local_and_varname_lookup_keep_their_independent_byte_extents"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::native::routing::tests::native_lookup_bases_select_release_path_and_original_extent"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::native::routing::tests::purpose_and_selected_extent_control_alias_and_c_api_routes"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::native::routing::tests::equal_constructed_paths_retain_distinct_root_and_current_routes"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "selector": "naming::native::routing::tests::ensemble_default_parent_and_explicit_current_routing_remain_distinct"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::bootstrap_registration_and_restore_keep_the_last_nonempty_component"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::qualified_registration_and_resolution"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::unqualified_resolves_in_global"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::generation_location_projects_actual_constructed_slots_and_declines_replacement"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::compiler_and_resolver_epochs_match_original_native_mutation_rows"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "namespace::tests::constructed_path_and_lookup_stay_on_detached_original_token"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_oo::native_explicit_variable_tests::explicit_variable_links_and_varname_match_original_counted_controls"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_oo::native_original_holder_tests::original_oo_publication_preserves_constructed_holder_and_collision_results"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_oo::original_publication_tests::private_dispatcher_refuses_retired_namespace_without_adopting_recreated_holder"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_namespace::tests::oo_created_by_delete_trace_joins_dying_generation"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_namespace::tests::retained_import_origin_chain_ignores_a_recreated_same_fqn_command"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_namespace::tests::import_follows_source_rename_but_not_delete"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::original_alias_key_tests::original_alias_replacement_keeps_measured_name_key_and_query_roles"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::original_alias_key_tests::original_alias_rename_keeps_measured_record_and_destination_key_roles"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::original_alias_key_tests::original_jim_rename_qualification_and_table_key_keep_distinct_native_references"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::original_rename_operation_tests::original_rename_observers_keep_reached_effects_and_stop_later_result_publication"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::tests::a_rename_that_would_close_a_loop_is_refused_and_rolled_back"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::tests::a_refused_rename_leaves_the_destination_command_intact"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::tests::visibility_failures_match_direct_and_child_oracles"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "cmd_alias::tests::child_shorthand_visibility_ops_are_leak_free"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_query_bases-1a3cc40d7f7663fe",
+    "selector": "namespace_queries_match_original_source_reports"
+  }
+]

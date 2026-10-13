@@ -1,0 +1,9 @@
+   Compiling tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-dialect)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-host-c-abi)
+   Compiling tcl-core-types v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-core-types)
+   Compiling sha2 v0.11.0
+   Compiling tcl-platform v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-platform)
+   Compiling tcl-lexer v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-lexer)
+   Compiling tcl-test-support v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-test-support)
+   Compiling tcl-syntax v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-syntax)
+    Finished `test` profile [unoptimized] target(s) in 11.27s

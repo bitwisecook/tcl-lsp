@@ -73,11 +73,11 @@ pub use compiled_variables::{
 };
 pub use oo_variables::{
     NativeOoPrivateVariablePurpose, NativeOoVariableError, NativeOoVariableResolverPurpose,
-    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, apply_native_oo_slot_records,
-    apply_native_oo_variable_slot, native_oo_explicit_variable_local_name,
-    native_oo_private_variable_matches, native_oo_variable_key_report,
-    native_oo_variable_resolver_matches, native_oo_variable_slot, native_oo_varname_lookup_bytes,
-    validate_native_oo_variable,
+    NativeOoVariableSlotOperation, NativeOoVariableSlotSelection, NativeOoVarnameLookup,
+    apply_native_oo_slot_records, apply_native_oo_variable_slot,
+    native_oo_explicit_variable_local_name, native_oo_private_variable_matches,
+    native_oo_variable_key_report, native_oo_variable_resolver_matches, native_oo_variable_slot,
+    native_oo_varname_lookup, native_oo_varname_lookup_bytes, validate_native_oo_variable,
 };
 mod namespace_spans;
 pub use namespace_spans::{
@@ -277,6 +277,32 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
 #[must_use]
 pub fn written_command_tail(name: &[u8]) -> &[u8] {
     written_separator_extent(name).map_or(name, |separator| &name[separator.end..])
+}
+
+/// Borrowed components of a written command name, including an empty tail.
+/// These bytes select no native purpose, namespace token or command identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrittenCommandParts<'a> {
+    /// Whether the written name starts with a root marker.
+    pub absolute: bool,
+    /// Nonempty namespace components before the simple name.
+    pub qualifiers: Vec<&'a [u8]>,
+    /// Exact simple name, empty after a trailing separator run.
+    pub simple: &'a [u8],
+}
+
+/// Decompose counted written bytes without selecting a native input extent.
+#[must_use]
+pub fn written_command_parts(name: &[u8]) -> WrittenCommandParts<'_> {
+    let mut qualifiers = qualifier_segments(name);
+    if !ends_with_separator(name) {
+        qualifiers.pop();
+    }
+    WrittenCommandParts {
+        absolute: name.starts_with(b"::"),
+        qualifiers,
+        simple: written_command_tail(name),
+    }
 }
 
 /// [`qualifier_segments`] over a `&str`, as owned `String`s — the one shared
@@ -1620,6 +1646,14 @@ pub fn split_array_name_for_style(
     }
 }
 
+/// Split an editor's incomplete array-name fragment into source prefixes.
+/// Neither prefix is an evaluated name, complete reference or variable lookup.
+#[must_use]
+pub fn array_variable_completion_prefix(partial: &str) -> Option<(&str, &str)> {
+    let (name, index) = partial.split_once('(')?;
+    (!name.is_empty()).then_some((name, index))
+}
+
 /// True when `word` carries a variable / command substitution anywhere —
 /// e.g. `rename ::$c mystr` or `rename foo bar[x]` — so it cannot be
 /// resolved to a static command name at compile time.
@@ -2619,6 +2653,44 @@ mod tests {
 #[cfg(test)]
 mod shared_boundary_tests {
     use super::*;
+
+    #[test]
+    fn written_command_parts_keep_empty_tail_and_counted_components() {
+        for (written, absolute, qualifiers, simple) in [
+            (b"".as_slice(), false, vec![], b"".as_slice()),
+            (b":".as_slice(), false, vec![], b":".as_slice()),
+            (b"::::".as_slice(), true, vec![], b"".as_slice()),
+            (
+                b"::a:::b::".as_slice(),
+                true,
+                vec![b"a".as_slice(), b"b"],
+                b"".as_slice(),
+            ),
+            (b"a:b".as_slice(), false, vec![], b"a:b".as_slice()),
+            (
+                b"q:::p".as_slice(),
+                false,
+                vec![b"q".as_slice()],
+                b"p".as_slice(),
+            ),
+            (
+                b"q:\0::\xff".as_slice(),
+                false,
+                vec![b"q:\0".as_slice()],
+                b"\xff".as_slice(),
+            ),
+        ] {
+            assert_eq!(
+                written_command_parts(written),
+                WrittenCommandParts {
+                    absolute,
+                    qualifiers,
+                    simple
+                },
+                "{written:?}",
+            );
+        }
+    }
 
     #[test]
     fn written_separator_spans_retain_complete_runs_and_counted_units() {

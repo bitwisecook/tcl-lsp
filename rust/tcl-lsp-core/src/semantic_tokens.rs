@@ -5048,7 +5048,7 @@ fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option
                 .unwrap_or("");
             if is_number_literal(text, numbers) {
                 Some(TokenKind::Number)
-            } else if text.contains("::") && tok.content_offset == 0 {
+            } else if tcl_syntax::naming::is_qualified(text.as_bytes()) && tok.content_offset == 0 {
                 // Only a *bare* word can be a namespace reference.  A quoted or
                 // braced word is a string literal even when its content happens
                 // to contain `::` — painting `append cmd "::scan \$field"`'s

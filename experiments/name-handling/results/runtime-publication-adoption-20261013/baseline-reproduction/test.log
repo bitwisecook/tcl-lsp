@@ -1,0 +1,17 @@
+
+running 1 test
+test cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct ... 
+thread 'cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct' (96932) panicked at src/cmd_namespace.rs:4933:13:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_namespace::tests::retained_and_recreated_import_sources_stay_generation_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2114 filtered out; finished in 1.60s
+

@@ -98,10 +98,44 @@ pub fn native_oo_explicit_variable_local_name(
     Ok(Ok(local))
 }
 
-/// Construct the stock varname lookup operand from an actual object's
+/// Selected stock varname lookup operand and its construction rule.
+/// Original bytes supply no native object, namespace or cell authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeOoVarnameLookup<'a> {
+    /// The caller retains its actual original operand.
+    Original(&'a [u8]),
+    /// The caller constructs a fresh counted String from these bytes.
+    Constructed(Vec<u8>),
+}
+
+/// Select the stock varname lookup operand from an actual object's
 /// namespace and selected private storage name. It grants no namespace or cell.
 /// Absolute original names retain their original counted bytes. Relative C9.0
 /// interpolation is `CString`; C8.6/C9.1 append the selected original object bytes.
+///
+/// # Errors
+/// Refuses an unavailable `TclOO` recipe.
+pub fn native_oo_varname_lookup<'a>(
+    protocol: NativeNameProtocol,
+    namespace: &[u8],
+    original: &'a [u8],
+    storage: &[u8],
+) -> Result<NativeOoVarnameLookup<'a>, NameProjectionUnavailable> {
+    let version = version(protocol)?;
+    if original.starts_with(b"::") {
+        return Ok(NativeOoVarnameLookup::Original(original));
+    }
+    let mut lookup = namespace.to_vec();
+    lookup.extend_from_slice(b"::");
+    lookup.extend_from_slice(if version == TclVersion::V9_0 {
+        c_string_extent(storage)
+    } else {
+        storage
+    });
+    Ok(NativeOoVarnameLookup::Constructed(lookup))
+}
+
+/// Counted bytes of the selected stock varname lookup operand.
 ///
 /// # Errors
 /// Refuses an unavailable `TclOO` recipe.
@@ -111,18 +145,10 @@ pub fn native_oo_varname_lookup_bytes(
     original: &[u8],
     storage: &[u8],
 ) -> Result<Vec<u8>, NameProjectionUnavailable> {
-    let version = version(protocol)?;
-    if original.starts_with(b"::") {
-        return Ok(original.to_vec());
-    }
-    let mut lookup = namespace.to_vec();
-    lookup.extend_from_slice(b"::");
-    lookup.extend_from_slice(if version == TclVersion::V9_0 {
-        c_string_extent(storage)
-    } else {
-        storage
-    });
-    Ok(lookup)
+    native_oo_varname_lookup(protocol, namespace, original, storage).map(|lookup| match lookup {
+        NativeOoVarnameLookup::Original(bytes) => bytes.to_vec(),
+        NativeOoVarnameLookup::Constructed(bytes) => bytes,
+    })
 }
 
 /// Selected namespace variable-key presentation after a successful lookup.
@@ -534,6 +560,40 @@ mod tests {
 #[cfg(test)]
 mod explicit_variable_tests {
     use super::*;
+
+    #[test]
+    fn varname_lookup_plan_retains_absolute_original_and_separates_constructed_inputs() {
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let protocol = NativeNameProtocol::C(version);
+            let absolute = b"::global\0tail";
+            let NativeOoVarnameLookup::Original(bytes) =
+                native_oo_varname_lookup(protocol, b"::object", absolute, b"ignored").unwrap()
+            else {
+                panic!("absolute varname retains its original operand");
+            };
+            assert!(std::ptr::eq(bytes, absolute.as_slice()));
+            let NativeOoVarnameLookup::Constructed(bytes) =
+                native_oo_varname_lookup(protocol, b"::object", b"k\0tail", b"k\0tail").unwrap()
+            else {
+                panic!("relative varname constructs its lookup operand");
+            };
+            assert_eq!(
+                bytes,
+                if version == TclVersion::V9_0 {
+                    b"::object::k".as_slice()
+                } else {
+                    b"::object::k\0tail".as_slice()
+                }
+            );
+        }
+        for protocol in [
+            NativeNameProtocol::C(TclVersion::V8_4),
+            NativeNameProtocol::C(TclVersion::V8_5),
+            NativeNameProtocol::Jim084,
+        ] {
+            assert!(native_oo_varname_lookup(protocol, b"N", b"::k", b"k").is_err());
+        }
+    }
 
     #[test]
     fn explicit_local_and_varname_lookup_keep_their_independent_byte_extents() {

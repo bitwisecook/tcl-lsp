@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_alias::original_alias_key_tests::original_alias_rename_keeps_measured_record_and_destination_key_roles ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2115 filtered out; finished in 7.94s
+

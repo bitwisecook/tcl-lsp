@@ -1316,7 +1316,7 @@ fn compact_names(
         for qname in proc_keys {
             let proc_def = &analysis.all_procs[qname];
             let name = &proc_def.name;
-            if name.len() <= 1 || name.contains("::") {
+            if name.len() <= 1 || tcl_syntax::naming::is_qualified(name.as_bytes()) {
                 continue;
             }
             // A proc that overrides a registry-known command (`proc unknown
@@ -1496,7 +1496,7 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut 
         var_names.sort();
         for var_name in var_names {
             let var_def = &scope.variables[var_name];
-            if var_name.len() <= 1 || var_name.contains("::") {
+            if var_name.len() <= 1 || tcl_syntax::naming::is_qualified(var_name.as_bytes()) {
                 continue;
             }
             // A local that aliases a namespace / global cell (`global v`,

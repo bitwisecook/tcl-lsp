@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::oo_variables::explicit_variable_tests::explicit_local_and_varname_lookup_keep_their_independent_byte_extents ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 671 filtered out; finished in 0.00s
+

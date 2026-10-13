@@ -1491,27 +1491,24 @@ fn rename_var(
     // *before* its scope's body span even starts, so fall back to the
     // byte-offset span search there (see `var_def_at_declaration_offset`'s
     // own doc).
-    let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        var_name,
-        analysis.ns_var_global_fallback(),
-    )
-    .or_else(|| {
-        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)
-            .filter(|v| v.name == var_name)
-    }) else {
+    let Some(var_def) =
+        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, var_name)
+            .or_else(|| {
+                crate::definition::var_def_at_declaration_offset(
+                    &analysis.global_scope,
+                    byte_offset,
+                )
+                .filter(|v| v.name == var_name)
+            })
+    else {
         return Vec::new();
     };
     // Collision gate: refuse when `new_name` already resolves to a *different*
     // variable visible at the cursor (e.g. a sibling `set y` in the same proc
     // scope) — renaming would merge two distinct variables.
-    if let Some(existing) = crate::definition::lookup_var_in_scope_chain(
-        &analysis.global_scope,
-        byte_offset,
-        new_name,
-        analysis.ns_var_global_fallback(),
-    ) && existing.definition_span != var_def.definition_span
+    if let Some(existing) =
+        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, new_name)
+        && existing.definition_span != var_def.definition_span
     {
         return Vec::new();
     }
@@ -1638,7 +1635,7 @@ fn rename_proc(
     // (`assist`); one declared qualified (`proc ::ns::greet`) stays qualified.
     let decl_was_qualified = source
         .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
-        .is_some_and(|t| t.contains("::"));
+        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
     let new_decl_text = if decl_was_qualified {
         qualified_decl
     } else {
@@ -1734,7 +1731,7 @@ fn rename_class(
     // `rename_proc`'s identical `decl_was_qualified` handling.
     let decl_was_qualified = source
         .get(class_def.name_span.start() as usize..class_def.name_span.end() as usize)
-        .is_some_and(|t| t.contains("::"));
+        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
     let new_decl_text = if decl_was_qualified {
         qualified_decl
     } else {

@@ -5,7 +5,7 @@
 //! extent. It grants no namespace/frame identity, receiver lifetime, alias
 //! closure, command generation, compiler permission or observer proof.
 
-use super::{ends_with_separator, is_qualified, qualifier_segments, written_command_tail};
+use super::{is_qualified, qualifier_segments, written_command_tail};
 
 mod routing;
 use crate::native_string::NativeStringProtocol;
