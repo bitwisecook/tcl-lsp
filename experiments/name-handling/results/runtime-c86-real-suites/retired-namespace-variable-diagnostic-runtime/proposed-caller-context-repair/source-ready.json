@@ -1,0 +1,63 @@
+{
+  "status": "Three SCRATCH owners only; no repository apply/Cargo. New code passed edition-correct scratch rustfmt parse; unrelated formatting reverted. Integrated/unit controls UNEXECUTED.",
+  "owners": {
+    "rust/tcl-syntax/src/naming/native.rs": {
+      "preimage_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+      "scratch_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb"
+    },
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "preimage_sha256": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+      "scratch_sha256": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe"
+    },
+    "runtime/rust/src/interp/native_variable_names.rs": {
+      "preimage_sha256": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb",
+      "scratch_sha256": "39c17b80aa45f09b2f227cd591a8af148d5e8d2d29b94276b74346afc2e1d309"
+    }
+  },
+  "tests": {
+    "rust/tcl-syntax/src/naming/native.rs": [
+      "retired_namespace_write_sites_match_retained_original_c_rows",
+      "indexed_retired_lookup_rejects_missing_or_incompatible_purpose"
+    ],
+    "runtime/rust/src/interp/native_variable_names.rs": [
+      "retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+      "retired_namespace_c86_variable_heads_preserve_original_root_tuple",
+      "retired_namespace_original_object_vector_keeps_root_despite_compiled_cell"
+    ]
+  },
+  "changes": {
+    "rust/tcl-syntax/src/naming/native.rs": {
+      "added": 178,
+      "removed": 2
+    },
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "added": 10,
+      "removed": 1
+    },
+    "runtime/rust/src/interp/native_variable_names.rs": {
+      "added": 74,
+      "removed": 0
+    }
+  },
+  "patch_sha256": "f9e007723b8773e0d5d1ccad936ee6352b8a325fe6b15abf50560691f15572d3",
+  "enum_consumers": [
+    "runtime/rust/src/state_traits.rs",
+    "runtime/rust/src/interp.rs",
+    "runtime/rust/src/interp/native_variable_names.rs",
+    "runtime/rust/src/interp/native_variable_names/native_array.rs",
+    "runtime/rust/src/interp/native_variable_names/native_unset.rs",
+    "runtime/rust/src/interp/native_variable_names/native_tcloo.rs",
+    "runtime/rust/src/interp/native_body_artifact.rs",
+    "rust/tcl-vm/src/interp/native_compiled_locals.rs",
+    "rust/tcl-vm/src/interp.rs",
+    "rust/tcl-syntax/src/native_jim_lookup.rs",
+    "rust/tcl-syntax/src/naming/native.rs",
+    "rust/tcl-syntax/src/naming.rs",
+    "rust/tcl-cmd-core/src/array.rs",
+    "rust/tcl-runtime-api/src/lib.rs"
+  ],
+  "consumer_scope": "Fourteen existing enum consumers audited statically. Naming export and Runtime API carry existing enum type; no signature/re-export/new owner. Native constant site match has rejection fallback; policy table has rejection fallback. Compilation remains unexecuted; request root if a further exhaustive consumer needs editing.",
+  "production_scope": "Write retired scalar in actual indexed capture retains ValueWrite. Already evaluated elementSome + admitted slotSome selects IndexedNameLookup. Ordinary original-root element lookup retains NameLookup/root word. Central indexed site requires C/Write/RetiredNamespace/elementSome; no new Jim/readonly/other site admission. Root/name getters and inherited operation checks unchanged.",
+  "evidence": "retired-namespace-variable-diagnostic-question sealed46 originalC7rows/provider; route-diagnostic-01 sealed20 measured slotSome/Write/NameLookup/RetiredNamespace, element unmeasured; var1.15 scalar-first source and actual elementOption consumed by proposed branch.",
+  "review_note": "Original-object vector control now checks actual parsed-root canonical local cache after failed write and keeps owned result bytes alive for shared list decoding; no fake slot context. Source formatting/build remain unexecuted after this narrow scratch review correction."
+}

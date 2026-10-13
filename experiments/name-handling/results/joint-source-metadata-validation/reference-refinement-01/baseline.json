@@ -1,0 +1,32 @@
+{
+  "selected_packages": [
+    "tcl-registry",
+    "tcl-irules"
+  ],
+  "conservative_packages": 25,
+  "frozen_files": 11764,
+  "changed_owner_images": [
+    "rust/tcl-registry/src/source_configuration_reference.rs",
+    "rust/tcl-irules/src/source_object.rs"
+  ],
+  "current_owner_sha256": {
+    "rust/tcl-registry/src/source_configuration_reference.rs": "793554f0627c42c0e6c64d24cf5d279c4e862bfe12e3b912af48f78846e3924a",
+    "rust/tcl-irules/src/source_object.rs": "93a5f64241b1db2ad19a6730912c9304c89bb198e4f8ef9b21f3c307f9225c03"
+  },
+  "changes_from_joint_validation_01_in_common_scope": [
+    {
+      "path": "rust/tcl-irules/src/source_object.rs",
+      "previous": "74f6c61e08a06a19259deb2b3a06211d2d214976495f77b9c35f9bc0862d327e",
+      "current": "93a5f64241b1db2ad19a6730912c9304c89bb198e4f8ef9b21f3c307f9225c03"
+    },
+    {
+      "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+      "previous": "a4e880b6d4766c1769bf8decae2c724c0d52ae4cca7dd93d451d34ca1fad282e",
+      "current": "793554f0627c42c0e6c64d24cf5d279c4e862bfe12e3b912af48f78846e3924a"
+    }
+  ],
+  "explicit_target": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "original_registry_expectations_and_irules_assertions_unchanged": true,
+  "braced_expression_repaired_or_repeated": false,
+  "disk_free_before_bytes": 2730156032
+}

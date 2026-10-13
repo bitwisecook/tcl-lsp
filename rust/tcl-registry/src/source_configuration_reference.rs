@@ -116,7 +116,9 @@ impl ResolvedInvocation<'_, '_> {
                     {
                         false
                     }
-                    AuthoredSourceOptionBoundary::Dynamic(start) if start == item => true,
+                    AuthoredSourceOptionBoundary::Dynamic(start) if start == item => {
+                        !arguments.get(start)?.proves_non_option()
+                    }
                     _ => return None,
                 };
                 Some(AuthoredSourceConfigurationReference {

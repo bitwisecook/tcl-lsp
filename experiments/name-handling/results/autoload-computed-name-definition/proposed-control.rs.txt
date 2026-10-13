@@ -1,0 +1,87 @@
+// Proposed fixed software control for rust/tcl-lsp-server/src/lib.rs tests.
+// Scratch only: not applied, built, or executed. No external Tcl result claimed.
+// Uses existing TmpWs/test_backend/register helpers and actual Backend analysis.
+// Readiness guards must pass before interpreting the public negative outcome.
+
+#[tokio::test]
+async fn definition_autoload_keeps_computed_head_separate_from_literal_index_key() {
+    let ws = TmpWs::new("name-autoload-editor-control");
+    ws.write(
+        "library/sample.tcl",
+        "proc sample_cmd {} {return literal}\nproc {sample_cmd$unknown} {} {return separate}\n",
+    );
+    ws.write(
+        "library/tclIndex",
+        "# Tcl autoload index file: each line identifies a Tcl\nsample_cmd sample.tcl\nsample_cmd$unknown sample.tcl\n",
+    );
+    let library = ws.0.join("library");
+    let target = Uri::from_file_path(library.join("sample.tcl")).unwrap();
+
+    // Distinct fresh backends keep a successful positive merge from donating
+    // a declaration to the negative's initial workspace.
+    for (tag, source, should_resolve) in [
+        ("literal", "sample_cmd\n", true),
+        ("computed", "sample_cmd$unknown\n", false),
+    ] {
+        let backend = test_backend();
+        *backend.package_resolver.write().await = build_package_resolver(
+            &vfs::NativeStore,
+            &[],
+            &[library.display().to_string()],
+            &[],
+            WORKSPACE_SCAN_DIR_CAP,
+        );
+        let caller = Uri::from_file_path(ws.0.join(format!("{tag}.tcl"))).unwrap();
+        register(&backend, &caller, source).await;
+        let doc = backend.read_document(&caller).await.unwrap();
+        let analysis = backend
+            .analysis_for(&caller, doc.text.clone(), doc.dialect.clone())
+            .await;
+        let config = analysis.body_lexer_config.unwrap();
+        assert!(analysis.matches_original_source_image(
+            &tcl_lexer::SourceImage::document(source),
+            config,
+        ));
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let position = Position::new(0, 1);
+        assert!(position_is_command_head(source, position, &analysis, &doc.line_index));
+        let raw = core_definition::command_head_and_namespace_at(source, &analysis, 0, 1);
+        assert_eq!(raw, Some((source.trim_end().to_owned(), "::".to_owned())));
+        assert!(backend
+            .original_declaration_identity_at(&caller, source, &analysis, position)
+            .await
+            .is_none());
+        if !should_resolve {
+            let invocation = analysis.command_invocations.iter().find(|inv| {
+                inv.range.start() <= 1 && 1 < inv.range.end()
+            }).unwrap();
+            assert!(invocation.indirect);
+            assert!(invocation.original_name_input.is_none());
+            assert!(invocation.original_lookup.is_none());
+        }
+        let response = backend.goto_definition(GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: caller },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        }).await.unwrap();
+        if should_resolve {
+            let Some(GotoDefinitionResponse::Array(locations)) = response else {
+                panic!("literal positive must reach local library: {response:?}");
+            };
+            assert_eq!(locations.len(), 1, "{locations:?}");
+            assert_eq!(locations[0].uri, target);
+            assert_eq!(locations[0].range.start.line, 0);
+        } else {
+            assert!(response.is_none(), "computed source head must abstain: {response:?}");
+        }
+    }
+}
+
+// Separate helper question; do not infer public reach from this result.
+// For source `${ns}::sample_cmd\n` at (0, 9), find_word_span_at_position's
+// residual rule produces `sample_cmd`. The current command-head range may
+// cover only the initial variable token, so position_is_command_head must be
+// measured before adding this input to the public-endpoint fixture.

@@ -1,0 +1,6 @@
+{
+  "status": "UNAPPLIED_UNCOMPILED_UNEXECUTED",
+  "proposed_owner": "rust/tcl-lsp-server/src/lib.rs test module",
+  "control_sha256": "c65838ce22a24fef99ac60dbee5c769e8be926735973971d806e4d0292b4691c",
+  "scope": "public goto_definition only; readiness guards required"
+}

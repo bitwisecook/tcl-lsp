@@ -1,0 +1,137 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "target_dir": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "steps": [
+    {
+      "label": "studio-two-target-compile",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "-p",
+        "tcl-spec-studio",
+        "--test",
+        "schema_coverage",
+        "--test",
+        "reference_doc",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "start_utc": "2026-10-13T01:30:16.732355+00:00",
+      "document_generation": false,
+      "update_reference": "unset",
+      "stdout": "studio-two-target-compile.stdout.gz",
+      "stderr": "studio-two-target-compile.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.821493+00:00"
+    },
+    {
+      "label": "schema_coverage-list",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/schema_coverage-f32131a7d7634bab",
+        "--list"
+      ],
+      "start_utc": "2026-10-13T01:30:20.840509+00:00",
+      "document_generation": false,
+      "update_reference": "unset",
+      "stdout": "schema_coverage-list.stdout.gz",
+      "stderr": "schema_coverage-list.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.842890+00:00"
+    },
+    {
+      "label": "reference_doc-list",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/reference_doc-41eb85a04d541ed8",
+        "--list"
+      ],
+      "start_utc": "2026-10-13T01:30:20.851718+00:00",
+      "document_generation": false,
+      "update_reference": "unset",
+      "stdout": "reference_doc-list.stdout.gz",
+      "stderr": "reference_doc-list.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.853482+00:00"
+    },
+    {
+      "label": "schema-exact",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/schema_coverage-f32131a7d7634bab",
+        "--exact",
+        "schema_covers_every_subcommand_field",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:30:20.854213+00:00",
+      "document_generation": false,
+      "update_reference": "unset",
+      "stdout": "schema-exact.stdout.gz",
+      "stderr": "schema-exact.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.857272+00:00",
+      "executed_test_count": 1
+    },
+    {
+      "label": "reference-generate",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/reference_doc-41eb85a04d541ed8",
+        "--exact",
+        "fields_doc_matches_the_schema",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:30:20.857709+00:00",
+      "document_generation": true,
+      "update_reference": "1",
+      "stdout": "reference-generate.stdout.gz",
+      "stderr": "reference-generate.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.875814+00:00",
+      "executed_test_count": 1
+    },
+    {
+      "label": "reference-check",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/reference_doc-41eb85a04d541ed8",
+        "--exact",
+        "fields_doc_matches_the_schema",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:30:20.888251+00:00",
+      "document_generation": false,
+      "update_reference": "unset",
+      "stdout": "reference-check.stdout.gz",
+      "stderr": "reference-check.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:30:20.905077+00:00",
+      "executed_test_count": 1
+    }
+  ],
+  "binaries": {
+    "schema_coverage": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/schema_coverage-f32131a7d7634bab",
+      "before_sha256": "3bd70587e1d4e7573869f1fdf2574ef44937e0d08f9a8c4e6413b43fa01effe5",
+      "observed_exact_name": "schema_covers_every_subcommand_field",
+      "listed_test_count": 8,
+      "after_sha256": "3bd70587e1d4e7573869f1fdf2574ef44937e0d08f9a8c4e6413b43fa01effe5"
+    },
+    "reference_doc": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/reference_doc-41eb85a04d541ed8",
+      "before_sha256": "1ea7328f3f336f01f8cb270bede7ee152bcad7bb64b20c0f6135f8376cce9b0e",
+      "observed_exact_name": "fields_doc_matches_the_schema",
+      "listed_test_count": 1,
+      "after_sha256": "1ea7328f3f336f01f8cb270bede7ee152bcad7bb64b20c0f6135f8376cce9b0e"
+    }
+  },
+  "status": "two-selected-verification-controls-passed-document-generated-cache-released",
+  "prior_owner_images": "/workspace/tcl-lsp/experiments/name-handling/results/joint-source-metadata-validation/validation-01/build/changed-owner-images.json.gz",
+  "started_utc": "2026-10-13T01:30:16.304762+00:00",
+  "conservative_inventory_count": 11803,
+  "conservative_inventory_scope": "Current hashes over the retained joint-build source/build inventory; conservative superset, not proof every file compiled.",
+  "document_before_sha256": "44ead3515f510301b0ad5f6cccf79e03e7bff22fcce5537dbe0e860f853acdfa",
+  "actual_artifact_count": 145,
+  "actual_rebuilt_artifact_count": 3,
+  "document_after_sha256": "f4a260684b607e94a36c1eadd4d54dcfa5d17126582041415117934ea42cf48a",
+  "changed_conservative_sources": {},
+  "completed_utc": "2026-10-13T01:30:21.312379+00:00",
+  "cache_released_utc": "2026-10-13T01:30:21.312397+00:00"
+}

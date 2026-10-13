@@ -1,0 +1,316 @@
+--- a/rust/tcl-compiler/src/native_lowering/ir.rs
++++ b/rust/tcl-compiler/src/native_lowering/ir.rs
+@@ -653,12 +653,10 @@
+     /// invocation, so a redefinition at run time replaces the binding with an
+     /// ordinary source-only procedure.
+     DefineProc {
+-        /// The procedure's fully qualified name.
+-        qualified_name: String,
+-        /// The formal-parameter list exactly as written.
+-        params_raw: String,
+-        /// The body's exact source text.
+-        body_source: String,
++        /// Internal compiled-body selection key, never a publication operand.
++        entry_key: String,
++        /// Already evaluated original arguments, including the command head.
++        argv: Vec<NativeValueId>,
+     },
+     /// The last rung: evaluate the statement's exact source text through the
+     /// runtime, because the lowering declined it for the recorded reason.
+--- a/rust/tcl-compiler/src/native_lowering/lower.rs
++++ b/rust/tcl-compiler/src/native_lowering/lower.rs
+@@ -963,7 +963,7 @@
+                     }
+                 }
+                 NativeLowering::Definition if proven => {
+-                    if let Some(outcome) = self.lower_definition(invoke) {
++                    if let Some(outcome) = self.lower_definition(invoke, &argv) {
+                         return outcome;
+                     }
+                 }
+@@ -988,7 +988,11 @@
+     /// function lowers to [`NativeOp::DefineProc`]; a second definition of the
+     /// same name stays a generic invocation and therefore rebinds an ordinary
+     /// source-only procedure at run time, exactly as Tcl does.
+-    fn lower_definition(&mut self, invoke: &GenericInvoke) -> Option<StatementOutcome> {
++    fn lower_definition(
++        &mut self,
++        invoke: &GenericInvoke,
++        argv: &[NativeValueId],
++    ) -> Option<StatementOutcome> {
+         let procedure = self
+             .input
+             .module
+@@ -1009,10 +1013,13 @@
+         ) {
+             return None;
+         }
++        if argv.len() != 4 {
++            return None;
++        }
++        self.max_argc = self.max_argc.max(argv.len());
+         self.emit(NativeOp::DefineProc {
+-            qualified_name: procedure.qualified_name.clone(),
+-            params_raw: procedure.params_raw.clone(),
+-            body_source,
++            entry_key: procedure.qualified_name.clone(),
++            argv: argv.to_vec(),
+         });
+         self.clobber_shadows();
+         Some(StatementOutcome::NativeDefinition)
+--- a/rust/tcl-compiler/src/codegen/wasm/native_emit.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/native_emit.rs
+@@ -119,7 +119,7 @@
+     expr_bool_eval: u32,
+     mathop: u32,
+     mathfunc: u32,
+-    proc_define_native: u32,
++    proc_define_original_argv: u32,
+     log_command: u32,
+     return_state: u32,
+     host_refusal_pending: u32,
+@@ -165,7 +165,7 @@
+         expr_bool_eval: add(wasm, CodegenAbiImportId::ExprBoolEval),
+         mathop: add(wasm, CodegenAbiImportId::MathOp),
+         mathfunc: add(wasm, CodegenAbiImportId::MathFunc),
+-        proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
++        proc_define_original_argv: add(wasm, CodegenAbiImportId::ProcDefineOriginalArgv),
+         log_command: add(wasm, CodegenAbiImportId::LogCommand),
+         return_state: add(wasm, CodegenAbiImportId::ReturnState),
+         host_refusal_pending: add(wasm, CodegenAbiImportId::HostRefusalPending),
+@@ -716,7 +716,9 @@
+     fn walk(ops: &[NativeOp], largest: &mut usize) {
+         for op in ops {
+             let count = match op {
+-                NativeOp::Invoke { argv } | NativeOp::NestedInvoke { argv, .. } => argv.len(),
++                NativeOp::Invoke { argv }
++                | NativeOp::NestedInvoke { argv, .. }
++                | NativeOp::DefineProc { argv, .. } => argv.len(),
+                 NativeOp::MathOp { args, .. } | NativeOp::MathFunc { args, .. } => args.len(),
+                 NativeOp::Concat { parts, .. } => parts.len(),
+                 NativeOp::CellAppend { values, .. } => values.len(),
+@@ -1679,17 +1681,15 @@
+                     self.set_owned(code_local + 1);
+                 }
+             }
+-            NativeOp::DefineProc {
+-                qualified_name,
+-                params_raw,
+-                body_source,
+-            } => {
+-                self.text_pair(qualified_name);
+-                self.text_pair(params_raw);
+-                self.text_pair(body_source);
+-                self.push_entry_index(qualified_name);
+-                self.call(self.imports.proc_define_native);
+-                self.fail_on_code(completion);
++            NativeOp::DefineProc { entry_key, argv } => {
++                self.argv(argv);
++                self.i32(i64::try_from(argv.len()).unwrap_or(0));
++                self.push_entry_index(entry_key);
++                self.frame_offset(FRAME_COMPLETION);
++                self.call(self.imports.proc_define_original_argv);
++                self.push(WasmOp::Drop);
++                self.adopt_frame_completion(completion);
++                self.release_scratch();
+             }
+             NativeOp::EvalSource { text, .. } => {
+                 self.text_pair(text);
+--- a/rust/tcl-compiler/src/codegen/wasm/backend.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+@@ -731,35 +731,7 @@
+             return false;
+         };
+         match operation {
+-            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
+-                // Only a definition whose words were all written out. Otherwise
+-                // `Procedure` holds the *written* word while the body was
+-                // compiled from a value this tier materialised, and registering
+-                // that word reports the wrong `info body` and leaves any later
+-                // run of the source body evaluating a substitution in the
+-                // procedure's own frame. The generic invocation
+-                // below hands the word to the runtime's `proc`, which evaluates
+-                // it at the call site as Tcl does.
+-                if !self
+-                    .facts
+-                    .literal_proc_definitions
+-                    .contains(&span_key(span))
+-                {
+-                    return false;
+-                }
+-                let Some(proc) = self.procedures_by_span.get(&span_key(span)).cloned() else {
+-                    return false;
+-                };
+-                let Some(body) = proc.body_source.as_deref() else {
+-                    return false;
+-                };
+-                self.push_text_pair(&proc.qualified_name);
+-                self.push_text_pair(&proc.params_raw);
+-                self.push_text_pair(body);
+-                self.call(aot.proc_register);
+-                self.emit_completion_dispatch();
+-                true
+-            }
++            SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => false,
+             // There is no `puts` fast path reparsing compatibility text: the
+             // leaf-invocation path below evaluates its words structurally, and
+             // the native tier owns the channel-write intrinsic.
+@@ -2440,8 +2412,8 @@
+         use crate::native_lowering::ir::NativeOp;
+         for op in ops {
+             match op {
+-                NativeOp::DefineProc { qualified_name, .. } => {
+-                    out.insert(qualified_name.clone());
++                NativeOp::DefineProc { entry_key, .. } => {
++                    out.insert(entry_key.clone());
+                 }
+                 NativeOp::IfElse {
+                     then_ops, else_ops, ..
+--- a/rust/tcl-runtime-api/src/codegen_abi.rs
++++ b/rust/tcl-runtime-api/src/codegen_abi.rs
+@@ -293,6 +293,9 @@
+     /// two spellings define the same proc, and this one subsumes the older,
+     /// which stays for already-emitted legacy-tier modules.
+     ProcDefineNative,
++    /// Define a procedure from borrowed, already evaluated original argv.
++    /// Parameters are argv, argc, optional compiled entry, and completion out.
++    ProcDefineOriginalArgv,
+     /// Log one `while executing` / `invoked from within` `errorInfo` frame for
+     /// a compiled statement that completed with an error.
+     ///
+@@ -414,6 +417,7 @@
+         Self::MathOp,
+         Self::MathFunc,
+         Self::ProcDefineNative,
++        Self::ProcDefineOriginalArgv,
+         Self::LogCommand,
+         Self::ReturnState,
+         Self::NativeProcDispatches,
+@@ -511,6 +515,11 @@
+                 I32_I32_I32_I32_I32_I32_I32,
+                 I32,
+             ),
++            Self::ProcDefineOriginalArgv => tcl_import(
++                "tcl_codegen_proc_define_original_argv",
++                I32_I32_I32_I32,
++                I32,
++            ),
+             Self::LogCommand => tcl_import("tcl_codegen_log_command", I32_I32_I32, NONE),
+             Self::ReturnState => tcl_import("tcl_codegen_return_state", I32_I32, NONE),
+             Self::NativeProcDispatches => {
+--- a/runtime/rust/src/cmd_proc.rs
++++ b/runtime/rust/src/cmd_proc.rs
+@@ -94,11 +94,19 @@
+ 
+ /// `proc name params body` — define a procedure.
+ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
++    proc_cmd_with_native_entry(interp, argv, None)
++}
++
++pub(crate) fn proc_cmd_with_native_entry(
++    interp: &mut Interp,
++    argv: &[*mut TclObj],
++    native: Option<crate::interp::NativeProcEntry>,
++) -> Code {
+     let arguments = match OriginalArguments::enter(interp, argv) {
+         Ok(arguments) => arguments,
+         Err(error) => return interp.report_cmd_error(error),
+     };
+-    let code = proc_cmd_original(interp, argv, &arguments);
++    let code = proc_cmd_original(interp, argv, &arguments, native);
+     arguments.finish(code)
+ }
+ 
+@@ -106,6 +114,7 @@
+     interp: &mut Interp,
+     argv: &[*mut TclObj],
+     arguments: &OriginalArguments,
++    native: Option<crate::interp::NativeProcEntry>,
+ ) -> Code {
+     use tcl_registry::native_procedure::{
+         NativeProcedureDefinitionSelection, NativeProcedureDefinitionSpec,
+@@ -307,7 +316,7 @@
+         params,
+         Some(argv[definition.parameters_at + 1]),
+         (original_body, chosen_body),
+-        None,
++        native,
+         statics,
+     );
+     if let Err(error) = arguments.check() {
+--- a/runtime/rust/src/codegen_abi.rs
++++ b/runtime/rust/src/codegen_abi.rs
+@@ -2372,6 +2372,73 @@
+     unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
+ }
+ 
++/// Define from borrowed evaluated argv through the original procedure handler.
++/// The caller retains every argument and supplies a checked compiled entry.
++///
++/// # Safety
++/// `argv` must hold `argc` live caller-owned objects and `out` must be writable
++/// completion storage. A present entry must satisfy `NativeProcEntry`.
++#[no_mangle]
++pub unsafe extern "C" fn tcl_codegen_proc_define_original_argv(
++    argv: *const *mut TclObj,
++    argc: i32,
++    entry: Option<NativeProcEntry>,
++    out: *mut TclCompletionAbi,
++) -> i32 {
++    if out.is_null() {
++        return TCL_INVOKE_ABI_NULL_OUT;
++    }
++    let mut operation = match CodegenOperation::enter() {
++        Ok(operation) => operation,
++        Err(TCL_INVOKE_ABI_NO_CURRENT_INTERP) => {
++            unsafe {
++                write_detached_completion(
++                    out,
++                    detached_error_completion(b"no current interpreter for tcl_codegen_proc_define_original_argv"),
++                )
++            };
++            return TCL_INVOKE_ABI_NO_CURRENT_INTERP;
++        }
++        Err(status) => return status,
++    };
++    let argc = match usize::try_from(argc) {
++        Ok(argc) if argc > 0 => argc,
++        _ => {
++            let code = operation
++                .interpreter
++                .set_error(b"tcl_codegen_proc_define_original_argv requires a command head");
++            return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_INVALID_ARGC) };
++        }
++    };
++    if argv.is_null() {
++        let code = operation
++            .interpreter
++            .set_error(b"tcl_codegen_proc_define_original_argv received a null argv");
++        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_ARGV) };
++    }
++    let words = unsafe { core::slice::from_raw_parts(argv, argc) };
++    if words.iter().any(|word| word.is_null()) {
++        let code = operation
++            .interpreter
++            .set_error(b"tcl_codegen_proc_define_original_argv received a null word");
++        return unsafe { operation.settle(code, None, out, TCL_INVOKE_ABI_NULL_WORD) };
++    }
++    // All caller-owned argv references remain borrowed through dispatch and capture.
++    let _borrowed = unsafe { BorrowedArgv::retain(words) };
++    let activation = unsafe { AbiActivation::enter(&mut operation.interpreter) };
++    if activation.is_none() {
++        return unsafe {
++            operation.settle(crate::interp::Code::Error, None, out, TCL_INVOKE_ABI_OK)
++        };
++    }
++    let code = crate::cmd_proc::proc_cmd_with_native_entry(
++        &mut operation.interpreter,
++        words,
++        entry,
++    );
++    unsafe { operation.settle(code, activation, out, TCL_INVOKE_ABI_OK) }
++}
++
+ /// Release both owned object references in a [`TclCompletionAbi`] and reset its
+ /// fields to null/zero. This is an alternative to releasing `result` and
+ /// `options` separately with [`tcl_obj_release`]; do not use both forms.

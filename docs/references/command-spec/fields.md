@@ -123,7 +123,7 @@ How many arguments the command takes and what each position means. Arity powers 
 
 How many arguments the command accepts, counted **after** the command name — the same rule behind Tcl's own `wrong # args` error. `set varName ?value?` is min 1, max 2. A trailing `args` parameter means no maximum, so leave max unbounded. `incr x ?increment?` is 1 to 2; `list` is 0 to unbounded.
 
-On a subcommand, count after the subcommand word instead: `string length string` is exactly 1. The step and extra-exact-count fields cover commands whose argument tail comes in pairs (`array set` style `name value` lists).
+On a subcommand, count after the subcommand word instead: `string length string` is exactly 1. The step and extra-exact-count fields cover commands whose argument tail comes in pairs (`array set` style `name value` lists). Select positional operands to exclude options and their values using the declared option grammar; the default counts every argument.
 
 ### `arity_windows` — Arity windows
 
@@ -246,15 +246,6 @@ How the command reshapes the container inside the variable it writes, in place: 
 
 Tcl values carry both a string form and a cached internal form (list, dict, integer …), and some commands convert or copy between them — the "shimmering" a Tcl developer knows from performance work. This field records such an effect (for example copy-on-write on a shared list) so the performance lints can see it. Rarely needed; safe to leave unset.
 
-Indexed list recipes keep the input and index objects separate:
-`representation_effect {CoerceOrdinaryListIndices 0 1}` names the original list
-and the start of its index operands; `{CoerceOrdinaryListRange 0 1 2}` names the
-list and both range indices. The selected native dialect supplies index parsing
-and possible input preservation. A proved numeric index excludes only its
-ordinary-container sharing footprint; it does not supply an index value or
-preserve a numeric cache. These declarations provide conversion metadata, not
-handler identity, native compilation or a result representation.
-
 ### `arg_types` — Argument type hints
 
 *command and subcommand* — Expected intrep, shimmer risk, and transparent source types per argument index.
@@ -321,7 +312,7 @@ For ensembles whose subcommands are also reachable as plain commands in a namesp
 
 *subcommand only* — Operations selected by the word after this subcommand (`info object <op>`), each with its own release window.
 
-A third level of keywords — operations selected by the word *after* this subcommand, as in `info object isa`. Deliberately lighter than a full subcommand: each carries its name, a one-line detail, a synopsis, and an optional dialect gate — enough for highlighting, hover, and completion. Arity stays on the owning subcommand. An operation may also carry its own **option table**, and should whenever the operations disagree about which options exist: `namespace ensemble create` takes `-command`, `configure` takes `-namespace`, and each rejects the other's. A table here replaces the subcommand's for that operation rather than adding to it. Leaving it unset inherits the subcommand's table; setting it to an *empty* table says the operation takes no options at all, which is a different claim — `namespace ensemble exists` needs the second, or it is offered flags that are not options there.
+A third level of keywords — operations selected by the word *after* this subcommand, as in `info object isa`. Deliberately lighter than a full subcommand: each carries its name, a one-line detail, a synopsis, and an optional dialect gate and positional option prefix — enough for highlighting, hover, and completion. Arity stays on the owning subcommand. `option_prefix_words` counts required data words after the nested selector before its own option table; `configure` consumes a command name there. An operation may also carry its own **option table**, and should whenever the operations disagree about which options exist: `namespace ensemble create` takes `-command`, `configure` takes `-namespace`, and each rejects the other's. A table here replaces the subcommand's for that operation rather than adding to it. Leaving it unset inherits the subcommand's table; setting it to an *empty* table says the operation takes no options at all, which is a different claim — `namespace ensemble exists` needs the second, or it is offered flags that are not options there.
 
 ## Documentation
 
@@ -359,6 +350,10 @@ The usage line for this subcommand as a man page would write it: `string length 
 
 The command's `-flag` switches and the literal values specific argument positions accept. Declared options get completion, spelling checks, and flag-versus-value highlighting; declared values get completion, and can be closed into an "only these" set.
 
+### `option_prefix_words` — Positional prefix words
+
+*command and subcommand* — Fixed positional words before the selected invocation's option run.
+
 ### `closed_value_args` — Closed value arguments
 
 *command and subcommand* — Argument indices whose declared values are an exhaustive legal set (W127).
@@ -391,13 +386,9 @@ Where an option axis starts, and how two options over it combine. An option row 
 
 Where this command's declared options may be found. `Leading` — the default, and what every core Tcl command does — stops option parsing at the first word that is not a declared option, so a later `-`-looking word is a positional. `Anywhere` keeps recognising options between the positional words up to an explicit `--`, which is the shape of a script-level parser that loops `foreach {flag value} $args` after taking its fixed arguments (`http::geturl`). Getting this wrong invents option relations the interpreter never applies.
 
-### `option_prefix_words` — Positional words before options
-
-*command and subcommand* — A fixed positional prefix before the option run, counted after the head or selected subcommand. `clock format` declares one time value before `-format` and other switches. Its value can be unknown while later literal switches still select their value roles. An unknown word in the option run retains unresolved layout. This metadata does not validate the prefix value or establish an executable handler.
-
 ### `reserved_trailing_words` — Reserved trailing words
 
-*command and subcommand* — Trailing words the selected descriptor's option scan never treats as option candidates. Counts are after the head or selected subcommand word.
+*command and subcommand* — Trailing words C Tcl's own option scan never treats as option candidates.
 
 How many words at the *end* of the call are never option candidates, matching how C Tcl scans options only up to a point. `lsearch ?options? list pattern` reserves the final 2: a pattern that happens to start with `-` is data there, not a flag.
 
@@ -479,6 +470,22 @@ Behavioural facts about the command, as a set of flags. Traits are how every ana
 
 Open the Reference tab for the full list with a one-line meaning each. When no trait fits, leave them all off — an empty set is always safe, it just tells the tools less.
 
+### `script_lookup_scope` — Executable lookup frame
+
+*command and subcommand* — Invoking, global or triggering frame at executable entry; independent of timing, operand ownership and command table proof.
+
+### `native_result` — Native result contract
+
+*command and subcommand* — Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.
+
+The actual native handler's result value, identity and representation contract. Successful dispatch and all observer boundaries must be proved; a nominal return type alone does not establish this contract. Loadable packs cannot certify native implementation results.
+
+### `source_index_bounds` — Source index bounds
+
+*command and subcommand* — Conditional original index/container relationship; no native handler or current result.
+
+Selects conditional bounds advice from the original index/container operands. Availability, aliases and original operand ownership remain separate; the descriptor proves no native handler, current value or successful result.
+
 ### `unsafe_command` — Unsafe command
 
 *command only* — Allows context escalation in sandboxed dialects — drives IRULE2003.
@@ -491,11 +498,47 @@ Marks a command that escapes the sandbox in restricted dialects — in iRules, t
 
 Whether a Body argument runs *in the caller's frame*, seeing and changing the caller's variables (`while`, `if`, `catch` — "Plain"), or in a separate context of its own (`proc` bodies, class definition bodies — "Structural"). Plain bodies join the surrounding data flow: a `set` inside them changes the enclosing scope. Structural bodies deliberately do not.
 
+### `variable_receivers` — Variable receiver purposes
+
+*command and subcommand* — Argv variable-name receiver positions and their combined or trace-subject naming purpose. Unset inherits; declared empty withdraws. This metadata grants no successful access, trace installation, compiler preparation or whole-array root-only interpretation.
+
+Positions and selected naming purposes of argv variable names after the command or subcommand. Plain positions use combined root/index geometry; {index trace-subject} selects the trace name ingress first. A declared empty list withdraws the grammar; unset inherits it. This grants no trace installation, successful access, compiler local or live runtime cell.
+
+### `successful_handler` — Native normal handler effects
+
+*command and subcommand* — Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.
+
+Audited normal variable effects of a converged native implementation. Physical cell, alias, observer and output-order proofs remain required. This contract cannot select an opcode or license callback-body execution, and a loadable pack cannot certify it.
+
+### `native_compilation` — Native compiler grammar
+
+*command and subcommand* — Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.
+
+Actual native compiler grammar and command selection timing. Stock implementation tokens, compilation entry, private ensemble members and compiler-hook dependencies must all be proved. Loadable declarations cannot certify these native implementation contracts.
+
+### `procedure_definition` — Native procedure grammar
+
+*command only* — Native definition argv, result and static-storage protocol; requires live native implementation proof.
+
+Native procedure installation grammar, including Jim persistent static storage. This native implementation contract is excluded from pack-authored strong analysis.
+
+### `body_execution` — Body execution contract
+
+*command and subcommand* — Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.
+
+An evaluated-body grammar and completion contract. Script phases share semantic control flow only after live command implementation and optional-hook dependencies are proved. Package hook support is resolved independently of the Tcl core version.
+
 ### `body_interpreter` — Body interpreter
 
 *command and subcommand* — Whether evaluated body arguments run in the current interpreter or one selected by an invocation argument.
 
 Which Tcl interpreter owns evaluated Body arguments. `Current` is the normal case. `Argument` names the complete post-command argument index whose evaluated value selects another interpreter, as in `interp eval`. This is independent of body kind: interpreter ownership and stack-frame shape are separate axes.
+
+### `channel_configuration` — Channel configuration
+
+*command and subcommand* — Conditional original encoding/translation option relationship; no channel state or runtime acceptance.
+
+The selected command or subcommand describes channel configuration. EncodingTranslation projects the original available encoding and translation value positions for source advice; it does not establish a channel, native handler or completed configuration.
 
 ### `byte_array_effect` — Byte-array effect
 
@@ -538,6 +581,18 @@ An irreversible operation — `file delete`, a table purge. Feeds the "destructi
 *subcommand only* — Returns a filesystem path.
 
 The result is a filesystem path (`file join`, `file dirname`). Path-aware checks then follow the value — e.g. the path-taint colours that prove a user-influenced path stays inside a known root.
+
+### `source_path_operation` — Source path operation
+
+*subcommand only* — Conditional source path algebra; no runtime handler, current filename or filesystem fact.
+
+A source path operation selected from the current authored schema and exact argument values. It describes conditional navigation advice, without proving a runtime handler, current filename or filesystem result.
+
+### `source_configuration_reference` — Source configuration reference
+
+*subcommand only* — Registry-owned source operand grammar for a conditional configuration-object reference.
+
+Selects the registry-owned source grammar that locates a configuration-object operand. DataGroupComparison identifies a data-group reference after the comparison item and operator, including an explicit `--` separator. Selection may remain conditional when the item is computed. This metadata does not establish a native handler, an existing object or a successful comparison.
 
 ### `is_unescape` — Unescapes
 
@@ -823,6 +878,12 @@ F5 only: whether the iRules-to-XC translator can carry this command across. Unse
 
 The command to use instead, shown in the deprecation warning and offered by the quick fix — the `lmap` to your deprecated mapping helper.
 
+### `source_deprecation_advice` — Source deprecation advice
+
+*command only* — Registry-owned source shape advice; original words support a review proposal, without a runtime equivalence claim.
+
+Choose the typed source shape advice declared by this command. A consumer retains original argument words and proposes the replacement for review; the descriptor does not establish runtime equivalence.
+
 ### `deprecated_replacement_drop_in` — Replacement is drop-in
 
 *command only* — Whether the replacement accepts the deprecated argument list unchanged.
@@ -840,6 +901,14 @@ Fields the studio carries as raw Rust expressions: function pointers and referen
 A hook for commands whose argument layout cannot be a fixed table — `if` (any number of `elseif` clauses), `switch` (options before the value), `set` (arg 0 is written with two words but only read with one). The hook inspects the actual call and assigns roles.
 
 This is Rust code, so the studio can only carry a reference to it. If your command needs one, describe the layout rule in plain words in the issue notes — for example "the last argument is always the body; everything before it comes in `name value` pairs" — and a maintainer writes the few lines.
+
+### `arg_role_count_resolver` — Cardinality argument-role resolver
+
+*command and subcommand* — Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.
+
+### `arg_role_layout_resolver` — Structured argument-layout resolver
+
+*command and subcommand* — Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.
 
 ### `repeated_args` — Repeated argument layouts
 
@@ -872,14 +941,6 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
-
-The Rust hook receives structured `InvocationArguments`. Unknown ordinary payloads retain their positions; selector-dependent rules require known selectors and independently exact cardinality. The pack host preserves literal, dynamic and expanded kinds instead of replacing them with display Strings. `ReferenceOnly` supplies no executable source position. The selected source timing and prefix queries retain these boundaries without granting callback execution, runtime result objects or entered frames.
-
-### `substitution_resolver` — Substitution resolver
-
-*command only* — Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.
-
-The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it when switches decide *which* of backslash, command and variable substitution the call runs over its own argument, as with `subst -novariables`. The trait alone tells a consumer only that some substitution happens, which is not enough to answer "does this argument read a variable?". Silence means every kind on every call, and a call the resolver cannot read must answer every kind — assuming a substitution does not happen is what loses a real read.
 
 ### `command_forms` — Invocation refinements
 
@@ -1197,6 +1258,14 @@ What a command does to binary data: pass it through, silently coerce it to a str
 | `Encodes` | re-encodes the operand into a text representation |
 | `Rebinarifies { value_arg: 0 }` | reinstalls a byte-array rep on the operand at the given index |
 
+### Channel configuration
+
+Conditional source option relationship vocabulary. Original values and current channel state remain independent.
+
+| Value | Meaning |
+|---|---|
+| `EncodingTranslation` | original encoding and translation option values |
+
 ### Codegen hooks
 
 Compiler internals: the named per-command bytecode emitters, mirroring what C Tcl byte-compiles specially. Third-party commands leave this unset.
@@ -1218,6 +1287,7 @@ Compiler internals: the named per-command bytecode emitters, mirroring what C Tc
 | `Concat` | concat |
 | `Global` | global |
 | `Upvar` | upvar |
+| `Uplevel` | uplevel |
 
 ### Command-table effects
 
@@ -1283,6 +1353,16 @@ The EDA shells are not on it: a vendor shell is a base Tcl release plus package-
 | `spectcl` | SpecTcl |
 | `sslictcl` | SslicTcl |
 
+### Executable lookup frames
+
+Which frame supplies namespace lookup when an executable operand runs: current invoker, global interpreter or triggering operation. This is independent of timing and does not prove a future command table or callback reach.
+
+| Value | Meaning |
+|---|---|
+| `InvokingFrame` | Current invoking frame when the executable argument runs |
+| `GlobalFrame` | Global interpreter frame at a deferred callback entry |
+| `TriggerFrame` | Frame of the operation that triggers an installed trace |
+
 ### Form kinds
 
 Labels a documented invocation form as the default, a read-only getter, or a modifying setter. The label improves reference output; it does not select semantics. Use `command_forms` when forms need different arity, traits, purity, effects, or argument roles.
@@ -1313,6 +1393,11 @@ Compiler internals: bytecode emitters for value-position (`set x [cmd …]`) and
 | `Expr` | expr |
 | `Incr` | incr |
 | `InfoExists` | info exists |
+| `InfoLevel` | info level |
+| `NamespaceCurrent` | namespace current |
+| `NamespaceOrigin` | namespace origin name |
+| `NamespaceCode` | namespace code literal-script |
+| `InfoCommandsResolve` | info commands absolute literal |
 | `String` | string |
 | `Lindex` | lindex |
 | `Lrange` | lrange |
@@ -1328,6 +1413,8 @@ Compiler internals: bytecode emitters for value-position (`set x [cmd …]`) and
 | `Break` | break |
 | `Continue` | continue |
 | `Try` | try |
+| `Yield` | yield |
+| `YieldTo` | yieldto |
 
 ### Lowering hooks
 
@@ -1458,11 +1545,17 @@ The target-neutral operation a command performs, as a closed vocabulary: `invoke
 | `intrinsic string-is` | the `string-is` intrinsic |
 | `intrinsic regexp` | the `regexp` intrinsic |
 | `intrinsic info-exists` | the `info-exists` intrinsic |
+| `intrinsic info-level` | the `info-level` intrinsic |
+| `intrinsic info-commands-resolve` | the `info-commands-resolve` intrinsic |
 | `intrinsic array-exists` | the `array-exists` intrinsic |
 | `intrinsic array-names` | the `array-names` intrinsic |
 | `intrinsic array-size` | the `array-size` intrinsic |
 | `intrinsic concat` | the `concat` intrinsic |
 | `intrinsic channel-write` | the `channel-write` intrinsic |
+| `intrinsic procedure-noop` | the `procedure-noop` intrinsic |
+| `intrinsic namespace-current` | the `namespace-current` intrinsic |
+| `intrinsic namespace-origin` | the `namespace-origin` intrinsic |
+| `intrinsic namespace-code` | the `namespace-code` intrinsic |
 | `structured-lowering expr` | the `expr` structured-lowering |
 | `structured-lowering return` | the `return` structured-lowering |
 | `structured-lowering set` | the `set` structured-lowering |
@@ -1497,6 +1590,7 @@ The definition-body grammars the registry ships and a pack may name: `TclOO`'s c
 | Value | Meaning |
 |---|---|
 | `tcloo` | the shipped TclOo grammar (19 members) |
+| `tcloo-abstract` | the shipped TclOo grammar (19 members) |
 | `tcloo-configurable` | the shipped TclOo grammar (19 members) |
 | `snit` | the shipped Snit grammar (15 members) |
 | `snit-widget` | the shipped Snit grammar (15 members) |
@@ -1550,6 +1644,47 @@ The kinds of state a structured side effect can read or write — from Tcl varia
 | `ChannelIo` | channel I/O |
 | `EventControl` | iRules event control flow |
 | `Unknown` | unclassified effect |
+
+### Source configuration references
+
+Registry-owned source operand grammars for configuration objects. DataGroupComparison describes the comparison tail and its data-group operand; it grants no native execution authority.
+
+| Value | Meaning |
+|---|---|
+| `DataGroupComparison` | data-group operand after a comparison item and operator |
+
+### Source deprecation advice
+
+Typed source shape proposals owned by the selected Registry descriptor. Every edit needs original written word coordinates and review.
+
+| Value | Meaning |
+|---|---|
+| `IruleMatchclass` | review proposal replacing the declared legacy shape with class match |
+
+### Source index bounds
+
+The source index relationship vocabulary, independently of native operation identity or runtime values.
+
+| Value | Meaning |
+|---|---|
+| `ListIndex` | literal list index descent |
+| `ListRange` | literal list slice bounds |
+| `ListReplace` | literal list replacement bounds |
+| `StringIndex` | literal string character index |
+| `StringRange` | literal string slice bounds |
+| `StringReplace` | literal string replacement bounds |
+| `StringInsert` | literal string insertion bounds |
+
+### Source path operations
+
+The shared source algebra for joining paths, taking a parent directory, lexically normalising an anchored path or using an explicitly supplied document filename. Runtime execution and filesystem state remain separate.
+
+| Value | Meaning |
+|---|---|
+| `Join` | join exact source argument values |
+| `Dirname` | parent directory in the explicit path algebra |
+| `Normalize` | lexical normalisation of an anchored source path |
+| `ScriptPath` | explicit caller-supplied document filename |
 
 ### Storage types
 

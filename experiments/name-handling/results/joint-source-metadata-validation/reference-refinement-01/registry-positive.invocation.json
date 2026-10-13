@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924",
+    "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T01:27:39.265364+00:00",
+  "end_utc": "2026-10-13T01:27:39.516184+00:00",
+  "elapsed_seconds": 0.2508185200058506,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2729746432,
+  "package": "tcl-registry",
+  "test": "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 1758
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "08b1d904eb8fb37293eb6a5bdce6f29ef2422a2962022159009e16964477307d"
+}

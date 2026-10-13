@@ -264,6 +264,15 @@ conversion. No variant grants a result representation, object freshness or an
 opcode. SpecTcl exports the same typed forms as `{CoerceOrdinaryList N}`,
 `{CoerceOrdinaryDictionary N}`, and `{CoerceOrdinaryListPairs N}`.
 
+Indexed list recipes keep the input and index objects separate:
+`representation_effect {CoerceOrdinaryListIndices 0 1}` identifies the list and
+the start of its index operands; `{CoerceOrdinaryListRange 0 1 2}` identifies
+the list and both range indices. The selected native dialect determines index
+parsing and possible input preservation. Numeric-index proof excludes only
+ordinary-container sharing; it supplies neither an index value nor numeric
+cache preservation. These declarations grant no handler identity, native
+compilation or result representation.
+
 #### Argument semantics
 
 | Field | Type | Default | Purpose |

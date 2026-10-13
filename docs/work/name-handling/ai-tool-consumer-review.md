@@ -127,3 +127,34 @@ procedure declarations followed by rename; a literal callback alias before
 and after an unknown writer; namespace-imported cursor locations before rename
 and with an unknown intervening writer. Tie conformance claims to the retained
 interpreter/native-context oracle for the exact question.
+
+## Current typed-reference validation
+
+The [joint six-library capture](../../../experiments/name-handling/results/joint-source-metadata-validation/validation-01/README.md)
+build passed; fifteen exact controls ran once each with 13 passes/two failures.
+Metadata10/2 included the Registry DynamicNonOption bit failure and unchanged
+braced-expression datagroup failure. Both Compiler source-selector controls
+and corrected VM SamePosition fixture passed on that exact preimage. Its 26
+packages/11,803 source-data hashes and six binary hashes stayed unchanged.
+First failures and all raw logs are sealed; no whole-suite/provider promotion.
+
+The approved [two-file boundary refinements](../../../experiments/name-handling/results/joint-source-metadata-validation/reference-refinement-01/README.md)
+now build and pass all four selected Registry/iRules controls. Registry
+preserves the shared proves_non_option premise; typed descriptor presence
+suppresses legacy fallback even when projection declines. New literal adverse
+cases retain public legacy resolver behavior. Original expectations/fixtures
+are unchanged. Current projection hash is 793554f0...924a; object-operand hash
+93a5f642...5c03. Its actual25-package/11,764-hash source scope and both binary
+hashes remained unchanged through the one build/four controls. Compiler/VM
+acceptance remains scoped to the earlier dependency preimage.
+
+The unchanged braced-expression failure remains unresolved and was not rerun.
+Read-only inspection narrows the candidate loss to authentic original-vector
+retention, which visits Registry Syntax bodies and lexical executable command
+parts without asking the existing source_expression_script_bodies issuer.
+Final [] does not prove the first rejected guard. A bounded temporary logging
+probe is being prepared in scratch for original body origin, Expr-issued child
+geometry and SourceContext vector admission; no third production repair or
+probe build is approved yet. Separate Studio integration/doc generation is
+awaiting its root-coordinated lease. No MCP generator/default-target build ran
+after these shared changes. All completed source/cache leases are released.

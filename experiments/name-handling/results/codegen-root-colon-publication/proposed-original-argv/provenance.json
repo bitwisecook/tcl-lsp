@@ -1,0 +1,84 @@
+{
+  "status": "UNAPPLIED / UNCOMPILED / UNEXECUTED",
+  "source_preimages": {
+    "rust/tcl-compiler/src/native_lowering/ir.rs": {
+      "sha256": "8865fea158498dd77cf1851b0ed5699bf9703be6434ca1c1dfd13ce99ad27156",
+      "bytes": 22160
+    },
+    "rust/tcl-compiler/src/native_lowering/lower.rs": {
+      "sha256": "c1d8e0be1a13ae017ad076c1184371af5a5792f6565c7bdedd5cd60e829e5aca",
+      "bytes": 101540
+    },
+    "rust/tcl-compiler/src/codegen/wasm/native_emit.rs": {
+      "sha256": "df5fe1915e0983bfc0bbd95fc05ed2e94b708a2c5e740b33bb062113361261dc",
+      "bytes": 93450
+    },
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": {
+      "sha256": "e3141ea9853c22f2ce98ed34aa4e649b4e96e1e6a3e713df86c6811448b96ae1",
+      "bytes": 142694
+    },
+    "rust/tcl-runtime-api/src/codegen_abi.rs": {
+      "sha256": "49622ce76e25ce8140baaceb596414bef09bfb33e8ec4d66c02cdb86b0e2aee8",
+      "bytes": 54392
+    },
+    "runtime/rust/src/cmd_proc.rs": {
+      "sha256": "7a6e292f0b335d643bbd1ffcf99e4922b8b4ea5be844858a800279ff29c60418",
+      "bytes": 66366
+    },
+    "runtime/rust/src/codegen_abi.rs": {
+      "sha256": "7996969ea0b87237e85b5285641213803dc4be3efdb06e3277a52ec16003d014",
+      "bytes": 242453
+    },
+    "rust/tcl-compiler/src/native_lowering/tests.rs": {
+      "sha256": "c514acf0490228e5844772b3d5e03d3f3092f0fd0359e4bbe0d111079bb7ae37",
+      "bytes": 48383
+    },
+    "rust/tcl-compiler/src/codegen/wasm/pipeline.rs": {
+      "sha256": "f80c198d0a66edb8b1a6eaa3ceb5b8552e600b29b16edf0586732e91dd862bf1",
+      "bytes": 60668
+    },
+    "rust/tcl-compiler/tests/wasm_codegen.rs": {
+      "sha256": "e1e597732c33020f4cd68e811dc214333ecb4f12e983e551931266e8dc04e345",
+      "bytes": 75304
+    },
+    "rust/tcl-compiler/tests/wasm_real_link.rs": {
+      "sha256": "2a784ec0cf1f2241dbb6c53cbcfaa87137afbcd281edeea1db1a7355f65476d3",
+      "bytes": 65493
+    }
+  },
+  "artifacts": {
+    "compiler-controls.rs": {
+      "sha256": "a40cba54364256c48393968b7e4b8357cd2a3df153a61938b4026d7fc306293d",
+      "bytes": 6609
+    },
+    "design.md": {
+      "sha256": "5865d002ccdf170a74962c3b0fc732f9ee5dc7ef580241d9ee00632169e32148",
+      "bytes": 12154
+    },
+    "implementation.patch": {
+      "sha256": "c1385b5281bdcbc160310d14225fde1649d5e971a269b48197eba55f9123b3b6",
+      "bytes": 13405
+    },
+    "prepare-implementation.py": {
+      "sha256": "8169617304bf504d351cd0392f26567722cdeef5b50a2543d7d9c9605c2475f5",
+      "bytes": 7599
+    },
+    "prepare-test-updates.py": {
+      "sha256": "1aee7a35dc761d75c9c9ccb2eaffa8142cff104b8d0f699e18fdc19652ca3552",
+      "bytes": 6316
+    },
+    "question.md": {
+      "sha256": "ec36e861a4e24f820865dc1fd7ec89b755bde255308bc53507bfbc2dcba68391",
+      "bytes": 3233
+    },
+    "runtime-controls.rs": {
+      "sha256": "6a7e77fd46d070c2fa8dec722d57e0313bf3840b92eb17c776098e48cc4b151b",
+      "bytes": 4464
+    },
+    "test-updates.patch": {
+      "sha256": "5a99ede5ed05b8587ff5ddc9073a8c2ae0c947dd672f61ae4b8e9ec25c923793",
+      "bytes": 14292
+    }
+  },
+  "scope": "Proposed software implementation and test sources only; original CLI captures remain separate in the parent directory."
+}

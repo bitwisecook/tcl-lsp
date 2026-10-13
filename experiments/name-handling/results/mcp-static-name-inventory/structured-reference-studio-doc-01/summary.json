@@ -1,0 +1,61 @@
+{
+  "classification": "One selected two-target compilation passed; SubCommand schema coverage and normal generated-document equality each passed once; one separate official generator invocation wrote fields.md",
+  "selected_targets": [
+    "schema_coverage",
+    "reference_doc"
+  ],
+  "verification_control_count": 2,
+  "verification_pass": 2,
+  "verification_fail": 0,
+  "generator_write_invocation_count": 1,
+  "generator_write_is_an_equality_assertion": false,
+  "normal_premismatch_check": "Not run: new field was known absent from generated document; official generator then independent plain equality verification used",
+  "actual_exact_names_observed": {
+    "schema_coverage": "schema_covers_every_subcommand_field",
+    "reference_doc": "fields_doc_matches_the_schema"
+  },
+  "native_bins": {
+    "schema_coverage": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/schema_coverage-f32131a7d7634bab",
+      "before_sha256": "3bd70587e1d4e7573869f1fdf2574ef44937e0d08f9a8c4e6413b43fa01effe5",
+      "observed_exact_name": "schema_covers_every_subcommand_field",
+      "listed_test_count": 8,
+      "after_sha256": "3bd70587e1d4e7573869f1fdf2574ef44937e0d08f9a8c4e6413b43fa01effe5"
+    },
+    "reference_doc": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/reference_doc-41eb85a04d541ed8",
+      "before_sha256": "1ea7328f3f336f01f8cb270bede7ee152bcad7bb64b20c0f6135f8376cce9b0e",
+      "observed_exact_name": "fields_doc_matches_the_schema",
+      "listed_test_count": 1,
+      "after_sha256": "1ea7328f3f336f01f8cb270bede7ee152bcad7bb64b20c0f6135f8376cce9b0e"
+    }
+  },
+  "all_source_build_hashes_unchanged": true,
+  "conservative_context_count": 11803,
+  "conservative_context_scope": "Current hashes over the retained joint-build source/build inventory; conservative superset, not proof every file compiled.",
+  "actual_emitted_local_package_count": 25,
+  "actual_emitted_artifact_count": 145,
+  "actual_rebuilt_targets": [
+    "tcl_spec_studio",
+    "reference_doc",
+    "schema_coverage"
+  ],
+  "existing_source_images": "Nine Studio owner images from retained joint-source-metadata-validation/validation-01/build/changed-owner-images.json.gz verified against current sources; no new whole-package image snapshot",
+  "generated_output": {
+    "path": "docs/references/command-spec/fields.md",
+    "before_sha256": "44ead3515f510301b0ad5f6cccf79e03e7bff22fcce5537dbe0e860f853acdfa",
+    "after_sha256": "f4a260684b607e94a36c1eadd4d54dcfa5d17126582041415117934ea42cf48a",
+    "generator": "tcl_spec_studio::reference::render_fields_doc via selected reference_doc integration test UPDATE_REFERENCE=1",
+    "plain_equality_verified": true,
+    "added_lines": 159,
+    "removed_lines": 24,
+    "hunks": 19,
+    "scope": "Complete official generator output retained, including existing schema/help/catalogue drift beyond the new configuration-reference field; no selective or manual output changes",
+    "new_metadata_field_line": 591,
+    "new_metadata_vocabulary_line": 1648
+  },
+  "metadata_scope": "Optional SubCommand-only DataGroupComparison declaration and conditional source grammar; no native handler, object identity/availability, accepted argv or successful comparison claim",
+  "no_production_source_changes": true,
+  "no_broad_suite_or_all_commands_claim": true,
+  "cache_released_utc": "2026-10-13T01:30:21.312397+00:00"
+}

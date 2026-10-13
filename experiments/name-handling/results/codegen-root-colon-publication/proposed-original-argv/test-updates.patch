@@ -1,0 +1,297 @@
+--- a/rust/tcl-compiler/src/native_lowering/tests.rs
++++ b/rust/tcl-compiler/src/native_lowering/tests.rs
+@@ -668,15 +668,15 @@
+         .into_iter()
+         .filter(|op| matches!(op, NativeOp::DefineProc { .. }))
+         .collect();
+-    assert_eq!(
+-        defines,
+-        vec![&NativeOp::DefineProc {
+-            qualified_name: "::greet".into(),
+-            params_raw: "name".into(),
+-            body_source: " return hi ".into(),
+-        }],
+-        "the definition carries the front end's own name, params and body text"
+-    );
++    let [NativeOp::DefineProc { entry_key, argv }] = defines.as_slice() else {
++        panic!("the exact definition retains one original argv: {defines:?}");
++    };
++    assert_eq!(entry_key, "::greet");
++    assert_eq!(argv.len(), 4);
++    assert_eq!(original_constant(&function, argv[0]), "proc");
++    assert_eq!(original_constant(&function, argv[1]), "greet");
++    assert_eq!(original_constant(&function, argv[2]), "name");
++    assert_eq!(original_constant(&function, argv[3]), " return hi ");
+ }
+ 
+ /// Lowering keeps the *first* definition of a name, so only that statement can
+@@ -1246,3 +1246,134 @@
+         );
+     }
+ }
++
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++// Proposed additions to native_lowering/tests.rs AFTER the additive ABI patch.
++// Uncompiled and unexecuted. The existing helper keeps the actual VM owner alive;
++// it attests entry registration only, not successful native compilation/execution.
++
++fn defined_original_argv(function: &NativeFunction) -> Vec<(&str, &[super::ir::NativeValueId])> {
++    all_ops(function)
++        .into_iter()
++        .filter_map(|op| match op {
++            NativeOp::DefineProc { entry_key, argv } => Some((entry_key.as_str(), argv.as_slice())),
++            _ => None,
++        })
++        .collect()
++}
++
++fn original_constant(function: &NativeFunction, id: super::ir::NativeValueId) -> &str {
++    all_ops(function)
++        .into_iter()
++        .find_map(|op| match op {
++            NativeOp::ConstStr { dst, text } if *dst == id => Some(text.as_str()),
++            _ => None,
++        })
++        .expect("the admitted literal is transported by its already evaluated value")
++}
++
++#[test]
++fn original_root_colon_definition_preserves_evaluated_publication_operand() {
++    let source = "proc :audit {} {return ORIGINAL}\n:audit\n";
++    for environment in ["tcl8.6", "tcl9.0"] {
++        let (_actual_owner, context, unit) = original_boolean_unit(source, environment);
++        let (function, report) = lower_original_boolean_unit(
++            &unit,
++            context.commands(),
++            &unit.ir_module,
++        )
++        .expect("the fixed root declaration actually reaches native lowering");
++        assert_eq!(
++            outcomes(&report, "invoke"),
++            vec![StatementOutcome::NativeDefinition, StatementOutcome::GenericInvoke],
++            "a QName-only or wholly declined control cannot establish the transport",
++        );
++        let definitions = defined_original_argv(&function);
++        let [(entry_key, argv)] = definitions.as_slice() else {
++            panic!("one original definition must reach DefineProc: {definitions:?}");
++        };
++        assert_eq!(argv.len(), 4);
++        assert_eq!(original_constant(&function, argv[0]), "proc");
++        assert_eq!(original_constant(&function, argv[1]), ":audit");
++        assert_eq!(original_constant(&function, argv[2]), "");
++        assert_eq!(original_constant(&function, argv[3]), "return ORIGINAL");
++        let point = unit.ir_module.source_entry.native_entry.as_ref()
++            .and_then(|entry| entry.execution_point)
++            .expect("the independently captured actual entry supplies its point");
++        let protocol = tcl_registry::InvocationDialect::of_point(point)
++            .native_name_protocol()
++            .expect("the actual C86/C9 point selects its original protocol");
++        let root = tcl_syntax::naming::NativeNameContext::root();
++        let actual_publication = protocol.command_publication_slot(
++            root,
++            original_constant(&function, argv[1]).as_bytes(),
++        ).expect("original literal publication recipe");
++        let wrong_projection = protocol.command_publication_slot(
++            root,
++            entry_key.as_bytes(),
++        ).expect("internal key used as new text is a separate publication input");
++        assert_eq!(
++            actual_publication,
++            tcl_syntax::naming::ByteCommandSlot::new(
++                tcl_syntax::naming::ByteNamespacePath::root(),
++                tcl_syntax::naming::NameBytes::from(":audit"),
++            ),
++        );
++        assert_ne!(actual_publication, wrong_projection);
++    }
++}
++
++#[test]
++fn original_substituted_name_retains_generic_evaluated_argv() {
++    // The first declaration is literal. The second must not acquire an entry
++    // merely because it eventually produces a name also found in a source map.
++    let source = "set calls 0\nproc next_name {} {incr ::calls; return :audit}\n\
++                  proc [next_name] {} {return COUNTED}\n:audit\n";
++    for environment in ["tcl8.6", "tcl9.0"] {
++        let (_actual_owner, context, unit) = original_boolean_unit(source, environment);
++        let (function, _report) = lower_original_boolean_unit(
++            &unit,
++            context.commands(),
++            &unit.ir_module,
++        ).expect("the structural control builds without replacing admission");
++        assert!(defined_original_argv(&function).iter().all(|(_, argv)| {
++            original_constant(&function, argv[1]) != ":audit"
++        }));
++        // This checks IR selection only. Runtime/emitted-WASM tests below must
++        // separately demonstrate that [next_name] runs exactly once.
++    }
++}
++
++// Additional fixed controls for the same APIs, without changing entry/frame
++// assumptions to force admission:
++//
++// 1. Missing evaluated vector or non-exact effective argv: lower_definition
++//    returns None; lower_invoke retains its already-built GenericInvoke argv.
++//    Do not fabricate a NativeCompilationEntry or erase an admission decline.
++// 2. Shadowed definer:
++//    rename proc saved_proc
++//    saved_proc proc args {return SHADOW}
++//    proc :audit {} {return ORIGINAL}
++//    -> final command stays generic; no :audit declaration is manufactured.
++// 3. Runtime named holder: create actual `holder`, enter its NsId, then call
++//    ProcDefineOriginalArgv with caller-owned objects proc/:audit/{}/body and
++//    entry=None. Calls to :audit in that actual holder succeed; `audit` and
++//    root :audit remain absent. Keep objects alive through completion settle.
++// 4. Runtime live prefix: create actual namespaces `:` and `:ns`; enter each
++//    live NsId, and define the ordinary literal `audit`. Compare its actual
++//    holder/report with the existing original per-release publication rows,
++//    rather than parsing the holder's rendered name into a new namespace.
++//    Also send `proc missing::audit {} body`: original name validation errors
++//    before publication; no missing holder is created.
++// 5. Once-only emitted-WASM control: run the substituted-name source and query
++//    `list [:audit] $calls`; require `{COUNTED 1}` and absence of plain audit.
++//    Assert only next_name received DefineProc and that generic leaf emission
++//    calls the existing argv dispatcher once for the second declaration.
++// 6. Unknown name: `proc $unknown_name {} {return NEVER}` with the variable
++//    absent must preserve the original read error, install no procedure, and
++//    never call the new definition ABI. A known replacement `proc` must stay
++//    on the ordinary runtime dispatcher even when all operands are literals.
+--- a/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/pipeline.rs
+@@ -867,6 +867,10 @@
+             calls_to(&output.module, CodegenAbiImportId::ProcDefineNative),
+             0
+         );
++        assert_eq!(
++            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
++            0
++        );
+         assert_eq!(output.module.functions.len(), 1);
+         assert_eq!(output.module.functions[0].kind, "host-compilation-entry");
+         assert!(
+@@ -903,6 +907,10 @@
+         ));
+         assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 0);
+         assert_eq!(calls_to(&output.module, CodegenAbiImportId::VarSet), 0);
++        assert_eq!(
++            calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv),
++            0
++        );
+         assert!(
+             output.module.functions[0]
+                 .body
+@@ -934,12 +942,13 @@
+                 .iter()
+                 .any(|function| function.name == "::bad")
+         );
+-        // ProcDefineNative with no exported table entry registers a source-only
+-        // body, as does ProcRegister. Its host entry performs pre-formal admission.
++        // A definition without a compiled table entry keeps the original source
++        // body. Its host entry retains independent pre-formal admission.
+         assert!(
+             calls_to(&output.module, CodegenAbiImportId::EvalCode)
+                 + calls_to(&output.module, CodegenAbiImportId::ProcRegister)
+                 + calls_to(&output.module, CodegenAbiImportId::ProcDefineNative)
++                + calls_to(&output.module, CodegenAbiImportId::ProcDefineOriginalArgv)
+                 > 0
+         );
+         assert!(
+--- a/rust/tcl-compiler/tests/wasm_codegen.rs
++++ b/rust/tcl-compiler/tests/wasm_codegen.rs
+@@ -198,16 +198,11 @@
+     );
+     assert!(wat.contains(r#""tcl_codegen_local_bind""#), "{wat}");
+     assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
+-    assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
++    assert_eq!(import_calls(&wat, "tcl_codegen_proc_register"), 0, "{wat}");
+     assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
+-    // The procedure and both assignments have proven direct forms. `puts`
+-    // under the analysis tier always dispatches through prebuilt argv — no
+-    // fast path re-parses compatibility text — and the direct `[add …]` call
+-    // is retired along with it, so the last statement is two generic
+-    // prebuilt-argv invocations — the nested `add` and the `puts`; the native
+-    // tier lowers the latter to its `Puts` intrinsic and native lowering gives the former
+-    // its table-installed direct call.
+-    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
++    // Both assignments retain their proven direct forms. The procedure
++    // declaration, nested add call and puts dispatch with original evaluated argv.
++    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");
+     assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");
+     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+ }
+@@ -1439,7 +1434,7 @@
+     assert_eq!(
+         call_targets(top)
+             .iter()
+-            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
++            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
+             .count(),
+         2,
+         "each definition binds through the definition ABI"
+@@ -1705,7 +1700,7 @@
+     assert_eq!(
+         call_targets(top)
+             .iter()
+-            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineNative))
++            .filter(|target| **target == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
+             .count(),
+         1
+     );
+@@ -1722,7 +1717,7 @@
+                 .expect("the tier emits ::top")
+         )
+         .iter()
+-        .filter(|target| **target == import_index(&redefined, CodegenAbiImportId::ProcDefineNative))
++        .filter(|target| **target == import_index(&redefined, CodegenAbiImportId::ProcDefineOriginalArgv))
+         .count(),
+         1,
+         "only one of the two statements binds"
+--- a/rust/tcl-compiler/tests/wasm_real_link.rs
++++ b/rust/tcl-compiler/tests/wasm_real_link.rs
+@@ -1161,7 +1161,7 @@
+         1,
+         "{program:?} must keep exactly one table-base global"
+     );
+-    let define = CodegenAbiImportId::ProcDefineNative.descriptor().name;
++    let define = CodegenAbiImportId::ProcDefineOriginalArgv.descriptor().name;
+     let index = output
+         .module
+         .imports
+@@ -1222,7 +1222,7 @@
+ /// function table, and answers what tclsh answers.
+ ///
+ /// The `::top` prologue grows the runtime's table, keeps the base in its own
+-/// global and writes one `ref.func` per bound body; `tcl_codegen_proc_define_native`
++/// global and writes one `ref.func` per bound body; `tcl_codegen_proc_define_original_argv`
+ /// hands each index to the definition. Everything after that is the runtime's
+ /// (`run_proc` -> `run_native_body` -> `call_indirect`), and the counter in the
+ /// bootstrap is what proves the compiled body — not the source body sitting
+--- a/rust/tcl-runtime-api/src/codegen_abi.rs
++++ b/rust/tcl-runtime-api/src/codegen_abi.rs
+@@ -1034,6 +1034,22 @@
+     }
+ 
+     #[test]
++    fn original_proc_definition_borrows_argv_and_writes_completion() {
++        use CodegenAbiValueType::I32;
++        let import = CodegenAbiImportId::ProcDefineOriginalArgv.descriptor();
++        assert_eq!(import.module, "tcl");
++        assert_eq!(import.name, "tcl_codegen_proc_define_original_argv");
++        assert_eq!(import.parameters, &[I32; 4][..]);
++        assert_eq!(import.results, &[I32][..]);
++        assert!(CodegenAbiImportId::ALL.contains(&CodegenAbiImportId::ProcDefineOriginalArgv));
++        assert!(CodegenAbiImportId::ProcDefineOriginalArgv.requires_host_refusal_check());
++        let removed: Vec<_> = DESCRIPTORS.iter().copied().filter(|descriptor| {
++            descriptor.name != import.name
++        }).collect();
++        assert_ne!(fingerprint(&removed, &LAYOUT), CODEGEN_ABI_VERSION);
++    }
++
++    #[test]
+     fn native_proc_dispatch_imports_carry_the_entry_index_and_a_test_counter() {
+         use CodegenAbiValueType::I32;
+ 

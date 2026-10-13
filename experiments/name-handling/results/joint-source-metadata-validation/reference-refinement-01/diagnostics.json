@@ -1,0 +1,178 @@
+[
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "warning: unused import: `super::*`\n   --> rust/tcl-registry/src/native_command_creation.rs:256:9\n    |\n256 |     use super::*;\n    |         ^^^^^^^^\n    |\n    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "`#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "remove the whole `use` item",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 11513,
+              "byte_start": 11500,
+              "column_end": 18,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-registry/src/native_command_creation.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 256,
+              "line_start": 256,
+              "suggested_replacement": "",
+              "suggestion_applicability": "MachineApplicable",
+              "text": [
+                {
+                  "highlight_end": 18,
+                  "highlight_start": 5,
+                  "text": "    use super::*;"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "warning",
+      "message": "unused import: `super::*`",
+      "spans": [
+        {
+          "byte_end": 11512,
+          "byte_start": 11504,
+          "column_end": 17,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_command_creation.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 256,
+          "line_start": 256,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 9,
+              "text": "    use super::*;"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "unused_imports",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "warning: unused import: `super::*`\n   --> rust/tcl-registry/src/native_command_literal.rs:390:9\n    |\n390 |     use super::*;\n    |         ^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "remove the whole `use` item",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 15698,
+              "byte_start": 15685,
+              "column_end": 18,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-registry/src/native_command_literal.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 390,
+              "line_start": 390,
+              "suggested_replacement": "",
+              "suggestion_applicability": "MachineApplicable",
+              "text": [
+                {
+                  "highlight_end": 18,
+                  "highlight_start": 5,
+                  "text": "    use super::*;"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "warning",
+      "message": "unused import: `super::*`",
+      "spans": [
+        {
+          "byte_end": 15697,
+          "byte_start": 15689,
+          "column_end": 17,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_command_literal.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 390,
+          "line_start": 390,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 9,
+              "text": "    use super::*;"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "unused_imports",
+        "explanation": null
+      }
+    }
+  }
+]

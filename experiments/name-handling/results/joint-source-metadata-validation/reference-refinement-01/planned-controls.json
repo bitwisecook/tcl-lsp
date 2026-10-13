@@ -1,0 +1,22 @@
+[
+  [
+    "registry-positive",
+    "tcl-registry",
+    "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal"
+  ],
+  [
+    "registry-adverse",
+    "tcl-registry",
+    "source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality"
+  ],
+  [
+    "irules-positive",
+    "tcl-irules",
+    "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference"
+  ],
+  [
+    "irules-literal-adverse",
+    "tcl-irules",
+    "source_object::tests::typed_configuration_decline_does_not_reenter_literal_compatibility"
+  ]
+]

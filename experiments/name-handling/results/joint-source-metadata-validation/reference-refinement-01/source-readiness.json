@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+      "before_sha256": "a4e880b6d4766c1769bf8decae2c724c0d52ae4cca7dd93d451d34ca1fad282e",
+      "after_sha256": "793554f0627c42c0e6c64d24cf5d279c4e862bfe12e3b912af48f78846e3924a"
+    },
+    {
+      "path": "rust/tcl-irules/src/source_object.rs",
+      "before_sha256": "74f6c61e08a06a19259deb2b3a06211d2d214976495f77b9c35f9bc0862d327e",
+      "after_sha256": "93a5f64241b1db2ad19a6730912c9304c89bb198e4f8ef9b21f3c307f9225c03"
+    }
+  ],
+  "scoped_rustfmt_check_exit_code": 0,
+  "original_registry_expectations_unchanged": true,
+  "original_existing_irules_assertions_unchanged": true,
+  "new_irules_control": "source_object::tests::typed_configuration_decline_does_not_reenter_literal_compatibility",
+  "build_or_tests_run": false,
+  "braced_expression_failure_repaired": false
+}

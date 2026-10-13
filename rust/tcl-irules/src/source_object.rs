@@ -114,6 +114,10 @@ pub fn original_source_object_operands(
     }
     let table = crate::tables();
     let lower = selected.canonical_command.to_ascii_lowercase();
+    let typed_configuration_layout = selected
+        .authored_source_descriptors()
+        .subcommand
+        .and_then(|sub| sub.source_configuration_reference);
     let mut choices = Vec::new();
     if let Some(reference) = selected.authored_source_configuration_reference_operand() {
         let kinds = match reference.family {
@@ -162,9 +166,10 @@ pub fn original_source_object_operands(
             choices.push((index, kinds));
         }
     }
-    // The shared class/persist resolvers consume only genuine complete literal
-    // values. Missing values never become arbitrary placeholder strings.
-    if matches!(lower.as_str(), "class" | "persist")
+    // A typed declaration owns both admitted candidates and abstention.
+    // Other custom resolvers still require complete original literal values.
+    if typed_configuration_layout.is_none()
+        && matches!(lower.as_str(), "class" | "persist")
         && let Some(values) = (0..count)
             .map(|index| literal(arguments, index))
             .collect::<Option<Vec<_>>>()
@@ -251,6 +256,40 @@ mod tests {
         ] {
             assert!(select(&args).is_empty(), "{args:?}");
         }
+    }
+
+    #[test]
+    fn typed_configuration_decline_does_not_reenter_literal_compatibility() {
+        use InvocationWord::Literal;
+        let context = tcl_registry::model::ingress::static_context_for("f5-irules");
+        for args in [
+            vec!["match", "item", "equals", "dg", "extra"],
+            vec!["match", "-unknown", "item", "equals", "dg"],
+            vec!["match", "item", "and", "dg"],
+            vec!["match", "item", "equals"],
+            vec!["match", "item", "equals", "dg\0tail"],
+        ] {
+            let words = args.iter().copied().map(Literal).collect::<Vec<_>>();
+            let selected =
+                tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                    context.commands(),
+                    Some(context.context()),
+                    tcl_registry::InvocationWords::structured(Literal("class"), &words),
+                    tcl_dialect::model::InvocationRealm::RuleLoader,
+                );
+            let selected = selected.resolved().unwrap();
+            assert!(
+                original_source_object_operands(&selected, None).is_empty(),
+                "{args:?}"
+            );
+        }
+        let compatibility = crate::resolve_object_ref_args(
+            "class",
+            &["match", "item", "equals", "dg", "extra"],
+            None,
+        );
+        assert_eq!(compatibility.len(), 1);
+        assert_eq!(compatibility[0].0, 3);
     }
 
     #[test]
