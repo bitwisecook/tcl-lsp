@@ -23,3 +23,7 @@ experiments/name-handling/clock-bootstrap-epoch/**/*.stdout.txt -whitespace
 experiments/name-handling/clock-bootstrap-epoch/**/*.stderr.txt -whitespace
 experiments/name-handling/clock-bootstrap-epoch/**/original-source-excerpts/*.txt -whitespace
 experiments/name-handling/clock-bootstrap-epoch/**/*.log -whitespace
+
+experiments/name-handling/registry-name-adapters/*.stdout -whitespace
+experiments/name-handling/registry-name-adapters/*.stderr -whitespace
+experiments/name-handling/registry-name-adapters/*.log -whitespace
