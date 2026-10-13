@@ -1,0 +1,18 @@
+{
+  "status": "Sealed failed build; no test outcomes exist.",
+  "sha256": {
+    "build-invocation.json": "60919365b61ae8c11ef59caf69131320f5cae4953e58a0949647ffc4c69d878c",
+    "capture-validation.py": "a588b412486d46b4db16f7ba0d6f05d54bbdab58997d9d037e63a7a505c7ce41",
+    "compiler-diagnostics.txt": "c3d87ecfa7571f6de6774bceec4809ed076b6154609ada217ed306d5b43afa1d",
+    "metadata.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime--rust--src--cmd_clock.rs.gz": "03cca72f8929be89b11eb1f82f33c581104b03a7ce139a4769bfa75e5876d68b",
+    "runtime--rust--src--cmd_fs.rs.gz": "dd572d92c783f2dc8751292b2d39c4346478f06351e44ea825a983e36eb2e87f",
+    "runtime-build-messages.jsonl": "f8ab01df0505342262bc44e7a8cde2cc848102ede8f3f8faf8296e26a142ea45",
+    "runtime-build.stderr.txt": "a2615f8756b98ae6d44053b6cb5ba048d0a552744bc36240ae779e2b447101ff",
+    "runtime-cargo-metadata.json.gz": "6ad5f7d43a0405f937d509e30f214e90e0ba073027391ca80ba88e171009b2c5",
+    "runtime-dependency-source-before.json.gz": "8c4faaed18d484733a26540a0c66bedf841f91c399b72199de387032b48a2caa",
+    "scope.json": "7cc17913d3cbcb654d252cfb4da7a1c978e193ec907220b65c24b23588f742d2",
+    "source-comparison-after-build.json": "aec723b6cfdbc5864a91eaa417f3ed5448cc536c43313fa84dd00b7121275cbf",
+    "validation.json": "c4dd2cea1c50d090e3b3686eafe1a293f83945ab7af093db84425444ace2377e"
+  }
+}

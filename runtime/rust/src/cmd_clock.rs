@@ -97,8 +97,11 @@ unsafe extern "C" fn parse_format_arguments(
     count: std::ffi::c_int,
     words: *const *mut TclObj,
 ) -> std::ffi::c_int {
-    // SAFETY: the object-command owner supplies live client data and argv.
-    let originals = unsafe { &*data.cast::<ClockLiteralPool>() }.originals();
+    // Keep the pool alive when a getter deletes its owning registrations.
+    let pointer = data.cast::<ClockLiteralPool>();
+    unsafe { Rc::increment_strong_count(pointer) };
+    let pool = unsafe { Rc::from_raw(pointer) };
+    let originals = pool.originals();
     let interp = unsafe { &mut *interp };
     let Ok(count) = usize::try_from(count) else {
         interp.report_obj_cmd_error(tcl_cmd_core::CmdError::new("invalid argument count"));
@@ -115,11 +118,7 @@ unsafe extern "C" fn parse_format_arguments(
             1
         }
         Err(core_clock::FormatArgumentError::GmtWithTimezone) => {
-            // SAFETY: no callback has retired client data during successful conversions.
-            let conflict = unsafe { &*data.cast::<ClockLiteralPool>() }
-                .conflict
-                .as_ptr();
-            interp.set_result(conflict);
+            interp.set_result(pool.conflict.as_ptr());
             interp.set_c_error_code(b"CLOCK gmtWithTimezone");
             1
         }
@@ -1075,6 +1074,98 @@ mod get_date_fields_tests {
             tcl_platform::NumericEnvironmentUnavailable,
         > {
             self.actual().double(input, reset)
+        }
+    }
+
+    fn delete_clock_workers_at_abi(interp: &mut Interp) -> Rc<EffectHost> {
+        let host = Rc::new(EffectHost {
+            actual: interp.host(),
+            effect: Default::default(),
+            abi_calls: Default::default(),
+        });
+        interp.set_host(host.clone());
+        let owner = interp.downgrade();
+        host.effect.borrow_mut().replace(Box::new(move || {
+            let mut interp = owner.upgrade().unwrap();
+            assert_eq!(
+                interp.eval_str(b"rename ::tcl::clock::GetDateFields {}; rename ::tcl::clock::ParseFormatArgs {}; rename ::tcl::clock::getenv {}"),
+                Code::Ok
+            );
+            true
+        }));
+        host
+    }
+
+    #[test]
+    fn parse_format_conflict_pool_lease_survives_all_three_real_worker_deletions() {
+        let mut interp = original();
+        let host = delete_clock_workers_at_abi(&mut interp);
+        let words = [
+            b"::tcl::clock::ParseFormatArgs".as_slice(),
+            b"0",
+            b"-gmt",
+            b"1",
+            b"-timezone",
+            b":UTC",
+        ]
+        .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)));
+        let args = words.each_ref().map(obj::Owned::as_ptr);
+        assert_eq!(interp.eval_original_object_vector(&args), Code::Error);
+        assert!(host.effect.borrow().is_none());
+        assert!(host.abi_calls.get() > 0);
+        assert_eq!(interp.native_execution_refusal(), None);
+        assert_eq!(
+            interp.result_bytes(),
+            b"cannot use -gmt and -timezone in same call"
+        );
+        assert_eq!(interp.error_code(), b"CLOCK gmtWithTimezone");
+        let result = interp.get_obj_result();
+        assert!(obj::check_native_liveness(result).is_ok());
+        assert_eq!(unsafe { (*result).ref_count }, 1);
+        for worker in ["GetDateFields", "ParseFormatArgs", "getenv"] {
+            assert!(interp
+                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+                .is_none());
+        }
+    }
+
+    #[test]
+    fn parse_format_success_pool_lease_survives_all_three_real_worker_deletions() {
+        let mut interp = original();
+        let host = delete_clock_workers_at_abi(&mut interp);
+        let words = [
+            b"::tcl::clock::ParseFormatArgs".as_slice(),
+            b"0",
+            b"-gmt",
+            b"1",
+        ]
+        .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)));
+        let args = words.each_ref().map(obj::Owned::as_ptr);
+        assert_eq!(interp.eval_original_object_vector(&args), Code::Ok);
+        assert!(host.effect.borrow().is_none());
+        assert!(host.abi_calls.get() > 0);
+        assert_eq!(interp.native_execution_refusal(), None);
+        let result = interp.get_obj_result();
+        assert!(std::ptr::eq(
+            obj::obj_type_ptr(result),
+            &crate::list::TCL_LIST_TYPE
+        ));
+        assert!(!obj::has_string_rep(result));
+        let members = interp.list_elements(&result).unwrap();
+        assert_eq!(members.len(), 3);
+        for (member, expected) in members.into_iter().zip([
+            b"%a %b %d %H:%M:%S %Z %Y".as_slice(),
+            b"C",
+            b":GMT",
+        ]) {
+            assert!(obj::check_native_liveness(member).is_ok());
+            assert_eq!(unsafe { (*member).ref_count }, 1);
+            assert_eq!(obj::bytes_of(member), expected);
+        }
+        for worker in ["GetDateFields", "ParseFormatArgs", "getenv"] {
+            assert!(interp
+                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+                .is_none());
         }
     }
 

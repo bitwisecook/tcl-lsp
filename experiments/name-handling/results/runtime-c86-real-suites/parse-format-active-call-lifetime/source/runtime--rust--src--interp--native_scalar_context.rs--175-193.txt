@@ -1,0 +1,19 @@
+}
+
+fn selected_abi(
+    host: &Rc<dyn Host>,
+    currency: &NativeOperationCurrency,
+) -> Result<NativeCIntegerAbi, NativeScalarObjectAccessError> {
+    let environment = host.numeric_environment();
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let environment = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    let abi = currency.host_call(|| environment.c_integer_abi());
+    currency
+        .ensure_current_or_refuse()
+        .map_err(NativeScalarObjectAccessError::Execution)?;
+    let abi = abi.map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+    // Issuing an original object checks output-layout identity only. Each
+    // reached getter independently checks its selected primitive recipe.
+    if abi.char_bits != 8 || abi.int_bytes != 4 || !matches!(abi.long_bytes, 4 | 8) {

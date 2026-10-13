@@ -1255,8 +1255,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(4) => tails = true,
             Ok(5) => {
                 i += 1;
-                // The value is a list of type specifiers (`d`, `f`, `r`, …); a
-                // name must satisfy every requested test (`tclFileName.c`).
+                // File kinds form a union; permission qualifiers all apply.
                 if let Some(&a) = argv.get(i) {
                     types = crate::parse::split_list(&obj_bytes(a))
                         .unwrap_or_default()
@@ -1375,7 +1374,7 @@ fn walk(
         }
         child_path.extend_from_slice(name_b);
         if last {
-            // `-types`: keep only entries that satisfy every requested test.
+            // Apply file-kind and permission filters.
             if !entry_matches_types(fs, &child_path, types) {
                 continue;
             }
@@ -1386,16 +1385,9 @@ fn walk(
     }
 }
 
-/// Whether the entry at `path` satisfies every `-types` specifier. An empty list
-/// matches everything. Recognised portably: file-kind `d f l` and permission
-/// `r w x` (mirrors `tclFileName.c`'s `GLOB_TYPE_*`). A name passes only if it
-/// matches every requested test.
-///
-/// The Unix special-device kinds `p s b c` (fifo/socket/block/char) are **not**
-/// expressible through the portable [`Filesystem`] seam — a WASI/browser host
-/// has none — so they never match here (the maturity-asymmetry tax: the prior
-/// native-only path could match them via `std::os::unix`). `r`/`w` stay
-/// best-effort `true`; `x` reads the host's executable bit.
+/// File-kind selectors form a union, intersected with permission qualifiers.
+/// The portable filesystem supports `d f l`; other kinds cannot match here.
+/// `r`/`w` retain their best-effort checks and `x` uses the executable flag.
 fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -> bool {
     if types.is_empty() {
         return true;
@@ -1404,21 +1396,31 @@ fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -
     let Some(meta) = fs.and_then(|fs| fs.symlink_metadata(as_str(path)).ok()) else {
         return false;
     };
+    let mut kind_requested = false;
+    let mut kind_matched = false;
     for &t in types {
+        let kind = match t {
+            b'd' => Some(meta.is_dir),
+            b'f' => Some(meta.is_file),
+            b'l' => Some(meta.is_symlink),
+            b'p' | b's' | b'b' | b'c' => Some(false),
+            _ => None,
+        };
+        if let Some(matched) = kind {
+            kind_requested = true;
+            kind_matched |= matched;
+            continue;
+        }
         let ok = match t {
-            b'd' => meta.is_dir,
-            b'f' => meta.is_file,
-            b'l' => meta.is_symlink,
             b'r' | b'w' => true, // permission probes — best-effort (assume yes)
             b'x' => meta.executable,
-            b'p' | b's' | b'b' | b'c' => false, // special devices: not portable
-            _ => true,                          // unknown specifier: don't exclude
+            _ => true, // unknown specifier: don't exclude
         };
         if !ok {
             return false;
         }
     }
-    true
+    !kind_requested || kind_matched
 }
 
 /// Whether a single path segment matches a glob segment. A literal segment (no
@@ -1439,6 +1441,8 @@ fn glob_seg_match(pat: &[u8], name: &[u8]) -> bool {
 mod tests {
     use super::file_permissions;
     use crate::interp::{Code, Interp};
+    #[cfg(unix)]
+    use crate::obj;
     use tcl_dialect::TclVersion;
 
     #[test]
@@ -1832,6 +1836,132 @@ mod tests {
             }
         }
         std::fs::remove_file(&path).unwrap();
+    }
+
+    #[cfg(unix)]
+    struct GlobTypeFixture(std::path::PathBuf);
+
+    #[cfg(unix)]
+    impl Drop for GlobTypeFixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    #[cfg(unix)]
+    fn glob_type_fixture(label: &str) -> (Interp, GlobTypeFixture) {
+        use std::os::unix::{ffi::OsStrExt, fs::PermissionsExt};
+        let directory =
+            std::env::temp_dir().join(format!("tclrt_glob_types_{}_{label}", std::process::id()));
+        std::fs::create_dir(&directory).unwrap();
+        let fixture = GlobTypeFixture(directory);
+        for (name, mode) in [
+            ("plain.txt", 0o600),
+            ("executable.txt", 0o700),
+            ("readonly.txt", 0o400),
+        ] {
+            let path = fixture.0.join(name);
+            std::fs::write(&path, b"ordinary fixture\n").unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+        }
+        let child = fixture.0.join("directory");
+        std::fs::create_dir(&child).unwrap();
+        std::fs::set_permissions(child, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        let path = obj::Owned::fresh(obj::new_string_bytes(fixture.0.as_os_str().as_bytes()));
+        interp.var_set(b"fixture", path.as_ptr()).unwrap();
+        (interp, fixture)
+    }
+
+    #[cfg(unix)]
+    fn assert_glob_type_row(interp: &mut Interp, capture: &str, label: &str, types: &[u8]) {
+        let prefix = format!("ROW {label} ");
+        let row = capture
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .unwrap();
+        let fields = tcl_syntax::list::split_native_list_bytes(
+            row.as_bytes(),
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
+        )
+        .unwrap();
+        assert_eq!(fields[2].as_ref(), b"0");
+        let selected = obj::Owned::fresh(obj::new_string_bytes(types));
+        interp.var_set(b"types", selected.as_ptr()).unwrap();
+        assert_eq!(
+            interp.eval_str(
+                b"lsort [glob -nocomplain -tails -directory $fixture -types $types -- *]"
+            ),
+            Code::Ok,
+            "{label}: {:?}",
+            interp.result_bytes()
+        );
+        assert_eq!(interp.result_bytes(), fields[3].as_ref(), "{label}");
+    }
+
+    #[cfg(unix)]
+    const GLOB_TYPE_C86_ROWS: &str = include_str!(
+        "../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
+    );
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_regular_file_directory_unions_match_original_c86_rows() {
+        let (mut interp, _fixture) = glob_type_fixture("ordinary_union");
+        for (label, types) in [
+            ("file", b"f".as_slice()),
+            ("directory", b"d".as_slice()),
+            ("file-directory", b"f d".as_slice()),
+            ("directory-file", b"d f".as_slice()),
+            ("duplicated-union", b"f d f".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_original_tcltest_selector_keeps_supported_kind_alternatives() {
+        let (mut interp, _fixture) = glob_type_fixture("tcltest_union");
+        for (label, types) in [
+            ("union-with-unrepresented", b"b c f p s".as_slice()),
+            ("directory-with-unrepresented", b"b c d p s".as_slice()),
+            ("unrepresented-only", b"b c p s".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_kind_union_still_requires_executable_qualification() {
+        let (mut interp, _fixture) = glob_type_fixture("qualified_union");
+        for (label, types) in [
+            ("file-executable", b"f x".as_slice()),
+            ("union-executable", b"f d x".as_slice()),
+        ] {
+            assert_glob_type_row(&mut interp, GLOB_TYPE_C86_ROWS, label, types);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn glob_type_readable_writable_executable_qualifiers_remain_conjunctive() {
+        let (mut interp, _fixture) = glob_type_fixture("rwx_qualifiers");
+        let capture = include_str!(
+            "../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
+        );
+        assert_glob_type_row(
+            &mut interp,
+            capture,
+            "readable-writable-executable",
+            b"r w x",
+        );
     }
 
     #[test]

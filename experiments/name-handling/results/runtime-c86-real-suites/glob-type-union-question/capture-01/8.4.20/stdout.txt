@@ -1,0 +1,22 @@
+PROVIDER 8.4.20
+ROW empty 0 {directory executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW file 0 {executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW directory 0 directory {NH UNSET}
+ROW file-directory 0 {directory executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW directory-file 0 {directory executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW duplicated-union 0 {directory executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW union-with-unrepresented 0 {executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW directory-with-unrepresented 0 directory {NH UNSET}
+ROW unrepresented-only 0 {} {NH UNSET}
+ROW readable 0 {directory executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW readable-writable 0 {directory executable.txt plain.txt} {NH UNSET}
+ROW executable 0 {directory executable.txt} {NH UNSET}
+ROW file-readable 0 {executable.txt plain.txt readonly.txt} {NH UNSET}
+ROW file-executable 0 executable.txt {NH UNSET}
+ROW union-executable 0 {directory executable.txt} {NH UNSET}
+ROW union-readable-writable 0 {directory executable.txt plain.txt} {NH UNSET}
+ROW file-readonly 0 readonly.txt {NH UNSET}
+ROW union-readonly 0 readonly.txt {NH UNSET}
+ROW bad-single 1 {bad argument to "-types": z} NONE
+ROW bad-two 1 {bad argument to "-types": ff} NONE
+ROW malformed-list 1 {unmatched open brace in list} NONE

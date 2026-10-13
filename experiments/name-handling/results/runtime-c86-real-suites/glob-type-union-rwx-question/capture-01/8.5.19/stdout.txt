@@ -1,0 +1,2 @@
+PROVIDER 8.5.19
+ROW readable-writable-executable 0 {directory executable.txt} {NH UNSET}

@@ -1,0 +1,21 @@
+{
+  "provider": "9.0.4",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+    "/tmp/glob-union-original-nct65n3l/fixture"
+  ],
+  "exit_code": 0,
+  "seconds": 0.008,
+  "binary_sha256_before": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+  "binary_sha256_after": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+  "original_source_sha256": {
+    "tmp/tcl9.0.4/generic/tclFileName.c": "a405af466e2fbedf3f0ed27ce40ed4664c52e11b928f761349b80434809bf4ed",
+    "tmp/tcl9.0.4/unix/tclUnixFile.c": "379cbe7ee97ea75e484f9c7cd7e354bdf86fa2644f6c4f77d3a106871d4bed43",
+    "tmp/tcl9.0.4/tests/fileName.test": "9606a55e28f71160177e4e75da2cefeef899308e33a6d87d828bec48d7aaceb1"
+  },
+  "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+  "stdout_sha256": "87d19182f6fa00b38ff390840cf1473ef9fb8289250e56eabe6b8538b1b84fd2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 21
+}

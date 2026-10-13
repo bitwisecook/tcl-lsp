@@ -1,0 +1,23 @@
+{
+  "rows_per_provider": {
+    "8.4.20": 21,
+    "8.5.19": 21,
+    "8.6.18": 21,
+    "9.0.4": 21,
+    "9.1.0": 21,
+    "jim-pinned": 21
+  },
+  "success_rows_per_provider": {
+    "8.4.20": 18,
+    "8.5.19": 18,
+    "8.6.18": 18,
+    "9.0.4": 18,
+    "9.1.0": 18,
+    "jim-pinned": 0
+  },
+  "five_c_success_rows_identical": true,
+  "c84_c85_guest_error_codes": "NONE",
+  "c86_plus_guest_error_codes": "TCL ARGUMENT BAD for invalid selector; TCL VALUE LIST BRACE for malformed selector List",
+  "jim": "All21 reject original -types option; no union/permission behavior reached.",
+  "runtime": "No implementation execution at original question capture; original all.tcl selection observed separately."
+}

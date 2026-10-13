@@ -1,0 +1,132 @@
+{
+  "records": [
+    {
+      "provider": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.002,
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_source_sha256": {
+        "tmp/tcl8.4.20/generic/tclFileName.c": "a99dc4fc125fa8d3b4ae978bd70b09cd6d8ac341d55a9aed0e643eb8eace925e",
+        "tmp/tcl8.4.20/unix/tclUnixFile.c": "296419467d37de46b93f508c468a254b4fe7cfc075d14acd2dc9e32d4fb7b2f9",
+        "tmp/tcl8.4.20/tests/fileName.test": "a99cdda94a5ec45a4b641790a24a0a2fac86a20420301d86b1d8ef288254318f"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "508c0d76ab25d71accfa57c174b6875f4e5031d7b3e30048edab549b1f4f0365",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    },
+    {
+      "provider": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_source_sha256": {
+        "tmp/tcl8.5.19/generic/tclFileName.c": "d82cc7fab2c8655ac7dc49d6d222f4b0024323128fdbfa75ca97d96dfc3ab440",
+        "tmp/tcl8.5.19/unix/tclUnixFile.c": "cd4ed1281e47f50f91d7fdec1f62ea003374a96a660d21d47219dae910f677ce",
+        "tmp/tcl8.5.19/tests/fileName.test": "b1e5c26aeada23714b8fd0f54032db9566ebdaadf8aead3ce6e8c91a7c60cd6b"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "d88ab7d86cd4c760d005fc885bac11d2e6c97115b6c844ff5affc871600130dc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    },
+    {
+      "provider": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_source_sha256": {
+        "tmp/tcl8.6.18/generic/tclFileName.c": "8d6446a3126eb717cb7863927847d685d7fe8effd291c2cca443e0e6cbe6e5f5",
+        "tmp/tcl8.6.18/unix/tclUnixFile.c": "ac18cab881aec0b5699e70f165e49d1afc22c97b61e040ada7da31b7d53c1c40",
+        "tmp/tcl8.6.18/tests/fileName.test": "58afafd39954203d9a97330188bf753bacec64a87641fccb2e75f1b021dd7cee"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "4673d5799aec691fa5c5cc66c7ea989c807545255a99a0903ef93a61a8b01e7e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    },
+    {
+      "provider": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.008,
+      "binary_sha256_before": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "binary_sha256_after": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "original_source_sha256": {
+        "tmp/tcl9.0.4/generic/tclFileName.c": "a405af466e2fbedf3f0ed27ce40ed4664c52e11b928f761349b80434809bf4ed",
+        "tmp/tcl9.0.4/unix/tclUnixFile.c": "379cbe7ee97ea75e484f9c7cd7e354bdf86fa2644f6c4f77d3a106871d4bed43",
+        "tmp/tcl9.0.4/tests/fileName.test": "9606a55e28f71160177e4e75da2cefeef899308e33a6d87d828bec48d7aaceb1"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "87d19182f6fa00b38ff390840cf1473ef9fb8289250e56eabe6b8538b1b84fd2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    },
+    {
+      "provider": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.007,
+      "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "original_source_sha256": {
+        "tmp/tcl9.1.0/generic/tclFileName.c": "94ac0a981bd4149156bf53f173dd486c54f878827cb33f1b96e998432fcb4f60",
+        "tmp/tcl9.1.0/unix/tclUnixFile.c": "d1d2c45a5a443d49c4b04baa55bc09b9e2c70a625db801947d8dcb112f4fc736",
+        "tmp/tcl9.1.0/tests/fileName.test": "3eb0136c538a06b007afabf403d8ab4961acd46ab5458400d1eb722e0489d9fc"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "2bfc0fb3c06aae82b315de7f78fd7e65b27947bcada026e6306c3906d95053ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    },
+    {
+      "provider": "jim-pinned",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/input.tcl",
+        "/tmp/glob-union-original-nct65n3l/fixture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "original_source_sha256": {
+        "tmp/jimtcl-oracle/glob.tcl": "d4f1a38089f199c1324ebec31305d6858961f4346ce4872ec82ebb4a9ad89112",
+        "tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+      },
+      "input_sha256": "d574be83f8fe7686347967c461bf1626402699c971534dc7d620a342c85f6447",
+      "stdout_sha256": "e0acaf4efe8395219349b5fbd87ddeca6e31dc6001e540808ffb18b11da014a8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 21
+    }
+  ],
+  "fixture": "Three new regular files and one new directory in a temporary tree, ordinary synthetic content. Only fixture names/results emitted; no device nodes, physical device or host security data. Synthetic file modes control executable/readonly cases; r/w observations retain actual provider access semantics.",
+  "axes": "Fresh five C release providers and pinned Jim. No Runtime build/run/source changes; F5 not run and no hosted/native parity inferred.",
+  "environment": "Inherited environment not logged or dumped; named Tcl library/overlay/test switches removed so original providers select their own libraries."
+}

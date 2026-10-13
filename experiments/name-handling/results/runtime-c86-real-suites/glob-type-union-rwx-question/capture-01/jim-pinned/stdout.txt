@@ -1,0 +1,2 @@
+PROVIDER 0.84-9-g5bac7c9
+ROW readable-writable-executable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE

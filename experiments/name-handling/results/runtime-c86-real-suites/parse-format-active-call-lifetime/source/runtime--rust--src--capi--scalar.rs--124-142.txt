@@ -1,0 +1,19 @@
+pub(crate) fn read_scalar_for_interpreter(
+    interpreter: &Interp,
+    original: *mut TclObj,
+    kind: NativeScalarGetterKind,
+) -> Result<NativeScalarGetterValue, ScalarReadError> {
+    let access = native_scalar_context::scalar_access(Some(interpreter), original)
+        .map_err(ScalarReadError::Access)?;
+    match probe(&access, original, kind).map_err(ScalarReadError::Access)? {
+        Ok(value) => Ok(value),
+        Err(failure) => {
+            let error =
+                guest_error(&access, original, kind, failure).map_err(ScalarReadError::Access)?;
+            Err(ScalarReadError::Guest(error))
+        }
+    }
+}
+
+/// Execute once. Only a supplied interpreter renders a reached guest failure.
+/// Null reads retain all getter effects and skip the diagnostic string access.

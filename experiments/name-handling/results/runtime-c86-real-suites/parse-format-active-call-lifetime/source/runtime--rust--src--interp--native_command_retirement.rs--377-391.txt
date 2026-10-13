@@ -1,0 +1,15 @@
+    fn retire_original_command_implementation(
+        &mut self,
+        generation: u64,
+        command: &Command,
+        original: &OriginalDeletion,
+    ) -> Result<(), CmdError> {
+        let mut first = original.check(self).err();
+        crate::cmd_coro::on_command_deleted(self, generation);
+        if let Err(error) = original.check(self) {
+            first.get_or_insert(error);
+        }
+        match command {
+            Command::ObjCmd(record) => record.retire_original_delete_procedure(),
+            Command::Proc(record) => {
+                drop(record.take_for_retirement());

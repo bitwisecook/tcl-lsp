@@ -1,0 +1,97 @@
+/// An extension's actual command procedure, client data and delete procedure.
+/// Selected C true deletion withdraws the once-only callback while an active
+/// dispatch keeps only the command allocation. Neutral and Jim record lifetime
+/// still call an unconsumed delete procedure when its final handle drops.
+/// Selected idle creation discard retains its independent producer contract.
+pub struct ObjCommand {
+    proc_: TclObjCmdProc,
+    client_data: *mut c_void,
+    delete_proc: Cell<Option<TclCmdDeleteProc>>,
+    original_deleted: Cell<bool>,
+    host_backing_retired: Cell<bool>,
+    creation_purpose:
+        Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose>,
+}
+
+impl ObjCommand {
+    /// A command over `proc_`. Selected C deletion withdraws `delete_proc`
+    /// once independently of the dispatch allocation; neutral and Jim record
+    /// retirement calls an unconsumed callback when the last handle drops.
+    /// Selected idle creation discard has its own no-callback purpose.
+    #[must_use]
+    pub fn new(
+        proc_: TclObjCmdProc,
+        client_data: *mut c_void,
+        delete_proc: Option<TclCmdDeleteProc>,
+    ) -> Self {
+        Self {
+            proc_,
+            client_data,
+            delete_proc: Cell::new(delete_proc),
+            original_deleted: Cell::new(false),
+            host_backing_retired: Cell::new(false),
+            creation_purpose: None,
+        }
+    }
+
+    /// Observe the actual once-only callback withdrawal in a genuine Host bridge.
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_delete_role_is_withdrawn(&self) -> bool {
+        self.delete_proc.get().is_none() && self.original_deleted.get()
+    }
+
+    /// Withdraw before invoking, so recursive deletion cannot replay this role.
+    pub(super) fn retire_original_delete_procedure(&self) {
+        if let Some(delete_proc) = self.delete_proc.take() {
+            if self.creation_purpose == Some(
+                tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+            ) {
+                // Withdraw this actual private backing role before its Drop
+                // can reenter. The C token's final objProc-null stage is separate.
+                self.host_backing_retired.set(true);
+            }
+            // SAFETY: the actual command supplied this callback and client data.
+            unsafe { delete_proc(self.client_data) };
+        }
+    }
+
+    #[cfg(all(test, feature = "engine"))]
+    pub(crate) fn original_host_backing_is_retired(&self) -> bool {
+        self.host_backing_retired.get() && self.delete_proc.get().is_none()
+    }
+
+    /// Retain the actual producer's record purpose independently of dispatch,
+    /// native name/address and object ownership permissions.
+    pub(crate) fn creation_purpose(
+        &self,
+    ) -> Option<tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose> {
+        self.creation_purpose
+    }
+
+    /// Runtime-owned shim storage keeps its own destructor contract; it cannot
+    /// inherit the external legacy C callback's intermediate-record discard.
+    pub(crate) fn new_owned_runtime_shim(
+        proc_: TclObjCmdProc,
+        client_data: *mut c_void,
+        delete_proc: Option<TclCmdDeleteProc>,
+    ) -> Self {
+        let mut command = Self::new(proc_, client_data, delete_proc);
+        command.creation_purpose = Some(
+            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::OwnedRuntimeShim,
+        );
+        command
+    }
+}
+
+impl Drop for ObjCommand {
+    fn drop(&mut self) {
+        if let Some(delete_proc) = self.delete_proc.take() {
+            // SAFETY: the extension registered this procedure for this client
+            // data; the handle is dropped once, so it is called once.
+            unsafe { delete_proc(self.client_data) };
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Command {

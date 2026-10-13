@@ -1,0 +1,22 @@
+PROVIDER 0.84-9-g5bac7c9
+ROW empty 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW file 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW directory 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW file-directory 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW directory-file 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW duplicated-union 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW union-with-unrepresented 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW directory-with-unrepresented 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW unrepresented-only 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW readable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW readable-writable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW executable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW file-readable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW file-executable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW union-executable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW union-readable-writable 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW file-readonly 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW union-readonly 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW bad-single 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW bad-two 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+ROW malformed-list 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE

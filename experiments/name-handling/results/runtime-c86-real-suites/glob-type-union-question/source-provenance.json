@@ -1,0 +1,16 @@
+{
+  "sources": {
+    "runtime/rust/src/cmd_fs.rs": "914f36b6c5fa89961c3b9afdb5281c63e4e4147e42ab0e369d2e9f635c93de75",
+    "rust/tcl-registry/src/commands/tcl/glob_.rs": "e466cb9ae493a33ca7006f73b91ce096e2601693aee6d9ecd9727625e72bc0bc",
+    "rust/tcl-platform/src/lib.rs": "7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158",
+    "tmp/tcl8.6.18/generic/tclFileName.c": "8d6446a3126eb717cb7863927847d685d7fe8effd291c2cca443e0e6cbe6e5f5",
+    "tmp/tcl8.6.18/unix/tclUnixFile.c": "ac18cab881aec0b5699e70f165e49d1afc22c97b61e040ada7da31b7d53c1c40",
+    "tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "tmp/tcl8.6.18/tests/fileName.test": "58afafd39954203d9a97330188bf753bacec64a87641fccb2e75f1b021dd7cee",
+    "tmp/jimtcl-oracle/glob.tcl": "d4f1a38089f199c1324ebec31305d6858961f4346ce4872ec82ebb4a9ad89112"
+  },
+  "actual_oracle_source_receipts": "Per-provider capture record pins each original parser/matcher/source test and exact executable.",
+  "runtime_observation": "cmd_fs type option parser1257-1269; every-type matcher1399-1423. Original tcltest GetMatchingFiles2765-2807 uses five-kind selector. Registryglob already states kind OR and qualifiers AND.",
+  "minimal_prospective_owner": "runtime/rust/src/cmd_fs.rs",
+  "runtime_build_or_test_status": "unexecuted when question sealed"
+}

@@ -1,0 +1,20 @@
+{
+  "provider": "jim-pinned",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/input.tcl",
+    "/tmp/glob-union-original-vxlcdxbs/fixture"
+  ],
+  "exit_code": 0,
+  "seconds": 0.004,
+  "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "original_source_sha256": {
+    "tmp/jimtcl-oracle/glob.tcl": "d4f1a38089f199c1324ebec31305d6858961f4346ce4872ec82ebb4a9ad89112",
+    "tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+  },
+  "input_sha256": "7ceff16b48baf21edaf3c2227ba362bbda284c4f755b5d7816486f40b0eea0aa",
+  "stdout_sha256": "2387f6b907ab0b972e8d9a8c20353bc9711980faf0aa3e92f113e396e3d1ec09",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 1
+}
