@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T02:07:06.057797+00:00",
+  "end_utc": "2026-10-13T02:07:07.309334+00:00",
+  "elapsed_seconds": 1.2515573450000375,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2520322048,
+  "package": "tcl-compiler",
+  "test": "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 9563
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "5ffed8492d89efdcf09b862ee2bc0796e2b5953afb3916a78958aba3b1473cd2"
+}

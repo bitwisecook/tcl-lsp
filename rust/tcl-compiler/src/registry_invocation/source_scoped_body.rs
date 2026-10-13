@@ -1297,6 +1297,21 @@ pub(super) fn source_expression_script_bodies(
     if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {
         return None;
     }
+    let whole_source = words.with_source_schema(&context, |schema| {
+        !schema
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+            || schema
+                .words
+                .arguments()
+                .exact_argv_len()
+                .zip(schema.semantics.argument_offset.checked_add(1))
+                .is_some_and(|(count, expected)| count == expected)
+    })?;
+    if !whole_source {
+        return None;
+    }
     let roles = words.roles()?;
     let mut expressions = roles.iter().filter(|(_, role)| *role == ArgRole::Expr);
     let Some(&(argument, _)) = expressions.next() else {

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+    "--exact",
+    "--list"
+  ],
+  "start_utc": "2026-10-13T02:07:05.806560+00:00",
+  "end_utc": "2026-10-13T02:07:06.057519+00:00",
+  "elapsed_seconds": 0.25095721400430193,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2520322048
+}

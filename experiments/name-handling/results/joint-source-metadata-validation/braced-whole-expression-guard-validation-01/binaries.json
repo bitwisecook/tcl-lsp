@@ -1,0 +1,74 @@
+{
+  "tcl-irules": {
+    "artifact": {
+      "reason": "compiler-artifact",
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-irules/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_irules",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-irules/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": true
+      },
+      "features": [],
+      "filenames": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07"
+      ],
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+      "fresh": false
+    },
+    "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+    "sha256": "72d3765ddfd10e31ac7ea83a14a5eec2f34800305f59061ae6e3cb15b432903b"
+  },
+  "tcl-compiler": {
+    "artifact": {
+      "reason": "compiler-artifact",
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_compiler",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": true
+      },
+      "features": [],
+      "filenames": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f"
+      ],
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+      "fresh": false
+    },
+    "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "sha256": "5ffed8492d89efdcf09b862ee2bc0796e2b5953afb3916a78958aba3b1473cd2"
+  }
+}

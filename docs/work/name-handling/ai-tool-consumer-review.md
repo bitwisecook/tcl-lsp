@@ -135,7 +135,7 @@ released; root owns subsequent source/cache coordination.
 
 ## Remaining obligations
 
-The unchanged braced-expression failure remains independently open. The
+The original unchanged braced-expression failure was retained. The
 [temporary probe capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-source-probe-capture-01/README.md)
 built only iRules and ran the exact original positive once, retaining its same
 failure. Actual compiled owned scope was 12 packages; the frozen baseline
@@ -157,16 +157,27 @@ counterfactual pass; the new missing-input/dynamic-body/changed-source/foreign-i
 guard passes. Source25-package/11,764-hash scope and both fresh binaries stayed
 unchanged. Compiler owner SHA-256 b6256765...699e; all leases released.
 
-The existing shared Expr owner test fails at source_scoped_body.rs2042 for
-multi-argument `expr {[format hidden]} + 1`: Some is returned against the
-unchanged None expectation. Its later cooked-input fixture is unreached. The
-first failure is sealed, was not repeated and was not weakened. A scratch-only boundary guard uses the actual selected Registry
-EXPR_CONCATENATES_ARGS trait, argument offset and exact cardinality to decline
-joined-tail geometry in the whole-source issuer. Its separate AST-base issuer
-is unchanged. No central guard is applied or built; independent review and
-root source/cache grant are pending. Earlier MCP acceptance retains
-its exact dependency preimage; no MCP/full-suite/provider repeat or promotion.
-Genuine alias/shadow completeness remains outside the measured controls.
+The unchanged shared Expr owner initially failed for multi-argument
+`expr {[format hidden]} + 1`, with the cooked fixture unreached; that first
+failure remains sealed. The reviewed whole-source boundary guard now uses the
+actual selected Registry EXPR_CONCATENATES_ARGS trait, argument offset and
+exact argv count to decline unproved joined-tail coordinates. Its separate
+AST-base issuer is byte-unchanged. Current owner SHA-256 24c2ef68...5651.
+
+The [final guard capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-whole-expression-guard-validation-01/README.md)
+built Compiler/iRules once and ran the same five exact controls once each:
+5 passed/0 failed. Both unchanged multi-argument/cooked owner negatives now
+reach and pass, alongside original braced positive/inert negative, source/DTO
+counterfactual and missing-input/dynamic/source-changed/foreign-input guard.
+All 25 packages/11,764 source-data hashes and fresh binaries stayed unchanged.
+Compiler binary SHA-256 5ffed849...3cd2; iRules SHA-256 72d3765d...903b.
+The original braced and whole-source owner obligations are closed for these
+scoped local controls. All original failures/probe/preimage receipts remain
+sealed. No further Expr/MCP/full-suite/oracle repeat is authorised or needed
+for this bounded repair. Earlier MCP generator acceptance keeps its exact
+dependency preimage; alias/shadow completeness and Native/provider conformance
+remain outside these measured controls. Canonical proof statuses are unchanged.
+All completed cache/source leases are released.
 
 Future finite consumer comparisons remain unexecuted: dynamic procedure
 requests followed by rename; literal callback alias before/after unknown

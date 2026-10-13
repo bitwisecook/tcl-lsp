@@ -1,0 +1,24 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
+@@ -1295,6 +1295,21 @@
+ ) -> Option<Vec<OriginalSourceScriptBody>> {
+     let context = input.context_registry();
+     if words.context() != Some(context.context()) || !words.matches_registry(context.commands()) {
++        return None;
++    }
++    let whole_source = words.with_source_schema(&context, |schema| {
++        !schema
++            .semantics
++            .traits
++            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
++            || schema
++                .words
++                .arguments()
++                .exact_argv_len()
++                .zip(schema.semantics.argument_offset.checked_add(1))
++                .is_some_and(|(count, expected)| count == expected)
++    })?;
++    if !whole_source {
+         return None;
+     }
+     let roles = words.roles()?;

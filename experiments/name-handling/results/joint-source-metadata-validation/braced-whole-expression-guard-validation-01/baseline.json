@@ -1,0 +1,28 @@
+{
+  "packages": 25,
+  "files": 11764,
+  "actual_selected_roots": [
+    "tcl-compiler",
+    "tcl-irules"
+  ],
+  "new_owner_image_only": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+  "current_contract_path": "docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md",
+  "current_contract_sha256": "61103b883b052869cde84320db4164f3e65deb7230181b6f62285b2759d12b70",
+  "prior_whole_expression_failure_receipt": "experiments/name-handling/results/joint-source-metadata-validation/braced-source-repair-validation-01",
+  "guard_at_api_byte_unchanged": true,
+  "old_braced_failure_receipt": "experiments/name-handling/results/joint-source-metadata-validation/validation-01/metadata",
+  "diagnostic_receipt": "experiments/name-handling/results/joint-source-metadata-validation/braced-source-probe-capture-01",
+  "original_fixture_assertions_unchanged": true,
+  "source_hashes": {
+    "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": "24c2ef683860c1f4bd714e4a78242a4e44b93afa32963dce1f50f239bff45651",
+    "rust/tcl-compiler/src/analyser/commands.rs": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e",
+    "rust/tcl-irules/src/source_context.rs": "ae087950d2efa1e96b5e247d5dd8ab45e48e4a35b9b615c23c424c9db83ac47f",
+    "rust/tcl-irules/src/walker.rs": "2d77c147d5c1be8143a82d1bf2a76c50844e890da965f9699f19a18f877ca4d9",
+    "rust/tcl-registry/src/source_configuration_reference.rs": "793554f0627c42c0e6c64d24cf5d279c4e862bfe12e3b912af48f78846e3924a",
+    "rust/tcl-irules/src/source_object.rs": "93a5f64241b1db2ad19a6730912c9304c89bb198e4f8ef9b21f3c307f9225c03",
+    "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+    "rust/tcl-compiler/src/registry_invocation.rs": "17b1bd17208f0c6fd80f89f7a3e3b49c547ab74b866b4723d6d1d5db4a6fdf98",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "80bb56d68a3148ec8b4abdfaa97bceca98e833c28881afc87118d1c5e0c53279"
+  },
+  "explicit_target": "/workspace/tcl-lsp/tmp/name-target-issues"
+}

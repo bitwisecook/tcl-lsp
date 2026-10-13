@@ -1,0 +1,8 @@
+{
+  "guard_current_sha256": "24c2ef683860c1f4bd714e4a78242a4e44b93afa32963dce1f50f239bff45651",
+  "guard_was_applied_during_build_and_control": true,
+  "guard_readiness_json_is_retained_original_scratch_preimage_snapshot": true,
+  "readiness_original_unapplied_field_does_not_describe_this_execution": "Currentbefore/after source inventories and actualselectedfreshartifacts pin applied guard; separateapplied readiness hasproduction_appliedtrue.",
+  "queue_owner_current_sha256": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e",
+  "at_API_byte_unchanged": true
+}

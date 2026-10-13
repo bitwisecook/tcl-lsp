@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+    "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+    "--exact",
+    "--list"
+  ],
+  "start_utc": "2026-10-13T02:07:12.649024+00:00",
+  "end_utc": "2026-10-13T02:07:12.899877+00:00",
+  "elapsed_seconds": 0.2508514989967807,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2520317952
+}

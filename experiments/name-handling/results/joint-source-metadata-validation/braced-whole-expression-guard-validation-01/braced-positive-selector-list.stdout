@@ -1,0 +1,3 @@
+walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference: test
+
+1 test, 0 benchmarks

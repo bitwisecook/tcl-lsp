@@ -1,0 +1,16 @@
+{
+  "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+  "preimage": "cdc954a58e0ad4837af2012e85f7cd448329a842ba7a66830c715661ae12aa42",
+  "scratch_sha256": "24c2ef683860c1f4bd714e4a78242a4e44b93afa32963dce1f50f239bff45651",
+  "production_applied": true,
+  "builds": 0,
+  "tests": 0,
+  "scope": "whole source_expression_script_bodies only; ASTbase_at unchanged; all oldassertions unchanged",
+  "knowledge_owner": "selected Registry EXPR_CONCATENATES_ARGS + actual argument_offset/exact_argv_len through guarded with_source_schema",
+  "scoped_format": "rustfmt --edition2024 --configskip_children=true",
+  "at_API_byte_unchanged": true,
+  "original_fixture_assertions_unchanged": true,
+  "build_started": true,
+  "validation_pending_at_capture": true,
+  "production_compiler_queue_sha256": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e"
+}

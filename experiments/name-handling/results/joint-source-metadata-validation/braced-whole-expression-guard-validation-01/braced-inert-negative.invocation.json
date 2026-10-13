@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+    "walker::tests::braced_expr_text_does_not_invent_object_references",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T02:07:15.693409+00:00",
+  "end_utc": "2026-10-13T02:07:16.444459+00:00",
+  "elapsed_seconds": 0.7510686960013118,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2520317952,
+  "package": "tcl-irules",
+  "test": "walker::tests::braced_expr_text_does_not_invent_object_references",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 71
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "72d3765ddfd10e31ac7ea83a14a5eec2f34800305f59061ae6e3cb15b432903b"
+}
