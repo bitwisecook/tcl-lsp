@@ -1,0 +1,32 @@
+{
+  "captured_utc": "2026-10-13T01:03:14.518693+00:00",
+  "status": "applied; unexecuted",
+  "source_sha256": {
+    "rust/tcl-compiler/src/registry_invocation.rs": "17b1bd17208f0c6fd80f89f7a3e3b49c547ab74b866b4723d6d1d5db4a6fdf98",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "80bb56d68a3148ec8b4abdfaa97bceca98e833c28881afc87118d1c5e0c53279",
+    "docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md": "f6344971ca3b29b4e9276206663a8bb4786dcbe14fdb804123fff6020802abce"
+  },
+  "tests": [
+    "registry_invocation::source_structure::tests::original_source_schema_keeps_named_selector_and_handler_argument_shape",
+    "registry_invocation::source_structure::tests::original_source_schema_withholds_dynamic_and_shadowed_selector_claims"
+  ],
+  "exact_original_fixture_sha256": {
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca",
+    "experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl": "ebff652d09a1e981e90ced669dd0e181c9d66db749cf9c1681ee16c5801d1983"
+  },
+  "unchanged_original_core_controls_file_sha256": {
+    "rust/tcl-lsp-core/src/references.rs": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44"
+  },
+  "native_handler_selector_removal": "effective_words_for_target, native_named_command_words and discard_named_selection_operands unchanged; only original source assistance uses the composer without private handler selector removal",
+  "source_consumers": "Shared original-source query affects SourceStructure, scoped body discovery, source warnings, symbol/declaration advice, source body lowering checks, inlining labels and end-offset source advice; no execution eligibility or Native receipt path changed",
+  "scope": "Production registry_invocation.rs source-purpose composer and source_structure.rs two new Compiler controls; exact owner-contract Conclusion paragraph only; after211 unchanged",
+  "question_results": {
+    "new_positive_control": "not run",
+    "new_adverse_control": "not run",
+    "original_core_reference_control_after_repair": "not run"
+  },
+  "evidence_scope": "Previous diagnostic measured selector topology loss; its binary is noncurrent and grants no acceptance of this new source. No canonical proof digest or provider status renewed.",
+  "cargo_or_git_actions": "none",
+  "next_step": "Root combined readiness/source closure freeze and explicit target/cache grant before any build or run"
+}

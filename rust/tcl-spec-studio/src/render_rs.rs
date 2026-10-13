@@ -1573,6 +1573,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "commandTableEffect" => "CommandTableEffect",
         "patternType" => "PatternType",
         "sourcePathOperation" => "SourcePathOperation",
+        "sourceConfigurationReference" => "SourceConfigurationReferenceLayout",
         "sourceIndexBounds" => "SourceIndexBounds",
         "channelConfiguration" => "ChannelConfigurationSpec",
         "formatType" => "FormatType",

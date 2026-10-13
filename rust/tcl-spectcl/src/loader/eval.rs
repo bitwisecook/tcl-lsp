@@ -350,6 +350,7 @@ const ROW_WORDS: &[&str] = &[
     "returns_path",
     "source_index_bounds",
     "source_path_operation",
+    "source_configuration_reference",
     "is_unescape",
     "loop_list_header",
     "creates_scope_alias",

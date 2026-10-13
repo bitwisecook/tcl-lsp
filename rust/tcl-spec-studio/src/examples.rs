@@ -72,9 +72,9 @@ mod fields_core;
 mod groups;
 
 use catalogues::{
-    CATALOGUE_ARG_ROLE, CATALOGUE_DEFINITION_BODY, CATALOGUE_DIALECT, CATALOGUE_EFFECT,
-    CATALOGUE_HOOK, CATALOGUE_OPTION, CATALOGUE_PREFIX, CATALOGUE_PRESENTATION, CATALOGUE_TAINT,
-    CATALOGUE_TYPE,
+    CATALOGUE_ARG_ROLE, CATALOGUE_CONFIGURATION_REFERENCE, CATALOGUE_DEFINITION_BODY,
+    CATALOGUE_DIALECT, CATALOGUE_EFFECT, CATALOGUE_HOOK, CATALOGUE_OPTION, CATALOGUE_PREFIX,
+    CATALOGUE_PRESENTATION, CATALOGUE_TAINT, CATALOGUE_TYPE,
 };
 use fields_behaviour::{FIELD_SCRIPT_TIMING, FIELD_TRAITS, FIELD_VARIABLE_SCOPE};
 use groups::{
@@ -124,6 +124,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "tclType" | "storageType" | "byteArrayEffect" => Some(CATALOGUE_TYPE),
         "bodyKind" | "argPresentation" => Some(CATALOGUE_PRESENTATION),
         "scriptTiming" => Some(FIELD_SCRIPT_TIMING),
+        "sourceConfigurationReference" => Some(CATALOGUE_CONFIGURATION_REFERENCE),
         "variableScope" => Some(FIELD_VARIABLE_SCOPE),
         "commandTableEffect" | "definedSymbolKind" | "sideEffectTarget" | "connectionSide"
         | "formKind" => Some(CATALOGUE_EFFECT),

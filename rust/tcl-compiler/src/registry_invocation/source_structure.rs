@@ -2990,6 +2990,145 @@ pub fn selected_vendor_registry_words_at(
 mod tests {
     use super::*;
 
+    fn original_selector_analysis(source: &str) -> crate::analyser::AnalysisResult {
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.analyser_profile();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            environment.default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn original_source_schema_keeps_named_selector_and_handler_argument_shape() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
+        ));
+        let analysis = original_selector_analysis(source);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let config = input.lexer_config();
+        let setup = analysis.all_classes["::C"]
+            .original_members
+            .declarations()
+            .find(|member| member.original_name_input().bytes() == b"setup")
+            .unwrap();
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(source),
+            setup.body_word().unwrap().content_span().unwrap(),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        let wrapper =
+            original_single_source_command_substitution(&plan.commands[0].words[2]).unwrap();
+        assert_eq!(wrapper.command().words[1].bytes(), b"code");
+        let span = wrapper.command().span;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[span.as_range()],
+            span.start(),
+            config,
+        );
+        let [command] = commands.as_slice() else {
+            panic!("one original wrapper");
+        };
+        let realm = analysis.retained_command_realm().unwrap();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            command,
+        );
+        realm.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.named_invocation().is_some());
+        let context = input.context_registry();
+        let handler_advice = crate::registry_invocation::registry_invocation_assistance(
+            context.commands(),
+            None,
+            &tokens,
+        )
+        .unwrap();
+        assert_eq!(
+            handler_advice
+                .unanimous_command_words()
+                .unwrap()
+                .effective()
+                .origins
+                .get(1),
+            Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                2
+            ))
+        );
+        let words = source_registry_words(source, &analysis, command).unwrap();
+        assert_eq!(
+            words.origins().get(1),
+            Some(&crate::registry_invocation::InvocationWordOrigin::Written(
+                1
+            ))
+        );
+        assert_eq!(
+            words.original_argument_word(0),
+            Some(&wrapper.command().words[1])
+        );
+        assert_eq!(
+            words.original_argument_word(1),
+            Some(&wrapper.command().words[2])
+        );
+        assert_eq!(
+            words.with_source_schema(&context, |schema| (
+                schema
+                    .subcommand
+                    .resolved()
+                    .map(|selected| selected.canonical_name),
+                schema.semantics.argument_offset,
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX),
+                schema.authored_source_plain_script_arguments(),
+            )),
+            Some((Some("code"), 1, true, Some(vec![1])))
+        );
+        let changed = format!("{source}# changed complete input\n");
+        assert!(source_registry_words(&changed, &analysis, command).is_none());
+    }
+
+    #[test]
+    fn original_source_schema_withholds_dynamic_and_shadowed_selector_claims() {
+        // naming.source.original-registry-header-advice
+        // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+        let dynamic = "namespace $selector [list tick]";
+        let analysis = original_selector_analysis(dynamic);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(dynamic, 0, config).remove(0);
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let wraps = source_registry_words(dynamic, &analysis, &command).and_then(|words| {
+            words.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .traits
+                    .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
+            })
+        });
+        assert_ne!(wraps, Some(true));
+        let shadowed = "proc namespace args {}; namespace code [list tick]";
+        let analysis = original_selector_analysis(shadowed);
+        let config = analysis.resolved_input.as_ref().unwrap().lexer_config();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(shadowed, 0, config)
+                .pop()
+                .unwrap();
+        assert!(source_registry_words(shadowed, &analysis, &command).is_none());
+    }
+
     #[test]
     fn original_single_source_child_keeps_whole_operand_and_refuses_literal_brackets() {
         // naming.core.original-inlay-retained-context

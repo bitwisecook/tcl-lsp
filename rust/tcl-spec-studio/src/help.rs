@@ -1366,6 +1366,10 @@ that prove a user-influenced path stays inside a known root.",
         "A source path operation selected from the current authored schema and exact argument values. It describes conditional navigation advice, without proving a runtime handler, current filename or filesystem result.",
     ),
     (
+        "source_configuration_reference",
+        "Selects the registry-owned source grammar that locates a configuration-object operand. DataGroupComparison identifies a data-group reference after the comparison item and operator, including an explicit `--` separator. Selection may remain conditional when the item is computed. This metadata does not establish a native handler, an existing object or a successful comparison.",
+    ),
+    (
         "is_unescape",
         "The subcommand *decodes* — URL-decoding, HTML-unescaping. In taint \
 terms it undoes sanitisation: a value that was safe because it was \
@@ -1592,6 +1596,11 @@ command\" honest after such calls.",
         "sourcePathOperation",
         "Source path operations",
         "The shared source algebra for joining paths, taking a parent directory, lexically normalising an anchored path or using an explicitly supplied document filename. Runtime execution and filesystem state remain separate.",
+    ),
+    (
+        "sourceConfigurationReference",
+        "Source configuration references",
+        "Registry-owned source operand grammars for configuration objects. DataGroupComparison describes the comparison tail and its data-group operand; it grants no native execution authority.",
     ),
     (
         "patternType",

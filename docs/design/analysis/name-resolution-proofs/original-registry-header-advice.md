@@ -12,7 +12,7 @@ Which genuine source owner may supply conditional Registry command words for rea
 
 ## Conclusion
 
-The complete original word vector authenticates the query. A unanimous retained execution envelope is preferred; otherwise the existing closed original declaration-layout issuer supplies only conditional metadata. Execution, Normal, stores and compiler admission are unchanged. Three additional marked signature-scanner definitions retain actual clause availability and keyword values, direct moved/replaced installer horizons and written-operand geometry. Captured or expanded operands do not supply a written body token. Explicit header-only metadata describes source shape without issuing current installer ownership.
+The complete original word vector authenticates the query. A unanimous retained execution envelope is preferred; otherwise the existing closed original declaration-layout issuer supplies only conditional metadata. Source metadata preserves authentic descriptor selectors and effective operand origins; compiler-selected private handler argv removes its selection operands separately. Execution, Normal, stores and compiler admission are unchanged. Three additional marked signature-scanner definitions retain actual clause availability and keyword values, direct moved/replaced installer horizons and written-operand geometry. Captured or expanded operands do not supply a written body token. Explicit header-only metadata describes source shape without issuing current installer ownership.
 
 ## Scope
 

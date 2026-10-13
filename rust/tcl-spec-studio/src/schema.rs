@@ -2456,6 +2456,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Conditional source path algebra; no runtime handler, current filename or filesystem fact.",
     ),
     f(
+        "source_configuration_reference",
+        "Source configuration reference",
+        BEHAVIOUR,
+        FieldKind::Enum {
+            catalogue: "sourceConfigurationReference",
+            optional: true,
+        },
+        "Registry-owned source operand grammar for a conditional configuration-object reference.",
+    ),
+    f(
         "is_unescape",
         "Unescapes",
         BEHAVIOUR,
@@ -2641,7 +2651,7 @@ fn custom_catalogues() -> [(&'static str, Value); 7] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 30] = [
+    let standard: [(&str, &[catalogue::Variant]); 31] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2658,6 +2668,10 @@ pub fn catalogues() -> Value {
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
         ("sourcePathOperation", catalogue::SOURCE_PATH_OPERATIONS),
+        (
+            "sourceConfigurationReference",
+            catalogue::SOURCE_CONFIGURATION_REFERENCES,
+        ),
         ("sourceIndexBounds", catalogue::SOURCE_INDEX_BOUNDS),
         ("channelConfiguration", catalogue::CHANNEL_CONFIGURATIONS),
         (

@@ -1,0 +1,58 @@
+{
+  "files": [
+    {
+      "path": "docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md",
+      "sha256": "c7bb7b2aa8140a26289042c6ab5193211245703cc0d7e3a491f4ac06db3a2267",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "sha256": "84b2e4e45a4b1220d70285f4b584458e89e273faf8fbf19ff799a7291ab9473b",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-irules/src/source_object.rs",
+      "sha256": "74f6c61e08a06a19259deb2b3a06211d2d214976495f77b9c35f9bc0862d327e",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/irules/class.rs",
+      "sha256": "954037d051d6aec96acf2629477e8923801e32518760684faae02a857a73f07f",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-registry/src/lib.rs",
+      "sha256": "f1a55687fcb46dca181e088f38b27f322b0dcdd95ed14569adf1f0fbc4c261ce",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+      "sha256": "a4e880b6d4766c1769bf8decae2c724c0d52ae4cca7dd93d451d34ca1fad282e",
+      "matches_prepared_scratch": true
+    },
+    {
+      "path": "rust/tcl-registry/src/spec.rs",
+      "sha256": "78bf56ea8166e327ca19a152050838c6057f119b576ca2beaf514e5014d9022f",
+      "matches_prepared_scratch": true
+    }
+  ],
+  "scoped_rustfmt_check_exit_code": 0,
+  "original_existing_irules_assertions_unchanged": true,
+  "build_or_tests_run": false,
+  "new_registry_control_selectors": [
+    "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal",
+    "source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality"
+  ],
+  "new_irules_control_selector": "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference",
+  "existing_irules_control_selectors": [
+    "walker::tests::extracts_pool_snatpool_and_datagroup_refs",
+    "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+    "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses"
+  ],
+  "existing_mcp_control_selector": "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+  "limits": [
+    "No new-source typecheck or test yet.",
+    "IRules object-reference outputs remain conditional readonly candidates, including selection uncertainty; no acceptedargv or native object claim.",
+    "Actual subsequent compiled closure will include all current shared changes."
+  ]
+}

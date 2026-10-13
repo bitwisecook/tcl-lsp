@@ -1,0 +1,54 @@
+{
+  "status": "Source frozen; selected-package clean Runtime rebuild and all selected exact controls PASS in validation-02. First attempt ENOSPC is separately sealed.",
+  "owner": "runtime/rust/src/cmd_clock.rs",
+  "before_sha256": "6d8ab5c116bf2c35851bb61482d5add36487bc4fadd531325835b36ef8cb1788",
+  "ready_sha256": "668d1f282cc3ed8d94a84da72b1cbc8ab41bbe258c917b95ba83f53f36cde711",
+  "patch_sha256": "eb13803ebcf3c5a4827aa2d006ecb55b7cf593b06e877b0d3ef69db7d1d1edf1",
+  "preimage_provenance": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-runtime/validation-02/runtime_rust_src_cmd_clock.rs.gz",
+  "read_only_supporting_sources": [
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "sha256": "178a2aaa1faa8a6c2ac853ef1b13d04f9541d8bb2d4d2941d24a9ccca4f31995",
+      "lines": [
+        780,
+        876
+      ],
+      "excerpt": "runtime--rust--src--interp.rs--780-876.txt"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_command_retirement.rs",
+      "sha256": "b2c417bb26f95a94065850c5db742e669999a53ecdc03dc804520e1a839db930",
+      "lines": [
+        377,
+        391
+      ],
+      "excerpt": "runtime--rust--src--interp--native_command_retirement.rs--377-391.txt"
+    },
+    {
+      "path": "runtime/rust/src/capi/scalar.rs",
+      "sha256": "958e122c2e45dca585d28d1233e839bb6f6ed342ec93a5ff612de959d2d38c18",
+      "lines": [
+        124,
+        142
+      ],
+      "excerpt": "runtime--rust--src--capi--scalar.rs--124-142.txt"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_scalar_context.rs",
+      "sha256": "f80b773521d9e93437d62af778bf7ea6573dea538d1fcf070c6f881dd62b1280",
+      "lines": [
+        175,
+        193
+      ],
+      "excerpt": "runtime--rust--src--interp--native_scalar_context.rs--175-193.txt"
+    }
+  ],
+  "test_names": [
+    "cmd_clock::get_date_fields_tests::parse_format_conflict_pool_lease_survives_all_three_real_worker_deletions",
+    "cmd_clock::get_date_fields_tests::parse_format_success_pool_lease_survives_all_three_real_worker_deletions"
+  ],
+  "validation_target_dir": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "validation_status": "Clean Runtime rebuild PASS; 5 selected exact controls each PASS once; source envelope unchanged. Prior validation-01 ENOSPC executed zero controls.",
+  "oracle_status": "No C oracle rerun or new native conformance evidence.",
+  "validation": "validation-02/validation.json"
+}

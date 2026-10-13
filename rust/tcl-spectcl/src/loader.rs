@@ -8623,6 +8623,15 @@ fn apply_subcommand_stmt(
                 log,
             );
         }
+        "source_configuration_reference" => {
+            sub.source_configuration_reference = enum_by_name(
+                tcl_registry::SourceConfigurationReferenceLayout::ALL,
+                &value,
+                "source configuration reference",
+                stmt.line,
+                log,
+            );
+        }
         "is_unescape" => sub.is_unescape = parse_flag(stmt.tail()),
         "loop_list_header" => sub.loop_list_header = parse_flag(stmt.tail()),
         "creates_scope_alias" => sub.creates_scope_alias = parse_flag(stmt.tail()),
@@ -9176,6 +9185,79 @@ mod tests {
     use tcl_dialect::model::{BuildProfileId, EnvironmentKind, Provenance, Release, WorldPolicy};
 
     use super::*;
+
+    #[test]
+    fn subcommand_source_configuration_reference_loads_and_omission_abstains() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 { command sample { \
+             subcommand compare { \
+               source_configuration_reference DataGroupComparison \
+             }; \
+             subcommand plain { arity 0 } } }",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("sample").unwrap().spec;
+        assert_eq!(
+            spec.subcommands[0].source_configuration_reference,
+            Some(tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison)
+        );
+        assert!(spec.subcommands[1].source_configuration_reference.is_none());
+    }
+
+    #[test]
+    fn invalid_source_configuration_reference_withdraws_the_descriptor() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 { command sample { subcommand compare { \
+             source_configuration_reference Invented } } }",
+        );
+        assert!(
+            pack.command("sample").unwrap().spec.subcommands[0]
+                .source_configuration_reference
+                .is_none()
+        );
+        assert!(
+            pack.notices.iter().any(|notice| {
+                notice.message == "unknown source configuration reference `Invented` dropped"
+            }),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    #[test]
+    fn source_configuration_reference_has_static_and_evaluated_loader_parity() {
+        let source = "speclib probe 2.0 { command sample { subcommand compare { \
+                      source_configuration_reference DataGroupComparison } } }";
+        let fast = evaluate_pack(source);
+        let evaluated = evaluate_pack_with(
+            source,
+            &EvalOptions {
+                static_fast_path: false,
+                ..EvalOptions::default()
+            },
+        );
+        let templated = evaluate_pack(
+            "speclib probe 2.0 { set layout DataGroupComparison; \
+             command sample { subcommand compare { \
+               source_configuration_reference $layout } } }",
+        );
+        for pack in [&fast, &evaluated, &templated] {
+            assert!(pack.load_error.is_none(), "{:?}", pack.load_error);
+            assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+            assert_eq!(
+                pack.command("sample").unwrap().spec.subcommands[0].source_configuration_reference,
+                Some(tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison)
+            );
+        }
+        assert_eq!(
+            format!("{:?}", fast.command("sample").unwrap().spec),
+            format!("{:?}", evaluated.command("sample").unwrap().spec)
+        );
+        assert_eq!(
+            format!("{:?}", fast.command("sample").unwrap().spec),
+            format!("{:?}", templated.command("sample").unwrap().spec)
+        );
+    }
 
     #[test]
     fn original_abstract_definition_grammar_loads_without_changing_factory_visibility() {

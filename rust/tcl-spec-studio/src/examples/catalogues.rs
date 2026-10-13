@@ -94,3 +94,11 @@ pub(super) const CATALOGUE_PREFIX: Example = Example {
         "receives the selected appended-argument shape",
     )],
 };
+pub(super) const CATALOGUE_CONFIGURATION_REFERENCE: Example = Example {
+    code: "class match -- $item equals /Common/allowed",
+    focuses: &[focus(
+        0,
+        "/Common/allowed",
+        "DataGroupComparison selects this source operand as a data-group reference",
+    )],
+};

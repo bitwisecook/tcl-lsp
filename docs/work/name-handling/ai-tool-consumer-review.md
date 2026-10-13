@@ -98,8 +98,8 @@ inspection locates the first loss in `tcl-irules/src/source_object.rs:155`:
 custom class/persist reference selection requires every operand literal, so
 the Dynamic ITEM in `class match [HTTP::uri] equals helper_dg` withdraws the
 known literal reference. MCP merely gathers the returned shared categories.
-The shared structured-reference layout is under Registry ownership review;
-no private consumer helper is approved. The independent review rejects a new
+Registry ownership review approved a narrow typed structured-reference layout;
+no private consumer name/layout helper is approved. The independent review rejects a new
 hardcoded class-match layout in `source_object.rs` because it would multiply
 per-command knowledge. The recommended extension is typed reference metadata
 on the selected Registry subcommand, with projection through `ResolvedInvocation`
@@ -108,11 +108,19 @@ through its existing object-kind table and retains original literal/span guards.
 Dynamic ITEM advice stays conditional, including its uncertain option/data value.
 Actual cardinality, known operator, unknown selection and currentness remain
 separate premises; no accepted argv or native object identity follows.
-No placeholders, label-derived identities, source edits or new tests/builds
-have been introduced by this diagnosis. Existing central controls for dynamic
-ITEM, inert expressions, DTO counterfactuals and currentness were inspected
-but not run. Root will scope edits after the callback probe releases shared
-sources; preserve every original fixture/assertion and sealed failure.
+The [scratch proposal](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-proposal-01/README.md)
+retains the concrete Registry/iRules patch, preimages and planned bounded
+positive/adverse controls. The single optional SubCommand enum variant has
+full declarative SpecTcl/Studio parity planned under separate owners, with no
+GAPS or new public descriptor framework. The exact [applied patch](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-applied-01/README.md)
+is preimage-checked and scoped-formatting clean after VM restoration. Registry
+and iRules owners match the prepared scratch; parity owners apply separately.
+New controls are authored but no new-source typecheck/build/test ran. Existing
+central dynamic ITEM, inert-expression, DTO-counterfactual and currentness
+controls were inspected but not run. Wait for all parity owners ready and root's
+explicit selected joint build/cache lease; that scope includes current shared
+code and makes no isolation claim. Preserve every
+original fixture/assertion and sealed failure.
 
 Proposed future finite consumer comparisons remain unexecuted: dynamic
 procedure declarations followed by rename; a literal callback alias before

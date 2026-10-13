@@ -1,0 +1,11 @@
+
+running 1 test
+test interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it ... FAILED
+
+failures:
+
+failures:
+    interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1197 filtered out; finished in 1.97s
+

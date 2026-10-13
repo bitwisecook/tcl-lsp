@@ -20,6 +20,18 @@ the `tcl-spectcl` loader (see [`../registry/spec-packs.md`](../registry/spec-pac
 Registry metadata drives IR lowering, SCCP, GVN, taint, side-effects,
 diagnostics, and code completion.
 
+Configuration-reference candidates use the selected subcommand's
+`source_configuration_reference` descriptor. The `DataGroupComparison` layout
+defines an item/operator/reference tail and the shared comparison vocabulary.
+`ResolvedInvocation::authored_source_configuration_reference_operand` returns
+the original effective operand ordinal, its configuration family and whether
+option/data selection remains unknown. Consumers retain their own original
+literal and source-geometry checks; a candidate establishes no live object or
+accepted invocation. Missing metadata, uncertain option prefixes, expansions
+and unknown operators or references decline. Generic name roles and side
+effects do not supply this purpose. See the
+[source candidate contract](../analysis/name-resolution-proofs/original-source-attachment-candidates.md).
+
 Source: `rust/tcl-registry/src/spec.rs` (`CommandSpec`, `SubCommand`),
 `rust/tcl-registry/src/registry.rs` (`CommandRegistry`),
 `rust/tcl-registry/src/cache.rs` (`registry_for_dialect`),

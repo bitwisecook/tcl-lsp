@@ -288,6 +288,7 @@ fn original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_n
 struct SamePositionObserver {
     nested: Cell<bool>,
     original: RefCell<Option<OriginalOoCleanupFrame>>,
+    first_cause: RefCell<Option<tcl_runtime_api::NativeExecutionError>>,
     calls: Cell<usize>,
 }
 impl NativeCommand for SamePositionObserver {
@@ -319,10 +320,15 @@ impl NativeCommand for SamePositionObserver {
         vm.oo.call_stack.push(selected);
         match reached {
             Ok(result) => result,
-            Err(error) => crate::command::completion_from_tcl_error(
-                vm,
-                crate::TclError::from_execution_failure(error),
-            ),
+            Err(error) => {
+                assert_eq!(error, first(vm));
+                assert!(vm.execution_refusal.is_some());
+                *self.first_cause.borrow_mut() = Some(error.clone());
+                crate::command::completion_from_tcl_error(
+                    vm,
+                    crate::TclError::from_execution_failure(error),
+                )
+            }
         }
     }
 }
@@ -336,15 +342,23 @@ fn original_method_cleanup_refuses_a_genuinely_new_same_position_context_without
     let observer = Rc::new(SamePositionObserver {
         nested: Cell::new(false),
         original: RefCell::new(None),
+        first_cause: RefCell::new(None),
         calls: Cell::new(0),
     });
     vm.register_command("same_position_observer", Command::Native(observer.clone()));
     let error = vm
         .try_invoke_command("samePositionObject", &[Value::string("fw")])
         .unwrap_err();
-    assert_eq!(error, first(&vm));
+    assert_eq!(
+        error,
+        observer
+            .first_cause
+            .borrow()
+            .clone()
+            .expect("nested invocation retains the complete first cause"),
+    );
     assert_eq!(observer.calls.get(), 2);
-    assert!(vm.execution_refusal.is_some());
+    assert!(vm.execution_refusal.is_none());
     assert!(vm.oo.call_stack.is_empty());
     assert_eq!(vm.resolution_stacks.ns_stack.len(), 1);
     assert_eq!(vm.oo_dispatch_depth, 0);

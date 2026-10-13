@@ -1,0 +1,23 @@
+{
+  "status": "Original question seals unchanged; no oracle rerun.",
+  "checks": [
+    {
+      "question": "glob-type-union-question",
+      "file_count": 24,
+      "seal_sha256": "677969735ae15a8f9ec9a90e96d377fa7c044bd2ab6be639f2c534dc06d04617",
+      "changed": []
+    },
+    {
+      "question": "glob-type-union-rwx-question",
+      "file_count": 22,
+      "seal_sha256": "2bc83d385ca2ae292dc93c2ff2836142d615f2a94f5d8caabad5f4b67310fb15",
+      "changed": []
+    },
+    {
+      "question": "get-date-fields-question",
+      "file_count": 56,
+      "seal_sha256": "599c41f621434573d030828945015fef0df37e938a02edf75e2a3c6973265801",
+      "changed": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+    "--exact",
+    "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+    "--list"
+  ],
+  "started": "2026-10-13T00:59:21.745085+00:00",
+  "finished": "2026-10-13T00:59:21.752895+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "25c90f02da9f53395a552c1f9908ecd13d0185653311f1a0ae118360852e0901",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

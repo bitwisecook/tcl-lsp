@@ -2027,6 +2027,13 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             json!(catalogue::variant_name(&operation))
         }),
     );
+    d.insert(
+        "source_configuration_reference".into(),
+        sub.source_configuration_reference
+            .map_or(Value::Null, |layout| {
+                json!(catalogue::variant_name(&layout))
+            }),
+    );
     d.insert("is_unescape".into(), json!(sub.is_unescape));
     d.insert("cfg_rewrite_name".into(), opt_str(sub.cfg_rewrite_name));
     d.insert(

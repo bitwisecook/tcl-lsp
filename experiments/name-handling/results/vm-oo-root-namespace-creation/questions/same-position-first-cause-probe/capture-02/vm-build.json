@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "started": "2026-10-13T00:57:30.683535+00:00",
+  "finished": "2026-10-13T00:59:19.872351+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "5fb3761925a99aa078275acd216573b6a5ad9e122046bc831100592c3d40c57f",
+  "stderr_sha256": "9175f9502bc0b4e397dd3851f237999d88b26c1115d8fa1b4f64f26318d04183"
+}

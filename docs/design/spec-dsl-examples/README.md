@@ -190,6 +190,13 @@ release-specific arity rows.
 
 ## Statements
 
+`source_configuration_reference DataGroupComparison` is a subcommand property
+for readonly configuration-reference advice. It selects the shared three-word
+item/operator/reference layout after known options. A computed ordinary item
+can leave selection unknown; the reference still needs an original literal
+and source extent. This metadata supplies no handler acceptance or live
+configuration-object identity. Omission or an invalid layout declines advice.
+
 ### Per-argument facts
 
 Six schema keys are indexed by the same argument position, and reading

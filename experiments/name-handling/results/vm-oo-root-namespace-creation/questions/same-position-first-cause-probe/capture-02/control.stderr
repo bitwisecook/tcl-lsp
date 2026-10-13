@@ -1,0 +1,21 @@
+NH_VM_FIRST_CAUSE mode=same-position-outer stage=before activation=0 host=0 entered=false stored=None
+NH_VM_FIRST_CAUSE mode=same-position-inner stage=before activation=0 host=1 entered=true stored=None
+NH_VM_FIRST_CAUSE stage=settlement owned=ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")) activation=0 host=1 entered=true stored=Some(ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")))
+NH_VM_FIRST_CAUSE mode=same-position-inner stage=returned owned=ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description"))
+NH_VM_FIRST_CAUSE mode=same-position-inner stage=after activation=0 host=1 entered=true stored=Some(ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")))
+NH_VM_FIRST_CAUSE stage=settlement owned=ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")) activation=0 host=0 entered=false stored=Some(ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")))
+NH_VM_FIRST_CAUSE stage=clear-outer-store owned=ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description"))
+NH_VM_FIRST_CAUSE mode=same-position-outer stage=before-original-assert owned=ValueAccessRefusal(CommandProtocolUnavailable("original OO cleanup frame description")) activation=0 host=0 entered=false stored=None
+
+thread 'interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it' (265939) panicked at rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:40:10:
+full entered first cause
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_runtime_api::native_execution_error::NativeExecutionError>>::expect
+   4: tcl_vm::interp::oo_cleanup::active_frame::tests::first
+   5: tcl_vm::interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it
+   6: tcl_vm::interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it::{closure#0}
+   7: <tcl_vm::interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.

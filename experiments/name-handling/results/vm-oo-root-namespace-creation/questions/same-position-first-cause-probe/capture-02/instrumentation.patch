@@ -1,0 +1,85 @@
+--- a/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs
++++ b/rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs
+@@ -314,7 +314,29 @@
+             &selected,
+         ));
+         self.nested.set(true);
++        if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++            eprintln!(
++                "NH_VM_FIRST_CAUSE mode=same-position-inner stage=before activation={} host={} entered={} stored={:?}",
++                vm.activation_depth,
++                vm.host_execution_depth,
++                vm.has_entered_native_operation(),
++                vm.execution_refusal,
++            );
++        }
+         let reached = vm.try_invoke_command("samePositionObject", &[Value::string("fw")]);
++        if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++            match &reached {
++                Err(error) => eprintln!("NH_VM_FIRST_CAUSE mode=same-position-inner stage=returned owned={error:?}"),
++                Ok(completion) => eprintln!("NH_VM_FIRST_CAUSE mode=same-position-inner stage=returned code={:?}", completion.code),
++            }
++            eprintln!(
++                "NH_VM_FIRST_CAUSE mode=same-position-inner stage=after activation={} host={} entered={} stored={:?}",
++                vm.activation_depth,
++                vm.host_execution_depth,
++                vm.has_entered_native_operation(),
++                vm.execution_refusal,
++            );
++        }
+         self.nested.set(false);
+         vm.oo.call_stack.push(selected);
+         match reached {
+@@ -339,9 +361,27 @@
+         calls: Cell::new(0),
+     });
+     vm.register_command("same_position_observer", Command::Native(observer.clone()));
++    if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++        eprintln!(
++            "NH_VM_FIRST_CAUSE mode=same-position-outer stage=before activation={} host={} entered={} stored={:?}",
++            vm.activation_depth,
++            vm.host_execution_depth,
++            vm.has_entered_native_operation(),
++            vm.execution_refusal,
++        );
++    }
+     let error = vm
+         .try_invoke_command("samePositionObject", &[Value::string("fw")])
+         .unwrap_err();
++    if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++        eprintln!(
++            "NH_VM_FIRST_CAUSE mode=same-position-outer stage=before-original-assert owned={error:?} activation={} host={} entered={} stored={:?}",
++            vm.activation_depth,
++            vm.host_execution_depth,
++            vm.has_entered_native_operation(),
++            vm.execution_refusal,
++        );
++    }
+     assert_eq!(error, first(&vm));
+     assert_eq!(observer.calls.get(), 2);
+     assert!(vm.execution_refusal.is_some());
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -23390,10 +23390,22 @@
+         &mut self,
+     ) -> Option<tcl_runtime_api::NativeExecutionError> {
+         let error = self.execution_refusal.clone()?;
++        if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++            eprintln!(
++                "NH_VM_FIRST_CAUSE stage=settlement owned={error:?} activation={} host={} entered={} stored={:?}",
++                self.activation_depth,
++                self.host_execution_depth,
++                self.has_entered_native_operation(),
++                self.execution_refusal,
++            );
++        }
+         if self.activation_depth == 0
+             && self.host_execution_depth == 0
+             && !self.has_entered_native_operation()
+         {
++            if std::env::var_os("NH_VM_FIRST_CAUSE_DIAGNOSTIC").is_some() {
++                eprintln!("NH_VM_FIRST_CAUSE stage=clear-outer-store owned={error:?}");
++            }
+             self.execution_refusal = None;
+         }
+         Some(error)

@@ -4499,6 +4499,11 @@ pub struct SubCommand {
     /// handler, current filename, filesystem state and execution admission.
     pub source_path_operation: Option<crate::source_path::SourcePathOperation>,
 
+    /// Conditional configuration-reference layout from the selected source
+    /// schema. This grants no accepted argv, runtime object or handler identity.
+    pub source_configuration_reference:
+        Option<crate::source_configuration_reference::SourceConfigurationReferenceLayout>,
+
     /// Performs unescaping / decoding.
     pub is_unescape: bool,
 
@@ -4868,6 +4873,7 @@ impl SubCommand {
         destructive: false,
         returns_path: false,
         source_path_operation: None,
+        source_configuration_reference: None,
         is_unescape: false,
         cfg_rewrite_name: None,
         sub_subcommands: &[],

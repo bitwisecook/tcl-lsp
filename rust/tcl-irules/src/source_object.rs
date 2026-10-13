@@ -115,6 +115,16 @@ pub fn original_source_object_operands(
     let table = crate::tables();
     let lower = selected.canonical_command.to_ascii_lowercase();
     let mut choices = Vec::new();
+    if let Some(reference) = selected.authored_source_configuration_reference_operand() {
+        let kinds = match reference.family {
+            tcl_registry::ConfigurationObjectFamily::DataGroup => {
+                table.data_group_kinds.iter().map(String::as_str).collect()
+            }
+        };
+        // Every emitted object operand is conditional source advice, including
+        // an unknown item's option/data selection; it proves no accepted argv.
+        choices.push((reference.argument, kinds));
+    }
     for spec in &table.base_specs {
         if spec.command != lower
             || spec
@@ -199,6 +209,49 @@ pub fn original_source_object_operands(
 mod tests {
     use super::*;
     use tcl_registry::InvocationWord;
+
+    #[test]
+    fn original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference() {
+        use InvocationWord::{Dynamic, Expanded, Literal};
+        let context = tcl_registry::model::ingress::static_context_for("f5-irules");
+        let select = |args: &[InvocationWord<'_>]| {
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                context.commands(),
+                Some(context.context()),
+                tcl_registry::InvocationWords::structured(InvocationWord::Literal("class"), args),
+                tcl_dialect::model::InvocationRealm::RuleLoader,
+            )
+            .resolved()
+            .map_or_else(Vec::new, |selected| {
+                original_source_object_operands(&selected, None)
+            })
+        };
+        let operands = select(&[Literal("match"), Dynamic, Literal("equals"), Literal("dg")]);
+        assert_eq!(operands.len(), 1);
+        assert_eq!(operands[0].argument(), 3);
+        assert_eq!(operands[0].attachment(), None);
+        assert_eq!(
+            operands[0].kinds(),
+            crate::tables()
+                .data_group_kinds
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        );
+        for args in [
+            vec![Literal("match"), Dynamic, Literal("equals"), Dynamic],
+            vec![Literal("match"), Expanded, Literal("equals"), Literal("dg")],
+            vec![
+                Literal("match"),
+                Literal("-unknown"),
+                Dynamic,
+                Literal("equals"),
+                Literal("dg"),
+            ],
+        ] {
+            assert!(select(&args).is_empty(), "{args:?}");
+        }
+    }
 
     #[test]
     fn original_attachment_operands_keep_snat_pool_purpose_and_original_cardinality() {

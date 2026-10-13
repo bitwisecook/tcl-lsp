@@ -1,0 +1,94 @@
+{
+  "status": "PREPARED_ONLY_NO_SOURCE_APPLY_NO_BUILD_NO_CONTROL_RUN",
+  "root": "/workspace/tcl-lsp",
+  "environment_gate": "NH_VM_FIRST_CAUSE_DIAGNOSTIC",
+  "environment_value": "1",
+  "owners": [
+    {
+      "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "before_path": "/tmp/name-vm-same-position-diagnostic-20261013/tests.rs.before",
+      "before_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "instrumented_path": "/tmp/name-vm-same-position-diagnostic-20261013/tests.rs",
+      "instrumented_sha256": "ce5b0a77a2598e70fe6b130e98da600eeb1ac03ea8f942d0def038a23632a21b"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "before_path": "/tmp/name-vm-same-position-diagnostic-20261013/interp.rs.before",
+      "before_sha256": "6cb00b707fb7bf9e1db2c75b612e379669b19932b3dba814e657323214dccda4",
+      "instrumented_path": "/tmp/name-vm-same-position-diagnostic-20261013/interp.rs",
+      "instrumented_sha256": "fb139cf968e7bbac3e868c96ab91afa57012f25bafd9ee879133b7135673ca54"
+    }
+  ],
+  "patch": "/tmp/name-vm-same-position-diagnostic-20261013/instrumentation.patch",
+  "patch_sha256": "fd60edfc74bb3a93638517693646cd81ddbed3f00b3c76990d790b2f4ca2b261",
+  "control": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+  "expected_package": "tcl-vm",
+  "expected_target": "lib-test tcl_vm",
+  "cache": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "cache_status": "Root reports callback Core restored and cache free; await explicit diagnostic apply/build lease grant.",
+  "build_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "list_argv": [
+    "ACTUAL_CARGO_EMITTED_TCL_VM_TEST_BINARY",
+    "--exact",
+    "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+    "--list"
+  ],
+  "test_argv": [
+    "ACTUAL_CARGO_EMITTED_TCL_VM_TEST_BINARY",
+    "--exact",
+    "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "prior_control_list": "/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-02/vm-control-16-list.log",
+  "inspected_source_hashes": {
+    "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+    "rust/tcl-vm/src/interp/oo_cleanup.rs": "8dcab6d6524f1db0d3d49a096cd112f5067027d8538d8dbe1950602c6f3816fa",
+    "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs": "e1f74c20337f75c44bb0eb2de9beffdcc826510f87fef3ff26dee6ce37690c94",
+    "rust/tcl-vm/src/interp/native_operation_currency.rs": "144b8f1d984f315dc869e0b5a2f2bad201927b20c9f977aeea2e672ae462905f",
+    "rust/tcl-vm/src/cmd_oo.rs": "a93fa3aa3f9d0b583bdef67a5b1edb61ab5de29e6d88c013d5ce118982a9cd83",
+    "rust/tcl-vm/src/exec.rs": "72f9d0628568d137ee345af4781ca0b50b0056e07762518749b276674169f1f1",
+    "rust/tcl-vm/Cargo.toml": "bfd2be9a8647c3d4b4a6e8d661b880c1851834b6a3d01b8df5e9e5d55f02dd89",
+    "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+    "rust-toolchain.toml": "0ab20c8fa9c7ec3f0663987ba9e84c60e5f8fad77aab1f33dda8a013445a80d0"
+  },
+  "source_closure_limits": "Inspected files are not a transitive compiled source closure. Actual graph/fresh flags/rustc dep-info and conservative Rust/C/header/build/manifests/config snapshots must be captured at execution. VM lib-test includes real compiler/test-support dev dependencies. Standalone runtime is outside selected target; do not attest broad snapshot files as compiled.",
+  "invariants": "Only gated eprintln additions; unchanged native fixture, arguments, SamePositionObserver modes/flow, assertions, cleanup, original clone/clear/Some boundary and predicates. No new Native scope, entry, helper authority or depth mutation. Ok logs Code only, never Value debug/string.",
+  "restore_requirement": "Recheck complete two-owner preimages immediately before apply; never overwrite later edits. Finally restore exact preimage bytes and full hashes; diagnostic executable stale after restoration.",
+  "conservative_path_dependency_manifests": {
+    "rust/tcl-bytecode/Cargo.toml": "db244a03549d3df13720393bf374e37946caf3f66d9ded2cec82ce45ab2192ed",
+    "rust/tcl-cmd-core/Cargo.toml": "7e3ad75ad7af18760c25a1bb3f77f2bc6f86a09ae2e83eca51e8db7925ba1700",
+    "rust/tcl-compiler/Cargo.toml": "4ea9a8c7986c315595ed0c061a0133aaa5ef21abae2eee4f27d63905e3b64cf0",
+    "rust/tcl-core-types/Cargo.toml": "8f82bfe7a9702e74d997584962d5ce7806cf9ba8aa24b9531221ff017fc64e5b",
+    "rust/tcl-dialect/Cargo.toml": "03616ce8a2edb0430e3da0597572bf4ea3d7aa3326b525e3ca53b0754c022482",
+    "rust/tcl-host-c-abi/Cargo.toml": "f6fd7f37406cba1274040a334227045f1afeedfdeaa3d069a716235e03876f56",
+    "rust/tcl-host-native/Cargo.toml": "175ae344cb2e44df9220afc99d924244551b68d3c1be742319705cefcccb2743",
+    "rust/tcl-lexer/Cargo.toml": "6869933eb199f815c9bf1203650e10c5d033288e556332bd01e406dd2bea031a",
+    "rust/tcl-platform/Cargo.toml": "5887bc9d46a18b5bdf630aa0545ecb33f2432ed73aba0a1bbba6ca7d8d160cc4",
+    "rust/tcl-regex/Cargo.toml": "5bde9535812b00a2c44619fc5f8ee65100175e5c7f38acbdfdc91e759f8e8aef",
+    "rust/tcl-registry/Cargo.toml": "1ba577f5ab933da5670d00024f24f30ea857aa67eb48388368f9f4419158875d",
+    "rust/tcl-runtime-api/Cargo.toml": "13b93280fd965ba23beb88d1688b0427e5ec608584fd1fb8191f6e78b53ce92d",
+    "rust/tcl-syntax/Cargo.toml": "dc7ea13baaf4eff947a8ad93a1653dce5136bd8d8fc10c5c6aa130db86db6b4f",
+    "rust/tcl-test-support/Cargo.toml": "6af96ab3f661490f76d396f1a60abe0d49f6df7976d6d7fb5d516a55f1407f0a",
+    "rust/tcl-vm/Cargo.toml": "bfd2be9a8647c3d4b4a6e8d661b880c1851834b6a3d01b8df5e9e5d55f02dd89"
+  },
+  "conservative_path_dependency_limits": "Recursive authored direct path dependencies plus only selected VM dev dependencies; optional/features/target filters and any workspace-inherited path dependencies unresolved until actual Cargo artifact graph. Not exact compiled closure.",
+  "limits": {
+    "jobs": 2,
+    "selected_lib_test_only": true,
+    "exact_control_invocations": 1,
+    "no_full_suite": true,
+    "disk_free_root_report_bytes_approx": 1300000000
+  }
+}

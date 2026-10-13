@@ -1,0 +1,37 @@
+[
+  {
+    "path": "docs/design/analysis/name-resolution-proofs/original-source-attachment-candidates.md",
+    "before_sha256": "86f6d001d85410ea5fc2dec3490c3c239678788033bd4eb837d7a80d57d44cc7",
+    "after_sha256": "c7bb7b2aa8140a26289042c6ab5193211245703cc0d7e3a491f4ac06db3a2267"
+  },
+  {
+    "path": "rust/tcl-irules/src/lib.rs",
+    "before_sha256": "9d89beceb7971be5e2006747c5086817b110828f8ea124d7fd11253f5d5fc3a4",
+    "after_sha256": "84b2e4e45a4b1220d70285f4b584458e89e273faf8fbf19ff799a7291ab9473b"
+  },
+  {
+    "path": "rust/tcl-irules/src/source_object.rs",
+    "before_sha256": "1c8d39bab7e31d404902350423590cc591b794458a43ac51020c5f54de6ecf4a",
+    "after_sha256": "74f6c61e08a06a19259deb2b3a06211d2d214976495f77b9c35f9bc0862d327e"
+  },
+  {
+    "path": "rust/tcl-registry/src/commands/irules/class.rs",
+    "before_sha256": "a90361fd2b05f54e80d5ce7f76380b9d74ca2003808a31db152ed9c8cd8933cd",
+    "after_sha256": "954037d051d6aec96acf2629477e8923801e32518760684faae02a857a73f07f"
+  },
+  {
+    "path": "rust/tcl-registry/src/lib.rs",
+    "before_sha256": "470180fd53f131b4b6d628c7e42e7d3640e720d4e5a9107de86d0f0309a906d6",
+    "after_sha256": "f1a55687fcb46dca181e088f38b27f322b0dcdd95ed14569adf1f0fbc4c261ce"
+  },
+  {
+    "path": "rust/tcl-registry/src/source_configuration_reference.rs",
+    "before_sha256": null,
+    "after_sha256": "a4e880b6d4766c1769bf8decae2c724c0d52ae4cca7dd93d451d34ca1fad282e"
+  },
+  {
+    "path": "rust/tcl-registry/src/spec.rs",
+    "before_sha256": "553a01b03ae5834bf1650fbc573c9a38562906492ebbe726d45da9e920b11381",
+    "after_sha256": "78bf56ea8166e327ca19a152050838c6057f119b576ca2beaf514e5014d9022f"
+  }
+]

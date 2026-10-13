@@ -1625,6 +1625,17 @@ append log $line",
         },
     ),
     (
+        "source_configuration_reference",
+        Example {
+            code: "class match -- $item equals /Common/allowed",
+            focuses: &[focus(
+                0,
+                "/Common/allowed",
+                "the selected DataGroupComparison grammar locates this data-group reference after the item and operator",
+            )],
+        },
+    ),
+    (
         "is_unescape",
         Example {
             code: "set text [encoding convertfrom utf-8 $wire]\nputs $text",

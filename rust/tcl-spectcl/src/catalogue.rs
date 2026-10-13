@@ -220,6 +220,12 @@ pub const CHANNEL_CONFIGURATIONS: &[Variant] = &[v(
     "original encoding and translation option values",
 )];
 
+/// [`tcl_registry::SourceConfigurationReferenceLayout`] conditional source object references.
+pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[v(
+    "DataGroupComparison",
+    "data-group operand after a comparison item and operator",
+)];
+
 /// [`tcl_registry::SourceIndexBounds`] conditional original index relationships.
 pub const SOURCE_INDEX_BOUNDS: &[Variant] = &[
     v("ListIndex", "literal list index descent"),
@@ -1246,6 +1252,14 @@ mod tests {
         }
     }
 
+    fn covered_source_configuration_reference(
+        descriptor: tcl_registry::SourceConfigurationReferenceLayout,
+    ) -> bool {
+        match descriptor {
+            tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison => true,
+        }
+    }
+
     fn covered_channel_configuration(descriptor: tcl_registry::ChannelConfigurationSpec) -> bool {
         match descriptor {
             tcl_registry::ChannelConfigurationSpec::EncodingTranslation => true,
@@ -1260,6 +1274,15 @@ mod tests {
 
     #[test]
     fn enum_witnesses_compile_and_hold() {
+        for descriptor in tcl_registry::SourceConfigurationReferenceLayout::ALL {
+            assert!(covered_source_configuration_reference(*descriptor));
+            let name = variant_name(descriptor);
+            assert!(
+                SOURCE_CONFIGURATION_REFERENCES
+                    .iter()
+                    .any(|variant| variant.key == name)
+            );
+        }
         for descriptor in tcl_registry::ChannelConfigurationSpec::ALL {
             assert!(covered_channel_configuration(*descriptor));
             let name = variant_name(descriptor);
@@ -1310,6 +1333,7 @@ mod tests {
             SOURCE_PATH_OPERATIONS,
             SOURCE_INDEX_BOUNDS,
             CHANNEL_CONFIGURATIONS,
+            SOURCE_CONFIGURATION_REFERENCES,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
             TAINT_TRANSFORM_CONDITIONS,

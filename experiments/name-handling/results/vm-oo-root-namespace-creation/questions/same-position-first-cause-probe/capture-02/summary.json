@@ -1,0 +1,42 @@
+{
+  "status": "DIAGNOSTIC_CAUSE_MEASURED_ORIGINAL_CONTROL_FAILED",
+  "exact_control": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+  "test_counts": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered": 1197
+  },
+  "first_cause": "ValueAccessRefusal(CommandProtocolUnavailable(\"original OO cleanup frame description\"))",
+  "inner_boundary": {
+    "activation_depth": 0,
+    "host_execution_depth": 1,
+    "has_entered_native_operation": true,
+    "returned_cause_matches_stored": true,
+    "stored_cause_retained": true
+  },
+  "outer_boundary": {
+    "activation_depth": 0,
+    "host_execution_depth": 0,
+    "has_entered_native_operation": false,
+    "returned_cause_matches_inner": true,
+    "existing_clear_branch_executed": true,
+    "store_before_original_first_accessor": null
+  },
+  "classification": "Existing public host handoff preserves the complete original typed cause and intentionally retires stored cause at its outer boundary. The unchanged SamePosition fixture requires stored Some after that boundary; its first(vm) assertion is incompatible with this demonstrated contract.",
+  "unreached": "Final test assertions after first(vm) panic (observer count, storeSome, original OO call-stack, namespace-depth and dispatch-depth assertions).",
+  "limits": "Only one unchanged original SamePosition control ran under temporary gated diagnostic logging. No forward/procedure control rerun, fixture correction, production repair, wider OO/VM suite, C oracle or canonical proof renewal.",
+  "owner_restoration": {
+    "rust/tcl-vm/src/interp.rs": {
+      "instrumented_before_restore_sha256": "fb139cf968e7bbac3e868c96ab91afa57012f25bafd9ee879133b7135673ca54",
+      "restored_sha256": "6cb00b707fb7bf9e1db2c75b612e379669b19932b3dba814e657323214dccda4",
+      "matches_original": true
+    },
+    "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs": {
+      "instrumented_before_restore_sha256": "ce5b0a77a2598e70fe6b130e98da600eeb1ac03ea8f942d0def038a23632a21b",
+      "restored_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "matches_original": true
+    }
+  },
+  "diagnostic_binary_currency": "NONCURRENT_FOR_RESTORED_SOURCE; no reuse allowed"
+}

@@ -1,0 +1,20 @@
+{
+  "capture-source-scope.py": "42cfec61590080618d778783441f6958ba9901bde72f5b51ea055676bb9013cd",
+  "capture.py": "3c905c57bb3c548ccb7126fb756ea1aa78a114621ff0e3712dbe97ff771195eb",
+  "orchestration-inputs.json": "d0fb04f723da6229d67ba5c2dfe2642d2ee69b5651393efb215f143c0c9da174",
+  "record.json": "8542f499e0e9bc33e12c2478234e9f9f59c6c6f214bf1fa871796c51216b2144",
+  "runner-build-messages.jsonl": "f0a12596e008f493783750afc44e6d9b138808ea4d68c5b868bac426363971e9",
+  "runner-build-messages.jsonl.gz": "08e3db49910cda934857d42d0d3db39d3e84f3c4e364d8951ae0c63892121534",
+  "runner-build.stderr.txt": "241e89e4d1555bad05a685baa99d3a796dc0df1eb4ebd43a6c06ee5191c7807b",
+  "runner-rustc-depinfo.d.gz": "c5ba8a74fbe3778b2ad3457acdfb228a4f8bb04718a2508a4f37c6930c51c50d",
+  "runtime--rust--examples--run_script.rs.gz": "d0306398301ea2b28cd2f7c0ea9c34e80425f3d82c7b9e68f052d0e9facdc3a4",
+  "runtime--rust--src--cmd_clock.rs.gz": "e3d51ab257cece49932b72b9f952cd38afc928894c3d2b2be400c6a61412aa7f",
+  "runtime--rust--src--cmd_fs.rs.gz": "b0acd170fe5838c05d9cb375ac19f7f470ac618dfe702cb966a74283ece38a30",
+  "runtime-cargo-metadata.json.gz": "6ad5f7d43a0405f937d509e30f214e90e0ba073027391ca80ba88e171009b2c5",
+  "runtime-source-after.json.gz": "0ba4fd5789aa2a590c70fc3028986a5d9300218df8f9fa337732560b5005b8e4",
+  "runtime-source-before.json.gz": "3e27cd8219a477a3879d6fef350d31f8f9b73363cc6cae9f0de3759f0e70fc79",
+  "scope.json": "42effd6b6f4de027154b08e3dc0f6768996e2e1786424e867b273dddbfac9d23",
+  "source-comparison.json": "82d5400fe18e98d43e70319b0d3852bd78d3ecd2c84b5c7156d86c23beba3f32",
+  "stderr.txt": "e28416806f3b477b0328ca3b23d9c92fc8476dab0377155c66d306365f69c676",
+  "stdout.txt": "0f8069a5047a2cac30c067ce1bb559170567e3078cecb9b991ad494b99bca379"
+}

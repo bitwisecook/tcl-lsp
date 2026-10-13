@@ -161,28 +161,9 @@ fn tables() -> &'static Tables {
 /// (strips the leading/trailing characters `{}"'[](),`).
 const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 
-/// Whether `word` is a `class match`/`search` comparison operator — the six
-/// iRules word operators that are string/pattern comparisons, not logical
-/// connectives (`and`/`or`, `tcl_syntax::expr::ast::BinOp::WordAnd`/
-/// `WordOr`, are a distinct, unrelated iRules word-operator family this
-/// command doesn't accept). `word` should already be lowercased by the
-/// caller (`class match`'s operator words are case-insensitive there).
-///
-/// Enum-referenced against `tcl_syntax::expr::ast::BinOp` rather than a raw
-/// string list: a rename of one of these variants is a compile error here,
-/// not a silent drift.
+/// Compatibility projection of the Registry-owned comparison vocabulary.
 fn is_class_operator(word: &str) -> bool {
-    use tcl_syntax::expr::ast::BinOp;
-    [
-        BinOp::Contains,
-        BinOp::StartsWith,
-        BinOp::EndsWith,
-        BinOp::StrEquals,
-        BinOp::MatchesGlob,
-        BinOp::MatchesRegex,
-    ]
-    .iter()
-    .any(|op| op.as_str() == word)
+    tcl_registry::is_data_group_comparison_operator(word)
 }
 
 /// `persist` heads that are type keywords, not a profile-name reference.

@@ -1,0 +1,114 @@
+{
+  "name": "native-original-all-tcl",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+  ],
+  "exit_code": 2,
+  "seconds": 7.343,
+  "input_sha256": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "stdout_sha256": "0f8069a5047a2cac30c067ce1bb559170567e3078cecb9b991ad494b99bca379",
+  "stderr_sha256": "e28416806f3b477b0328ca3b23d9c92fc8476dab0377155c66d306365f69c676",
+  "runner_sha256_before": "efc406c2d198a7e5576fb624220433b59b94dd1bb6fc21503a3ab476cd0284c4",
+  "runner_sha256_after": "efc406c2d198a7e5576fb624220433b59b94dd1bb6fc21503a3ab476cd0284c4",
+  "build": {
+    "argv": [
+      "cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "messages_sha256": "f0a12596e008f493783750afc44e6d9b138808ea4d68c5b868bac426363971e9",
+    "stderr_sha256": "241e89e4d1555bad05a685baa99d3a796dc0df1eb4ebd43a6c06ee5191c7807b",
+    "cargo_runner_artifact_fresh": false
+  },
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "core_bytes": 0
+  },
+  "environment": "Inherited host data not logged or dumped. Exact prior named benign NH_CLOCK_GETENV synthetic controls and TCL_LIBRARY; prior overlay/test environment switches removed. No environment_sync/TZ override.",
+  "actual_progress": {
+    "init_marker": true,
+    "tcltest_marker": true,
+    "all_tcl_enter_marker": true,
+    "all_tcl_return_marker": false,
+    "actual_selected_file": "var.test",
+    "selected_file_source_sha256": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "test_starts": [
+      "var-1.1",
+      "var-1.2",
+      "var-1.3",
+      "var-1.4",
+      "var-1.5",
+      "var-1.6",
+      "var-1.7",
+      "var-1.8",
+      "var-1.9",
+      "var-1.10",
+      "var-1.11",
+      "var-1.12",
+      "var-1.13",
+      "var-1.14",
+      "var-1.15"
+    ],
+    "last_reached_test_start": "var-1.15",
+    "final_suite_count_lines": [],
+    "scope": "Actual var.test source and fifteen test-start markers reached, then typed host refusal. No final counts; starts do not assert completion/pass. Suite not completed."
+  },
+  "first_current_gap": {
+    "kind": "Typed original variable lookup diagnostic policy refusal",
+    "stderr": "run_script: execution refused: original variable lookup diagnostic native handler policy is not selected",
+    "actual_test_source_extent": "tmp/tcl8.6.18/tests/var.test:143-155",
+    "original_trigger": "var-1.15 links ::test_ns_var::foo into procedure p, deletes test_ns_var, then catches writes through scalar and array-element forms. No isolated rerun was executed, so the exact failing inner getter is not asserted."
+  },
+  "classification": "Glob type union startup/file-selection blocker cleared. First new reached blocker is a typed original variable lookup diagnostic policy refusal during var-1.15; guest catch does not convert this host refusal into a normal Tcltest failure.",
+  "source_comparison": {
+    "changed": [],
+    "frozen_owner_sha256": {
+      "runtime/rust/src/cmd_clock.rs": "668d1f282cc3ed8d94a84da72b1cbc8ab41bbe258c917b95ba83f53f36cde711",
+      "runtime/rust/src/cmd_fs.rs": "23e477126275515b9ce5fcf0384cdeb8fc657cce895888c720262daaa4187c73"
+    }
+  },
+  "axes": "Current Rust Native C86 runner with unchanged actual C86 original wrapper/library/tests. No fresh C-native/other-release/Jim/F5 orchestration rerun.",
+  "unchanged_question_seals": [
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question",
+      "count": 24,
+      "seal_sha256": "677969735ae15a8f9ec9a90e96d377fa7c044bd2ab6be639f2c534dc06d04617",
+      "changed": []
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question",
+      "count": 22,
+      "seal_sha256": "2bc83d385ca2ae292dc93c2ff2836142d615f2a94f5d8caabad5f4b67310fb15",
+      "changed": []
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question",
+      "count": 56,
+      "seal_sha256": "599c41f621434573d030828945015fef0df37e938a02edf75e2a3c6973265801",
+      "changed": []
+    }
+  ],
+  "linked_build_script_archive_sha256": {
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-host-c-abi-d4ba4e41a1d71084/out/libtcl_native_list_sort.a": "b63bb196cebeb3b44f650e6435152b77ad6cf358734d708a9db39644dacf9062",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-runtime-163fdf196f37158f/out/libruntime_pkga.a": "60534de4fc6ffaff8ba3f3a3937b66c19fc88ef6f796d9e9f978f1e4c15b303c",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-runtime-163fdf196f37158f/out/libtommath.a": "58070ba0740664b452bd161cfabc8eeed0b4a940914e7d14561cf376b949809c"
+  },
+  "c_backend_scope": "Default fetched libtommath C/header tree conservatively snapshotted; current linked archives hashed. Archives can be reused; no claim of fresh C source compilation or C oracle execution.",
+  "runner_rustc_depinfo_sha256": "22998ad8d16dc11ce0db62198dd8d70664a1d29fdede239e99e018dcf2c57bdc"
+}

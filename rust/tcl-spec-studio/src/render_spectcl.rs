@@ -3903,6 +3903,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     flag(out_body, ctx, sub, "returns_path");
     enum_word(out_body, ctx, sub, "source_index_bounds");
     enum_word(out_body, ctx, sub, "source_path_operation");
+    enum_word(out_body, ctx, sub, "source_configuration_reference");
     flag(out_body, ctx, sub, "is_unescape");
     flag(out_body, ctx, sub, "loop_list_header");
     flag(out_body, ctx, sub, "creates_scope_alias");
@@ -5646,6 +5647,129 @@ mod tests {
             None,
         );
     }
+    #[test]
+    fn authored_source_configuration_reference_survives_render_load_and_draft() {
+        use tcl_registry::InvocationWord::{Dynamic, Literal};
+        use tcl_registry::{
+            AuthoredSourceConfigurationReference, CommandRegistry, CommandSpec,
+            ConfigurationObjectFamily, InvocationWord, InvocationWords,
+            SourceConfigurationReferenceLayout, SubCommand,
+        };
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[tcl_registry::hover::OptionSpec {
+            name: "--",
+            ..tcl_registry::hover::OptionSpec::DEFAULT
+        }];
+        static MEMBERS: &[SubCommand] = &[
+            SubCommand {
+                name: "compare",
+                options: OPTIONS,
+                source_configuration_reference: Some(
+                    SourceConfigurationReferenceLayout::DataGroupComparison,
+                ),
+                ..SubCommand::DEFAULT
+            },
+            SubCommand {
+                name: "plain",
+                ..SubCommand::DEFAULT
+            },
+        ];
+        let spec = CommandSpec {
+            name: "probe::references",
+            subcommands: MEMBERS,
+            ..CommandSpec::DEFAULT
+        };
+        let before = draft::from_command_spec(&spec);
+        assert!(crate::schema::command_field("source_configuration_reference").is_none());
+        assert!(before["subcommands"][1]["source_configuration_reference"].is_null());
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(
+            text.contains("source_configuration_reference DataGroupComparison"),
+            "{text}"
+        );
+        let rust = crate::render_rs::render(&before);
+        assert!(
+            rust.contains("Some(SourceConfigurationReferenceLayout::DataGroupComparison)"),
+            "{rust}"
+        );
+        let pack = crate::spectcl::evaluate_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::references").unwrap().spec;
+        assert_eq!(draft::from_command_spec(reloaded), before, "{text}");
+
+        let mut original_registry = CommandRegistry::build_default();
+        original_registry.insert(spec);
+        let mut reloaded_registry = CommandRegistry::build_default();
+        reloaded_registry.insert(reloaded.clone());
+        let project = |registry: &CommandRegistry, args: &[InvocationWord<'_>]| {
+            registry
+                .resolve_structured_invocation(
+                    InvocationWords::structured(Literal("probe::references"), args),
+                    None,
+                )
+                .resolved()
+                .unwrap()
+                .authored_source_configuration_reference_operand()
+        };
+        for (args, argument, selection_unknown) in [
+            (
+                vec![
+                    Literal("compare"),
+                    Dynamic,
+                    Literal("equals"),
+                    Literal("dg"),
+                ],
+                3,
+                true,
+            ),
+            (
+                vec![
+                    Literal("compare"),
+                    Literal("--"),
+                    Dynamic,
+                    Literal("equals"),
+                    Literal("dg"),
+                ],
+                4,
+                false,
+            ),
+        ] {
+            let expected = Some(AuthoredSourceConfigurationReference {
+                argument,
+                family: ConfigurationObjectFamily::DataGroup,
+                selection_unknown,
+            });
+            assert_eq!(project(&original_registry, &args), expected);
+            assert_eq!(project(&reloaded_registry, &args), expected);
+        }
+        for args in [
+            [Literal("plain"), Dynamic, Literal("equals"), Literal("dg")],
+            [
+                Literal("compare"),
+                Dynamic,
+                Literal("unknown"),
+                Literal("dg"),
+            ],
+        ] {
+            assert_eq!(project(&original_registry, &args), None);
+            assert_eq!(project(&reloaded_registry, &args), None);
+        }
+        let invalid = text.replace(
+            "source_configuration_reference DataGroupComparison",
+            "source_configuration_reference Unknown",
+        );
+        let invalid_pack = crate::spectcl::evaluate_pack(&invalid);
+        assert!(!invalid_pack.notices.is_empty());
+        assert!(
+            invalid_pack
+                .command("probe::references")
+                .unwrap()
+                .spec
+                .subcommands[0]
+                .source_configuration_reference
+                .is_none()
+        );
+    }
+
     #[test]
     fn authored_channel_configuration_survives_render_load_and_draft() {
         // naming.diagnostic.registry-source-ownership

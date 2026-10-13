@@ -227,6 +227,7 @@ pub mod security_floor;
 pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
+pub mod source_configuration_reference;
 pub mod source_file;
 pub mod source_index_bounds;
 pub mod source_name_ownership;
@@ -346,6 +347,7 @@ pub mod prelude {
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
+    pub use crate::source_configuration_reference::SourceConfigurationReferenceLayout;
     pub use crate::source_index_bounds::SourceIndexBounds;
     pub use crate::source_path::SourcePathOperation;
     pub use crate::spec::{
@@ -550,5 +552,9 @@ pub mod native_property_lookup;
 mod native_test_provider;
 
 pub use deprecation::SourceDeprecationAdvice;
+pub use source_configuration_reference::{
+    AuthoredSourceConfigurationReference, ConfigurationObjectFamily,
+    SourceConfigurationReferenceLayout, is_data_group_comparison_operator,
+};
 pub use source_index_bounds::{SourceIndexBounds, SourceIndexBoundsInvocation};
 pub use source_path::SourcePathOperation;

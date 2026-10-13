@@ -4502,6 +4502,14 @@ pub(crate) fn effective_words_for_target(
     Some(effective)
 }
 
+fn source_effective_words_for_target(
+    tokens: &CommandTokens,
+    target: &crate::command_binding::SourceCommandTarget,
+) -> Option<EffectiveCommandWords> {
+    // Source descriptors retain their selectors; private handler argv does not.
+    compose_effective_words(tokens, &target.command, &target.prepended)
+}
+
 /// Replay prerequisites for an actually selected empty procedure compiler.
 /// Retains opaque callable identity rather than borrowing a registry identity.
 pub struct NativeProcedureNoOpPlan {
@@ -5235,6 +5243,23 @@ pub(crate) fn registry_invocation_assistance_with_metadata_context(
     context: Option<InvocationMetadataContext<'_>>,
     tokens: &CommandTokens,
 ) -> Option<RegistryInvocationAssistance> {
+    registry_invocation_assistance_with_metadata_context_using(
+        registry,
+        context,
+        tokens,
+        effective_words_for_target,
+    )
+}
+
+fn registry_invocation_assistance_with_metadata_context_using(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+    compose: fn(
+        &CommandTokens,
+        &crate::command_binding::SourceCommandTarget,
+    ) -> Option<EffectiveCommandWords>,
+) -> Option<RegistryInvocationAssistance> {
     if context.is_some_and(|context| !context.matches_registry(registry)) {
         return None;
     }
@@ -5260,7 +5285,7 @@ pub(crate) fn registry_invocation_assistance_with_metadata_context(
             assistance.unknown_residual = true;
             continue;
         }
-        let effective = effective_words_for_target(tokens, target)?;
+        let effective = compose(tokens, target)?;
         let Ok(RegistryInvocationResolution::Resolved(facts)) =
             resolve_effective_tokens_with_metadata_context(
                 registry, context, tokens, &effective, dialect,
@@ -5310,7 +5335,12 @@ pub fn original_registry_invocation_assistance_with_metadata_context(
         .source_binding
         .as_ref()?
         .original_lexer_config_for_tokens(tokens)?;
-    let reached = registry_invocation_assistance_with_metadata_context(registry, context, tokens);
+    let reached = registry_invocation_assistance_with_metadata_context_using(
+        registry,
+        context,
+        tokens,
+        source_effective_words_for_target,
+    );
     if reached
         .as_ref()
         .is_some_and(|advice| advice.unanimous_command_words().is_some())
@@ -5352,7 +5382,7 @@ pub fn original_incomplete_body_registry_invocation_assistance(
     let dialect = advice.dialect();
     let mut candidates = Vec::new();
     for target in advice.targets() {
-        let effective = effective_words_for_target(tokens, target)?;
+        let effective = source_effective_words_for_target(tokens, target)?;
         let values: Vec<_> = effective
             .words
             .iter()
