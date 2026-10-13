@@ -1,0 +1,9 @@
+# Source boundaries and selected completion
+
+C86 `TclLookupArrayElement` rejects resurrection of a deleted namespace root before an element is selected. It formats `DANGLINGVAR` and issues `TCL LOOKUP VARNAME`, followed by the root only when `arrayNamePtr` is non-NULL. The compiled array-store path in `tclExecute.c` passes NULL and an actual local index. Ordinary object-command lookup retains a root pointer. The fresh variable-head probe confirms that distinction; the dynamically constructed script can still compile and cannot establish ordinary object-command behavior by its label alone.
+
+The scalar dead-root branch initially issues a LOOKUP tuple, so that branch alone cannot establish the published error code. Its `earlyError` transfers to `cleanup`, where a NULL result issues `TCL WRITE VARNAME`. The actual scalar captures confirm this final code. The current central `ValueWrite/RetiredNamespace` grouping is correct for these measured scalar entries.
+
+Runtime `capture_original_c_parts_selection_using` retains an element receiver failure at `NativeVariableFailureSite::NameLookup`. `DeletedNamespace` maps to `RetiredNamespace`; the central C86+ tuple match rejects this pair. The adapter reports that unsupported projection as a typed command-protocol refusal. This is a diagnostic-purpose/context gap, not proof that the actual native name policy or variable receiver is absent.
+
+A proposed central extension must distinguish root-word presence using original caller ownership. `NativeVariableInputForm::Combined` versus `Separate` retains spelling boundaries; it does not identify an indexed opcode or an original root-pointer omission. `missing_lookup_root` is an output projection, not input authority. Runtime's exact admitted context at the refusing call needs a bounded observation before choosing the new policy or adapter route.

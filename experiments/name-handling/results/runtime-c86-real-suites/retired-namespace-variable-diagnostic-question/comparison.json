@@ -1,0 +1,67 @@
+{
+  "providers": {
+    "8.4.20": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    },
+    "8.5.19": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    },
+    "8.6.18": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    },
+    "9.0.4": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    },
+    "9.1.0": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    },
+    "jim-pinned": {
+      "rows": 7,
+      "marks": 8,
+      "process_exits": [
+        0,
+        0
+      ],
+      "binary_unchanged": true
+    }
+  },
+  "c86_c90_c91_rows_identical": true,
+  "c84_c85": "Same refusal texts; final codes NONE",
+  "jim": "First retired-link writes succeed; original-sequence second element write is NotArray/NONE",
+  "unexecuted": [
+    "Runtime isolated probe",
+    "Syntax projection tests",
+    "original C API/header/pointer controls",
+    "F5"
+  ]
+}

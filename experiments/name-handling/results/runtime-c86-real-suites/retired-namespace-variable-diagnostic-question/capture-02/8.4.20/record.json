@@ -1,0 +1,23 @@
+{
+  "provider": "8.4.20",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 0.003,
+  "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "source_sha256": {
+    "tmp/tcl8.4.20/generic/tclVar.c": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+    "tmp/tcl8.4.20/tests/var.test": "b53c4291c4dbaacb325cecc00553b685fc91e563dade3c7ff16c671fac2712e6"
+  },
+  "input_sha256": "5a0213d075eab51e6a9f17671ae7d7ccd8969470751b14025525a00d2084f268",
+  "stdout_sha256": "248df39860d0b52a92dc5d437ed114493f6a7d968393fefc609a891caa4052f2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 2,
+  "marks": [
+    "MARK variable-head-scalar before-write",
+    "MARK variable-head-element before-write"
+  ]
+}

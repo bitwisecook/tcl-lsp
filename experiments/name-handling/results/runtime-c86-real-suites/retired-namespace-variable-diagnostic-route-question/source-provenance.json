@@ -1,0 +1,24 @@
+{
+  "status": "Read-only route question; temporary diagnostic, Runtime execution and semantic fix all UNEXECUTED",
+  "source_sha256": {
+    "runtime/rust/src/interp/native_body_artifact.rs": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+    "runtime/rust/src/interp/native_variable_names.rs": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb",
+    "runtime/rust/src/vars.rs": "0cfd848404a3e1627af38f534380fd5a1e838b689932b872bdb9407a0174cd8d",
+    "runtime/rust/src/cmd_var.rs": "15bf348927881a7276849275d5156a07212fb9a7dd3cd415236293e48aeac550",
+    "rust/tcl-syntax/src/naming/native.rs": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8"
+  },
+  "observed_static_context": {
+    "actual_indexed_body_capture": "native_body_artifact.rs:2656 body_capture_target_with_check(slot:Option<usize>)",
+    "context_loss": "native_body_artifact.rs:2782 body_variable_receiver_error_with_check forwards only input/purpose/site/error",
+    "generic_original_objcmd": "native_variable_names.rs:2090 explicitly does not admit indexed caller",
+    "cell_index_not_opcode": "vars.rs:3172 ordinary selected-name lookup also obtains native_compiled_name_index"
+  },
+  "prospective_implementation_owners": [
+    "runtime/rust/src/interp/native_body_artifact.rs",
+    "runtime/rust/src/interp/native_variable_names.rs",
+    "rust/tcl-syntax/src/naming/native.rs"
+  ],
+  "original_question_seal_sha256": "63a349b1cd5e9a59157cd0305811dcdf3c42acb9cb57de43cb08fb2f95b1c932",
+  "original_question_sealed_count": 46,
+  "original_question_changed": []
+}

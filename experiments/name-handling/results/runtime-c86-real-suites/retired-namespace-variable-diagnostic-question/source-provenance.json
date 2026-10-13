@@ -1,0 +1,140 @@
+{
+  "sources_sha256": {
+    "runtime/rust/src/interp/native_variable_names.rs": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb",
+    "rust/tcl-syntax/src/naming/native.rs": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+    "docs/design/contracts/shared-utility-contracts-rust.md": "cf496dfd3c67eba949f14567eab2e87ac4272bacf674956adfc5ddf7389fec7f",
+    "docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md": "b3e5d6203f00900b443e3a41d718f8b2d435d4d00aadbbf211182c7a9bfaa626",
+    "tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "tmp/tcl8.4.20/generic/tclVar.c": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+    "tmp/tcl8.4.20/generic/tclExecute.c": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77",
+    "tmp/tcl8.5.19/generic/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+    "tmp/tcl8.5.19/generic/tclExecute.c": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d",
+    "tmp/tcl8.6.18/generic/tclVar.c": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+    "tmp/tcl8.6.18/generic/tclExecute.c": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+    "tmp/tcl9.0.4/generic/tclVar.c": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+    "tmp/tcl9.0.4/generic/tclExecute.c": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a",
+    "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+    "tmp/tcl9.1.0/generic/tclExecute.c": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4"
+  },
+  "source_locations": {
+    "tmp/tcl8.4.20/generic/tclVar.c": [],
+    "tmp/tcl8.4.20/generic/tclExecute.c": [],
+    "tmp/tcl8.5.19/generic/tclVar.c": [
+      {
+        "line": 1174,
+        "text": "danglingVar, index);"
+      },
+      {
+        "line": 1827,
+        "text": "danglingVar, index);"
+      }
+    ],
+    "tmp/tcl8.5.19/generic/tclExecute.c": [],
+    "tmp/tcl8.6.18/generic/tclVar.c": [
+      {
+        "line": 1088,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1102,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 1103,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1123,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1890,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 2028,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"WRITE\", \"VARNAME\", (char *)NULL);"
+      }
+    ],
+    "tmp/tcl8.6.18/generic/tclExecute.c": [
+      {
+        "line": 3574,
+        "text": "part1Ptr = NULL;"
+      }
+    ],
+    "tmp/tcl9.0.4/generic/tclVar.c": [
+      {
+        "line": 1103,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1117,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 1118,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1129,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1953,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 2073,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"WRITE\", \"VARNAME\", (char *)NULL);"
+      }
+    ],
+    "tmp/tcl9.0.4/generic/tclExecute.c": [
+      {
+        "line": 3520,
+        "text": "part1Ptr = NULL;"
+      }
+    ],
+    "tmp/tcl9.1.0/generic/tclVar.c": [
+      {
+        "line": 1150,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1164,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 1165,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 1176,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"LOOKUP\", \"VARNAME\","
+      },
+      {
+        "line": 2007,
+        "text": "DANGLINGVAR, index);"
+      },
+      {
+        "line": 2127,
+        "text": "Tcl_SetErrorCode(interp, \"TCL\", \"WRITE\", \"VARNAME\", (char *)NULL);"
+      }
+    ],
+    "tmp/tcl9.1.0/generic/tclExecute.c": [
+      {
+        "line": 3567,
+        "text": "part1Ptr = NULL;"
+      }
+    ]
+  },
+  "orchestration_record": "experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-runtime/orchestration-02/record.json",
+  "orchestration_record_sha256": "8542f499e0e9bc33e12c2478234e9f9f59c6c6f214bf1fa871796c51216b2144",
+  "prospective_owners": [
+    "rust/tcl-syntax/src/naming/native.rs",
+    "runtime/rust/src/interp/native_variable_names.rs"
+  ],
+  "required_axis": "Actual indexed/ordinary lookup reporting context and original root-word issue, independent of spelling/combined-vs-separate geometry and retained receiver identity.",
+  "next_bounded_runtime_probe": "No new build or mutation: after grant, run the existing original-provider inputs once through the current actual C86 runner, retain reached MARK/ROW/refusal. If actual caller context is still unavailable, a separate original-operation observation must record protocol, operation, reason, site, admitted indexed caller and actual original operands before the existing refusal without changing its result.",
+  "runtime_syntax_status": "No source changes/builds/executions for this question; exact Runtime inner getter/context remains unmeasured.",
+  "scope": "Original source-file CLI diagnostic rows; no original CAPI argv/header/cache, compiler registration or physical-caller equivalence inferred."
+}

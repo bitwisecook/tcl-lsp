@@ -1,0 +1,169 @@
+{
+  "records": [
+    {
+      "provider": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.002,
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_sha256": {
+        "tmp/tcl8.4.20/generic/tclVar.c": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+        "tmp/tcl8.4.20/tests/var.test": "b53c4291c4dbaacb325cecc00553b685fc91e563dade3c7ff16c671fac2712e6"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "49d2c0b8a8c5d5660b435eaf54d52e9a05174d29206b51f55145a0e8beebc8ea",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_sha256": {
+        "tmp/tcl8.5.19/generic/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+        "tmp/tcl8.5.19/tests/var.test": "666fcd0d9e58b7db80719dc38828f0535cea8fb848f4cd88426903f1827244b2"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "c45d6e24fef772858da637a589c9b2dedad52d84d260a1f73b332730298d8634",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_sha256": {
+        "tmp/tcl8.6.18/generic/tclVar.c": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+        "tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "b6b8fc42214951b4b59772e7e83e8ceef8a00b47cb92cebdbf8abdf8fde376b1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.007,
+      "binary_sha256_before": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "binary_sha256_after": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "source_sha256": {
+        "tmp/tcl9.0.4/generic/tclVar.c": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+        "tmp/tcl9.0.4/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "a97b6604c489f2747d5c78b66eaacf77b1eae79d6ba89e749d3330c472b37ddc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.006,
+      "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "source_sha256": {
+        "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+        "tmp/tcl9.1.0/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "aab4e77e611fef68cb54352a79dccf3f40435825b78a2b5ece60bdc563c42444",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    },
+    {
+      "provider": "jim-pinned",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.004,
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "source_sha256": {
+        "tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+      },
+      "input_sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906",
+      "stdout_sha256": "1ba379f4d11006553288c29d221f2b70a54f95312e313dfc495abb71997fb95b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 5,
+      "marks": [
+        "MARK literal-scalar before-write",
+        "MARK literal-element before-write",
+        "MARK dynamic-scalar before-write",
+        "MARK dynamic-element before-write",
+        "MARK original-sequence before-scalar-write",
+        "MARK original-sequence before-element-write"
+      ]
+    }
+  ],
+  "scope": "Five bounded procedure/command-source rows. Setup, live scalar read, namespace deletion and scalar/element write operations come from actual C86 var-1.15. Adjacent observations retain messages/errorCode and distinguish literal procedure versus dynamic object-command entry; this is an instrumented new probe, not unchanged Tcltest or private original-object evidence.",
+  "axes": "Fresh five C releases and pinned Jim; Runtime/Syntax execution and builds not performed; F5 not run.",
+  "environment": "Inherited environment not logged or dumped. Only named Tcl library/test/overlay selectors removed; no host/device/security information requested."
+}
