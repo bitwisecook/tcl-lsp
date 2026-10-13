@@ -242,14 +242,8 @@ fn classify(
     b
 }
 
-/// Every `expr` operator spelling available under `dialects`, for the
-/// generated `@operator` bucket — derived from `tcl_syntax::expr::operators`
-/// (issue #983's unification) rather than the dialect-blind static list this
-/// replaces, which was missing the TIP 461 string-ordering four (`lt`/`le`/
-/// `gt`/`ge`) and the unary `!`/`~` entirely, and — unlike every other
-/// bucket in this file, each already scoped per-`SpecSurface` via
-/// [`classify`] — never included the iRules word operators (`contains`,
-/// `matches_regex`, …) for the `irules` target at all.
+/// Derive the generated `@operator` bucket from shared expression operators,
+/// restricted to the supplied providers.
 fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
     tcl_syntax::expr::operators::ALL_BIN_OPS
         .iter()
@@ -538,11 +532,8 @@ mod tests {
         );
     }
 
-    /// Issue #983/#986: the `@operator` bucket used to be a dialect-blind
-    /// static list missing the TIP 461 string-ordering four (`lt`/`le`/
-    /// `gt`/`ge`) and the unary `!`/`~` entirely, and never included the
-    /// iRules word operators for the `irules` target at all — unlike every
-    /// other bucket in this file, each already scoped per-`SpecSurface`.
+    /// Operator buckets include string-ordering and unary operators, with
+    /// iRules word operators restricted to the iRules provider.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
         let tcl_ops =
@@ -704,10 +695,7 @@ mod tests {
             !has(&tcl, "HTTP::uri"),
             "tcl query wrongly includes iRules `HTTP::uri`"
         );
-        // Test-harness / internal-namespace noise (shared filter with
-        // `gen_tmlanguage_keywords`, see `util::is_internal_or_test_harness_noise`,
-        // whose own test module covers the substring-vs-prefix distinction in
-        // detail) must not leak into the query the same way it used to.
+        // The shared internal/test-harness filter also applies to queries.
         for c in ["testalarm", "testchannel", "tcl::process"] {
             assert!(!has(&tcl, c), "tcl query wrongly includes noise `{c}`");
         }

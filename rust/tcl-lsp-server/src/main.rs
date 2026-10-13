@@ -80,30 +80,15 @@ fn main() {
         .build()
         .expect("failed to build the Tokio runtime")
         .block_on(serve());
-    // Never return through `Runtime::drop` (issue #2021). Dropping the runtime
-    // first cancels every spawned task and then *blocks on every running
-    // `spawn_blocking` closure* — a scan or analysis that is still going when
-    // the client leaves has nobody to deliver to, yet used to keep the
-    // process alive at full CPU until it finished. The session is over, the
-    // pump has drained (`serve` awaits it), so exit now with the code the LSP
-    // `exit` notification prescribes.
+    // `serve` drains stdout and returns the LSP exit code. The detached
+    // watchdog bounds shutdown if runtime teardown waits on blocking work.
     std::process::exit(code);
 }
 
 #[cfg(not(target_family = "wasm"))]
 async fn serve() -> i32 {
-    // Exit watchdog (issue #2021): `Server::serve` below only returns once
-    // every in-flight handler future has completed, however the session
-    // ended, and nothing cancels a still-running `initialized` scan or an
-    // unbounded server-to-client await on `shutdown`/`exit`/stdin EOF/a
-    // broken pipe. `exit_signal` is fed from both ends of that gap — the
-    // wrapped `stdin` below reports a zero-byte read (EOF), and the
-    // `map_request` step further down reports the `exit` notification — and
-    // `exit_signal.spawn()` is the backstop task that turns either into a
-    // bounded-grace hard exit. See `exit_watchdog`'s module doc for the full
-    // derivation; the normal path a few lines below (`serve` returning,
-    // `stdout_drained.await`, `main` returning) always wins when it finishes
-    // first, so this is purely insurance for when it does not.
+    // EOF and LSP `exit` start a grace period for handlers, stdout draining,
+    // and runtime shutdown; the watchdog exits if the normal path stalls.
     let exit_signal = ExitSignal::new();
     // An OS thread, detached: it must outlive the runtime, and it keeps
     // waiting for its signal for the rest of the process's life.

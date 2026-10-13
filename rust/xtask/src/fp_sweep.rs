@@ -459,22 +459,11 @@ fn shape_key(message: &str) -> String {
     out
 }
 
-/// Collect every firing of a code in `wanted` across `doc`, running every
-/// diagnostic source the editor publishes for one document:
+/// Collect requested firings from the analyser, compiler checks, optimiser,
+/// and source-text checks without applying diagnostic policy.
 ///
-/// 1. [`Analyser::analyse`] — the W/E/H-series syntactic/semantic checks,
-///    built over a default-config unit, mirroring `tcl diag`'s
-///    `collect_rows`.
-/// 2. [`run_all_checks`] + [`optimise_unit`] — the O/S/T-series
-///    compiler-checks and optimiser passes, over one dialect-configured,
-///    interprocedural-summarised unit — mirroring
-///    `tcl_lsp_db::compiler_check_diagnostics_uncached`, the documented
-///    "no salsa input" fallback that is byte-identical to the live server's
-///    build. `tcl diag` only runs (1); an FP sweep needs the O-series
-///    firings it deliberately drops, so this reproduces the fuller build
-///    rather than diag.rs's simplified (non-interprocedural) one.
-/// 3. [`style_facts_from_analysis`] — the pure-text W111/W112/W115/W118 checks,
-///    which read raw source and are not part of either compiler pass.
+/// Both compilation units use the document's resolved dialect grammar and
+/// stub declarations. The checks and optimiser share an interprocedural summary.
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
     // ingress seam, in the `find`-shaped validator form: an override that
@@ -504,14 +493,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         });
     };
 
-    // (1) Analyser tail. The document's own environment grammar — the same
-    // config every other `cu_override` host builds under, and the same one the
-    // checks pass below uses (redesign §11.4 row E1: all four hosts used to
-    // agree on `LexerConfig::default()`, which was wrong for every non-9.x
-    // dialect).
-    //
-    // The document's own stub declarations, ingested exactly as the analyser
-    // does, so both units below declare what the analyser's own unit would.
+    // Both units use the analyser's document stub declarations.
     let doc_path = doc.input.path.as_ref().map(|p| p.display().to_string());
     let declared = tcl_compiler::analyser::utils::document_declared_surface(
         &doc.input.source,

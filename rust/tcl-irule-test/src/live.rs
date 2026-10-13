@@ -1531,18 +1531,9 @@ mod tests {
     }
 
     /// The load-time source rewrite (`rewrite_irule_source`) must only touch
-    /// expression arguments in genuine *command* positions.
-    ///
-    /// It used to scan the raw source with `\m(if|elseif|while|expr)\s*\{`,
-    /// which cannot tell a command word from a quoted string, a braced data
-    /// literal or a comment — so it rewrote Tcl *data*. That was always wrong
-    /// but rarely reached: adding the word-form booleans put the common
-    /// English words `and` / `or` / `not` into the quick-check regexp, so
-    /// ordinary iRule text now enters the rewriter. The same regexp also
-    /// missed `for`, whose test expression is its *second* argument.
-    ///
-    /// Each negative assertion below is paired with a positive control, so a
-    /// rewriter that had simply stopped working could not pass.
+    /// expression arguments in command positions, including `for`'s second
+    /// argument. Quoted data, braced data and comments stay unchanged.
+    /// Each negative assertion has a positive control for the rewriter.
     #[test]
     fn irule_source_rewrite_only_touches_command_positions() {
         let mut s = LiveSession::new(&lib_dir()).expect("session");

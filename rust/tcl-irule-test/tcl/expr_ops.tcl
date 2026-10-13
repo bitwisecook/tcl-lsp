@@ -384,14 +384,10 @@ this harness refuses to guess one. Parenthesise the intended grouping."
     # propagation (see `install`).
     #
     # The scan is command-aware: the source is split into commands and words
-    # the way Tcl itself splits it, and only a word that a *recognised command
-    # in command position* uses as an expression is rewritten.  A regexp over
-    # the raw text cannot tell a command word from a quoted string, a braced
-    # data literal or a comment, so it rewrote Tcl data -- `set message
-    # "if {1 and 0}"` became `set message "if {1 && 0}"`.  That shape has no
-    # workaround for the author, and the word-form booleans made it common
-    # (`and` / `or` / `not` are ordinary English words, so ordinary iRule text
-    # now reaches the rewriter).
+    # the way Tcl itself splits it, and only a word that a recognised command
+    # in command position uses as an expression is rewritten. A raw-text
+    # regexp cannot distinguish commands from quoted data, braced data or
+    # comments; these must retain their original bytes.
     #
     # `for` is not special-cased anywhere else: there is no ::for override --
     # `install` explains why there must not be one -- so its test expression

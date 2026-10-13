@@ -16,44 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A last-resort process exit for a session that is over but whose
-//! `tower-lsp-server` transport has not returned — issue #2021.
+//! Bound process shutdown after stdin EOF or an LSP `exit` notification.
 //!
-//! `Server::serve` (see the dependency's `src/transport.rs`) only returns
-//! once *every* in-flight handler future has completed, however the session
-//! ended: stdin reaching EOF, or the `exit` notification arriving. Two things
-//! can pin a handler future open well past that point and have done, in
-//! practice:
+//! Transport handlers can delay `Server::serve`, and runtime shutdown waits
+//! for running `spawn_blocking` closures. An OS-thread watchdog survives
+//! runtime teardown and exits the process after a grace period.
 //!
-//! * `initialized` runs the whole workspace scan inline, and nothing cancels
-//!   it on `shutdown`/`exit`/EOF/a broken pipe — an analyser case with
-//!   effectively unbounded runtime turned that into an 18-hour-old orphan.
-//! * A server-to-client request awaited after the client is gone: nothing
-//!   ever fires the pending-response `oneshot` for a reply that will never
-//!   arrive (see [`crate::bounded_client_request`], which now bounds every
-//!   such site).
-//!
-//! Bounding those awaits closes most of the gap, but a *third* case is
-//! unbounded in principle — a `spawn_blocking` closure already running when
-//! the session ends, which `Runtime::drop` blocks on to completion rather
-//! than cancelling. `serve` returning is therefore not a guarantee this
-//! process can make on its own once the client is gone; the watchdog here is
-//! what makes it one anyway.
-//!
-//! [`ExitSignal`] is fed from two places — [`EofSignalingReader`] wrapping
-//! `stdin`, and [`ExitSignal::observe_request`] plugged into the transport's
-//! `map_request` chain — and [`ExitSignal::spawn`] starts the backstop task
-//! that turns either signal into a bounded-grace [`std::process::exit`].
-//! The backstop is an OS thread, not a Tokio task, and `main` exits the
-//! process explicitly once `serve` returns rather than letting `Runtime::drop`
-//! run. Both follow from the third case above: a runtime tear-down cancels
-//! every spawned task (a Tokio-task watchdog would die at exactly the moment
-//! it was needed) and then blocks on the running blocking closures, which is
-//! how a session that ended cleanly after a large scan still sat at 100 % of
-//! one core for as long as the analysis it no longer had a client for took.
-//! The **normal exit path still wins when it finishes first**: `serve`
-//! returning and `stdout_drained.await` happen exactly as before, and the
-//! explicit exit that follows lands well inside the grace period.
+//! [`EofSignalingReader`] reports stdin EOF; [`ExitSignal::observe_request`]
+//! observes `shutdown` and `exit` through the transport's `map_request` chain.
+//! [`ExitSignal::spawn`] waits for EOF or `exit` and applies the grace period.
+//! The normal path drains stdout after `serve` returns and exits with the
+//! code determined by whether `shutdown` preceded the session end.
 
 use std::io;
 use std::pin::Pin;
