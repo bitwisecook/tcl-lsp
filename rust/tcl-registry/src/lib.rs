@@ -105,6 +105,7 @@ pub mod logical_core_simulation;
 pub mod mathfunc;
 pub mod model;
 pub mod native_array;
+pub mod native_argument_role_hook;
 pub mod native_array_compilation;
 pub mod native_binary_usage;
 pub mod native_binary_value;
@@ -527,6 +528,7 @@ pub use world_effect::{
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod script_lookup_scope;
+pub mod simulator_mock_name;
 pub use script_lookup_scope::ScriptLookupScope;
 
 mod selected_script_timing;

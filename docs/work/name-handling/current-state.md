@@ -51,8 +51,8 @@ the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM 
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is17:50 BST; the next tracking
-checkpoint is18:05 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is18:03 BST; the next tracking
+checkpoint is18:18 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -168,10 +168,27 @@ publication/bootstrap and TclOO holder-selection consumers have separate owners.
 
 The [outstanding consumer audit](outstanding-consumer-audit.md) reconciles63
 package boundaries and330 current-hash/function-attributed LSP candidates, routing
-27 bounded semantic handoffs. It establishes no exhaustive acceptance. Source
+32 bounded semantic handoffs. It establishes no exhaustive acceptance. Source
 procedure identities still need propagation into compiler maps, DB cascades and
 reporting schemas. Root prepares the exact simulator mock table and SpecTcl/CLI
 tooling boundaries; Registry/VM, compiler descriptors, LSP and codegen are active
 in isolated checkouts. Source-flow tracing terminates its34-node graph and
 completes C8.4/8.5/8.6 original assertions before reaching C9.0; no infinite
 worklist defect is established. Full original-program completion remains pending.
+
+Two genuine linked WASM positives now pass on the unchanged isolated baseline:
+renamed stock definer and constant materialised name. Native compiled-entry/table
+authority remains separate. The instrumented source-flow capture passes31/35
+controls, including the unchanged original #2286 assertion across C5;4 existing
+flow/formal controls fail. Production trace owners are restored; exact first
+producer diagnosis and fresh uninstrumented acceptance remain required. The
+callback catalogue/fixtures are tracked at7aa200ed1; their isolated-checkout
+absence was sparse materialisation, not missing Git content.
+
+Root tooling consumers now use the shared simulator mock publication owner and
+exact Tcl table, with authored C5/Jim observations and one pure Rust control.
+Full generator union/regeneration/check and VM harness acceptance are pending.
+SpecTcl native count/layout hook IDs use one Registry metadata resolver; fresh
+Registry/loader controls are pending. CLI SpecTest presence delegates exact
+original global namespace.which lookup and original auto_load input; reporting
+variable filters remain separately audited. Full workspace gates remain red.

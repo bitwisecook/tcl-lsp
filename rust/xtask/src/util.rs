@@ -266,7 +266,9 @@ pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
 #[must_use]
 pub fn is_internal_or_test_harness_noise(name: &str) -> bool {
     let is_test_harness = name.starts_with("test") && name.len() > "test".len();
-    let is_tcl_internal_namespace = name.strip_prefix("::").unwrap_or(name).starts_with("tcl::");
+    let is_tcl_internal_namespace = tcl_syntax::naming::unroot_rooted_key(name)
+        .unwrap_or(name)
+        .starts_with("tcl::");
     is_test_harness || is_tcl_internal_namespace
 }
 

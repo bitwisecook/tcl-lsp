@@ -103,6 +103,24 @@ source diagnostics use shared written component extents and registry package
 exclusions, and decline Jim's absent C implementation namespace. The dialect
 scanner uses shared written-name geometry only to produce a bounded source hint.
 
+Simulator mock publication uses Registry's `SimulatorMockName`, an authored
+ASCII label convention independent of measured F5 lookup. The generator and
+pure-function registration share its suffix/category/action projection; Tcl
+registration consumes the generated exact-label table. One optional root marker,
+first namespace and final action select the authored mock. Nested labels can
+share a mock suffix intentionally; original registration labels remain distinct.
+Missing, opaque, Unicode, noncanonical separator or empty-component labels have
+no simulator recipe. Derived suffixes cannot begin with a colon that would alter
+the owned publication namespace; registration presence uses exact command lookup.
+The hand-maintained simulation roster remains distinct from environment
+availability and provides no appliance binding or frame authority.
+
+SpecTcl native argument-role hook IDs resolve through
+`CommandRegistry::native_argument_role_hook`. Exact qualified command descriptors
+precede command/member interpretations, even when the selected command lacks
+that hook. This descriptor grammar preserves catalogue labels and provides no
+written lookup, original invocation or evaluated operand authority.
+
 Native registration metadata caches retain the exact descriptor query label and
 selected dialect. A permitted one-marker fallback compares exact descriptor
 labels without applying a second rooted lookup; extra root markers are not a

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+    "--edition",
+    "2024",
+    "--test",
+    "rust/tcl-registry/src/simulator_mock_name.rs",
+    "--extern",
+    "tcl_syntax=/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_syntax-64f9cfd4c55a160e.rlib",
+    "-L",
+    "dependency=/workspace/tcl-lsp/tmp/name-target-names/debug/deps",
+    "-o",
+    "/tmp/name-simulator-mock-owner-test"
+  ],
+  "exit_code": 0,
+  "executed_tests": 1,
+  "inputs": {
+    "rust/tcl-registry/src/simulator_mock_name.rs": "35c332f6796604f535e2bf7cdf911ea6c25e1b837dc02a074739271b9dc00b2a",
+    "tmp/name-target-names/debug/deps/libtcl_syntax-64f9cfd4c55a160e.rlib": "787411c0cc8821be71db743cd2bf34fd0e7367a6f2eeee5a3bdff7666afcd5ba"
+  },
+  "binary_sha256": "83ab422adb007d42c9f041f422a19adb61c63e1f6f23ff3e5d7cd451aa967760",
+  "scope": "standalone pure authored mapping only; not fullRegistry/xtask acceptance"
+}

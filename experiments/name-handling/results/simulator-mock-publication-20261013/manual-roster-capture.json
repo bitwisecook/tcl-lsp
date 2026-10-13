@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "input_sha256": "528071fee0453d21abc1e5c6841177c821556f8f3eb2fc4336b85ebee2caba50",
+  "roster_sha256": "ec7a4e82c2c7b5ad39e2ba99db175fb14740d0c9c47bc89875305abcf25f2309",
+  "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "purpose": "Authored simulator roster data only; no F5 conformance or full generator acceptance"
+}

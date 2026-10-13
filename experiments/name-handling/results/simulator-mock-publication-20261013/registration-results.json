@@ -1,0 +1,49 @@
+{
+  "observations": [
+    {
+      "provider": "c84",
+      "sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c85",
+      "sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c86",
+      "sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c90",
+      "sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c91",
+      "sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "jim",
+      "sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 0,
+      "cases": 11
+    }
+  ],
+  "source_sha256": "49a41012ce3e30ca4f8aa1bf4783d7cb37e2319674cc8c990e7e113511db7cd2",
+  "owner_sha256": "35c332f6796604f535e2bf7cdf911ea6c25e1b837dc02a074739271b9dc00b2a",
+  "scope": "Exact authored mock table and actual native publication of 6 supported plus refusal of5 unsupported/unlisted labels per provider; no F5 conformance; workspace generator pending"
+}

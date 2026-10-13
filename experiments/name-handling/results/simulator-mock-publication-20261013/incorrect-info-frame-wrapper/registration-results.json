@@ -1,0 +1,56 @@
+{
+  "observations": [
+    {
+      "provider": "c84",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c85",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c86",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c90",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "c91",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit_code": 0,
+      "cases": 11
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit_code": 0,
+      "cases": 11
+    }
+  ],
+  "source_sha256": "f84777ece4c8446457e8a03a79990934a586e7dbf208e38c53b4650bb09adb62",
+  "fixture_sha256": "70d45c36c034ab923a82cfdd6b39531d703ea6b782f37707563a136a0839ea09",
+  "owner_sha256": "35c332f6796604f535e2bf7cdf911ea6c25e1b837dc02a074739271b9dc00b2a",
+  "purpose": "Authored simulator publication/registration only; no F5 native lookup/frame conformance; full workspace generator validation pending"
+}

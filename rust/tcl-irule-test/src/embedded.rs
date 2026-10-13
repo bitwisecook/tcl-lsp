@@ -59,6 +59,7 @@ const BUNDLE: &[(&str, &str)] = &[
     // it too — otherwise `f5 explain-flow --simulate` would fail on any iRule
     // using a stub-only command that a repo checkout would have handled.
     bundled!("_mock_stubs.tcl"),
+    bundled!("_mock_names.tcl"),
 ];
 
 /// A temporary directory holding the materialised orchestrator framework. The

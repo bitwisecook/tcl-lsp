@@ -28,17 +28,6 @@ use std::rc::Rc;
 use tcl_cmd_core::irules::{self, Output};
 use tcl_vm::{Code, Completion, NativeCommand, Value, Vm};
 
-/// The mock procedure name `::itest::cmd::_mock_proc_name` gives an iRules
-/// command: `NS::sub` is `<ns>_<sub>` with the namespace in lower case, a
-/// top-level command `cmd_<name>`, hyphens and dots as underscores.
-fn mock_name(command: &str) -> String {
-    let safe = |part: &str| part.replace(['-', '.'], "_");
-    match command.split_once("::") {
-        Some((namespace, sub)) => format!("{}_{}", safe(&namespace.to_lowercase()), safe(sub)),
-        None => format!("cmd_{}", safe(command)),
-    }
-}
-
 /// One pure function as a host command.
 struct PureFunction {
     command: &'static str,
@@ -139,7 +128,12 @@ impl PureFunction {
 /// before `::orch::init` registers the commands.
 pub(crate) fn register(vm: &mut Vm) {
     for &command in irules::COMMANDS {
-        let mock = mock_name(command);
+        let Some(publication) =
+            tcl_registry::simulator_mock_name::SimulatorMockName::for_label(command)
+        else {
+            continue;
+        };
+        let mock = publication.suffix().to_owned();
         let name = format!("::itest::cmd::{mock}");
         vm.register_native_command(&name, Rc::new(PureFunction { command, mock }));
     }

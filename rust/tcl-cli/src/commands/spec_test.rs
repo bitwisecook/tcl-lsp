@@ -189,9 +189,8 @@ proc ::__spec_test::refused {name count} {
 set ::__spec_test::skip 0
 proc ::__spec_test::present {name} {
     set ::__spec_test::skip 0
-    set full ::[string trimleft $name :]
-    if {[llength [info commands $full]] > 0} return
-    if {![catch {auto_load $full} loaded] && $loaded} return
+    if {[uplevel #0 [list namespace which -command $name]] ne ""} return
+    if {![catch {uplevel #0 [list auto_load $name]} loaded] && $loaded} return
     set ::__spec_test::skip 1
     ::__spec_test::say missing $name "declared, but the package does not define it"
 }

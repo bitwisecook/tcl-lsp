@@ -1,0 +1,16 @@
+warning: methods `category` and `action` are never used
+  --> /workspace/tcl-lsp/rust/tcl-registry/src/simulator_mock_name.rs:61:12
+   |
+15 | impl SimulatorMockName {
+   | ---------------------- methods in this implementation
+...
+61 |     pub fn category(&self) -> &str {
+   |            ^^^^^^^^
+...
+67 |     pub fn action(&self) -> &str {
+   |            ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: 1 warning emitted
+

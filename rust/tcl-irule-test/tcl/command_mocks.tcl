@@ -1648,22 +1648,14 @@ namespace eval ::itest::cmd {
     # Command registration
     # ══════════════════════════════════════════════════════════════════
 
-    # Derive mock proc name from iRule command name.
-    # Convention: NS::sub -> [tolower ns]_sub ; toplevel -> cmd_toplevel
-    # Hyphens and dots in names are converted to underscores.
+    source [file join [file dirname [info script]] _mock_names.tcl]
+
     proc _mock_proc_name {irule_cmd} {
-        if {[string first "::" $irule_cmd] >= 0} {
-            set parts [split $irule_cmd "::"]
-            # split on :: gives {NS {} sub}
-            set ns [string tolower [lindex $parts 0]]
-            set sub [lindex $parts end]
-            set ns [string map {- _ . _} $ns]
-            set sub [string map {- _ . _} $sub]
-            return "::itest::cmd::${ns}_${sub}"
-        } else {
-            set safe [string map {- _ . _} $irule_cmd]
-            return "::itest::cmd::cmd_${safe}"
+        variable _mock_names
+        if {[::tmm::_orig_info exists _mock_names($irule_cmd)]} {
+            return $_mock_names($irule_cmd)
         }
+        return ""
     }
 
     proc register_all {} {
@@ -1671,7 +1663,7 @@ namespace eval ::itest::cmd {
         variable _gen_toplevel_commands
 
         # Auto-register all iRule commands for which a mock exists.
-        # Command list comes from generated registry data (_registry_data.tcl).
+        # Registration labels come from the authored simulation roster (_registry_data.tcl).
         # Hand-written mocks (procs in this file) take precedence; registry
         # commands without one fall back to the generic `_stub` driven by the
         # generated `_stub_actions` table (_mock_stubs.tcl, sourced during
@@ -1684,9 +1676,10 @@ namespace eval ::itest::cmd {
         # pre-table behaviour of simply leaving stub-only commands unregistered.
         foreach irule_cmd [concat $_gen_namespaced_commands $_gen_toplevel_commands] {
             set mock [_mock_proc_name $irule_cmd]
+            if {$mock eq ""} { continue }
             # Use _orig_info to bypass the TMM shim's info filter
             # (which hides ::itest::* from info commands).
-            if {[llength [::tmm::_orig_info commands $mock]]} {
+            if {[::tmm::_orig_namespace which -command $mock] ne ""} {
                 ::itest::register_command $irule_cmd $mock
             } else {
                 set tail [namespace tail $mock]

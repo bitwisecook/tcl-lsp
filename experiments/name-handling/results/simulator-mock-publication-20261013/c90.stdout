@@ -1,0 +1,12 @@
+PROVIDER 9.0.4
+CASE HTTP::header ::itest::cmd::http_header ::itest::cmd::http_header ::itest::cmd::http_header
+CASE ::NS::inner::cmd ::itest::cmd::_cmd ::itest::cmd::ns_cmd ::itest::cmd::ns_cmd
+CASE NS::inner::cmd ::itest::cmd::ns_cmd ::itest::cmd::ns_cmd ::itest::cmd::ns_cmd
+CASE NS::cmd ::itest::cmd::ns_cmd ::itest::cmd::ns_cmd ::itest::cmd::ns_cmd
+CASE traffic-group ::itest::cmd::cmd_traffic_group ::itest::cmd::cmd_traffic_group ::itest::cmd::cmd_traffic_group
+CASE a:b ::itest::cmd::cmd_a:b ::itest::cmd::cmd_a:b ::itest::cmd::cmd_a:b
+CASE :HTTP::cmd ::itest::cmd::_cmd {} {}
+CASE HTTP:::header ::itest::cmd::http_header {} {}
+CASE ::::HTTP::header ::itest::cmd::_header {} {}
+CASE é ::itest::cmd::cmd_é {} {}
+CASE __unlisted__ ::itest::cmd::cmd___unlisted__ {} {}

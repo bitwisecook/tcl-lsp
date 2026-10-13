@@ -7201,23 +7201,15 @@ fn native_count_role_resolver(
     stmt: &Stmt,
     log: &mut Log,
 ) -> Option<tcl_registry::spec::ArgRoleCountResolver> {
-    let selected = (stmt.words.len() == 3 && stmt.word_text(1) == "-native")
-        .then(|| stmt.word_text(2))
-        .and_then(|id| id.strip_suffix("::arg_role_count_resolver"));
-    let resolver = selected.and_then(|owner| {
+    let selected =
+        (stmt.words.len() == 3 && stmt.word_text(1) == "-native").then(|| stmt.word_text(2));
+    let resolver = selected.and_then(|id| {
         let registry = tcl_registry::CommandRegistry::build_default();
-        if let Some(spec) = registry.get(owner) {
-            return spec.arg_role_count_resolver;
-        }
-        if let Some((command, subcommand)) = owner.rsplit_once("::") {
-            registry
-                .get(command)?
-                .subcommands
-                .iter()
-                .find(|sub| sub.name == subcommand)?
-                .arg_role_count_resolver
-        } else {
-            registry.get(owner)?.arg_role_count_resolver
+        match registry.native_argument_role_hook(id) {
+            Some(tcl_registry::native_argument_role_hook::NativeArgumentRoleHook::Count(
+                resolver,
+            )) => Some(resolver),
+            _ => None,
         }
     });
     if resolver.is_none() {
@@ -7236,23 +7228,15 @@ fn native_layout_role_resolver(
     stmt: &Stmt,
     log: &mut Log,
 ) -> Option<tcl_registry::spec::ArgRoleLayoutResolver> {
-    let selected = (stmt.words.len() == 3 && stmt.word_text(1) == "-native")
-        .then(|| stmt.word_text(2))
-        .and_then(|id| id.strip_suffix("::arg_role_layout_resolver"));
-    let resolver = selected.and_then(|owner| {
+    let selected =
+        (stmt.words.len() == 3 && stmt.word_text(1) == "-native").then(|| stmt.word_text(2));
+    let resolver = selected.and_then(|id| {
         let registry = tcl_registry::CommandRegistry::build_default();
-        if let Some(spec) = registry.get(owner) {
-            return spec.arg_role_layout_resolver;
-        }
-        if let Some((command, subcommand)) = owner.rsplit_once("::") {
-            registry
-                .get(command)?
-                .subcommands
-                .iter()
-                .find(|sub| sub.name == subcommand)?
-                .arg_role_layout_resolver
-        } else {
-            registry.get(owner)?.arg_role_layout_resolver
+        match registry.native_argument_role_hook(id) {
+            Some(tcl_registry::native_argument_role_hook::NativeArgumentRoleHook::Layout(
+                resolver,
+            )) => Some(resolver),
+            _ => None,
         }
     });
     if resolver.is_none() {
