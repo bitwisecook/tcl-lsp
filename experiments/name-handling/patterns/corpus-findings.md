@@ -121,7 +121,7 @@ setup failures and distinct Jim-native controls. The existing canonical corpus
 question records register the 11 reached unchanged Jim questions: seven values
 and four guest errors. Four failed setups remain unanswered for their intended
 lookup; the separate Jim-native controls do not replace them. Exact-case BIG-IP
-answers remain pending in the [appliance bundle](f5/README.md).
+answers remain pending in the [appliance bundle](../../oracles/f5/reports.md#report-9eb804dd1e931e16).
 
 ## Shared-owner acceptance and consumer tests
 
@@ -157,7 +157,7 @@ evaluation actually runs.
 
 [The corpus F5 supplement](corpus-f5-questions.md) records concrete questions
 from the two partition-qualified call sources. Follow
-[the existing request/answer protocol](../f5/REQUEST.md), retain accepted and
+[the existing request/answer protocol](../../oracles/f5/reports.md#report-5f42849056598f7d), retain accepted and
 rejected input separately from runtime execution, and return raw, versioned
 answers into the branch. Neither C Tcl reductions nor TesTcl mocks replace
 those answers.

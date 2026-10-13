@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "network": "192.168.1.0/24",
+  "configuration_status": "replay scaffold; not a historical appliance snapshot",
+  "addresses": {
+    "192.168.1.11": "self",
+    "192.168.1.30": "backend",
+    "192.168.1.33": "client",
+    "192.168.1.100": "virtual"
+  },
+  "client_port": 19912,
+  "backend_port": 8080,
+  "preconditions": [
+    "An existing lab network provides client/backend reachability.",
+    "All owned object names and destinations are absent before creation.",
+    "Group source bytes, wrappers, phases and actual worker coverage remain separately scoped."
+  ],
+  "address_projection_by_sha256": {
+    "6d99cbd08fc6c99cdb2d942a4cbb097c6b54496bbbc3ffd6351b145508dd2935": "192.168.1.100",
+    "d446d44037f2c71ed204f97a4355f6c6b5ae4db35f636ae412632375c5d64ea1": "192.168.1.101",
+    "4bf7234a105dc1e3ad473a4b43c3fb811c75e46dc3a4b43eb4a0d76392444e98": "192.168.1.102",
+    "f10a3eadbd9576fe3124a3c720481abe3b258d373cfe4a7b88aee3d357aeb525": "192.168.1.30"
+  }
+}

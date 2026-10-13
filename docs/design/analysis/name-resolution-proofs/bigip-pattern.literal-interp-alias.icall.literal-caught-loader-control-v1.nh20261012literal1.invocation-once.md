@@ -22,103 +22,60 @@ Only retained case literal-interp-alias, variant literal-caught-loader-control-v
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No execution of this exact context/input/invocation is claimed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None. Channel: Only retained case literal-interp-alias, variant literal-caught-loader-control-v1, run nh20261012literal1, context icall; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Literal source inside catch; load rejection leaves operation unreached. Compare separate dynamic capability probe.. Interpreter/action facts retained in the measurement: {"interpreter_path": null, "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.  Recorded adaptation: {"kind": "authored-template-materialisation", "source_provenance": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/literal.py", "sha256": "e337d138ec70e3f983b59376418ac79c511deebf9a2e90eaaadc94af3decd350", "kind": "authored-template-provenance-not-portable-original"}, "actual_input_authority": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/icall-4/input.tcl", "sha256": "6dc38de5baef4c8a8819608ee515023da40fbf3d703ee0c59dec6b852b39153f"}, "case_materialisation": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/icall-cases.json", "sha256": "271a4b9d0e163a06a4d3f57e6f756dd1ceddebee53df6c3fe627cdbbfac17dcf", "json_pointer": "/4"}, "warning": "The source artifact is authored Python template provenance, not a portable Tcl original. Exact executed Tcl bytes and materialised setup/operation are retained separately."}. Dialect: F5 hosted Tcl.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None.
 
-Setup reached with completion 0. Intended lookup reached with completion 0; result encoding utf-8; exact result hex "3a3a5f5f6e685f6e6832303236313031326c69746572616c31325f616c696173". Error metadata and availability: {"errorcode": null, "errorinfo": null, "return_options": null, "unavailable_fields": ["return_options", "errorcode", "errorinfo"]}. Only this recorded invocation is answered.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `original-input` (input): [experiments/name-handling/f5/answers/nh20261012literal1/literal.py](../../../../experiments/name-handling/f5/answers/nh20261012literal1/literal.py). SHA-256 `e337d138ec70e3f983b59376418ac79c511deebf9a2e90eaaadc94af3decd350`. Complete retained original_input bytes.
-- `actual-input` (input): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/input.tcl](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/input.tcl). SHA-256 `6dc38de5baef4c8a8819608ee515023da40fbf3d703ee0c59dec6b852b39153f`. Complete retained actual_input bytes.
-- `wrapper` (input): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied.conf](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied.conf). SHA-256 `24e915682a62b0564b108f550249cf6152d59a901ece0250fcda85c616e49b4b`. Complete retained wrapper bytes.
-- `raw-0` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/runtime-logs.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/runtime-logs.stdout). SHA-256 `44ddcfd350ba28a96d095958e6749d07ccfa4fac78039ef247b5c8074786a6cb`. Exact retained capture or provider receipt.
-- `raw-1` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/load.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/load.stdout). SHA-256 `6769ca9adfc6cc8c042b33192713aa97e3e839cfa4156b839d9018359409821b`. Exact retained capture or provider receipt.
-- `raw-2` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/load.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/load.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-3` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invoke.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invoke.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-4` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invoke.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invoke.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-5` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invocation.sh](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/invocation.sh). SHA-256 `ebd1fc56d1378e15ba230f2bbf0e71653a61703a20d7a34fb3959ea8e4d8ef5f`. Exact retained capture or provider receipt.
-- `raw-6` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.json). SHA-256 `68d61d44f55c01711669b4406b6e096594aaef79baf93fd3ff7097b6d92e1db7`. Exact retained capture or provider receipt.
-- `raw-7` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-8` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/driver.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-9` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/transport.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/transport.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-10` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/version.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/version.stdout). SHA-256 `ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9`. Exact retained capture or provider receipt.
-- `raw-11` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/platform.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/platform.stdout). SHA-256 `a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-12` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmm-roster.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmm-roster.stdout). SHA-256 `3d9eec705b72c350fb758899062c810bfda641ac732791af261bf7dfe577f4f0`. Exact retained capture or provider receipt.
-- `raw-13` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/provenance.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/provenance.json). SHA-256 `53d3357a62089c9ca50504912f5d6af8a8f9c4fd01cd1c5b0f21b11052242e0f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-14` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Exact retained capture or provider receipt.
-- `raw-15` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-16` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-0.stdout). SHA-256 `8e483f76cecb1b1d0470a2915d466bbc2fcb40a97de96a777bd1a8d3c94dbcfd`. Exact retained capture or provider receipt.
-- `raw-17` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Exact retained capture or provider receipt.
-- `raw-18` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-19` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/applied-1.stdout). SHA-256 `29801661a3ff1341212d74d082923fe39d698d619d2bb23593f8c714768ed0b0`. Exact retained capture or provider receipt.
-- `cleanup-0` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-1` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.stderr). SHA-256 `0447e0c4507dc324d305c1e309221994e45547413fc523885d735237e17376a2`. Retained cleanup result; scope remains explicit.
-- `cleanup-2` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-3` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-4` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.stderr). SHA-256 `2d54a95f6cfb45bc4904bec676e4c5d9d3d9505bbf431bca2ea3b9504e63228b`. Retained cleanup result; scope remains explicit.
-- `cleanup-5` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/after-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-6` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-7` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.stderr). SHA-256 `0447e0c4507dc324d305c1e309221994e45547413fc523885d735237e17376a2`. Retained cleanup result; scope remains explicit.
-- `cleanup-8` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-9` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-10` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.stderr). SHA-256 `2d54a95f6cfb45bc4904bec676e4c5d9d3d9505bbf431bca2ea3b9504e63228b`. Retained cleanup result; scope remains explicit.
-- `cleanup-11` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/before-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-12` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-13` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-14` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-15` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-16` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-17` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/delete-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-18` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/icall-4/save-status.txt](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-4/save-status.txt). SHA-256 `9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446`. Retained cleanup result; scope remains explicit.
-- `extra-0` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/icall-cases.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/icall-cases.json). SHA-256 `271a4b9d0e163a06a4d3f57e6f756dd1ceddebee53df6c3fe627cdbbfac17dcf`. Independent retained provider or run provenance.
-- `measurement` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/records.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/records.json). SHA-256 `fd269e895a0d33bbd70a8afdb718cc64ab08b0f65522905a90fd31add867fac0`. JSON pointer `/15`. Reviewed measurement record.
+[bigip-pattern.literal-interp-alias.icall.literal-caught-loader-control-v1.nh20261012literal1.invocation-once.json](bigip-pattern.literal-interp-alias.icall.literal-caught-loader-control-v1.nh20261012literal1.invocation-once.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution.
+
+```json
+[]
+```

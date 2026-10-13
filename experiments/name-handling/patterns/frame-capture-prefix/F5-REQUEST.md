@@ -21,4 +21,4 @@ syntax/load does not establish that cell or runtime dispatch.
 A host-supported analogue requires a separately authored source/question
 identity, explicit native frame/storage premises, and its own plain/captured
 pair. Its result cannot replace these exact desktop inputs. Follow the
-[appliance answer protocol](../../f5/REQUEST.md) for complete receipts.
+[appliance answer protocol](../../../oracles/f5/reports.md#report-5f42849056598f7d) for complete receipts.

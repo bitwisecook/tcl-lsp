@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "kind": "local storage and reconstruction validation; no appliance execution",
+  "python": "3.14.8",
+  "tests": [
+    {
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_oracle_store.py"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "..............\n----------------------------------------------------------------------\nRan 14 tests in 0.069s\n\nOK\n"
+    },
+    {
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/dev",
+        "-p",
+        "test_name_resolution_proofs.py"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "......................\n----------------------------------------------------------------------\nRan 22 tests in 0.159s\n\nOK\n"
+    }
+  ],
+  "view_comparison": {
+    "retained_proof_descriptors": 66986,
+    "canonical_f5_documents": 1446,
+    "run_observations": 7520,
+    "requested_question_contexts": 400,
+    "coverage": {
+      "complete": 93,
+      "partial": 307
+    },
+    "measured_appliance_execution": false
+  },
+  "archive_verification": {
+    "logical_files": 34264,
+    "result": "All retained logical artefacts verify"
+  },
+  "configuration_reconstruction": {
+    "recipes": 1363,
+    "result": "All byte-slice deltas exactly reconstruct their projected target during rebuild"
+  },
+  "address_controls": [
+    "user /24",
+    ".33 to .75",
+    "host exchange preserves ports/route domains",
+    "pool member identity/address agree",
+    "collisions and reserved/absent hosts refused"
+  ],
+  "repository_proof_audit": {
+    "exit_code": 1,
+    "summary": {
+      "candidate_records": 7069,
+      "corpus_files": 31924,
+      "pending_candidates": 0,
+      "questions": 2606,
+      "structural_errors": 333,
+      "unlinked_tests": 0
+    },
+    "f5_errors": 0,
+    "limitation": "333 baseline obligations: 317 pre-existing source digest mismatches, 10 census additions, four document field omissions, two test bindings. The reported mismatching files equal their base-commit bytes."
+  },
+  "broader_gates": {
+    "rust_check": "not run; no Rust implementation changes",
+    "prep_pr": "not run; no push or PR from this isolated evidence branch"
+  },
+  "f5_version": "f5-query 2.1.19+g54229c4f",
+  "footprint": {
+    "f5_files": 295,
+    "f5_bytes": 50110933,
+    "canonical_bytes": 27013369,
+    "old_canonical_bytes": 32990110,
+    "retained_compile_inputs": 22,
+    "retained_compile_bytes": 436385
+  },
+  "retained_compile_time_inputs": {
+    "files": 22,
+    "bytes": 436385,
+    "reason": "Existing Rust include_str consumers; no runtime implementation changes"
+  },
+  "maintained_tools": {
+    "question_inputs_readable": 50,
+    "help_entry_points": [
+      "campaign.py",
+      "apl.py",
+      "register.py"
+    ],
+    "ruff": "passed"
+  }
+}

@@ -64,7 +64,7 @@ This Python validator invariant is not a native-language observation; no provide
 
 ## Exact evidence
 
-- `check-name-resolution-proofs` (implementation): [scripts/dev/check-name-resolution-proofs.py](../../../../scripts/dev/check-name-resolution-proofs.py). SHA-256 `ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808`. Exact proof-validator or fixed negative-control source; not a native capture.
+- `check-name-resolution-proofs` (implementation): [scripts/dev/check-name-resolution-proofs.py](../../../../scripts/dev/check-name-resolution-proofs.py). SHA-256 `f139857cbe576d0c005facca55e8c7ff78d488be097458fb56adc5a34d801f39`. Exact proof-validator or fixed negative-control source; not a native capture.
 - `test_name_resolution_proofs` (implementation): [scripts/dev/test_name_resolution_proofs.py](../../../../scripts/dev/test_name_resolution_proofs.py). SHA-256 `695880f9d547fa3ae1fbef7567e1c66c05cade1e51de411824014286f6c129cd`. Exact proof-validator or fixed negative-control source; not a native capture.
 - `reviewed-classification-merger` (implementation): [scripts/dev/update-name-resolution-proof-index.py](../../../../scripts/dev/update-name-resolution-proof-index.py). SHA-256 `51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33`. Every candidate classification is validated against exact current artifact bytes and issued question IDs before any census update.
 - `actual-python-controls` (reconfirmation): [docs/design/analysis/name-resolution-proofs/proof-tool-controls.json](../../../../docs/design/analysis/name-resolution-proofs/proof-tool-controls.json). SHA-256 `3e50d3a70694e0bec34a178b716438fbdccfba846903b4530cd1bb8292f09471`. Actual ten-control Python unittest execution with original command, Python/source digests, status and separate stdout/stderr bytes. This is implementation evidence, not native language execution.
@@ -127,3 +127,5 @@ Recorded argument vector:
 ```
 
 Runs only fixed Python implementation controls. The attached Source311 original receipt/log record actual17 passing assertions at the exact retained test/checker/schema source. It records the python argv but no interpreter executable digest. Prior independent10/11/12/13-control receipts keep their own source/count/interpreter scope. Changed source requires its own run; the separate full catalogue311 failure and Rust/Native outcomes remain independent.
+
+Indexed F5 capture resolution is provided by [oracle_store.py](../../../../scripts/dev/oracle_store.py). Current storage and replay controls are recorded separately in [the layout validation](../../../../experiments/oracles/f5/validation.json). Earlier control receipts retain their own source and execution scope.

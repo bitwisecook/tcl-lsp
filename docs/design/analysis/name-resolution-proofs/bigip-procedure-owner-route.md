@@ -22,43 +22,43 @@ The original canonical and expandedr2286i programs, four responding TMMs, record
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: The original canonical and expandedr2286i programs, four responding TMMs, recorded owner/folder/partition paths and six events; future versions and entered suspended frames are excluded.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported.
 
 Owner-local call selects the calling rule; partition-root relative routing and absolute folder/partition paths have different measured doors. Tcl-rooted call names and namespace which are counterexamples. Activated calls survive the recorded provider-config deletion. The event-local CLIENT_SEED remains readable in the five reached later events; no suspended-frame replacement is proved.
 
@@ -88,31 +88,23 @@ The original owner-local controls and the expanded `r2286i` folder/partition mat
 
 These results support a distinct F5 procedure-owner path, not ordinary Tcl namespace resolution. The spelling `foo::proc1` is valid for an iRule named `foo` at the caller's partition root. The counterexamples are load-order-independent runtime absence before the provider is activated, no same-folder leaf search, `namespace current == ::`, empty `namespace which`, rejection of a Tcl-rooted `::foo::proc1`, and procedure retention after deletion of the provider's configuration object. Absolute object paths are required to address folder-contained rules unambiguously.
 
-The original procedure results are in [canonical raw LTM log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/ltm-raw.log). Expanded proof is in the [r2286i raw LTM log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/ltm-raw.log), [attachment transcripts](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/attachments), [traffic responses](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic), and [backend observations](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/backend.log).
+The original procedure results are in [canonical raw LTM log](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/ltm-raw.log`). Expanded proof is in the [r2286i raw LTM log](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/ltm-raw.log`), [attachment transcripts](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/attachments`), [traffic responses](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic`), and [backend observations](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/backend.log`).
 
 
 ## Exact evidence
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). SHA-256 `9bb20a639904e1427e4c5cd8ed45dc8808f345fbc96969215eb8fac0f8d3109f`. Lines 84–110. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). SHA-256 `9bb20a639904e1427e4c5cd8ed45dc8808f345fbc96969215eb8fac0f8d3109f`. Lines 3–3. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/ltm-raw.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/ltm-raw.log). SHA-256 `3a39f219de4db86be82cd9ae081c157caece808a047a900e99a590adfdb9b410`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-1` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/ltm-raw.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/ltm-raw.log). SHA-256 `1d724b511459803113a3e800f9cfd5549337ed3a9e1356290e1b3df24d56b764`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-2` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/backend.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/backend.log). SHA-256 `be5dff8d01b1ecfa0f6077b38dd038793126c021f7d25ace5e396f1ca6f432fb`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `source-closure-5` (provider): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt). SHA-256 `4daaddca9c1f7f47b318ff85770bc07ad2da6e3582ef8502a2cfe284017201d3`. Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `source-closure-6` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt). SHA-256 `f800077eaadc0104201639706c8d912d3804118dd6175be3f9cd727052d1bbbe`. Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `source-closure-7` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json). SHA-256 `8f5c9f385b226b5f7da6885ede6a28775a68cdfea7ed44fb28fb213c73f6e6fd`. Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `aggregate-8` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json). SHA-256 `800bb0866f049ab9beea0c772915c94f68052fabab7ba2c4e3b77873248b9b60`. Inspected measured canonical case aggregate and its explicit unmeasured limits; actual case rows remain in this exact file. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+[bigip-procedure-owner-route.json](bigip-procedure-owner-route.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+
+```json
+[]
+```

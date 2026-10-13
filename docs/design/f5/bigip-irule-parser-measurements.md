@@ -4,7 +4,7 @@
 > [`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md),
 > including the answer to its F3 discriminating matrix.
 >
-> **Probe corpus:** [`scripts/dev/bigip-probes/`](../../../scripts/dev/bigip-probes/)
+> **Probe corpus:** [`scripts/dev/bigip-probes/`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes`)
 > — 378 iRules, the drivers that ran them, the stock-Tcl controls, and the raw
 > result files.
 >
@@ -245,7 +245,7 @@ execution results, not merely compile acceptance:
 The six byte-controlled cases distinguish generic word formation from command
 argument grammar. The fixture uses the `__tcl_lsp_probe_*` prefix, a collision
 check before each create and an absence proof after each delete
-([`irules/f3-matrix/`](../../../scripts/dev/bigip-probes/irules/f3-matrix/)):
+([`irules/f3-matrix/`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/irules/f3-matrix`)):
 
 | Case | Stock 8.6.18 / 9.0.4 | **TMM 21.1.0.1** | What it settles |
 | --- | --- | --- | --- |
@@ -326,13 +326,13 @@ or equivalence for unmeasured source. Command surface and environment remain
 context-specific.
 
 A single 34-case list
-([`suites/10-context-parity.cases`](../../../scripts/dev/bigip-probes/suites/10-context-parity.cases))
+([`suites/10-context-parity.cases`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/suites/10-context-parity.cases`))
 is compiled into four wrappers by
-[`gen-context-parity.py`](../../../scripts/dev/bigip-probes/lib/gen-context-parity.py)
+[`gen-context-parity.py`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/lib/gen-context-parity.py`)
 — an iRule, a `cli script`, an iApp template+service, and a plain `tclsh`
 script — so any difference in the transcripts is a real context difference and
 not a difference in what was asked. Raw output:
-[`results/10-context-parity.txt`](../../../scripts/dev/bigip-probes/results/10-context-parity.txt).
+[`results/10-context-parity.txt`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/results/10-context-parity.txt`).
 
 ### Entered parser cases — agreement across three F5 contexts
 
@@ -406,7 +406,7 @@ editor this is the difference between a warning and a hard error: in iRules an
 unknown command is a load-time failure that `catch` cannot soften, so
 "unknown command" is safe to surface as an error rather than a hint. The
 standalone case is
-[`ctx_unknown_cmd.conf`](../../../scripts/dev/bigip-probes/irules/context-parity/ctx_unknown_cmd.conf).
+[`ctx_unknown_cmd.conf`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/irules/context-parity/ctx_unknown_cmd.conf`).
 
 This is also why the `s_exec` row above reads `invalid command name "exec"` for
 `TmmIRule` rather than `command is disabled: "exec"`: reached through `eval` at
@@ -420,8 +420,8 @@ rejected at load with the "disabled" wording (§5).
 ### Ordinary procs work everywhere, including iRules
 
 Fifteen proc cases run through the same four-wrapper harness
-([`suites/11-proc-semantics.cases`](../../../scripts/dev/bigip-probes/suites/11-proc-semantics.cases),
-transcript [`results/11-proc-semantics.txt`](../../../scripts/dev/bigip-probes/results/11-proc-semantics.txt)).
+([`suites/11-proc-semantics.cases`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/suites/11-proc-semantics.cases`),
+transcript [`results/11-proc-semantics.txt`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/results/11-proc-semantics.txt`)).
 Fourteen of fifteen are **identical in all three F5 contexts**:
 
 | Case | TmmIRule | TmshCliScript | IAppImplementation |
@@ -453,7 +453,7 @@ resolves *rule* procs, not runtime-defined ones — hence
 ### The 31 "disabled" commands are two mechanisms, not one
 
 Re-probing each of the 31 through `eval` at runtime splits them exactly
-([`ctx_disabled_runtime.conf`](../../../scripts/dev/bigip-probes/irules/proc-semantics/ctx_disabled_runtime.conf)):
+([`ctx_disabled_runtime.conf`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/irules/proc-semantics/ctx_disabled_runtime.conf`)):
 
 **Absent from TMM's interpreter (16)** — `invalid command name` even via `eval`:
 
@@ -514,8 +514,8 @@ it puts each measured fact at the level where it was actually observed.
 
 §4b established that ordinary procs work in all three contexts. This section
 draws the line iRules actually enforce, because it is not where it first
-appears. Probes: [`irules/dynamic-code/`](../../../scripts/dev/bigip-probes/irules/dynamic-code/),
-transcript [`results/12-dynamic-code.txt`](../../../scripts/dev/bigip-probes/results/12-dynamic-code.txt).
+appears. Probes: [`irules/dynamic-code/`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/irules/dynamic-code`),
+transcript [`results/12-dynamic-code.txt`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/results/12-dynamic-code.txt`).
 
 ### `proc` is banned inside a `when` body — and the ban is *lexical*
 
@@ -929,7 +929,7 @@ measured or nearest-known row; it grants no semantic authority for another
 build. Host Tcl transcripts are separate controls, not embedded-runtime proof.
 Reported Tcl patchlevels do not grant parser, object, compiler or ABI capability.
 
-The [resolution-context transcripts](../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md)
+The [resolution-context transcripts](../../../experiments/oracles/f5/reports.md#report-ab9307f6935c9720)
 contain 92 byte-attested scripts entered independently in tmsh, iApp
 implementation and iCall contexts. `RuntimeFact::ParserCase` retains each
 original source hex, completion code and result hex. iCall's own transcript
@@ -970,7 +970,7 @@ unmeasured appliance behaviour.
 The §3 word-formation matrix and §4a parity evidence satisfy the E4
 probe-and-cleanup contract: reserved object names, exact-name absence checks,
 cleanup traps, deletion verification and attachment checks. The driver is
-[`lib/e4-context-probe.sh`](../../../scripts/dev/bigip-probes/lib/e4-context-probe.sh).
+[`lib/e4-context-probe.sh`](../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/lib/e4-context-probe.sh`).
 The §5–§9 surface, event and traffic evidence carries
 `e4_conforming: false`. Its raw transcript remains usable with that qualification:
 object names and pre-create checks do not meet the same contract, and the
@@ -1018,6 +1018,6 @@ The following axes require independent measurements:
 
 The remaining resolution-specific identity, callable replacement and deletion
 boundaries have exact probes in
-[FOLLOWUP_APPLIANCE_CHECKS.md](../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_CHECKS.md).
+[FOLLOWUP_APPLIANCE_CHECKS.md](../../../experiments/oracles/f5/reports.md#report-31631822fd629d29).
 They do not imply general Unicode name acceptance, counted-NUL key identity or
 cross-worker state sharing.

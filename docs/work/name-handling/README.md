@@ -25,7 +25,7 @@ Evidence certifies its exact recorded source and inputs, not later commits.
 | [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Real upstream suite outcomes and prioritised live-engine work |
 | [Oracle protocol](../../../experiments/name-handling/README.md) | Durable scripts, measurements, provenance and test promotion |
 | [Wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md) | Maintained real-world patterns, exact experiments and C/Jim/F5 evidence matrix |
-| [BIG-IP handoff](../../../experiments/name-handling/f5/REQUEST.md) | Questions and return format for the chat with appliance access |
+| [BIG-IP handoff](../../../experiments/oracles/f5/reports.md#report-5f42849056598f7d) | Questions and return format for the chat with appliance access |
 
 ## Lifecycle
 
@@ -62,3 +62,5 @@ agent handoff, phase history or progress bookkeeping.
 An issue's GitHub state is separate from implementation evidence on `work`.
 An open issue may have a branch fix; a closed issue may still have a missed
 consumer. Reproduce, inspect and test before making either conclusion.
+
+The compact F5 evidence layout is prepared on local branch `codex/f5-evidence-layout`, based on `049c0fc7a`. Its [entry point](../../../experiments/oracles/f5/README.md) and [local validation](../../../experiments/oracles/f5/validation.json) record reconstruction, observation comparisons and current coverage. Integration obligations: preserve the newly landed C/Jim and certificate updates, run `prep-pr` before publication, and resolve the 333 existing repository proof-audit obligations before complete certification. This storage change makes no new appliance-execution claim; 93 original context rows are complete and 307 remain partial. The 22 indexed Rust compile-time inputs stay expanded at their existing identities.

@@ -22,43 +22,43 @@ Authoritative fresh provider/caller object names, exact OLD/NEW/invalid sources,
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Authoritative fresh provider/caller object names, exact OLD/NEW/invalid sources, explicit object absence and32responses per each of four TMMs.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported.
 
 The fresh-name control proves OLD remains callable after accepted config deletion, NEW replaces body/formals for fresh calls, rejected replacement leaves NEW active, and recreating OLD restores OLD behaviour. Rejected dependency deletes remain counterexamples; they cannot prove retirement. No bounded entered-frame replacement was reached.
 
@@ -104,20 +104,18 @@ No documented, bounded, event-valid mechanism was available to suspend execution
 
 ## Exact evidence
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). SHA-256 `9a18aa28aab9211d0c764e20f6145a0ec340702a01359cd36c1518b1cdf7622f`. Lines 120–157. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). SHA-256 `9a18aa28aab9211d0c764e20f6145a0ec340702a01359cd36c1518b1cdf7622f`. Lines 9–9. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-2` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json). SHA-256 `1f4d6148abce503d0f4a48c9f81c179e04a97836efd7b929ba5adbf2c430e360`. Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+[bigip-activated-procedure-replacement.json](bigip-activated-procedure-replacement.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+
+```json
+[]
+```

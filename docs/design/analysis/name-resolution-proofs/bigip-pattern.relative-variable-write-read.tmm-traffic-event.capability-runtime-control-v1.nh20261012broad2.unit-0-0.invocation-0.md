@@ -22,102 +22,60 @@ Only retained case relative-variable-write-read, variant capability-runtime-cont
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No execution of this exact context/input/invocation is claimed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None. Channel: Only retained case relative-variable-write-read, variant capability-runtime-control-v1, run nh20261012broad2, context tmm-traffic-event; event 'HTTP_REQUEST', unit '0:0', invocation '0'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: NH05 adapted names.. Interpreter/action facts retained in the measurement: {"interpreter_path": null, "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.  Recorded adaptation: {"kind": "authored-template-materialisation", "source_provenance": {"path": "experiments/name-handling/f5/answers/nh20261012broad2/broader_cases.py", "sha256": "c0150e5d368d4dcdb447091bb6439947e383ef7c9efe2d7315e0a6f8d49d9ce2", "kind": "authored-template-provenance-not-portable-original"}, "actual_input_authority": {"path": "experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/input.tcl", "sha256": "1d8ba5c430dbae67e44c9b0fa7eaaefada44808f3a5eff5f11264c43c983d0c3"}, "case_materialisation": {"path": "experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-cases.json", "sha256": "daf0ee710876a767cc30d65266e63616c658f19c91ac261de4f3c8cfa503e235", "json_pointer": "/9"}, "warning": "The source artifact is authored Python template provenance, not a portable Tcl original. Exact executed Tcl bytes and materialised setup/operation are retained separately."}. Dialect: F5 hosted Tcl.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None.
 
-Setup reached with completion 0. Intended lookup reached with completion 0; result encoding binary-scan-tcl-value; exact result hex "372037". Error metadata and availability: {"errorcode": null, "errorinfo": null, "return_options": null, "unavailable_fields": ["return_options", "errorcode", "errorinfo"]}. Only this recorded invocation is answered.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `original-input` (input): [experiments/name-handling/f5/answers/nh20261012broad2/broader_cases.py](../../../../experiments/name-handling/f5/answers/nh20261012broad2/broader_cases.py). SHA-256 `c0150e5d368d4dcdb447091bb6439947e383ef7c9efe2d7315e0a6f8d49d9ce2`. Complete retained original_input bytes.
-- `actual-input` (input): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/input.tcl](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/input.tcl). SHA-256 `1d8ba5c430dbae67e44c9b0fa7eaaefada44808f3a5eff5f11264c43c983d0c3`. Complete retained actual_input bytes.
-- `wrapper` (input): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied.conf](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied.conf). SHA-256 `e40075266ca133ec53f6240c5ab51345bec1f6462c0cd6018de6743e034dd7ce`. Complete retained wrapper bytes. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-0` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/final-runtime.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/final-runtime.stdout). SHA-256 `6bf98697ba626c9ee3558d290cbfeae61dc10f4ae62f92fa3254b2b935189546`. Exact retained capture or provider receipt.
-- `raw-1` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/load.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/load.stdout). SHA-256 `ba68e6f25005ae947b842ca34de620e054d68cdc3fb1fc8415c970d1047691be`. Exact retained capture or provider receipt.
-- `raw-2` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/load.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/load.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-3` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/invocation.sh](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/invocation.sh). SHA-256 `ac869a98ed2aae4b13701b7f1867fac56291c8b8207c65e2925e94ebbbd6d560`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-4` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.json](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.json). SHA-256 `3a6d257935d1dfb8dfd2f3ff671cb6118868394bbaa7f058790f8705a30949a1`. Exact retained capture or provider receipt.
-- `raw-5` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-6` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/driver.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-7` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/transport.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/transport.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-8` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/version.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/version.stdout). SHA-256 `ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9`. Exact retained capture or provider receipt.
-- `raw-9` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/platform.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/platform.stdout). SHA-256 `a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-10` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-roster.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-roster.stdout). SHA-256 `5646df407d08b341e192995bc1d056f78d8b665f343da3bab26479e529e02f09`. Exact retained capture or provider receipt.
-- `raw-11` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/failover.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/failover.stdout). SHA-256 `516af9388ef3450d54b7dab1fb6ffa0dd56a71b9353fdc1188b6677a4b11551e`. Exact retained capture or provider receipt.
-- `raw-12` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/provenance.json](../../../../experiments/name-handling/f5/answers/nh20261012broad2/provenance.json). SHA-256 `21ba97a3fbad73ffa08267a6eb9bfb26614b1de556b00e81e9ce48d75e9c1b2d`. Exact retained capture or provider receipt.
-- `raw-13` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Exact retained capture or provider receipt.
-- `raw-14` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-15` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-0.stdout). SHA-256 `924ce34cb8ee63b2fdeffc894e4e47b4768cb3510490b6e1f1845074687689cc`. Exact retained capture or provider receipt.
-- `raw-16` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Exact retained capture or provider receipt.
-- `raw-17` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-18` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/applied-1.stdout). SHA-256 `c0a4ba7c4e93a8f8587dad93321887f5087cd62ab3722b4155182fad90347155`. Exact retained capture or provider receipt.
-- `cleanup-0` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-1` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.stderr). SHA-256 `d4c305a2932e1860b4f79019291dda75688f6d7ad49c8daecadfd7094bea60cf`. Retained cleanup result; scope remains explicit.
-- `cleanup-2` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-3` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-4` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.stderr). SHA-256 `c2939dd29ecda84ac5f803c39425f934df30a228fbf7ce46bb913405f1dacd52`. Retained cleanup result; scope remains explicit.
-- `cleanup-5` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/after-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-6` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-7` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.stderr). SHA-256 `d4c305a2932e1860b4f79019291dda75688f6d7ad49c8daecadfd7094bea60cf`. Retained cleanup result; scope remains explicit.
-- `cleanup-8` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-9` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-10` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.stderr). SHA-256 `c2939dd29ecda84ac5f803c39425f934df30a228fbf7ce46bb913405f1dacd52`. Retained cleanup result; scope remains explicit.
-- `cleanup-11` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/before-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-12` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-13` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-14` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-15` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.exit](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-16` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.stderr](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-17` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.stdout](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/delete-1.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-18` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/save-status.txt](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-3/save-status.txt). SHA-256 `9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446`. Retained cleanup result; scope remains explicit.
-- `extra-0` (provider): [experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-cases.json](../../../../experiments/name-handling/f5/answers/nh20261012broad2/tmm-traffic-event-cases.json). SHA-256 `daf0ee710876a767cc30d65266e63616c658f19c91ac261de4f3c8cfa503e235`. Independent retained provider or run provenance.
-- `measurement` (observation): [experiments/name-handling/f5/answers/nh20261012broad2/records.json](../../../../experiments/name-handling/f5/answers/nh20261012broad2/records.json). SHA-256 `1d61b5aaeee22ef570fe71c9c686553b2b284970ed6ca6a1949ab1583de47953`. JSON pointer `/243`. Reviewed measurement record.
+[bigip-pattern.relative-variable-write-read.tmm-traffic-event.capability-runtime-control-v1.nh20261012broad2.unit-0-0.invocation-0.json](bigip-pattern.relative-variable-write-read.tmm-traffic-event.capability-runtime-control-v1.nh20261012broad2.unit-0-0.invocation-0.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution.
+
+```json
+[]
+```

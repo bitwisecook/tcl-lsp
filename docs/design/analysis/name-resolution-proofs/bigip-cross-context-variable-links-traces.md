@@ -22,43 +22,43 @@ Recorded context programs only; unavailable operations and failed setup remain e
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Recorded context programs only; unavailable operations and failed setup remain explicit and no cross-context capability is borrowed.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported.
 
 The retained matrix records results and rejected doors for each context independently. Counted names, callback arguments and alias linkage are observable program facts; they supply neither a source editor span nor an independently entered native frame.
 
@@ -87,21 +87,18 @@ The measured report rows and their limits are:
 
 ## Exact evidence
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md). SHA-256 `c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7`. Lines 162–182. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md). SHA-256 `c19780153d8f494bc30bda0f4db8036acc9f3e94f7b210be688f0875c24ec1f7`. Lines 12–12. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-2` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json). SHA-256 `ee533a62089293ff9c10075994ee3fc81fb01402ca978836a95b2a3dff368426`. Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-3` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json). SHA-256 `f34346e0889d7181dc3d2777e0b307f38cf2892ea1c08ce8ffae4e8ed602ad3d`. Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+[bigip-cross-context-variable-links-traces.json](bigip-cross-context-variable-links-traces.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+
+```json
+[]
+```

@@ -6,11 +6,11 @@ Source coordinates, exact revisions and file/range hashes are in
 partition-qualified rule procedures; commented introductory examples were not
 counted. No BIG-IP input has been accepted or run for this supplement.
 
-The maintained [wild-pattern F5 bundle](f5/README.md) maps these five
+The maintained [wild-pattern F5 bundle](../../oracles/f5/reports.md#report-9eb804dd1e931e16) maps these five
 questions and every portable corpus/Wiki case to separate context records in
-[questions.json](f5/questions.json). Use its
-[answer template](f5/answer-template.md), together with
-[the existing appliance request](../f5/REQUEST.md).
+[questions.json](../../oracles/f5/captures/README.md) (retained logical path: `experiments/name-handling/patterns/f5/questions.json`). Use its
+[answer template](../../oracles/f5/reports.md#report-871ae73990c26b0c), together with
+[the existing appliance request](../../oracles/f5/reports.md#report-5f42849056598f7d).
 Give these observations stable IDs prefixed `corpus-f5-` and retain exact
 materialised rule definitions, attachments, input, version/build/hotfix,
 context, compile/load results, runtime results and error/return options.

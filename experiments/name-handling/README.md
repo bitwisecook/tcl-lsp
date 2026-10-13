@@ -5,7 +5,9 @@ The consumer/API entry point is
 [the shared contract](../../docs/design/contracts/name-handling.md).
 Existing command/variable/namespace vectors live in
 `rust/tcl-syntax/tests/data/`; existing BIG-IP experiments live in
-`scripts/dev/bigip-probes/`. Reuse those owners and keep their original evidence.
+the [compact F5 evidence layout](../oracles/f5/README.md). Historical logical paths
+remain readable through its indexed capture store. Reuse those owners and keep
+their original evidence.
 
 ## Assets
 
@@ -25,9 +27,9 @@ Existing command/variable/namespace vectors live in
 | [run_suites.py](run_suites.py) | Reusable original-suite capture across real C/VM/runtime; retains outputs and provenance |
 | [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
 | [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
-| [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
-| [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
-| [f5/answers/README.md](f5/answers/README.md) | Destination for returned documents and raw transcripts on `work` |
+| [f5/REQUEST.md](../oracles/f5/reports.md#report-5f42849056598f7d) | Appliance-chat questions, execution contexts and return protocol |
+| [f5/ANSWER-TEMPLATE.md](../oracles/f5/reports.md#report-d7a5a5593518a229) | Answer document template |
+| [f5/answers/README.md](../oracles/f5/reports.md#report-28c8ad79a88c4be8) | Destination for returned documents and raw transcripts on `work` |
 
 The portable suite runs in a **fresh disposable interpreter**, not in an
 application's interpreter. Its fixed `::__nh_*` names are experiment fixtures.

@@ -22,43 +22,43 @@ Exact nine-row source and four hosted channels; the initial shorter matrix remai
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Exact nine-row source and four hosted channels; the initial shorter matrix remains insufficient by itself and no other release is inferred.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported.
 
 For the recorded387-byte program, bare matches is whole-string glob matching: a* matches abcd, while a.* and bc do not. not binds to its operand before starts_with unless parentheses group the predicate. All four recorded hosted contexts return the same nine rows; APL remains untested.
 
@@ -81,27 +81,23 @@ The exact 387-byte expression payload ran in an `HTTP_REQUEST` iRule, a tmsh CLI
 
 For these discriminators, bare `matches` is whole-string glob matching: `a*` matches `abcd`, while `a.*` and `bc` do not. The earlier equality/non-substring pair alone was insufficient to distinguish equality from glob behavior. `not` binds to the following operand before `starts_with` unless parentheses group the string predicate.
 
-The non-TMM fixtures loaded without error, the tmsh script emitted directly, the iApp emitted from its implementation action, and the iCall emitted from a triggered handler in `scriptd`. Raw outputs are [tmsh](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/cli-run.txt) and [iApp/iCall](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/scriptd-results.txt). iApp presentation/APL Tcl was not tested and must not inherit the implementation result.
+The non-TMM fixtures loaded without error, the tmsh script emitted directly, the iApp emitted from its implementation action, and the iCall emitted from a triggered handler in `scriptd`. Raw outputs are [tmsh](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/cli-run.txt`) and [iApp/iCall](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/scriptd-results.txt`). iApp presentation/APL Tcl was not tested and must not inherit the implementation result.
 
 
 ## Exact evidence
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). SHA-256 `9a18aa28aab9211d0c764e20f6145a0ec340702a01359cd36c1518b1cdf7622f`. Lines 100–119. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). SHA-256 `9a18aa28aab9211d0c764e20f6145a0ec340702a01359cd36c1518b1cdf7622f`. Lines 9–9. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/cli-run.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/cli-run.txt). SHA-256 `28bda477163bc129badfacc49384c70fbec4165bb44259e853a887f925c163b1`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-1` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/scriptd-results.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/contexts/scriptd-results.txt). SHA-256 `62e4963a474fa9a3894cba03787e7020a3b7b7ac2bddad4a94641f38be10ef14`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `aggregate-4` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json). SHA-256 `1f4d6148abce503d0f4a48c9f81c179e04a97836efd7b929ba5adbf2c430e360`. Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+[bigip-expression-matches-precedence.json](bigip-expression-matches-precedence.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+
+```json
+[]
+```

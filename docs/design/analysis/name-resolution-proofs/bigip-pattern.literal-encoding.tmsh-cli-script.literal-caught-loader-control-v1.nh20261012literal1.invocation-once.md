@@ -22,91 +22,60 @@ Only retained case literal-encoding, variant literal-caught-loader-control-v1, r
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No execution of this exact context/input/invocation is claimed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None. Channel: Only retained case literal-encoding, variant literal-caught-loader-control-v1, run nh20261012literal1, context tmsh-cli-script; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Literal source inside catch; load rejection leaves operation unreached. Compare separate dynamic capability probe.. Interpreter/action facts retained in the measurement: {"interpreter_path": null, "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": "tmsh run cli script"}. Null means not observed by this receipt.  Recorded adaptation: {"kind": "authored-template-materialisation", "source_provenance": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/literal.py", "sha256": "e337d138ec70e3f983b59376418ac79c511deebf9a2e90eaaadc94af3decd350", "kind": "authored-template-provenance-not-portable-original"}, "actual_input_authority": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/input.tcl", "sha256": "3e2d91905a14710d76d2ab31f6ee47271ee9062e54bf9f5dc86d6f3623766ca4"}, "case_materialisation": {"path": "experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-cases.json", "sha256": "ad6777f5175cb4ed0eeaa10a60627e3714d8fbecbf96b1f512b3501dbe23c1a4", "json_pointer": "/8"}, "warning": "The source artifact is authored Python template provenance, not a portable Tcl original. Exact executed Tcl bytes and materialised setup/operation are retained separately."}. Dialect: F5 hosted Tcl.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None.
 
-Setup reached with completion 0. Intended lookup reached with completion 0; result encoding utf-8; exact result hex "56414c5545". Error metadata and availability: {"errorcode": null, "errorinfo": null, "return_options": null, "unavailable_fields": ["return_options", "errorcode", "errorinfo"]}. Only this recorded invocation is answered.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `original-input` (input): [experiments/name-handling/f5/answers/nh20261012literal1/literal.py](../../../../experiments/name-handling/f5/answers/nh20261012literal1/literal.py). SHA-256 `e337d138ec70e3f983b59376418ac79c511deebf9a2e90eaaadc94af3decd350`. Complete retained original_input bytes.
-- `actual-input` (input): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/input.tcl](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/input.tcl). SHA-256 `3e2d91905a14710d76d2ab31f6ee47271ee9062e54bf9f5dc86d6f3623766ca4`. Complete retained actual_input bytes.
-- `wrapper` (input): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied.conf](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied.conf). SHA-256 `0758864e124b5d3f3700a53529f72d178872db999787e4344b21079af1d35e48`. Complete retained wrapper bytes.
-- `raw-0` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stdout). SHA-256 `b25b84dd8fa6230cd65756b639e50bf86e85f21f2953cbd7dd2797af7fd64d74`. Exact retained capture or provider receipt.
-- `raw-1` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/load.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/load.stdout). SHA-256 `db45c141868cfbafb40ef3bc0976227599a831db93625646cdcd04dcf5609a04`. Exact retained capture or provider receipt.
-- `raw-2` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/load.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/load.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-3` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stdout). SHA-256 `b25b84dd8fa6230cd65756b639e50bf86e85f21f2953cbd7dd2797af7fd64d74`. Exact retained capture or provider receipt.
-- `raw-4` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invoke.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-5` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invocation.sh](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/invocation.sh). SHA-256 `6fca1842218b1b3e3511d49a1412dde2cc3b3cc604809d766e3556d7c5b5185f`. Exact retained capture or provider receipt.
-- `raw-6` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.json). SHA-256 `cb15a664dd29ae6112386b2a58d4f5be4faaa87295145dfaf28763931e12b27c`. Exact retained capture or provider receipt.
-- `raw-7` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-8` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/driver.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-9` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/transport.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/transport.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-10` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/version.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/version.stdout). SHA-256 `ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9`. Exact retained capture or provider receipt.
-- `raw-11` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/platform.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/platform.stdout). SHA-256 `a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-12` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmm-roster.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmm-roster.stdout). SHA-256 `3d9eec705b72c350fb758899062c810bfda641ac732791af261bf7dfe577f4f0`. Exact retained capture or provider receipt.
-- `raw-13` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/provenance.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/provenance.json). SHA-256 `53d3357a62089c9ca50504912f5d6af8a8f9c4fd01cd1c5b0f21b11052242e0f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-14` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Exact retained capture or provider receipt.
-- `raw-15` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-16` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/applied-0.stdout). SHA-256 `e40280d38766b01790734e68c90930945795384fdb88d43f0cc5fd9dd962533f`. Exact retained capture or provider receipt.
-- `cleanup-0` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-1` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.stderr). SHA-256 `0d8b472e863443152cc4b087afaa205e7f030c78218347c8462bf08f7cb65f4f`. Retained cleanup result; scope remains explicit.
-- `cleanup-2` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/after-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-3` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-4` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.stderr). SHA-256 `0d8b472e863443152cc4b087afaa205e7f030c78218347c8462bf08f7cb65f4f`. Retained cleanup result; scope remains explicit.
-- `cleanup-5` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/before-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-6` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.exit](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-7` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.stderr](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-8` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.stdout](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/delete-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-9` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/save-status.txt](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-8/save-status.txt). SHA-256 `9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446`. Retained cleanup result; scope remains explicit.
-- `extra-0` (provider): [experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-cases.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/tmsh-cli-script-cases.json). SHA-256 `ad6777f5175cb4ed0eeaa10a60627e3714d8fbecbf96b1f512b3501dbe23c1a4`. Independent retained provider or run provenance.
-- `measurement` (observation): [experiments/name-handling/f5/answers/nh20261012literal1/records.json](../../../../experiments/name-handling/f5/answers/nh20261012literal1/records.json). SHA-256 `fd269e895a0d33bbd70a8afdb718cc64ab08b0f65522905a90fd31add867fac0`. JSON pointer `/52`. Reviewed measurement record.
+[bigip-pattern.literal-encoding.tmsh-cli-script.literal-caught-loader-control-v1.nh20261012literal1.invocation-once.json](bigip-pattern.literal-encoding.tmsh-cli-script.literal-caught-loader-control-v1.nh20261012literal1.invocation-once.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution.
+
+```json
+[]
+```

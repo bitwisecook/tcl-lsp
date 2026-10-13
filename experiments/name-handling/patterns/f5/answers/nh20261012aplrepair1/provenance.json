@@ -1,8 +1,0 @@
-{
-  "run_id": "nh20261012aplrepair1",
-  "configuration_saved": false,
-  "timestamp_utc": "2026-10-12T19:07:41.983410+00:00",
-  "transport": "Authentication details omitted",
-  "invoking_action": "Chrome Application Services Create form template selection",
-  "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
-}

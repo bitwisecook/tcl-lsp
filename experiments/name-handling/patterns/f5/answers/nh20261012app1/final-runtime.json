@@ -1,5 +1,0 @@
-{
-  "timestamp_utc": "2026-10-12T15:55:20.040556+00:00",
-  "exit_code": 0,
-  "command": "grep tagged markers in /var/log/ltm /var/log/scriptd.out"
-}

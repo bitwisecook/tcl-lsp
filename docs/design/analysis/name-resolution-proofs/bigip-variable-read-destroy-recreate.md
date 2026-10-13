@@ -22,43 +22,43 @@ The exact main-supported dynamic program on0:0 through0:3; literal trace/proc lo
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl or Jim execution of this appliance question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: The exact main-supported dynamic program on0:0 through0:3; literal trace/proc loader rejections are independent source inputs.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported.
 
 Modern and legacy runtime trace APIs install and complete on each recorded TMM. The main result is {NEW EXTRA} {NEW EXTRA}, with read then unset, exact name arguments, and no retained registration after recreation. The later ordinary-global controls are distinct and do not prove arbitrary cross-TMM sharing.
 
@@ -77,29 +77,25 @@ For both APIs, callback order was `read`, then `unset`. `name1` was exactly
 hex `52323238365f766c315f76616c7565` (`R2286_vl1_value`), `name2` was empty,
 and `trace info variable` was empty after recreation. The final read did not
 invoke the destroyed registration. The raw per-unit responses are
-[`vl-main-u0.body`](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u0.body)
+[`vl-main-u0.body`](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u0.body`)
 through
-[`vl-main-u3.body`](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u3.body).
+[`vl-main-u3.body`](../../../../experiments/oracles/f5/captures/README.md) (retained logical path: `scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u3.body`).
 
 
 ## Exact evidence
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md). SHA-256 `5eff5c923f9337b80ced51cfeb8777caf53276b0bdb13a96b0b7966ed6e30ee3`. Lines 99–116. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md). SHA-256 `5eff5c923f9337b80ced51cfeb8777caf53276b0bdb13a96b0b7966ed6e30ee3`. Lines 11–11. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u0.body](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u0.body). SHA-256 `f1911b59cecbf6f55e3e6bb714d57888849a3f3c15295b96a8953b73fea0afc0`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-1` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u3.body](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-main-u3.body). SHA-256 `f1911b59cecbf6f55e3e6bb714d57888849a3f3c15295b96a8953b73fea0afc0`. Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `source-closure-4` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json). SHA-256 `0bbf2ccbc0daedd4aa3e7a148c2aa1160a9d5078cefe86d6508b6963eb036429`. Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+[bigip-variable-read-destroy-recreate.json](bigip-variable-read-destroy-recreate.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+
+```json
+[]
+```

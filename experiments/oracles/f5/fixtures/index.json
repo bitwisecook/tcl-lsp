@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "product fixtures; independent of measured oracle answers",
+  "files": [
+    {
+      "path": "rust/bigip-report-gen/rust/tests/data/apm.scf",
+      "bytes": 37555,
+      "format": "scf",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/data/lab-device-02.ucs",
+      "bytes": 27856,
+      "format": "ucs",
+      "role": "estate"
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/data/lab-device-01.ucs",
+      "bytes": 32300,
+      "format": "ucs",
+      "role": "estate"
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/data/certs-chain.ucs",
+      "bytes": 826,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/tcl-bigip-io/tests/fixtures/sample-encrypted.ucs",
+      "bytes": 435,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/tcl-bigip-io/tests/fixtures/sample.ucs",
+      "bytes": 367,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/tcl-bigip-io/tests/fixtures/sample-aes256.ucs",
+      "bytes": 435,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/f5-cli/tests/fixtures/sample-encrypted.ucs",
+      "bytes": 435,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/f5-cli/tests/fixtures/ucs-cert-sample.ucs",
+      "bytes": 270,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "rust/f5-cli/tests/fixtures/sample.ucs",
+      "bytes": 367,
+      "format": "ucs",
+      "role": "format or feature control"
+    },
+    {
+      "path": "scripts/explain_flow_test_harness/bigip_test_lab.scf",
+      "bytes": 10267,
+      "format": "scf",
+      "role": "format or feature control"
+    }
+  ],
+  "packaging_source": "rust/bigip-report-gen/python/tests/data/build_ucs.py",
+  "certificate_generation": "scripts/dev/generate-certificate-ucs.py",
+  "certificate_policy": "Generate certificate fixtures at runtime using the shared builder; retain recipes and verification outputs, not certificate or key bodies."
+}

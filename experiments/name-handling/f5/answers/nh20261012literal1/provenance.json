@@ -1,7 +1,0 @@
-{
-  "run_id": "nh20261012literal1",
-  "remote_staging": "/var/tmp/tcl_lsp_nh20261012literal1",
-  "configuration_saved": false,
-  "timestamp_utc": "2026-10-12T15:55:22.480677+00:00",
-  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
-}

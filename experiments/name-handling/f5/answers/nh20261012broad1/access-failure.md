@@ -1,3 +1,0 @@
-The remote driver and evidence fetch for tmm-procedure-18 returned SSH status 255. Their retained stderr says public-key/keyboard-interactive authentication was denied. The earlier 21 RULE_INIT groups and 18 procedure groups retain load and post-delete receipts. The last job has no remote ownership/load receipt. Subsequent traffic and APL groups were not attempted. This is an access interruption, not a Tcl semantic answer.
-
-After access returned, [recovery-absence.json](recovery-absence.json) and its retained stderr independently verified that the interrupted job's exact rule name was absent. This resolves the pending absence check recorded in capture-interrupted.json; it supplies no missing load, runtime operation or ownership transcript.

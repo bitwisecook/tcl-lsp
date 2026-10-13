@@ -1,6 +1,0 @@
-01070151:3: Rule [/Common/__tcl_lsp_probe_nh20261012literal1_4_2] error: /Common/__tcl_lsp_probe_nh20261012literal1_4_2:34: error: [command is disabled: "namespace"][namespace upvar :: __nh_absent nh_link ]
-/Common/__tcl_lsp_probe_nh20261012literal1_4_2:61: error: [command is disabled: "interp"][interp slaves]
-/Common/__tcl_lsp_probe_nh20261012literal1_4_2:61: error: [command is disabled: "interp"][interp delete $child]
-/Common/__tcl_lsp_probe_nh20261012literal1_4_2:61: error: [command is disabled: "rename"][rename $command {}]
-
-Unexpected Error: Loading configuration process failed.

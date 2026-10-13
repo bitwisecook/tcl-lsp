@@ -26,5 +26,5 @@ and question. Preserve the positive/adversarial distinction and identify
 whether the unknown writer can overwrite the retained cell in that host's
 actual storage/frame model. Record accepted syntax separately from triggered
 runtime result, and callback failure separately from outer command success.
-The [existing appliance protocol](../../f5/REQUEST.md) describes full answer
+The [existing appliance protocol](../../../oracles/f5/reports.md#report-5f42849056598f7d) describes full answer
 receipts; this document only requests the small composed source/context gap.

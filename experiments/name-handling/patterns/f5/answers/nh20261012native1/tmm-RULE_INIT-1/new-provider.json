@@ -1,4 +1,0 @@
-{
-  "remote_command": "tmsh list ltm rule /Common/__tcl_lsp_probe_nh20261012native1_provider",
-  "exit_code": 0
-}

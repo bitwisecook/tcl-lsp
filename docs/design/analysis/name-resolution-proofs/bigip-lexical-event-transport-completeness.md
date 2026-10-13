@@ -22,60 +22,60 @@ Exact r2286lex1 chunk logs/inventory on the recorded appliance/build, with incom
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No independent C Tcl/Jim execution of this appliance traffic or chunk-transport question is claimed.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1. Channel: Exact r2286lex1 chunk logs/inventory on the recorded appliance/build, with incomplete event channels explicitly excluded from complete-matrix claims.. Dialect: F5 TMM and captured traffic/log transport.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1.
 
-The retained inventories expose missing sequences and incomplete assembled payloads. They do not certify the complete lexical matrix for those events; complete HTTP_REQUEST and hosted-context outputs remain independent evidence. A reached marker and partial transport are preserved without treating absent chunks as observed results.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `artifact-0` (limitation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json). SHA-256 `2870ac829611d095b04482ca1f6627317c8a028ffdac6b64537653d199048a6a`. Actual chunk completeness/missing-sequence inventory; retains incomplete transport and grants no result for missing event rows.
+[bigip-lexical-event-transport-completeness.json](bigip-lexical-event-transport-completeness.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Retains actual existing execution artifacts only; no new appliance run is claimed. Reconfirmation requires the same isolated contexts and complete raw capture, not inferred expected-roster membership.
+
+```json
+[]
+```

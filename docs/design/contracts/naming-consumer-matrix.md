@@ -190,8 +190,8 @@ presentation Tcl callbacks. `f5::storage` applies a host storage policy after a
 namespace cell has resolved. Its root `::static` worker classification supplies
 no naming policy, worker selection, initialization publication or value equality.
 
-The [context naming report](../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md)
-and [appliance observation report](../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md)
+The [context naming report](../../../experiments/oracles/f5/reports.md#report-f1ecdf004ec25176)
+and [appliance observation report](../../../experiments/oracles/f5/reports.md#report-5867e095fdf82f13)
 retain independent payloads on BIG-IP `21.1.0.1`, build `0.0.26`, Point Release 1.
 The context report records reached TMM `HTTP_REQUEST`, tmsh CLI scripts, iApp
 implementation actions and triggered iCall executions. Its authoritative

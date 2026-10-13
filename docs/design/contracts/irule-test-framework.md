@@ -126,7 +126,7 @@ The Rust modules are:
    reaches its cells. Topology inputs load unattached rules as libraries without
    registering their events and refuse ambiguous short-name object resolution.
 
-   These contracts match the [recorded BIG-IP 21.1.0.1 build 0.0.26 controls](../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md).
+   These contracts match the [recorded BIG-IP 21.1.0.1 build 0.0.26 controls](../../../experiments/oracles/f5/reports.md#report-ab9307f6935c9720).
    `Vm::install_irules_rule_callable_simulation` is an explicit authored
    capability. Physical Tcl procedure declarations, bodies, command epochs and
    entered activations retain their real host owners; no F5 CPP or ABI is inferred.
@@ -396,7 +396,7 @@ single-group, four-TMM controls. The measurement does not establish behaviour
 for other builds, blades or worker groups. Ordinary-global CMP demotion is
 measured platform behaviour; the simulator does not schedule or demote flows
 from that observation. The
-[BIG-IP resolution probes](../../../scripts/dev/bigip-probes/resolution-2286/README.md)
+[BIG-IP resolution probes](../../../experiments/oracles/f5/reports.md#report-b6a821cb2d253e11)
 record actual worker coverage rather than inferring it from request counts.
 
 `LiveSession` installs a separate authored Tcl84 package capability. Logical

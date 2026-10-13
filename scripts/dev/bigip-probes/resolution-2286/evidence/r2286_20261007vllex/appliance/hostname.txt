@@ -1,3 +1,0 @@
-sys global-settings {
-    hostname bigip.bitwisecook.org
-}

@@ -1,5 +1,0 @@
-# Sanitised provenance: unrelated appliance hardware/licensing/device identity inventory omitted; retained version/build lines follow.
-  Product      BIG-IP
-  Version      21.1.0.1
-  Build        0.0.26
-  Edition      Point Release 1

@@ -67,7 +67,7 @@ provide no oracle answer. C results establish expectations only for C.
 question in a fresh Jim process and the unchanged C suite's harness refusal;
 these channels are distinct. The [maintained catalogue](README.md) joins those
 outcomes to the C cases. Exact-case F5 answers remain pending in the
-[appliance bundle](f5/README.md).
+[appliance bundle](../../oracles/f5/reports.md#report-9eb804dd1e931e16).
 
 The retained [discovery run](wiki-results/discovery/provenance.json) contains the
 initial 28-case hypotheses and failures before correction. It established that

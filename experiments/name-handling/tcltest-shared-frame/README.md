@@ -14,7 +14,7 @@ The result-data case retains an unevaluated dollar reference.
 | C Tcl 9.0.4 | Same | Same | Same | [Raw output](c-results/9.0.4/stdout) |
 | C Tcl 9.1.0 | Same | Same | Same | [Raw output](c-results/9.1.0/stdout) |
 | Jim | Unmeasured for these exact C Tcltest inputs | Unmeasured | Unmeasured | Jim's separate [native shared-lifecycle control](../patterns/jim-results-5bac7c9/jim-native/test-shared-lifecycle/record.json) does not answer these inputs |
-| F5 | Unmeasured for these exact C Tcltest inputs | Unmeasured | Unmeasured | [Context-specific pending questions](../patterns/f5/questions.json) |
+| F5 | Unmeasured for these exact C Tcltest inputs | Unmeasured | Unmeasured | [Context-specific pending questions](../../oracles/f5/captures/README.md) (retained logical path: `experiments/name-handling/patterns/f5/questions.json`) |
 
 Every C capture records four Tcltest invocations: three passes and one
 intentional setup failure. That `FAILED` report is the measured setup-error

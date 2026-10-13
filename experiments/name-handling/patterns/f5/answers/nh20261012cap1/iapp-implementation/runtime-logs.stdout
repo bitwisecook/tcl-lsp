@@ -1,5 +1,0 @@
-Oct 12 07:50:14 bigip.bitwisecook.org err scriptd[623]: 01420004:3: NHO|nh20261012cap1|version|iapp-implementation|setup|0|none|result|utf-8|0|1|
-Oct 12 07:50:14 bigip.bitwisecook.org err scriptd[623]: 01420004:3: NHO|nh20261012cap1|version|iapp-implementation|setup|0|none|errorcode|utf-8|0|1|
-Oct 12 07:50:14 bigip.bitwisecook.org err scriptd[623]: 01420004:3: NHO|nh20261012cap1|version|iapp-implementation|setup|0|none|errorinfo|utf-8|0|1|
-Oct 12 07:50:14 bigip.bitwisecook.org err scriptd[623]: 01420004:3: NHO|nh20261012cap1|version|iapp-implementation|lookup|0|none|result|utf-8|0|1|382e342e3620382e34203a3a
-Oct 12 07:50:14 bigip.bitwisecook.org err scriptd[623]: 01420004:3: NHO|nh20261012cap1|version|iapp-implementation|lookup|0|none|errorcode|utf-8|0|1|

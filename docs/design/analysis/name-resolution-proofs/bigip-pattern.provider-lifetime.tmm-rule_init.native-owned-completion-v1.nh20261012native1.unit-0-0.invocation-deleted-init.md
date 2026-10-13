@@ -22,103 +22,60 @@ Only retained case provider-lifetime, variant native-owned-completion-v1, run nh
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No execution of this exact context/input/invocation is claimed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None. Channel: Only retained case provider-lifetime, variant native-owned-completion-v1, run nh20261012native1, context tmm-RULE_INIT; event 'RULE_INIT', unit '0:0', invocation 'deleted-init'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: New exact native materialisation. Actual context/event/unit and administrative phase retained. Nested completions are list data. Fresh observer activation is distinct from continuing traffic caller; no suspended-frame claim.. Interpreter/action facts retained in the measurement: {"interpreter_path": null, "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.  Recorded adaptation: {"input_origin": "independently authored native materialisation; case metadata is the original-input reference, not portable corpus source", "administrative_phase": "deleted", "execution_generation": "fresh observer activation", "transport_projection": {"deployment_fixture": "Documentation address 192.0.2.10 replaces the executed deployment address outside Tcl program bodies.", "runtime_envelope": "Retained NHO protocol rows only; device/syslog envelope and non-probe inventory omitted.", "hardware_inventory": "Omitted; provider interpreter/build version retained separately.", "executed_input_hashes": "Historical stdin/prepared/source-helper hashes describe execution-time inputs, not sanitised current deployment/helper bytes.", "original_transport_bytes_retained": false, "lookup_result": "Result bytes unchanged."}}. Dialect: F5 hosted Tcl.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None.
 
-Setup reached with completion 0. Intended lookup reached with completion 0; result encoding binary-scan-tcl-value; exact result hex "70686173652064656c657465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d". Error metadata and availability: {"errorcode": null, "errorinfo": null, "return_options": null, "unavailable_fields": ["return_options", "errorcode", "errorinfo"]}. Only this recorded invocation is answered.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `case-metadata` (input): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json). SHA-256 `94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90`. JSON pointer `/16`. Retained structured case metadata; this descriptor is not the original Tcl oracle source.
-- `actual-input` (input): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/input.tcl](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/input.tcl). SHA-256 `2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119`. Complete retained actual_input bytes.
-- `wrapper` (input): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied.conf](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied.conf). SHA-256 `2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119`. Complete retained wrapper bytes.
-- `raw-0` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/final-runtime.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/final-runtime.stdout). SHA-256 `122235dcd92afe00017639de49d4f6f8580e16df30459889745a0fae07958c8f`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-1` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/load.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/load.stdout). SHA-256 `827fd98023b9c88614e378365df2af893d068a88f66b856a7b108db6f6c464b6`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-2` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/load.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/load.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-3` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/invocation.sh](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/invocation.sh). SHA-256 `f5f86c1ab5a9ac58bb9ac647e2ec92a5993d2223d6df181c2c39f255fc961100`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-4` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.json). SHA-256 `83d4bbc40176ae9e721f81350ca4925f2170d3de7eb081169471def7f01c9d10`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-5` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-6` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/driver.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-7` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/transport.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/transport.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-8` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/version.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/version.stdout). SHA-256 `ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-9` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/platform.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/platform.stdout). SHA-256 `a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-10` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-roster.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-roster.stdout). SHA-256 `d6ecedbcf1fb05fe32652d06a60ad4f4fbb51a28ca74a2e4c64c7e64738e7330`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-11` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/provenance.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/provenance.json). SHA-256 `d362d3756b8d0bb31d898fd4374da6948ab4cbfef8b42a9d673797a5f2b5b989`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-12` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.exit](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-13` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `raw-14` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied-0.stdout). SHA-256 `598260cd913f7e680dae5de8c79d8920d8b95912ec67988d8a8b0eefa4991498`. Retained sanitised capture/provider receipt; NHO envelopes projected and connection-address result tokens redacted where explicitly recorded.
-- `cleanup-0` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.exit](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-1` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.stderr). SHA-256 `01b9a346978cca1b5b959f99c1b741156261f16e052d373849ccef8c8b80ff41`. Retained cleanup result; scope remains explicit.
-- `cleanup-2` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/after-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-3` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.exit](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.exit). SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`. Retained cleanup result; scope remains explicit.
-- `cleanup-4` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.stderr). SHA-256 `01b9a346978cca1b5b959f99c1b741156261f16e052d373849ccef8c8b80ff41`. Retained cleanup result; scope remains explicit.
-- `cleanup-5` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/before-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-6` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.exit](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.exit). SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`. Retained cleanup result; scope remains explicit.
-- `cleanup-7` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-8` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/delete-0.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Retained cleanup result; scope remains explicit.
-- `cleanup-9` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/save-status.txt](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/save-status.txt). SHA-256 `9ab32790137e08ad76065e5e03719856b623e5a6125917840e258e4e73eac446`. Retained cleanup result; scope remains explicit.
-- `extra-0` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012finish1/native-independent-review.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012finish1/native-independent-review.json). SHA-256 `38f21f364b98b3b244780f896a9c6d6ed8dbec6c1d765e5f486d8bdb29a26b75`. Independent retained provider or run provenance.
-- `extra-1` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/source-review.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/source-review.json). SHA-256 `a30b9376590a945b8d6903a35be6ef2ca6f6a40022b6bfc81dc0e52096494bd9`. Independent retained provider or run provenance.
-- `extra-2` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-cases.json). SHA-256 `94de52baa1b6808e2187b59bb82de00f857e6cfb9e03e70d0c72c2b8755dfa90`. JSON pointer `/16/operation`. Independent retained provider or run provenance.
-- `extra-3` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/input.tcl](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/input.tcl). SHA-256 `2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119`. Independent retained provider or run provenance.
-- `extra-4` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied.conf](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-RULE_INIT-6/applied.conf). SHA-256 `2b437326585753ca171a44ba433dcc418b425009e0793b8608624a703cae0119`. Independent retained provider or run provenance.
-- `extra-5` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.json). SHA-256 `8223487e2fad0cfb21d788877f6ccb3e321e6c2e28bd0c390b3aad1b828a3b3e`. Independent retained provider or run provenance.
-- `extra-6` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Independent retained provider or run provenance.
-- `extra-7` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-apply.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Independent retained provider or run provenance.
-- `extra-8` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.json). SHA-256 `4c62c0f69ebb7bf2f9451a866ec6461794801d232b6cab02647eaf42c9e3db22`. Independent retained provider or run provenance.
-- `extra-9` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Independent retained provider or run provenance.
-- `extra-10` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-attachment.stdout). SHA-256 `b483cc70ebe7db669d41346a972901519e1397d6f2361961cf00b355650d7470`. Independent retained provider or run provenance.
-- `extra-11` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.json). SHA-256 `3c87954242a4b699e472b3f63a2c4ad0ec844b080631b6c2ba9cb71e69f5d66a`. Independent retained provider or run provenance.
-- `extra-12` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stderr). SHA-256 `495d21bfd7e0c79c13140dad775a56248e66b2f9417c0752d9b844bf7df48a34`. Independent retained provider or run provenance.
-- `extra-13` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/tmm-traffic-event-0/deleted-provider.stdout). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Independent retained provider or run provenance.
-- `measurement` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json). SHA-256 `550fd3a1f050dca9cd1c222d5f8142f1440395b079a6786a8eabb738314a359f`. JSON pointer `/292`. Reviewed measurement record.
-- `transport-projection` (limitation): [experiments/name-handling/patterns/f5/answers/nh20261012native1/transport-projection.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012native1/transport-projection.json). SHA-256 `30f4862d066ecef7536eea4900a08595d7ef007e4bc6263ef51b663f5b807835`. Explicit retained transport projection and unchanged semantic/source-operation invariants; original address bytes are not retained.
+[bigip-pattern.provider-lifetime.tmm-rule_init.native-owned-completion-v1.nh20261012native1.unit-0-0.invocation-deleted-init.json](bigip-pattern.provider-lifetime.tmm-rule_init.native-owned-completion-v1.nh20261012native1.unit-0-0.invocation-deleted-init.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution.
+
+```json
+[]
+```

@@ -1,6 +1,0 @@
-HTTP/1.0 200 OK
-X-NH-Invocation: 4
-Server: BigIP
-Connection: close
-Content-Length: 57
-

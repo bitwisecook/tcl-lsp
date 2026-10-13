@@ -22,73 +22,60 @@ Only retained case frame-wrapper, variant original-names-stage-split-v1, run nh2
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
 No execution of this exact context/input/invocation is claimed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`. Version: not recorded. Build: not recorded.
 
-No execution of this exact context/input/invocation is claimed for this provider.
+The scoped answer is stated above.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None. Channel: Only retained case frame-wrapper, variant original-names-stage-split-v1, run nh20261012pat3, context stock-8.4; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Original authored names and concatenated source bytes; setup/final command split in a fresh stock process. Process destruction supplies interpreter isolation; no in-process cleanup. This is a wrapper/frame/catch-boundary adaptation, not an exact portable-input answer.. Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.4", "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.  Recorded adaptation: {"kind": "original-name-setup-final-stage-split", "source_bytes_when_concatenated_unchanged": true, "names_rewritten": false, "fresh_stock_process_required": true, "catch_boundary_changed": true, "warning": "Separate catches for prefix and final command alter completion/error boundaries; frame and input channel must be retained. Earlier caught lookup or nested test lifecycle remains in setup."}. Dialect: F5 hosted Tcl.
+Status: `observed`. Version: 21.1.0.1. Build: 0.0.26; hotfix None.
 
-Setup reached with completion 0. Intended lookup reached with completion 0; result encoding utf-8; exact result hex "6368616e676564". Error metadata and availability: {"errorcode": null, "errorinfo": null, "return_options": null, "unavailable_fields": ["return_options", "errorcode", "errorinfo"]}. Only this recorded invocation is answered.
+The scoped answer is stated above.
 
 ## Exact evidence
 
-- `original-input` (input): [experiments/name-handling/patterns/probes/frame-wrapper.tcl](../../../../experiments/name-handling/patterns/probes/frame-wrapper.tcl). SHA-256 `a580f08bd651473b0846da7da4ca27a7615bff3125c8507bc0d1409ff496910e`. Complete retained original_input bytes.
-- `actual-input` (input): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/input.tcl](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/input.tcl). SHA-256 `49ebffa61fda4bcad5ce12ad21f5cf0702c81224ea7e645fc0455a3fe4d7b464`. Complete retained actual_input bytes.
-- `wrapper` (input): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/input.tcl](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/input.tcl). SHA-256 `49ebffa61fda4bcad5ce12ad21f5cf0702c81224ea7e645fc0455a3fe4d7b464`. Complete retained wrapper bytes.
-- `raw-0` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stdout). SHA-256 `4a623ebc296936114898c6f4aea2e24d2c7ee0e726b525aad81f8d999c275ccb`. Exact retained capture or provider receipt.
-- `raw-1` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stdout). SHA-256 `4a623ebc296936114898c6f4aea2e24d2c7ee0e726b525aad81f8d999c275ccb`. Exact retained capture or provider receipt.
-- `raw-2` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stderr](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/runtime.stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact retained capture or provider receipt.
-- `raw-3` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/invocation.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-6/invocation.json). SHA-256 `b460f9918405a3f07a95797acb2de6eeee200120bed19dffbbbbbf3bebdacfa1`. Exact retained capture or provider receipt.
-- `raw-4` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/version.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/version.stdout). SHA-256 `ddd147403909c715e5de9c1b1292c9dead5cf2fada532c2eb94b8507483024b9`. Exact retained capture or provider receipt.
-- `raw-5` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/platform.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/platform.stdout). SHA-256 `a1845ae8fd52b55e5919050590e4a93f35ad6adc7b46d82197649c1623f7662f`. Exact retained capture or provider receipt. Sanitised retained artifact: removed lab transport/device details or unrelated inventory; original captured bytes are not claimed.
-- `raw-6` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/tmm-roster.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/tmm-roster.stdout). SHA-256 `76e6c6338000bf0f35e2dffa36e7426ab0c03c7742fc378f374206eefca1010f`. Exact retained capture or provider receipt.
-- `raw-7` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/failover.stdout](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/failover.stdout). SHA-256 `cb4b9d3b286827c7f708e26f39920e13e3bff73ad10be696c67cb157a09e9a56`. Exact retained capture or provider receipt.
-- `raw-8` (provider): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/provenance.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/provenance.json). SHA-256 `66865c4fef8a830d84f21e3927bba71e8bb2445d89fefc8e451efafe19932a02`. Exact retained capture or provider receipt.
-- `raw-9` (input): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-cases.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/stock-8.4-cases.json). SHA-256 `5c89bea6689ca95e97242f904ee3eb411180337ecdd172e9a1cda10a4d21319e`. JSON pointer `/6`. Exact retained capture or provider receipt.
-- `measurement` (observation): [experiments/name-handling/patterns/f5/answers/nh20261012pat3/records.json](../../../../experiments/name-handling/patterns/f5/answers/nh20261012pat3/records.json). SHA-256 `1598d944758f349c44a1ee95b8c45d39ea2b23a7a14442041f87a4236cff2705`. JSON pointer `/6`. Reviewed measurement record.
+[bigip-pattern.frame-wrapper.stock-8.4.original-names-stage-split-v1.nh20261012pat3.invocation-once.json](bigip-pattern.frame-wrapper.stock-8.4.original-names-stage-split-v1.nh20261012pat3.invocation-once.json) contains the exact evidence descriptors, original hashes and selectors. The canonical manifest remains the proof authority. The indexed F5 store resolves historical paths without retaining expanded duplicate trees.
 
-## Source inspection
+```sh
+python3 experiments/oracles/f5/materialise.py read --path HISTORICAL_PATH --json-pointer /ROW
+```
 
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+## Reproduction
 
-## Consumer bindings
-
-No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
+The argument vector below records the historical invocation. Restore retained driver directories with `materialise.py extract` before replay, and apply the selected case's current address bindings and state prerequisites.
 
 Replay requires the retained exact inputs, isolated appliance objects, recorded invoking context and independently captured load, runtime and cleanup outcomes. This registration performs no appliance execution.
+
+```json
+[]
+```

@@ -1,9 +1,0 @@
-{
-  "run_id": "nh20261012aplnsowner1",
-  "kind": "owner",
-  "configuration_saved": false,
-  "remote_staging": "/var/tmp/tcl_lsp_nh20261012aplnsowner1",
-  "timestamp_utc": "2026-10-12T17:16:07.693533+00:00",
-  "invoking_action": "Chrome Application Services Create form; template selection invokes APL callbacks",
-  "sanitised_provenance": "Retained transport/device literals are placeholders. Historical stdin/executed-input hashes describe the original execution; no appliance rerun is claimed."
-}

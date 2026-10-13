@@ -1,0 +1,6 @@
+sys folder /Common/__oracle {}
+ltm pool /Common/__oracle_backend {
+    members {
+        192.168.1.30:8080 { address 192.168.1.30 }
+    }
+}
