@@ -1,0 +1,17 @@
+{
+  "runtime/rust/src/vars.rs": {
+    "before_sha256": "7781d31cd8ed0dcab3893b717660cb7162dc0813dd27515f76d18cc5318df4f7",
+    "proposed": "/tmp/runtime-variable-adoption-20261013/vars.rs.proposed",
+    "proposed_sha256": "a79e44d579d3b90365d684e54cc8caf49e3f7efb870f2b18fa99a9a37ace895f"
+  },
+  "runtime/rust/src/cmd_var.rs": {
+    "before_sha256": "15bf348927881a7276849275d5156a07212fb9a7dd3cd415236293e48aeac550",
+    "proposed": "/tmp/runtime-variable-adoption-20261013/cmd_var.rs.proposed",
+    "proposed_sha256": "9d272042fe89ac939777ddcfc88e8d955a11a9dab6228f75586828d52ee0a313"
+  },
+  "runtime/rust/src/interp/native_jim_lookup.rs": {
+    "before_sha256": "b819790d7a72e66d00c09f4325f985e8823a5617b4f14b9a89c2553ba2b4ce4b",
+    "proposed": "/tmp/runtime-variable-adoption-20261013/native_jim_lookup.rs.proposed",
+    "proposed_sha256": "507b9f5960f3b6b6b7875e4ffe1b4b76252f212d28fa546c5d231cf3e05aab53"
+  }
+}

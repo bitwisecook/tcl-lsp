@@ -5855,7 +5855,18 @@ p\uD801 ordinary";
         }
         let mut foreign_registry = registry.project_for_profile(input.unit_profile());
         let mut changed_spec = foreign_registry.get("puts").unwrap().clone();
-        changed_spec.traits ^= tcl_registry::Traits::EVALUATES_CODE;
+        if changed_spec
+            .traits
+            .contains(tcl_registry::Traits::EVALUATES_CODE)
+        {
+            changed_spec
+                .traits
+                .remove(tcl_registry::Traits::EVALUATES_CODE);
+        } else {
+            changed_spec
+                .traits
+                .insert(tcl_registry::Traits::EVALUATES_CODE);
+        }
         foreign_registry.insert(changed_spec);
         assert!(
             supplied_unit_build_options(&db, file, key, &foreign_registry, None, &declared, &input)

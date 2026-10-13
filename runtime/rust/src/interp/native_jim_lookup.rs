@@ -227,7 +227,10 @@ impl Interp {
             let world = self.namespaces.borrow();
             crate::vars::original_jim_variable_cell(&frames, &world, self.current_ns.get(), bytes)
                 .map(|cell| {
-                    let global = bytes.starts_with(b"::");
+                    let global = tcl_syntax::naming::NativeNameProtocol::Jim084
+                        .variable_root_input(bytes)
+                        .qualification()
+                        == tcl_syntax::naming::NativeNameQualification::Absolute;
                     (
                         obj::JimVariableCache {
                             interpreter: self.native_command_interpreter,
@@ -586,13 +589,14 @@ impl Interp {
             .map_err(|error| self.report_cmd_error(error))?;
         assigned.map_err(|error| crate::builtins::var_error(self, &bytes, error))?;
         if !existed && element.is_none() {
-            let key = if bytes.starts_with(b"::") {
+            let key = if tcl_syntax::naming::NativeNameProtocol::Jim084
+                .variable_root_input(&bytes)
+                .qualification()
+                == tcl_syntax::naming::NativeNameQualification::Absolute
+            {
                 // JimCreateVariable owns a separate counted stripped global key.
-                let tail = bytes
-                    .iter()
-                    .position(|byte| *byte != b':')
-                    .unwrap_or(bytes.len());
-                Owned::fresh(obj::new_string_bytes(&bytes[tail..]))
+                let key = tcl_syntax::naming::jim_global_variable_key_bytes(b"::", &bytes);
+                Owned::fresh(obj::new_string_bytes(&key))
             } else {
                 Owned::retain(original)
             };

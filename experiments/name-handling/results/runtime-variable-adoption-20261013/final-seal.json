@@ -1,0 +1,55 @@
+{
+  "baseline": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "checkout": "/workspace/name-implementation-worktrees/runtime",
+  "owned_files": {
+    "runtime/rust/src/vars.rs": {
+      "preimage_sha256": "0cfd848404a3e1627af38f534380fd5a1e838b689932b872bdb9407a0174cd8d",
+      "tested_sha256": "0cb5ef1085175a3294d911c5518390203e9c54a044fd27a192223ec77d4ad607"
+    },
+    "runtime/rust/src/cmd_var.rs": {
+      "preimage_sha256": "15bf348927881a7276849275d5156a07212fb9a7dd3cd415236293e48aeac550",
+      "tested_sha256": "9d272042fe89ac939777ddcfc88e8d955a11a9dab6228f75586828d52ee0a313"
+    },
+    "runtime/rust/src/interp/native_jim_lookup.rs": {
+      "preimage_sha256": "b819790d7a72e66d00c09f4325f985e8823a5617b4f14b9a89c2553ba2b4ce4b",
+      "tested_sha256": "507b9f5960f3b6b6b7875e4ffe1b4b76252f212d28fa546c5d231cf3e05aab53"
+    }
+  },
+  "patch": {
+    "path": "/tmp/runtime-variable-adoption-20261013/ordinary-variable-adoption.patch",
+    "sha256": "1c3f36a3dd192061ee22928e04077f42200ec4873e9bfabcaa6c0230122722a0"
+  },
+  "inherited_namespace_patch": {
+    "path": "runtime/rust/src/namespace.rs",
+    "sha256": "14d6e32b462691ca3876dc9f84638af2823093f1397157bd7db2b98afbaa9d99",
+    "included_in_tested_source": true,
+    "included_in_owned_patch": false
+  },
+  "source_paths_before": 9154,
+  "source_paths_after": 9154,
+  "changed_source_paths": {},
+  "compiled_inputs_count": 4907,
+  "unresolved_compiled_inputs": [],
+  "uncovered_compiled_inputs": [],
+  "binary_hashes": {
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235": "eb4c72a0e6ca15b9837ef0dcbb69fec83cd299219d15f2d3afebadd210b6cdcd",
+    "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_query_bases-1a3cc40d7f7663fe": "d2f5b4d18c1b305f1e945cd5b5bacd60224b353d609386a42e2d9058728eeda4"
+  },
+  "changed_binary_hashes": {},
+  "changed_compiled_inputs": {},
+  "oracle_changes": {},
+  "exact_tests_passed": 16,
+  "scalar_controls": 8,
+  "jim_activation_controls": 5,
+  "inherited_rename_controls": 2,
+  "namespace_query_comparison_rows": 48,
+  "query_providers": [
+    "C8.4.20",
+    "C8.5.19",
+    "C8.6.18",
+    "C9.0.4",
+    "C9.1.0",
+    "Jim0.84-9-g5bac7c9"
+  ],
+  "fresh_native_oracle_runs": false
+}

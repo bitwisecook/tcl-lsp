@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_var::tests::the_fallback_never_walks_intermediate_parents ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2114 filtered out; finished in 5.54s
+

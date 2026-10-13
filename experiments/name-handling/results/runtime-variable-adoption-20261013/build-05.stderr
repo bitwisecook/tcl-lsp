@@ -1,0 +1,6 @@
+   Compiling cc v1.6.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-host-native)
+   Compiling tcl-test-support v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-test-support)
+   Compiling tcl-runtime v0.1.0 (/workspace/name-implementation-worktrees/runtime/runtime/rust)
+    Finished `test` profile [unoptimized] target(s) in 1m 21s

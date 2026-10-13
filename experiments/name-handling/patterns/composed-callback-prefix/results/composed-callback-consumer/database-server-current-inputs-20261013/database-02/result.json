@@ -1,0 +1,277 @@
+{
+  "started_utc": "2026-10-13T16:36:26.400413+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-db",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 14.001273330000913,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+    "sha256": "661d43b1c964849e6f90a0e34f03920bd7706085789860c88c20f94720356abb",
+    "bytes": 192319712
+  },
+  "selected_tests": [
+    "compiler_snapshot_memo_tests::original_callback_alias_database_refuses_deleted_and_unowned_horizons",
+    "compiler_snapshot_memo_tests::original_callback_alias_diagnostics_keep_target_and_separate_counts",
+    "compiler_snapshot_memo_tests::original_callback_alias_external_headers_use_held_target_slot",
+    "tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+    "tests::original_callback_missing_future_lookup_declines_reporting_candidates",
+    "tests::original_callback_signature_gap_retains_disjoint_source_headers",
+    "tests::original_callback_signature_query_updates_headers_without_tail_substitution",
+    "tests::qualified_callback_arity_keeps_same_tailed_namespaces_separate"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "compiler_snapshot_memo_tests::original_callback_alias_database_refuses_deleted_and_unowned_horizons",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.9971892400008073,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "compiler_snapshot_memo_tests::original_callback_alias_database_refuses_deleted_and_unowned_horizons",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "compiler_snapshot_memo_tests::original_callback_alias_diagnostics_keep_target_and_separate_counts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1429976870003884,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "compiler_snapshot_memo_tests::original_callback_alias_diagnostics_keep_target_and_separate_counts",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "compiler_snapshot_memo_tests::original_callback_alias_external_headers_use_held_target_slot",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.7535046739994868,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "compiler_snapshot_memo_tests::original_callback_alias_external_headers_use_held_target_slot",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1482738470003824,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::original_callback_missing_future_lookup_declines_reporting_candidates",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.0459011490002013,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "tests::original_callback_missing_future_lookup_declines_reporting_candidates",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::original_callback_signature_gap_retains_disjoint_source_headers",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1449570240001776,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "tests::original_callback_signature_gap_retains_disjoint_source_headers",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::original_callback_signature_query_updates_headers_without_tail_substitution",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.8248210909987392,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "tests::original_callback_signature_query_updates_headers_without_tail_substitution",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::qualified_callback_arity_keeps_same_tailed_namespaces_separate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 2.5345074249999016,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "tests::qualified_callback_arity_keeps_same_tailed_namespaces_separate",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-13T16:36:55.501565+00:00",
+  "changed_sources": {}
+}

@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-13T16:28:04.618326+00:00",
+  "label": "Unchanged committed base DB original callback and naming controls",
+  "package": "tcl-lsp-db",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34625,
+  "plan": {
+    "filters": [
+      "original_callback_missing_future_lookup_declines_reporting_candidates",
+      "original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+      "original_callback_signature_query_updates_headers_without_tail_substitution",
+      "original_callback_signature_gap_retains_disjoint_source_headers",
+      "qualified_callback_arity_keeps_same_tailed_namespaces_separate",
+      "original_callback_alias_diagnostics_keep_target_and_separate_counts",
+      "original_callback_alias_external_headers_use_held_target_slot",
+      "original_callback_alias_database_refuses_deleted_and_unowned_horizons"
+    ],
+    "exact": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

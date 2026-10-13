@@ -1,0 +1,8 @@
+{
+  "filters": [
+    "original_workspace_diagnostics_tests",
+    "original_package_procedures_use_shared_conditional_source_slots",
+    "original_package_classes_use_shared_current_factory_slots"
+  ],
+  "exact": []
+}

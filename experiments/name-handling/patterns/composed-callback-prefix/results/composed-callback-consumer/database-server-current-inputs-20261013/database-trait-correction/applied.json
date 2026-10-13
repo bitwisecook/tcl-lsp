@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "2026-10-13T16:35:58.016515+00:00",
+  "path": "/workspace/tcl-lsp/rust/tcl-lsp-db/src/lib.rs",
+  "before_sha256": "6f12a32d1727bad0317b88dcc15ec29257a7df1ec00754dc8a99d51608ea208c",
+  "after_sha256": "d122c46d66cb1861017246d04296c5b76c1190c16bf61fd1f056552411451411",
+  "scope": "one existing test toggles exact trait through supported contains/remove/insert API; foreign-registry refusal assertion retained",
+  "authority": "root measured one-main-leaf correction window",
+  "formatted_and_scoped_diff_checked": true
+}

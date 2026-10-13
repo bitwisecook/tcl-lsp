@@ -1,0 +1,17 @@
+# Runtime ordinary variable geometry audit
+
+Checkout baseline: 7aa200ed1da6b663da67c688e53839a20f19f052. Independent original C8.4–9.1 and Jim issuers are retained. This audit covers ordinary variable consumers, not full command/address/OO conformance.
+
+- `namespace.rs::var_home` already delegates C VariableRoot qualifiers, qualification and simple components to `variable_namespace_projection`; physical child traversal and exact namespace token remain Runtime-owned. Jim stays in its separate flat global key branch.
+- `vars::{classify_using,classify_at_using,variable_is_qualified}` already retain `variable_root_input` qualification; OO resolver and actual local/namespace activation selection precede lookup. Ordinary qualified base iteration and unqualified namespace fallback now reuse `variable_namespace_lookup_bases` under `Namespaces::ns_var_global_fallback`, independent of query purpose. Occupied and undefined primary cells block global probing; primary is retained for creation. Original/neutral tables and refusal rules remain unchanged.
+- `vars::qualified_home_using` now receives the existing retained VariableRoot qualification from its two callers, preserving pre-NUL qualification rather than repeating an absolute-prefix test.
+- `cmd_var::global`'s Jim procedure absolute-name no-op repeats root-prefix geometry. It now reuses the selected Jim VariableRoot qualification while retaining Jim's own activation/link policy.
+- `interp/native_jim_lookup::{install_original_jim_variable,assign_original_named_variable_entered}` repeat Jim global-root geometry and all-leading-colon stripping for a fresh counted global key. The Jim-only admission, physical cache frame/incarnation, original key holder and fresh allocation remain owned here; existing Jim VariableRoot qualification and `jim_global_variable_key_bytes` now supply pure geometry.
+- Ordinary array/substitution/read/write/alias consumers delegate `vars` or purpose-selected original variable operands. `frame` modules retain physical cells, owners, generations, aliases and instruction origins; they supply no alternate naming geometry.
+- `state_traits::namespace_variable_name_bytes_checked` is a separate NamespaceVariableQuery consumer. Its 48 retained original-source comparisons across C5/latestJim check that ordinary migrations preserve that boundary; they are not ordinary scalar oracle measurements.
+- `interp/native_variable_names/native_tcloo::original_c_oo_varname` retains a separate varname construction and original-holder decision. Its direct absolute prefix selects whether to retain the original or allocate constructed lookup. `native_oo_varname_lookup_bytes` owns the spelling but does not expose the retained/constructed choice. Leave unchanged rather than borrow ordinary VariableRoot purpose as allocation authority. It remains an explicit consumer adoption gap for the owner/API audit.
+- Original namespace object cache reference flags and error-variable test reporting prefixes have different purposes and are excluded from ordinary variable geometry migration.
+
+No assertions are weakened. Existing basic/qualified rename controls only validate the inherited, independently root-owned namespace.rs patch present in these binaries. No new destructive or crash probe is run.
+
+A remaining direct prefix assertion in `native_jim_lookup` is an independent expected-value assertion in a test, retained unchanged. It is not a production lookup or allocation consumer.

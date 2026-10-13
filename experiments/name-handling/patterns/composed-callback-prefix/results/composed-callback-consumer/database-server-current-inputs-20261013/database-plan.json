@@ -1,0 +1,13 @@
+{
+  "filters": [
+    "original_callback_missing_future_lookup_declines_reporting_candidates",
+    "original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts",
+    "original_callback_signature_query_updates_headers_without_tail_substitution",
+    "original_callback_signature_gap_retains_disjoint_source_headers",
+    "qualified_callback_arity_keeps_same_tailed_namespaces_separate",
+    "original_callback_alias_diagnostics_keep_target_and_separate_counts",
+    "original_callback_alias_external_headers_use_held_target_slot",
+    "original_callback_alias_database_refuses_deleted_and_unowned_horizons"
+  ],
+  "exact": []
+}

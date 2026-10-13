@@ -1,0 +1,277 @@
+{
+  "started_utc": "2026-10-13T16:41:21.600090+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-server",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 244.37147089300015,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+    "sha256": "4d7c48266e314f30c74d551a48fcbc4c81bc9a815f7090bb075cac91d095497d",
+    "bytes": 304278472
+  },
+  "selected_tests": [
+    "original_workspace_diagnostics_tests::explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour",
+    "original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity",
+    "original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports",
+    "original_workspace_diagnostics_tests::original_workspace_reporting_currency_keeps_full_store_and_independent_context",
+    "original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store",
+    "original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners",
+    "tests::original_package_classes_use_shared_current_factory_slots",
+    "tests::original_package_procedures_use_shared_conditional_source_slots"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.2262733619991195,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 2.7811275700005353,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.4199652719998994,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::original_workspace_reporting_currency_keeps_full_store_and_independent_context",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.6715015290010342,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::original_workspace_reporting_currency_keeps_full_store_and_independent_context",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.5186872559988842,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.3181961749996844,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "tests::original_package_classes_use_shared_current_factory_slots",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.7664002450001135,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "tests::original_package_classes_use_shared_current_factory_slots",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_lsp_server-b670f8381464575d",
+        "tests::original_package_procedures_use_shared_conditional_source_slots",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5715132639998046,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "tests::original_package_procedures_use_shared_conditional_source_slots",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-13T16:45:40.133616+00:00",
+  "changed_sources": {}
+}

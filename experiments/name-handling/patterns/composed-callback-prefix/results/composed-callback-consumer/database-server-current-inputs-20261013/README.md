@@ -1,0 +1,9 @@
+# Current-input database and server naming controls
+
+The actual current-main DB test build first failed on one existing test using an unsupported Traits XOR-assignment operation; it executed zero tests and its complete raw receipt is `database/`. The scoped correction toggles exactly EVALUATES_CODE through supported contains/remove/insert methods and preserves the foreign-registry refusal assertion. The exact test-only patch is retained.
+
+The fresh DB build with jobs1/testdebug0 passed, followed by eight separately executed exact original callback/naming controls. They cover retained typed callback subjects, missing future lookup, source header updates/gaps, same-tail namespace separation, actual alias target/count separation, external headers, deletion and unowned horizons. The last three actual module names are `compiler_snapshot_memo_tests`, reconciled from the fresh binary roster. No reporting count or label substitutes for the selected original owner.
+
+The actual current-main server build with jobs1/testdebug0 passed, followed by eight separately executed exact original workspace/package controls. They cover explicit Logical compatibility, Native reporting lookup/arity refusal, current source advice despite foreign reports, actual whole store and independent context, builtin availability, pack-generation/withdrawn owner refusal and shared current package procedure/class slots.
+
+Complete source/config/original-fixture inventories match before/end for both successful captures. Each binary path/hash, actual selected roster, command, elapsed time, stdout and exit result is retained. No binaries are copied here. The scope is these sixteen named current-input controls and the small already-applied naming adapters; it does not establish complete DB/server/LSP migration, #1778 identity-key migration, the new isolated Logical source-scope selector, original #2286 completion, F5 conformance or Native execution parity.

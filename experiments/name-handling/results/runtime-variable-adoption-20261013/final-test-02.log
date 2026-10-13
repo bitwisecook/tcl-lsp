@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_var::tests::ns_scope_unqualified_falls_back_to_global_only_under_8x ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2114 filtered out; finished in 4.06s
+

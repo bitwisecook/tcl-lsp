@@ -2380,19 +2380,16 @@ impl Namespaces {
                 .ok()?;
             return Some((GLOBAL, selected.jim_flat_key()?.to_vec()));
         }
-        let absolute = new.starts_with(b"::");
-        let segments = split_qualifier(new);
-        let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(new) {
-            (b"", &segments[..])
-        } else {
-            let (simple, ns_parts) = segments.split_last()?;
-            (*simple, ns_parts)
-        };
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = self.ensure_child(ns, part);
+        let protocol = self.variable_name_protocol?;
+        let path = self.native_context_path(current)?;
+        let selected = protocol
+            .rename_destination_projection(tcl_syntax::naming::NativeNameContext::new(&path), new)
+            .ok()?;
+        let mut namespace = self.command_projection_base(current, &selected);
+        for part in selected.qualifiers() {
+            namespace = self.ensure_child(namespace, part.as_bytes());
         }
-        Some((ns, simple.to_vec()))
+        Some((namespace, selected.slot().simple.as_bytes().to_vec()))
     }
 
     /// Place only the tentative destination for C's alias-loop check. The

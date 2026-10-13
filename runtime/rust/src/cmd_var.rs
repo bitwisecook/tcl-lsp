@@ -163,7 +163,9 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(name) => name,
                 Err(error) => return interp.report_cmd_error(error),
             };
-            if name.starts_with(b"::") {
+            if protocol.variable_root_input(&name).qualification()
+                == tcl_syntax::naming::NativeNameQualification::Absolute
+            {
                 continue;
             }
             let code = interp.link_original_jim_upvar_objects(argv[index], 0, argv[index]);

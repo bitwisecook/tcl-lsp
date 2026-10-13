@@ -1,0 +1,23 @@
+   Compiling typenum v1.20.1
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling hybrid-array v0.4.15
+   Compiling cfg-if v1.0.5
+   Compiling tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-dialect)
+   Compiling const-oid v0.10.2
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+error: failed to run custom build command for `tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-dialect)`
+
+Caused by:
+  process didn't exit successfully: `/workspace/name-implementation-worktrees/runtime/target/debug/build/tcl-dialect-a1a6de9d7214c68d/build-script-build` (exit status: 101)
+  --- stdout
+  cargo:rerun-if-changed=data/reference-toolchains.tsv
+
+  --- stderr
+
+  thread 'main' (72799) panicked at /workspace/name-implementation-worktrees/runtime/rust/tcl-dialect/build.rs:16:49:
+  read Tcl reference-toolchain manifest: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: build failed, waiting for other jobs to finish...

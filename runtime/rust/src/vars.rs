@@ -43,7 +43,10 @@
 //! namespace tree (the two var-table owners) from the interp.
 
 use tcl_runtime_api::{FrameLinkOrigin, VarId};
-use tcl_syntax::naming::{NativeNameProtocol, NativeNameQualification};
+use tcl_syntax::naming::{
+    variable_namespace_lookup_bases, NativeNameProtocol, NativeNameQualification,
+    VariableLookupBase,
+};
 
 use crate::frame::{FrameStack, Link, Var, VarError, VarHome, VarTable};
 use crate::namespace::{Namespaces, NsId, GLOBAL};
@@ -265,6 +268,7 @@ fn qualified_home_using(
     context: NsId,
     name: &[u8],
     original: bool,
+    qualification: NativeNameQualification,
 ) -> Option<(NsId, Vec<u8>)> {
     let has_cell = |namespace, key: &[u8]| {
         let table = if original {
@@ -274,14 +278,23 @@ fn qualified_home_using(
         };
         table.is_some_and(|table| table.has_native_name_cell(key))
     };
-    let primary = ns.var_home(context, name);
-    if ns.ns_var_global_fallback
-        && !name.starts_with(b"::")
-        && primary.as_ref().is_none_or(|(id, key)| !has_cell(*id, key))
-    {
-        if let Some(global) = ns.var_home(GLOBAL, name) {
-            if has_cell(global.0, &global.1) {
-                return Some(global);
+    let mut bases = variable_namespace_lookup_bases(
+        qualification == NativeNameQualification::Absolute,
+        context,
+        ns.ns_var_global_fallback,
+    )
+    .peekable();
+    let namespace = |base| match base {
+        VariableLookupBase::Context(token) => token,
+        VariableLookupBase::Root => GLOBAL,
+    };
+    let primary = ns.var_home(namespace(bases.next()?), name);
+    if bases.peek().is_some() && primary.as_ref().is_none_or(|(id, key)| !has_cell(*id, key)) {
+        for base in bases {
+            if let Some(alternate) = ns.var_home(namespace(base), name) {
+                if has_cell(alternate.0, &alternate.1) {
+                    return Some(alternate);
+                }
             }
         }
     }
@@ -320,7 +333,7 @@ fn classify_using(
         });
     }
     let (home, key) = if input.qualification() != NativeNameQualification::Unqualified {
-        match qualified_home_using(ns, current_ns, name, original) {
+        match qualified_home_using(ns, current_ns, name, original, input.qualification()) {
             Some((id, simple)) => (VarHome::Namespace(id), simple),
             None => return Resolved::Error(VarError::NoSuchNamespace),
         }
@@ -342,13 +355,8 @@ fn classify_using(
     })
 }
 
-/// The Tcl 8.x namespace-scope fallback.  An unqualified name whose home
-/// is a non-global namespace with **no such cell** — a `variable` declaration
-/// retains an undefined cell, so declared names never fall through — resolves to
-/// the GLOBAL namespace when it holds one, for reads and writes alike; under
-/// the default 9.0 semantics (TIP 278) the home is returned unchanged.
-/// tclsh 8.6/9.0-pinned in `cross_version_vars_e2e.rs` (tcl-vm) and the unit
-/// pairs below.
+/// Select an existing global cell only when the caller enables fallback.
+/// Undefined namespace cells block it; procedure-local homes stay local.
 fn ns_scope_fallback_using(ns: &Namespaces, home: VarHome, name: &[u8], original: bool) -> VarHome {
     if !ns.ns_var_global_fallback {
         return home;
@@ -367,8 +375,14 @@ fn ns_scope_fallback_using(ns: &Namespaces, home: VarHome, name: &[u8], original
         };
         table.is_some_and(|table| table.has_native_name_cell(name))
     };
-    if !has_cell(id) && has_cell(crate::namespace::GLOBAL) {
-        return VarHome::Namespace(crate::namespace::GLOBAL);
+    for base in variable_namespace_lookup_bases(false, id, ns.ns_var_global_fallback) {
+        let namespace = match base {
+            VariableLookupBase::Context(token) => token,
+            VariableLookupBase::Root => GLOBAL,
+        };
+        if has_cell(namespace) {
+            return VarHome::Namespace(namespace);
+        }
     }
     home
 }
@@ -662,7 +676,13 @@ fn classify_at_using(
         });
     }
     let (home, key) = if input.qualification() != NativeNameQualification::Unqualified {
-        match qualified_home_using(ns, frames.frame_ns(level), name, original) {
+        match qualified_home_using(
+            ns,
+            frames.frame_ns(level),
+            name,
+            original,
+            input.qualification(),
+        ) {
             Some((id, simple)) => (VarHome::Namespace(id), simple),
             None => return Resolved::Error(VarError::NoSuchNamespace),
         }
