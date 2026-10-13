@@ -7,6 +7,7 @@ experiments/name-handling/results/focused-regressions/*.txt -whitespace
 experiments/name-handling/results/** -whitespace
 experiments/name-handling/patterns/probes/** -whitespace
 experiments/name-handling/patterns/results/** -whitespace
+experiments/name-handling/patterns/**/results/** -whitespace
 experiments/name-handling/patterns/wiki-results/** -whitespace
 experiments/name-handling/patterns/wiki-subject-results/** -whitespace
 experiments/name-handling/patterns/jim-results-*/** -whitespace
@@ -29,3 +30,4 @@ experiments/name-handling/registry-name-adapters/*.stderr -whitespace
 experiments/name-handling/registry-name-adapters/*.log -whitespace
 experiments/name-handling/braced-source-correspondence/probe-crlf.tcl -text -whitespace
 experiments/name-handling/namespace-address-purpose/**/*.bin -text -whitespace
+experiments/name-handling/variable-namespace-query-bases/**/*.bin -text -whitespace
