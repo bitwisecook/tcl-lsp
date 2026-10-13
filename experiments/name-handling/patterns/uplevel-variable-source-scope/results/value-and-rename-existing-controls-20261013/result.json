@@ -1,0 +1,231 @@
+{
+  "started_utc": "2026-10-13T20:25:13.094446+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "sha256": "f9e25bc2cd430ca9ac7e742d91e9e2d1ed6621355b2e9e32a43a790519e875ae",
+    "bytes": 177360656
+  },
+  "build_source_stable": true,
+  "selected_tests": [
+    "definition::tests::bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace",
+    "definition::tests::bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace",
+    "definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace",
+    "definition::tests::two_hop_apply_var_indirection_stays_unresolved",
+    "rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace",
+    "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone",
+    "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::tests::bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.9679298549999658,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "definition::tests::bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::tests::bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.2678049630012538,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "definition::tests::bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.0180324210014078,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::tests::two_hop_apply_var_indirection_stays_unresolved",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1176383759993769,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "definition::tests::two_hop_apply_var_indirection_stays_unresolved",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5659090180015482,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.7663370369991753,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9166178109990142,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-13T20:25:20.637063+00:00",
+  "changed_sources": {}
+}

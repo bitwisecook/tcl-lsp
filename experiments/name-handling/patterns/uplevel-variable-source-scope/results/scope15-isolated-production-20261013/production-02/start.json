@@ -1,0 +1,35 @@
+{
+  "started_utc": "2026-10-13T20:14:35.103967+00:00",
+  "label": "scope15-isolated-production-after-materialization",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/name-implementation-worktrees/lsp_scope/target",
+  "source_paths": 6741,
+  "plan": {
+    "exact": [
+      "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+      "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+      "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+      "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+      "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+      "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+      "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+      "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+      "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+      "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+      "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+      "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+      "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+      "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+      "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image"
+    ],
+    "scope": "original13+readrecording+rename current-image exact public production selectors; all originals preserved"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "frozen isolated production; no temporary instrumentation",
+  "checkout_commit": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "jobs": "1",
+  "test_debug": "0",
+  "dev_debug": "0",
+  "incremental": "0"
+}

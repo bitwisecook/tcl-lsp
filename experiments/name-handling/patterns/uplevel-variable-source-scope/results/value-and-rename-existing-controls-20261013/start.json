@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-10-13T20:25:13.094446+00:00",
+  "label": "supporting-source-value-and-rename-consumers",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/name-implementation-worktrees/lsp_scope/target",
+  "source_paths": 6741,
+  "plan": {
+    "exact": [
+      "definition::tests::bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace",
+      "definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace",
+      "definition::tests::bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace",
+      "definition::tests::two_hop_apply_var_indirection_stays_unresolved",
+      "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use",
+      "rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace",
+      "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone"
+    ],
+    "scope": "Existing public variable/apply and namespace rename consumers; same frozen isolated production02 binary/input, no Cargo"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "frozen isolated production; no temporary instrumentation",
+  "checkout_commit": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "jobs": "1",
+  "test_debug": "0",
+  "dev_debug": "0",
+  "incremental": "0"
+}

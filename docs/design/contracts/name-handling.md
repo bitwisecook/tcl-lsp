@@ -348,6 +348,15 @@ and Registry checks; none establishes complete upstream-suite conformance.
 
 ## Evidence and enforcement
 
+The WASM extension host reads callback-free command inventory through
+`EngineCommandInventory`. Runtime retains actual namespace components, simple
+names and generations, and checks each proposed root operand against its real
+lookup slot and selected generation. Syntax owns the candidate's protocol
+geometry. The host compares inventory rows within the same interpreter and
+refuses an unavailable or unrepresentable String roster. Decoded coordinates
+and generation numbers are metadata, not callable or installed-command receipts.
+An older artifact without the inventory export cannot perform this load operation.
+
 Jim namespace-origin queries use Registry's `native_jim_namespace_origin`
 sequencer with existing original-object getters. Canonicalisation retains the
 actual caller namespace; alias and command getters run in the helper's root

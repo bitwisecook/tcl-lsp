@@ -1,0 +1,12 @@
+ROW root-original 0 COLON
+ROW root-other 0 PLAIN
+ROW root-colon-query 0 :::lost
+ROW root-plain-query 0 ::lost
+ROW leading-namespace-original 1 {invalid command name ":N::x"}
+ROW leading-namespace-rooted-report 0 TRAILING_NAMESPACE
+ROW leading-namespace-inscope 1 {invalid command name "x"}
+ROW trailing-namespace-root-join 0 TRAILING_NAMESPACE
+ROW trailing-namespace-inscope 1 {invalid command name "x"}
+ROW bracket-root-context 0 BRACKET_NAMESPACE
+ROW bracket-rooted-context 0 BRACKET_NAMESPACE
+ROW live-root-commands 0 {tell socket subst open eof pwd glob list pid exec auto_load_index time unknown eval lassign lrange fblocked lsearch auto_import gets case lappend proc break variable llength auto_execok return linsert error catch clock info split array if fconfigure concat join lreplace source fcopy global switch auto_qualify update close cd for auto_load file append lreverse format unload :lost read package set binary namespace scan apply trace seek while lost chan flush after vwait capture dict continue uplevel foreach lset rename fileevent regexp lrepeat upvar encoding expr unset load regsub interp exit puts incr lindex lsort tclLog string}

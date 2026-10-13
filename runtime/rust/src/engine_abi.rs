@@ -574,6 +574,9 @@ mod procedure_publication_tests {
     }
 }
 
+mod command_inventory;
+pub use command_inventory::tcl_engine_visible_command_inventory;
+
 mod command_receipts;
 pub use command_receipts::*;
 mod command_replay;

@@ -1,0 +1,17 @@
+
+running 1 test
+test definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace ... 
+thread 'definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace' (139474) panicked at rust/tcl-lsp-core/src/definition.rs:4895:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.98s
+

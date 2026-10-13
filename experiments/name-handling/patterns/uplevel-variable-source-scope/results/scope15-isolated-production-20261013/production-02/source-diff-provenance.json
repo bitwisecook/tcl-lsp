@@ -1,0 +1,6 @@
+{
+  "checkout_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "patch_sha256": "aac12ff65ef5a6a70ff5278b8a90920b7ca6c91cb840f084af476a8fd1833b44",
+  "patch_bytes": 84690,
+  "purpose": "Reproduce isolated compiled afterimage from exact baseline; excludes process docs and untracked output. Missing tracked dialect manifest materialization recorded separately. This closure is not all-Main9893 source."
+}

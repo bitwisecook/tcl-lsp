@@ -1,0 +1,23 @@
+
+running 1 test
+test rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone ... 
+thread 'rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone' (139510) panicked at rust/tcl-lsp-core/src/rename.rs:5431:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc other {} {
+    set v 9
+    return $v
+}
+puts $::ns::v
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.73s
+

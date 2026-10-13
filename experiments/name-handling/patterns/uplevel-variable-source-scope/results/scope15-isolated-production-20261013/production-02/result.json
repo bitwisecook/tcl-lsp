@@ -1,0 +1,488 @@
+{
+  "started_utc": "2026-10-13T20:14:35.103967+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-core",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 191.16157328899862,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "sha256": "f9e25bc2cd430ca9ac7e742d91e9e2d1ed6621355b2e9e32a43a790519e875ae",
+    "bytes": 177360656
+  },
+  "build_source_stable": true,
+  "selected_tests": [
+    "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+    "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+    "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+    "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+    "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+    "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+    "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+    "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+    "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+    "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+    "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+    "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+    "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+    "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+    "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31477335700037656,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.7660813809998217,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.665992782000103,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4653790400006983,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.41591799999878276,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.7161592160009604,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5155355189999682,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4149502059990482,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 3.27362841500144,
+      "log": "test-09.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5658751610026229,
+      "log": "test-10.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4150041670000064,
+      "log": "test-11.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 2.6739222169999266,
+      "log": "test-12.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 6.735268052001629,
+      "log": "test-13.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.6656382379987917,
+      "log": "test-14.log",
+      "timed_out": false,
+      "test": "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+        "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5152189190011995,
+      "log": "test-15.log",
+      "timed_out": false,
+      "test": "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-13T20:18:06.258889+00:00",
+  "changed_sources": {}
+}

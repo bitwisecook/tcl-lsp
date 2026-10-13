@@ -1,0 +1,17 @@
+
+running 1 test
+test rename::tests::namespace_variable_rename_requires_the_retained_consumer_image ... 
+thread 'rename::tests::namespace_variable_rename_requires_the_retained_consumer_image' (138683) panicked at rust/tcl-lsp-core/src/rename.rs:5252:9:
+assertion `left == right` failed
+  left: "namespace eval N {variable x 1}\nputs $::N::x\n"
+ right: "namespace eval N {variable total 1}\nputs $::N::total\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    rename::tests::namespace_variable_rename_requires_the_retained_consumer_image
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.48s
+

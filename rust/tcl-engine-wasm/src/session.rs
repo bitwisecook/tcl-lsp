@@ -162,6 +162,7 @@ pub(crate) struct Exports {
     pub(crate) host_refusal_text: TypedFunc<i32, i32>,
     pub(crate) refuse_host: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) string_snapshot: TypedFunc<(i32, i32), i32>,
+    visible_command_inventory: Option<TypedFunc<i32, i32>>,
     pub(crate) receipt_current: TypedFunc<(i32, i64, i64, i64, i32, i32), i32>,
     pub(crate) new_scalar: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) new_byte_array: TypedFunc<(i32, i32, i32), i32>,
@@ -227,6 +228,9 @@ impl Exports {
             refuse_host: instance.get_typed_func(&mut *store, "tcl_engine_refuse_host_counted")?,
             string_snapshot: instance
                 .get_typed_func(&mut *store, "tcl_engine_original_string_snapshot")?,
+            visible_command_inventory: instance
+                .get_typed_func(&mut *store, "tcl_engine_visible_command_inventory")
+                .ok(),
             receipt_current: instance
                 .get_typed_func(&mut *store, "tcl_engine_command_receipt_current")?,
             new_scalar: instance.get_typed_func(&mut *store, "tcl_engine_new_scalar_carrier")?,
@@ -562,6 +566,60 @@ impl Session {
         call(&mut self.store, &self.exports.spent, self.interp)
             .ok()
             .and_then(|spent| u64::try_from(spent).ok())
+    }
+
+    /// Capture current table data through the runtime's callback-free inventory.
+    /// Coordinates/numbers supply no callable, cache or installed-command receipt.
+    pub(crate) fn command_inventory(
+        &mut self,
+    ) -> Result<
+        (
+            EngineInterpreterIdentity,
+            tcl_runtime_api::command_inventory::EngineCommandInventory,
+        ),
+        EngineError,
+    > {
+        let export = self
+            .exports
+            .visible_command_inventory
+            .clone()
+            .ok_or_else(|| {
+                EngineError::ExecutionRefusal(
+                    "runtime has no visible command inventory export".into(),
+                )
+            })?;
+        let before =
+            command_receipts::interpreter_identity(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+        let object =
+            call(&mut self.store, &export, self.interp).map_err(Failure::into_engine_error)?;
+        if object == 0 {
+            command_receipts::settle(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+            if let Some(kind) = self.exceeded().map_err(Failure::into_engine_error)? {
+                return Err(EngineError::BudgetExceeded(kind));
+            }
+            return Err(EngineError::ExecutionRefusal(
+                "visible command inventory unavailable".into(),
+            ));
+        }
+        let bytes = command_receipts::owned_string(&mut self.store, &self.exports, object);
+        let settled = command_receipts::settle(&mut self.store, &self.exports, self.interp);
+        let bytes = bytes.map_err(Failure::into_engine_error)?;
+        settled.map_err(Failure::into_engine_error)?;
+        let after =
+            command_receipts::interpreter_identity(&mut self.store, &self.exports, self.interp)
+                .map_err(Failure::into_engine_error)?;
+        if before != after {
+            return Err(EngineError::ExecutionRefusal(
+                "command inventory interpreter changed".into(),
+            ));
+        }
+        let inventory = tcl_runtime_api::command_inventory::EngineCommandInventory::decode(&bytes)
+            .ok_or_else(|| {
+                EngineError::ExecutionRefusal("malformed command inventory transport".into())
+            })?;
+        Ok((after, inventory))
     }
 
     /// Evaluate the command `words` at the interpreter's top level.

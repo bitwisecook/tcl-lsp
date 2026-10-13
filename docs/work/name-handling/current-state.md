@@ -64,8 +64,8 @@ and oracle provenance are retained. Sparse fixtures are checked against Git
 before claiming an input absent.
 
 Tracking documents and coherent development commits/pushes are updated every15
-minutes, even while red. The current checkpoint is20:16 UTC (recorded20:17 after integration review) on13 October2026;
-next tracking checkpoint20:31 UTC and next hourly progress report21:06 UTC.
+minutes, even while red. The current checkpoint is20:31 UTC on13 October2026;
+next tracking checkpoint20:46 UTC and next hourly progress report21:06 UTC.
 Root checks the clock between bounded operations. The last checkpoint's brief
 integration delay is explicit; no missed check is represented as executed.
 
@@ -146,7 +146,7 @@ Runtime original query/origin adapters and typed replay transport are integrated
 with their genuine10/10 and31=29/2 receipts retained. The raw Engine error-options
 repair and extra actual-child-receiver guard are uncompiled post-capture changes.
 Root reviewed those boundaries; no Engine host/guest acceptance is claimed.
-Corrected VM17 capture executes16 tests:10pass/6fail, with1 separate test-only Registry build block. Jim origin and all150 Which observations pass; C aliases stop at pending-rename generation/preflight admission, and cycle storage assertion needs genuine returned-refusal matching. Purpose-specific transaction repair is authored. Scope15 currently owns the heavy lease; Core binary is compiling,0tests so far.
+Corrected VM17 capture executes16 tests:10pass/6fail, with1 separate test-only Registry build block. Jim origin and all150 Which observations pass; C aliases stop at pending-rename generation/preflight admission, and cycle storage assertion needs genuine returned-refusal matching. Purpose-specific transaction repair is authored. Scope15 finishes5pass/10fail with stable isolated source. Native class deletion/replacement/future/opaque publication controls and source/domain refusals pass. Logical producers and a Native-input-to-Logical-only rename test ingress fail. Supporting7 existing controls execute3pass/4fail, with literal apply and two-hop refusal passing; supplied-value lambda navigation fails. No new source acceptance is inferred from old binaries.
 
 Root has repaired6 measured Compiler ID/name type joins in the isolated checkout,
 including explicit actual-top-level selection and ID-authenticated event effects.
@@ -158,3 +158,17 @@ Next queue: Scope15 completion, Lookup revised Compiler check, SourceReadScope06
 Runtime trace/alias/import/Engine controls, corrected VM aliases, and combined
 Main tooling/generator gates. The extension inventory and SpecProbe/Studio
 mixed-purpose consumers have bounded proposals, not acceptance.
+
+SourceReadScope06 no-run and full original-source/dependency/library closure pass;
+38 direct controls are running. First7 execute6pass/1fail: all3 new source
+positive/adversarial controls, both original loop/zero-trip controls and Jim
+formal controls pass. Source-only applicability now remains distinct from runtime
+reachability. Missing original Unit::f body persists. Full result is pending.
+Lookup fast05 owns the heavy lease;04 reached Compiler with1 remaining actual
+resolved-target type mismatch, repaired through the shared allocation owner.
+
+Extension-host structured command inventory is integrated, including shared
+root-operand geometry and actual lookup slot/generation checks. Main RuntimeAPI
+check passes; Runtime/Engine consumer controls remain unexecuted. Original
+provider-specific root-context observations and Scope15/supporting receipts are
+retained. SpecProbe/Studio mixed-purpose repairs are isolated and unvalidated.

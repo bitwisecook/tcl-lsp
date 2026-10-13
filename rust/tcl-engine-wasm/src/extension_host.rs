@@ -21,9 +21,8 @@
 //! the load under the host's budget and the evaluation under the host's
 //! budget narrowed by its own.
 
-use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use tcl_engine_api::{Budget, BudgetKind, EngineError};
@@ -32,22 +31,6 @@ use tcl_registry::value_transfer::{BudgetLimit, DeclineReason, ImplementationBud
 
 use crate::session::{Failure, Session};
 use crate::{Extension, WasmRuntime, limits_of};
-
-/// Lists every command in every namespace, sorted: what an entry point
-/// registered is the difference before and after it runs.
-const LIST_COMMANDS: &str = "apply {{} {\n\
-    set found {}\n\
-    set pending ::\n\
-    while {[llength $pending]} {\n\
-        set ns [lindex $pending 0]\n\
-        set pending [lrange $pending 1 end]\n\
-        foreach command [info commands [string trimright $ns :]::*] {\n\
-            lappend found [string trimleft $command :]\n\
-        }\n\
-        lappend pending {*}[namespace children $ns]\n\
-    }\n\
-    lsort $found\n\
-}}";
 
 /// The registry's extension host on the WASM runtime.
 pub struct WasmExtensionHost {
@@ -98,12 +81,23 @@ impl ExtensionHost for WasmExtensionHost {
             .extension(artefact, prefix)
             .map_err(|_| DeclineReason::Unsupported)?;
         let mut session = self.session()?;
-        let before = command_names(&mut session)?;
+        let (before_interpreter, before) = command_inventory(&mut session)?;
         session.load(&extension).map_err(decline)?;
-        let commands = command_names(&mut session)?
+        let (after_interpreter, after) = command_inventory(&mut session)?;
+        if before_interpreter != after_interpreter {
+            return Err(DeclineReason::Unsupported);
+        }
+        let retained: HashSet<_> = before
             .into_iter()
-            .filter(|name| !before.contains(name))
+            .map(|(row, _)| (row.namespace, row.generation, row.slot))
             .collect();
+        let mut commands = Vec::new();
+        for (row, label) in after {
+            if !retained.contains(&(row.namespace, row.generation, row.slot)) {
+                commands.push(label);
+            }
+        }
+        commands.sort();
         let hash = extension.hash();
         self.extensions.borrow_mut().insert(hash, extension);
         Ok(LoadedExtension {
@@ -155,19 +149,35 @@ impl ExtensionHost for WasmExtensionHost {
     }
 }
 
-/// Every command of the session's interpreter.
-fn command_names(session: &mut Session) -> Result<Vec<String>, DeclineReason> {
-    let completion = session
-        .evaluate(&[b"eval", LIST_COMMANDS.as_bytes()])
-        .map_err(decline)?;
-    if completion.code != 0 {
-        return Err(DeclineReason::Unsupported);
+/// Actual visible rows with independently checked root-context command operands.
+fn command_inventory(
+    session: &mut Session,
+) -> Result<
+    (
+        tcl_engine_api::engine_interpreter_identity::EngineInterpreterIdentity,
+        Vec<(
+            tcl_runtime_api::command_inventory::EngineCommandInventoryRow,
+            String,
+        )>,
+    ),
+    DeclineReason,
+> {
+    let (interpreter, inventory) = session.command_inventory().map_err(decline_engine)?;
+    let protocol = tcl_syntax::naming::NativeNameProtocol::for_tcl_version(inventory.version);
+    let mut rows = Vec::with_capacity(inventory.rows.len());
+    for row in inventory.rows {
+        tcl_syntax::naming::checked_command_slot_utf8(&row.slot)
+            .map_err(|_| DeclineReason::NotText)?;
+        let operand = row
+            .root_operand
+            .as_deref()
+            .ok_or(DeclineReason::Unsupported)?;
+        let label = tcl_syntax::naming::native_command_root_source_spelling(protocol, &row.slot)
+            .filter(|label| label.as_bytes() == operand)
+            .ok_or(DeclineReason::Unsupported)?;
+        rows.push((row, label));
     }
-    // LoadedExtension exposes Unicode names. Refuse an opaque roster rather
-    // than publishing a different command identity through replacement text.
-    let text = String::from_utf8(completion.result).map_err(|_| DeclineReason::NotText)?;
-    let names = tcl_syntax::list::split_list(&text).map_err(|_| DeclineReason::MalformedAnswer)?;
-    Ok(names.into_iter().map(Cow::into_owned).collect())
+    Ok((interpreter, rows))
 }
 
 /// The host's budget with an evaluation's own narrowing it: each field the
@@ -194,7 +204,11 @@ fn narrowed(host: Budget, declared: ImplementationBudget) -> Budget {
 /// extension that cannot be linked, an entry point or a command that failed,
 /// a fault — which the same words meet again.
 fn decline(failure: Failure) -> DeclineReason {
-    match failure.into_engine_error() {
+    decline_engine(failure.into_engine_error())
+}
+
+fn decline_engine(error: EngineError) -> DeclineReason {
+    match error {
         EngineError::BudgetExceeded(kind) => DeclineReason::Budget(limit_of(kind)),
         _ => DeclineReason::Unsupported,
     }

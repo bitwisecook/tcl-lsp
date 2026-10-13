@@ -54,6 +54,8 @@ mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
 mod command_geometry;
 mod reporting;
+mod root_source;
+pub use root_source::native_command_root_source_spelling;
 mod script_command_presence;
 pub use script_command_presence::{
     ScriptRootCommandPresencePlan, original_command_presence_support,

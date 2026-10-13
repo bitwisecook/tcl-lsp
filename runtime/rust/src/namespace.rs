@@ -2983,6 +2983,21 @@ impl Namespaces {
         out
     }
 
+    /// C command-table components under the same selected command recipe.
+    /// This ignores variable-name/Jim holder policies and supplies no token receipt.
+    pub(crate) fn native_c_command_context_path(
+        &self,
+        namespace: NsId,
+        version: tcl_dialect::TclVersion,
+    ) -> Option<tcl_core_types::ByteNamespacePath> {
+        if self.native_command_version != Some(version) {
+            return None;
+        }
+        self.arena
+            .get(namespace)
+            .map(|node| node.constructed_path.clone())
+    }
+
     /// Return the original constructed address of an actual arena token.
     /// Public liveness and physical command/variable tables remain separate;
     /// detached frames keep their own address without reparsing a display.

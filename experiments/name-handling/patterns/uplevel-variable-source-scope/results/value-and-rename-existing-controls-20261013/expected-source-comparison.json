@@ -1,0 +1,5 @@
+{
+  "expected_source": "/tmp/name-scope15-isolated-20261013/production-02/source-after.json.gz",
+  "expected_paths": 6741,
+  "mismatches": {}
+}

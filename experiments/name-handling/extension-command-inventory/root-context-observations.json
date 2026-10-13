@@ -1,0 +1,120 @@
+{
+  "checks": [
+    {
+      "provider": "c84",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 1 {invalid command name \":N::x\"}",
+        "ROW leading-namespace-rooted-report 0 TRAILING_NAMESPACE",
+        "ROW leading-namespace-inscope 1 {invalid command name \"x\"}",
+        "ROW trailing-namespace-root-join 0 TRAILING_NAMESPACE",
+        "ROW trailing-namespace-inscope 1 {invalid command name \"x\"}",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/c84/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    },
+    {
+      "provider": "c85",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 1 {invalid command name \":N::x\"}",
+        "ROW leading-namespace-rooted-report 0 TRAILING_NAMESPACE",
+        "ROW leading-namespace-inscope 1 {invalid command name \"x\"}",
+        "ROW trailing-namespace-root-join 0 TRAILING_NAMESPACE",
+        "ROW trailing-namespace-inscope 1 {invalid command name \"x\"}",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/c85/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    },
+    {
+      "provider": "c86",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 0 LEADING_NAMESPACE",
+        "ROW leading-namespace-rooted-report 0 ORDINARY_NAMESPACE",
+        "ROW leading-namespace-inscope 0 LEADING_NAMESPACE",
+        "ROW trailing-namespace-root-join 0 ORDINARY_NAMESPACE",
+        "ROW trailing-namespace-inscope 0 TRAILING_NAMESPACE",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/c86/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    },
+    {
+      "provider": "c90",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 0 LEADING_NAMESPACE",
+        "ROW leading-namespace-rooted-report 0 ORDINARY_NAMESPACE",
+        "ROW leading-namespace-inscope 0 LEADING_NAMESPACE",
+        "ROW trailing-namespace-root-join 0 ORDINARY_NAMESPACE",
+        "ROW trailing-namespace-inscope 0 TRAILING_NAMESPACE",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/c90/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    },
+    {
+      "provider": "c91",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 0 LEADING_NAMESPACE",
+        "ROW leading-namespace-rooted-report 0 ORDINARY_NAMESPACE",
+        "ROW leading-namespace-inscope 0 LEADING_NAMESPACE",
+        "ROW trailing-namespace-root-join 0 ORDINARY_NAMESPACE",
+        "ROW trailing-namespace-inscope 0 TRAILING_NAMESPACE",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/c91/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    },
+    {
+      "provider": "jim",
+      "captured_rows": [
+        "ROW root-original 0 COLON",
+        "ROW root-other 0 PLAIN",
+        "ROW root-colon-query 0 :::lost",
+        "ROW root-plain-query 0 ::lost",
+        "ROW leading-namespace-original 0 LEADING_NAMESPACE",
+        "ROW leading-namespace-rooted-report 0 ORDINARY_NAMESPACE",
+        "ROW leading-namespace-inscope 0 LEADING_NAMESPACE",
+        "ROW trailing-namespace-root-join 0 TRAILING_NAMESPACE",
+        "ROW trailing-namespace-inscope 0 TRAILING_NAMESPACE",
+        "ROW bracket-root-context 0 BRACKET_NAMESPACE",
+        "ROW bracket-rooted-context 0 BRACKET_NAMESPACE"
+      ],
+      "common_root_and_bracket_controls_pass": true,
+      "capture": "/tmp/name-extension-command-inventory-20261013/root-context-oracles/jim/provenance.json",
+      "scope": "Original methods only; old C84/85 proc publication differs from C86+; no bridge/Runtime acceptance"
+    }
+  ],
+  "existing_noninjective_report_proof": "/tmp/lsp-name-source-frame-next/extension-inventory-audit/root-colon-results.json",
+  "implementation_scope": "Scratch only; no source application or build acceptance"
+}

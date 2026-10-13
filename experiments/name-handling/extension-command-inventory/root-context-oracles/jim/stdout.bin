@@ -1,0 +1,12 @@
+ROW root-original 0 COLON
+ROW root-other 0 PLAIN
+ROW root-colon-query 0 :::lost
+ROW root-plain-query 0 ::lost
+ROW leading-namespace-original 0 LEADING_NAMESPACE
+ROW leading-namespace-rooted-report 0 ORDINARY_NAMESPACE
+ROW leading-namespace-inscope 0 LEADING_NAMESPACE
+ROW trailing-namespace-root-join 0 TRAILING_NAMESPACE
+ROW trailing-namespace-inscope 0 TRAILING_NAMESPACE
+ROW bracket-root-context 0 BRACKET_NAMESPACE
+ROW bracket-rooted-context 0 BRACKET_NAMESPACE
+ROW live-root-commands 0 {subst tree lost alarm variable load_ssl_certs lrepeat collect flush switch untaint throw tcl::stdhint stacktrace gets getref upcall * exit + lsort - pipe / return lreverse exists setref lreplace interp os.uptime incr time rename foreach sleep error pwd ref signal unset taint lassign os.fork vwait curry close super lambda N:::x glob.glob regsub format stdin N0::pZ for linsert loop lambda.finalizer glob apply errorInfo while N::x stdout lindex rand wait parray syslog binary::nextarg read glob.globdir lsubst tcl::autocomplete socket glob.explode capture proc lappend range exec split clock defer stackdump tcl::prefix append zlib popen eof open {N[0]::p*} :lost os.gethostname concat env lsearch regexp os.umask info tailcall upvar seek binary llength class expr global set json::subencode fconfigure tell puts dict stderr uplevel try os.getids lset json::decode pid string xtrace array eval join load history local lrange fileevent catch kill list scan break pack file unpack lmap update cd timerate ensemble source alias finalize :N::x package json::encode continue namespace after readdir function if}

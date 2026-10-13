@@ -1,0 +1,24 @@
+
+running 1 test
+test rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use ... 
+thread 'rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use' (139512) panicked at rust/tcl-lsp-core/src/rename.rs:5237:9:
+namespace eval ::ns {
+    variable v 1
+    proc p {} {
+        variable v
+        return $v
+    }
+}
+puts $::ns::v
+puts [::ns::p]
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.86s
+

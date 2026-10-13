@@ -1,0 +1,24 @@
+{
+  "provider": "c91",
+  "expected_release": "9.1.0",
+  "captured_utc": "2026-10-13T19:40:59.176016+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+  ],
+  "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+  "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+  "exit_code": 0,
+  "stdout_sha256": "86d333f9dd79e9783e94c232fb8107431b38016e0b009bb82b38e13505bd0301",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

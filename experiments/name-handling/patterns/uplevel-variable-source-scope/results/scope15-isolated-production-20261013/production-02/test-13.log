@@ -1,0 +1,6 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 6.69s
+

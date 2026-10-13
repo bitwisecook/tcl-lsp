@@ -1,0 +1,7 @@
+{
+  "path": "rust/tcl-dialect/data/reference-toolchains.tsv",
+  "checkout_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "bytes": 163,
+  "purpose": "Materialize exact already-tracked baseline build input omitted by sparse checkout; no semantic or Git mutation"
+}

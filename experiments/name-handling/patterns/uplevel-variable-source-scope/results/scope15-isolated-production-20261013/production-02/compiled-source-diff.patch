@@ -1,0 +1,2039 @@
+diff --git a/rust/tcl-compiler/src/analyser/handlers.rs b/rust/tcl-compiler/src/analyser/handlers.rs
+index dd6d3312b..978683fbd 100644
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -4197,6 +4197,7 @@ impl Analyser {
+             let mut child =
+                 super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
+             child.body_span = Some(body_tok.span);
++            child.isolated_interpreter_source_body = true;
+             child.original_interpreter_source_domain = visibility
+                 .as_ref()
+                 .map(|snapshot| snapshot.reporting_domain(domain.clone()));
+diff --git a/rust/tcl-compiler/src/analyser/scope.rs b/rust/tcl-compiler/src/analyser/scope.rs
+index 0d1685aee..b70c2de5e 100644
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -208,6 +208,239 @@ fn innermost_containing_child(cursor: &Scope, byte_offset: u32) -> Option<&Scope
+         .map(|(c, _)| c)
+ }
+ 
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum LogicalVariableScopeKind {
++    Root,
++    Namespace,
++    UnknownNamespace,
++    Local,
++    UnknownCaller,
++}
++
++/// Eligible variable declaration scopes from the current Logical source.
++/// Cell identities, entered links and editable symbols require their own owners.
++#[derive(Debug)]
++pub struct LogicalVariableScopeAdvice<'a> {
++    analysis: &'a super::types::AnalysisResult,
++    scopes: Vec<&'a Scope>,
++    eligible: Vec<usize>,
++    kind: LogicalVariableScopeKind,
++    namespace: Option<String>,
++}
++
++impl<'a> LogicalVariableScopeAdvice<'a> {
++    /// Root declaration table, independently of its lookup eligibility.
++    #[must_use]
++    pub fn root(&self) -> &'a Scope {
++        &self.analysis.global_scope
++    }
++
++    /// Eligible source tables in outer-to-inner order.
++    #[must_use]
++    pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
++        self.eligible.iter().map(|&index| self.scopes[index])
++    }
++
++    /// Known source namespace; an unknown caller cannot supply one.
++    #[must_use]
++    pub fn namespace(&self) -> Option<&str> {
++        self.namespace.as_deref()
++    }
++
++    /// A declaration table selected by this source frame's naming policy.
++    /// The result establishes no entered storage cell or editable identity.
++    #[must_use]
++    pub fn variable_definition(&self, name: &str) -> Option<&'a VarDef> {
++        if crate::naming::is_qualified(name.as_bytes())
++            && let Some(qualified) = self.namespace_variable_coordinate(name)
++        {
++            let (holder, tail) = crate::naming::key_holder_and_tail(&qualified);
++            if let Some(definition) = lookup_var_in_namespace(self.root(), holder, tail) {
++                return Some(definition);
++            }
++        }
++        self.variable_declaration_scope(name)?.variables.get(name)
++    }
++
++    fn variable_declaration_scope(&self, name: &str) -> Option<&'a Scope> {
++        let current = || {
++            self.eligible_scopes()
++                .rev()
++                .find(|scope| scope.variables.contains_key(name))
++        };
++        if !crate::naming::is_qualified(name.as_bytes()) && self.is_namespace_frame() {
++            return crate::naming::variable_namespace_lookup_bases(
++                false,
++                self,
++                self.namespace_global_fallback(),
++            )
++            .find_map(|base| match base {
++                crate::naming::VariableLookupBase::Context(_) => current(),
++                crate::naming::VariableLookupBase::Root => self
++                    .root()
++                    .variables
++                    .contains_key(name)
++                    .then(|| self.root()),
++            });
++        }
++        current()
++    }
++
++    /// Namespace variable coordinate from this checked Logical source frame.
++    /// Local names and relative names in unknown callers supply no coordinate.
++    #[must_use]
++    pub fn namespace_variable_coordinate(&self, written: &str) -> Option<String> {
++        let namespace = if crate::naming::unroot_rooted_key(written).is_some() {
++            "::"
++        } else {
++            if !crate::naming::is_qualified(written.as_bytes())
++                && !matches!(
++                    self.kind,
++                    LogicalVariableScopeKind::Root | LogicalVariableScopeKind::Namespace
++                )
++            {
++                return None;
++            }
++            self.namespace()?
++        };
++        Some(crate::naming::qualify(namespace, written))
++    }
++
++    /// Namespace tables use their selected root alternative independently.
++    #[must_use]
++    pub fn is_namespace_frame(&self) -> bool {
++        self.kind == LogicalVariableScopeKind::Namespace
++    }
++
++    /// Root names require explicit rooted insertion outside a root frame.
++    #[must_use]
++    pub fn root_names_require_qualification(&self) -> bool {
++        match self.kind {
++            LogicalVariableScopeKind::Root => false,
++            LogicalVariableScopeKind::Namespace => !self.analysis.ns_var_global_fallback(),
++            LogicalVariableScopeKind::UnknownNamespace
++            | LogicalVariableScopeKind::Local
++            | LogicalVariableScopeKind::UnknownCaller => true,
++        }
++    }
++
++    /// Fallback policy from the same independently retained Logical input.
++    #[must_use]
++    pub fn namespace_global_fallback(&self) -> bool {
++        self.analysis.ns_var_global_fallback()
++    }
++}
++
++impl super::types::AnalysisResult {
++    /// Current source scope eligibility for independently retained Logical advice.
++    /// Original Native/hosted bodies and readonly alias receipts cannot issue it.
++    #[must_use]
++    pub fn logical_variable_scope_advice(
++        &self,
++        image: &tcl_lexer::SourceImage,
++        config: tcl_lexer::LexerConfig,
++        offset: u32,
++    ) -> Option<LogicalVariableScopeAdvice<'_>> {
++        if !self.allows_lexical_declaration_advice()
++            || !self.matches_original_source_image(image, config)
++            || usize::try_from(offset).ok()? > image.bytes().len()
++        {
++            return None;
++        }
++        let registry = self.resolved_registry()?;
++        let mut scopes = vec![&self.global_scope];
++        let mut cursor = &self.global_scope;
++        while let Some(child) = innermost_containing_child(cursor, offset) {
++            scopes.push(child);
++            cursor = child;
++        }
++        for scope in &scopes {
++            if scope.isolated_interpreter_source_body {
++                return None;
++            }
++            match (
++                &self.global_scope.original_interpreter_source_domain,
++                &scope.original_interpreter_source_domain,
++            ) {
++                (None, None) => {}
++                (Some(root), Some(current)) if std::sync::Arc::ptr_eq(root, current) => {}
++                _ => return None,
++            }
++        }
++        let mut eligible = vec![0];
++        let mut kind = LogicalVariableScopeKind::Root;
++        let mut namespace = Some("::".to_owned());
++        for (index, scope) in scopes.iter().enumerate().skip(1) {
++            match scope.kind {
++                ScopeKind::Global => eligible.push(index),
++                ScopeKind::Namespace => {
++                    eligible.clear();
++                    eligible.push(index);
++                    kind = LogicalVariableScopeKind::Namespace;
++                    namespace = if namespace.is_none()
++                        && tcl_syntax::naming::unroot_rooted_key(&scope.name).is_none()
++                    {
++                        None
++                    } else {
++                        scope
++                            .naming_scope
++                            .as_ref()
++                            .and_then(|owner| owner.display())
++                    };
++                    if namespace.is_none() {
++                        kind = LogicalVariableScopeKind::UnknownNamespace;
++                    }
++                    if namespace
++                        .as_deref()
++                        .is_some_and(|name| tcl_syntax::naming::unroot_rooted_key(name) == Some(""))
++                    {
++                        eligible.insert(0, 0);
++                        kind = LogicalVariableScopeKind::Root;
++                    }
++                }
++                ScopeKind::Proc | ScopeKind::Method => {
++                    eligible.clear();
++                    eligible.push(index);
++                    kind = LogicalVariableScopeKind::Local;
++                    namespace = if namespace.is_none()
++                        && tcl_syntax::naming::unroot_rooted_key(&scope.name).is_none()
++                    {
++                        None
++                    } else {
++                        scope
++                            .naming_scope
++                            .as_ref()
++                            .and_then(|owner| owner.display())
++                    };
++                }
++                ScopeKind::Uplevel => {
++                    let level = tcl_registry::FrameLevel::parse_in(&scope.name, registry);
++                    if level.is_some_and(tcl_registry::FrameLevel::is_current_frame) {
++                        eligible.push(index);
++                    } else if level.is_some_and(tcl_registry::FrameLevel::is_global_frame) {
++                        eligible.clear();
++                        eligible.extend([0, index]);
++                        kind = LogicalVariableScopeKind::Root;
++                        namespace = Some("::".to_owned());
++                    } else {
++                        eligible.clear();
++                        eligible.push(index);
++                        kind = LogicalVariableScopeKind::UnknownCaller;
++                        namespace = None;
++                    }
++                }
++            }
++        }
++        Some(LogicalVariableScopeAdvice {
++            analysis: self,
++            scopes,
++            eligible,
++            kind,
++            namespace,
++        })
++    }
++}
++
+ /// Namespace an unqualified command invoked at `byte_offset` resolves
+ /// against, per Tcl's command-resolution rule.
+ ///
+@@ -1804,6 +2037,30 @@ impl Analyser {
+             .filter(|e| !e.is_empty())
+             .map(ToString::to_string);
+ 
++        if self.result.allows_lexical_declaration_advice() {
++            let image = tcl_lexer::SourceImage::document(&self.source);
++            let selected_path = self
++                .result
++                .logical_variable_scope_advice(&image, self.file_lexer_config(), read_span.start())
++                .and_then(|advice| {
++                    let selected = advice.variable_declaration_scope(base_name)?;
++                    ancestor_paths(scope_path).find(|path| {
++                        scope_at(&self.result.global_scope, path)
++                            .is_some_and(|scope| std::ptr::eq(scope, selected))
++                    })
++                });
++            if let Some(path) = selected_path
++                && let Some(var) = scope_at_mut(&mut self.result.global_scope, &path)
++                    .and_then(|scope| scope.variables.get_mut(base_name))
++            {
++                var.push_reference(read_span);
++                if let Some(element) = element {
++                    var.array_indices.insert(element);
++                }
++            }
++            return;
++        }
++
+         // Local scope first.
+         let path = scope_path.to_vec();
+         let base_owned = base_name.to_string();
+@@ -1961,11 +2218,26 @@ impl Analyser {
+                 self.result.original_variable_symbols.push(site);
+             }
+         }
+-        if !base_name.contains("::") {
++        if !crate::naming::is_qualified(base_name.as_bytes()) {
+             return;
+         }
+-        let ns = self.command_resolution_namespace(scope_path);
+-        let qualified = crate::naming::qualify(&ns, base_name);
++        let qualified = if self.result.allows_lexical_declaration_advice() {
++            let image = tcl_lexer::SourceImage::document(&self.source);
++            let Some(advice) = self.result.logical_variable_scope_advice(
++                &image,
++                self.file_lexer_config(),
++                span.start(),
++            ) else {
++                return;
++            };
++            let Some(qualified) = advice.namespace_variable_coordinate(base_name) else {
++                return;
++            };
++            qualified
++        } else {
++            let ns = self.command_resolution_namespace(scope_path);
++            crate::naming::qualify(&ns, base_name)
++        };
+         if let Some(last) = self
+             .result
+             .qualified_var_refs
+@@ -2050,6 +2322,7 @@ impl Analyser {
+             });
+         let namespace = scope_at(&self.result.global_scope, scope_path)
+             .and_then(|scope| scope.naming_scope.clone());
++        let context = self.analysis_context();
+         let advice = crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice::new(
+             span,
+             input,
+@@ -2057,10 +2330,12 @@ impl Analyser {
+             frame,
+             namespace,
+             conditional_metadata.cloned(),
++            &context,
+         );
+         let same_card =
+             |existing: &crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice| {
+-                existing.span() == advice.span()
++                existing.matches_context(&context)
++                    && existing.span() == advice.span()
+                     && existing.original_name_input() == advice.original_name_input()
+                     && existing.receiver_form() == advice.receiver_form()
+                     && existing.original_frame() == advice.original_frame()
+diff --git a/rust/tcl-compiler/src/analyser/types.rs b/rust/tcl-compiler/src/analyser/types.rs
+index 0b7004267..8d64d4181 100644
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -2143,6 +2143,8 @@ pub struct Scope {
+     /// geometry remains separate from parent-file reporting identity.
+     pub original_interpreter_source_domain:
+         Option<std::sync::Arc<super::OriginalInterpreterSourceDomain>>,
++    /// An independently walked interpreter script has its own source root.
++    pub(super) isolated_interpreter_source_body: bool,
+     /// Retained authored namespace geometry; supplies no actual activation or token.
+     pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+     /// Scope kind (global, namespace, proc).
+@@ -2238,6 +2240,7 @@ impl Scope {
+         Self {
+             kind,
+             original_interpreter_source_domain: None,
++            isolated_interpreter_source_body: false,
+             naming_scope: None,
+             original_member_context: None,
+             original_receiver_body_declaration: None,
+diff --git a/rust/tcl-compiler/src/command_binding/source_name_lookup.rs b/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
+index 5fe45d860..1eb686aba 100644
+--- a/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
++++ b/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
+@@ -84,6 +84,105 @@ impl OriginalCommandLookup {
+         )
+     }
+ 
++    /// Readonly source publication advice, preserving positioned table refusals.
++    /// Conditional body entries supply no future installation or edit authority.
++    #[must_use]
++    pub fn matching_source_advice_publications<'a, T: Clone + Eq>(
++        &self,
++        registry: &tcl_registry::CommandRegistry,
++        declarations: impl IntoIterator<
++            Item = (
++                &'a crate::signature_scan::scope::SignatureSourceCommand,
++                &'a super::CommandAllocationSite,
++                T,
++            ),
++        >,
++    ) -> Option<Vec<T>> {
++        use super::declaration_layout::OriginalDiagnosticFrameEntry;
++        let declarations = declarations.into_iter().collect::<Vec<_>>();
++        let selected =
++            self.matching_slot_publications(declarations.iter().map(|(name, site, value)| {
++                (name.slot(), name.policy(), ((*site).clone(), value.clone()))
++            }))?;
++        if self.observations.is_empty() {
++            return None;
++        }
++        let registry_key = registry.snapshot().semantic_key();
++        let mut unanimous = None;
++        for row in &self.observations {
++            if row.snapshot.state.baseline.registry_snapshot.as_ref() != Some(&registry_key)
++                || !row.entry.owns_source(&self.site.source, self.site.offset)
++                || row
++                    .snapshot
++                    .state
++                    .baseline
++                    .execution_name_policy
++                    .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
++                    != Some(self.policy())
++                || row.snapshot.state.source_step_observed()
++            {
++                return None;
++            }
++            let conditional_body = matches!(
++                row.entry.as_ref(),
++                OriginalDiagnosticFrameEntry::Body(_)
++                    | OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
++                    | OriginalDiagnosticFrameEntry::DeclaredReceiver(_)
++            );
++            let state = &row.snapshot.state;
++            if state.has_opaque_domain() || state.baseline.unknown_entry {
++                return None;
++            }
++            let mut admitted = Vec::new();
++            for (name, site, value) in &declarations {
++                if !selected
++                    .iter()
++                    .any(|(picked, metadata)| picked == *site && metadata == value)
++                {
++                    continue;
++                }
++                let explicit =
++                    state.original_catalogue_bindings_for_slot(name.slot(), name.policy());
++                let baseline;
++                let bindings = if explicit.is_empty() && !conditional_body {
++                    let key = state.original_command_key_for_slot(name.slot(), name.policy())?;
++                    baseline = state.original_bindings_for_key(&key)?;
++                    baseline.iter().collect::<Vec<_>>()
++                } else {
++                    explicit
++                };
++                let agrees = bindings.iter().all(|binding| match binding {
++                    super::MayBinding::Target(target) => target
++                        .implementation_allocation
++                        .as_ref()
++                        .is_some_and(|allocation| &allocation.site == *site),
++                    super::MayBinding::Imported(imported) => {
++                        state.objects.get(&imported.origin).is_some_and(|targets| {
++                            !targets.is_empty()
++                                && targets.iter().all(|binding| {
++                                    matches!(binding, super::MayBinding::Target(target)
++                                    if target.implementation_allocation.as_ref()
++                                        .is_some_and(|allocation| &allocation.site == *site))
++                                })
++                        })
++                    }
++                    super::MayBinding::Missing | super::MayBinding::Unknown => false,
++                });
++                if agrees && !admitted.contains(value) {
++                    admitted.push(value.clone());
++                }
++            }
++            if unanimous
++                .as_ref()
++                .is_some_and(|previous| previous != &admitted)
++            {
++                return None;
++            }
++            unanimous = Some(admitted);
++        }
++        unanimous
++    }
++
+     /// First matching exact slots under their independently selected policies.
+     /// Every original lookup alternative must select the same metadata set.
+     /// Publications can belong to another source; the caller owns that join.
+diff --git a/rust/tcl-compiler/src/signature_scan/variable_symbol.rs b/rust/tcl-compiler/src/signature_scan/variable_symbol.rs
+index d21bf20ce..7c7790297 100644
+--- a/rust/tcl-compiler/src/signature_scan/variable_symbol.rs
++++ b/rust/tcl-compiler/src/signature_scan/variable_symbol.rs
+@@ -145,6 +145,8 @@ pub struct OriginalVariableWriteAdvice {
+     frame: Option<crate::command_binding::SourceOriginalVariableFrame>,
+     namespace: Option<SignatureNamespaceScope>,
+     conditional_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
++    registry: tcl_registry::RegistrySemanticKey,
++    context: tcl_registry::model::ResolvedContext,
+ }
+ 
+ impl OriginalVariableWriteAdvice {
+@@ -157,6 +159,7 @@ impl OriginalVariableWriteAdvice {
+         conditional_metadata: Option<
+             crate::registry_invocation::OriginalConditionalRegistryMetadata,
+         >,
++        context: &tcl_registry::model::ContextRegistry,
+     ) -> Self {
+         Self {
+             span,
+@@ -165,9 +168,19 @@ impl OriginalVariableWriteAdvice {
+             frame,
+             namespace,
+             conditional_metadata,
++            registry: context.commands().snapshot().semantic_key(),
++            context: context.context().clone(),
+         }
+     }
+ 
++    /// Same immutable source availability and command-store semantics.
++    /// This establishes card currency, never a selected cell or successful write.
++    #[must_use]
++    pub fn matches_context(&self, context: &tcl_registry::model::ContextRegistry) -> bool {
++        self.registry == context.commands().snapshot().semantic_key()
++            && self.context == *context.context()
++    }
++
+     /// Original written receiver extent in the consumer source.
+     #[must_use]
+     pub const fn span(&self) -> tcl_lexer::Span {
+diff --git a/rust/tcl-lsp-core/src/completion.rs b/rust/tcl-lsp-core/src/completion.rs
+index 2e6be5226..869ed23ad 100644
+--- a/rust/tcl-lsp-core/src/completion.rs
++++ b/rust/tcl-lsp-core/src/completion.rs
+@@ -32,7 +32,7 @@
+ //! synchronous computation over the supplied source and analysis.
+ 
+ use rustc_hash::{FxHashMap, FxHashSet};
+-use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
++use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+ use tcl_registry::CommandRegistry;
+ 
+ mod original_context;
+@@ -378,13 +378,7 @@ fn variable_trigger_completions(
+         return Some(Vec::new());
+     }
+     Some(variable_completions(
+-        source,
+-        line,
+-        character,
+-        &analysis.global_scope,
+-        &partial,
+-        trigger,
+-        analysis.ns_var_global_fallback(),
++        source, line, character, analysis, &partial, trigger,
+     ))
+ }
+ 
+@@ -691,10 +685,9 @@ fn variable_completions(
+     source: &str,
+     line: u32,
+     character: u32,
+-    scope: &Scope,
++    analysis: &AnalysisResult,
+     partial: &str,
+     trigger: char,
+-    ns_global_fallback: bool,
+ ) -> Vec<CompletionItem> {
+     let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+     let chars: Vec<char> = line_text.chars().collect();
+@@ -752,35 +745,29 @@ fn variable_completions(
+ 
+     let line_index = tcl_lexer::LineIndex::new(source);
+     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
++    let Some(config) = analysis.body_lexer_config else {
++        return Vec::new();
++    };
++    let Some(advice) = analysis.logical_variable_scope_advice(
++        &tcl_lexer::SourceImage::document(source),
++        config,
++        byte_offset,
++    ) else {
++        return Vec::new();
++    };
+ 
+     // Array-element completion: `$arr(` / `$arr(prefix` — offer the recorded
+     // indices of `arr` as `$arr(index)`.  A `(` in the partial always
+     // resolves here (to suggestions or an empty list); it never falls
+     // through to plain-name completion.
+     if partial.contains('(') {
+-        return array_element_completions(
+-            line_text,
+-            scope,
+-            byte_offset,
+-            partial,
+-            end,
+-            edit_start,
+-            ns_global_fallback,
+-        );
++        return array_element_completions(line_text, &advice, partial, end, edit_start);
+     }
+ 
+-    // Scope-aware: union of variables visible at the cursor (innermost scope
+-    // first, then enclosing scopes up to the global root).
+-    let names = visible_substitutable_names(scope, byte_offset, partial);
++    // Source visibility and rooted insertion share the checked scope selector.
++    let names = visible_substitutable_names(&advice, partial);
+ 
+-    // Inside a proc / nested namespace, a global variable is only reachable
+-    // via its `::`-qualified name (a bare `$foo` there is a local / namespace
+-    // lookup), so qualify global-origin names — `foo-bar` → `::foo-bar`.
+-    let qualify_globals = crate::definition::global_vars_needing_qualification(
+-        scope,
+-        byte_offset,
+-        ns_global_fallback,
+-    );
++    let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
+ 
+     let edit = VarEdit {
+         start: edit_start,
+@@ -792,7 +779,7 @@ fn variable_completions(
+     // Cross-namespace candidates — variables in *other* namespaces, offered in
+     // fully-qualified `::ns::var` form (vars in the cursor's own namespace
+     // chain are already above as bare names).
+-    push_cross_namespace_vars(&mut items, scope, byte_offset, partial, edit);
++    push_cross_namespace_vars(&mut items, &advice, partial, edit);
+     if !items.is_empty() {
+         return items;
+     }
+@@ -803,11 +790,11 @@ fn variable_completions(
+     let mut universe = Vec::new();
+     push_local_var_items(
+         &mut universe,
+-        visible_substitutable_names(scope, byte_offset, ""),
++        visible_substitutable_names(&advice, ""),
+         qualify_globals.as_ref(),
+         edit,
+     );
+-    push_cross_namespace_vars(&mut universe, scope, byte_offset, "", edit);
++    push_cross_namespace_vars(&mut universe, &advice, "", edit);
+     let FilteredCandidates {
+         candidates: mut fallback,
+         fuzzy,
+@@ -827,10 +814,12 @@ fn variable_completions(
+     fallback
+ }
+ 
+-/// Sorted, deduplicated variable names visible at `byte_offset` that
+-/// start with `partial` and survive the substitutability check.
+-fn visible_substitutable_names(scope: &Scope, byte_offset: u32, partial: &str) -> Vec<String> {
+-    let mut names: Vec<String> = crate::definition::visible_variable_names(scope, byte_offset)
++/// Sorted source candidates matching the fragment and substitution grammar.
++fn visible_substitutable_names(
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
++    partial: &str,
++) -> Vec<String> {
++    let mut names: Vec<String> = crate::definition::visible_variable_names(advice)
+         .into_iter()
+         .filter(|n| n.starts_with(partial) && var_is_substitutable(n))
+         .collect();
+@@ -891,13 +880,23 @@ struct VarEdit {
+ /// cursor's own lexical chain, deduped against the labels already in `items`.
+ fn push_cross_namespace_vars(
+     items: &mut Vec<CompletionItem>,
+-    scope: &Scope,
+-    byte_offset: u32,
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+     partial: &str,
+     edit: VarEdit,
+ ) {
+     let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
+-    let chain = crate::definition::lexical_namespace_chain(scope, byte_offset);
++    let scope = advice.root();
++    let chain = advice
++        .eligible_scopes()
++        .filter(|scope| {
++            matches!(
++                scope.kind,
++                tcl_compiler::analyser::ScopeKind::Namespace
++                    | tcl_compiler::analyser::ScopeKind::Global
++            )
++        })
++        .map(|scope| scope.name.clone())
++        .collect::<FxHashSet<_>>();
+     let mut qnames = crate::definition::cross_namespace_qualified_vars(scope, &chain);
+     qnames.sort_unstable();
+     qnames.dedup();
+@@ -939,25 +938,18 @@ fn push_cross_namespace_vars(
+ /// preventing command completion from replacing an array-element response.
+ fn array_element_completions(
+     line_text: &str,
+-    scope: &Scope,
+-    byte_offset: u32,
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+     partial: &str,
+     end: usize,
+     edit_start: Option<u32>,
+-    ns_global_fallback: bool,
+ ) -> Vec<CompletionItem> {
+     // The caller dispatches here exactly when `partial` contains a `(`.
+-    let Some(paren) = partial.find('(') else {
++    let Some((arr_name, elem_prefix)) =
++        tcl_syntax::naming::array_variable_completion_prefix(partial)
++    else {
+         return Vec::new();
+     };
+-    let arr_name = partial[..paren].trim_start_matches('{');
+-    let elem_prefix = &partial[paren + 1..];
+-    let Some(arr_def) = crate::definition::lookup_var_in_scope_chain(
+-        scope,
+-        byte_offset,
+-        arr_name,
+-        ns_global_fallback,
+-    ) else {
++    let Some(arr_def) = crate::definition::lookup_var_in_logical_scope(advice, arr_name) else {
+         return Vec::new();
+     };
+     if arr_def.array_indices.is_empty() || !is_bare_var_name(arr_name) {
+diff --git a/rust/tcl-lsp-core/src/definition.rs b/rust/tcl-lsp-core/src/definition.rs
+index bc2c7c1ca..dae17864b 100644
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -420,7 +420,7 @@ pub fn definition_with(
+             .unwrap_or(proc_def);
+         return vec![span_to_range(source, &line_index, in_effect.name_span)];
+     }
+-    if let Some(span) = class_declaration_at(analysis, &word, cursor_offset) {
++    if let Some(span) = class_declaration_at(source, analysis, &word, cursor_offset) {
+         return vec![span_to_range(source, &line_index, span)];
+     }
+     // Class-member lookup — when the cursor sits inside a
+@@ -516,7 +516,7 @@ fn indirect_definition_target(
+             .unwrap_or(proc_def);
+         return Some(captured.name_span);
+     }
+-    class_declaration_at(analysis, &hop.target, cursor_off)
++    class_declaration_at(source, analysis, &hop.target, cursor_off)
+ }
+ 
+ /// Original written procedure header, including displaced declarations.
+@@ -1862,90 +1862,27 @@ pub(crate) fn byte_offset_at(
+     line_index.offset_at_utf16(line, Utf16Col::new(character), source)
+ }
+ 
+-/// Whether an `uplevel` body's frame semantics hide the scope at index `i` of
+-/// the resolution `chain` (outermost-first) from the cursor.
+-///
+-/// Inside `uplevel #0 { … }` the script runs in the **global** frame, so the
+-/// enclosing proc's locals are dropped and resolution reaches the
+-/// global/namespace variable (a same-named proc-local must not shadow it).
+-/// Inside a non-`#0` `uplevel N { … }` the script runs in a **caller** frame
+-/// that is statically unknown, so everything *outside* the uplevel body is
+-/// dropped — the body's own locals resolve, but a name it does not declare
+-/// abstains rather than mis-attributing to the enclosing proc *or* the global
+-/// frame (the level word, recorded as the uplevel scope's name, distinguishes
+-/// the two).
+-fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bool {
+-    use tcl_compiler::analyser::ScopeKind;
+-    let Some(up) = chain.iter().rposition(|sc| sc.kind == ScopeKind::Uplevel) else {
+-        return false;
+-    };
+-    if chain[up].name == "#0" {
+-        chain[i].kind == ScopeKind::Proc
+-    } else {
+-        i < up
+-    }
+-}
+-
+-/// Walk the scope tree to find the variable definition that
+-/// the cursor's `byte_offset` would see — the innermost
+-/// scope whose body span contains the offset takes precedence
+-/// over any enclosing scope.
+-///
+-/// Descend into the innermost matching child, then walk the
+-/// scope chain outward for the var lookup.
++/// Query declaration tables eligible under the checked Logical source owner.
+ pub(crate) fn lookup_var_in_scope_chain<'a>(
+-    scope: &'a tcl_compiler::analyser::Scope,
++    analysis: &'a AnalysisResult,
++    source: &str,
+     byte_offset: u32,
+     name: &str,
+-    ns_global_fallback: bool,
+ ) -> Option<&'a tcl_compiler::analyser::VarDef> {
+-    use tcl_compiler::analyser::ScopeKind;
+-    // Qualified Logical advice first queries its constructed namespace; literal
+-    // qualified writes can also be recorded on the active lexical scope chain.
+-    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
+-        // Variable advice does not borrow command-only namespace overrides.
+-        let here = namespace_context_at(scope, byte_offset, &[]);
+-        let qualified = tcl_compiler::naming::qualify(&here, name);
+-        let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
+-        if let Some(v) =
+-            tcl_compiler::analyser::lookup_var_in_namespace(scope, target_ns, base_name)
+-        {
+-            return Some(v);
+-        }
+-    }
+-    let chain = scope_chain_at(scope, byte_offset);
+-    // Bare namespace-frame advice tries its own table and the selected global
+-    // alternate, never an intermediate enclosing namespace.
+-    if !tcl_syntax::naming::is_qualified(name.as_bytes())
+-        && chain.len() > 1
+-        && chain
+-            .last()
+-            .is_some_and(|sc| sc.kind == ScopeKind::Namespace)
+-    {
+-        let ns = chain.last().expect("guarded: chain has a last element");
+-        return tcl_syntax::naming::variable_namespace_lookup_bases(false, ns, ns_global_fallback)
+-            .find_map(|base| match base {
+-                tcl_syntax::naming::VariableLookupBase::Context(current) => {
+-                    current.variables.get(name)
+-                }
+-                tcl_syntax::naming::VariableLookupBase::Root => chain
+-                    .first()
+-                    .expect("guarded: chain has a first element")
+-                    .variables
+-                    .get(name),
+-            });
+-    }
+-    // Walk outward (innermost-first) looking for the var, honouring the
+-    // `uplevel` frame semantics (see [`uplevel_hides_scope`]).
+-    for (i, sc) in chain.iter().enumerate().rev() {
+-        if uplevel_hides_scope(&chain, i) {
+-            continue;
+-        }
+-        if let Some(v) = sc.variables.get(name) {
+-            return Some(v);
+-        }
+-    }
+-    None
++    let config = analysis.body_lexer_config?;
++    let advice = analysis.logical_variable_scope_advice(
++        &tcl_lexer::SourceImage::document(source),
++        config,
++        byte_offset,
++    )?;
++    lookup_var_in_logical_scope(&advice, name)
++}
++
++pub(crate) fn lookup_var_in_logical_scope<'a>(
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'a>,
++    name: &str,
++) -> Option<&'a tcl_compiler::analyser::VarDef> {
++    advice.variable_definition(name)
+ }
+ 
+ /// Every reference span (other than `var_def`'s own declaration) for the
+@@ -2053,35 +1990,10 @@ fn collect_shared_span_refs(
+     }
+ }
+ 
+-/// The `::`-rooted **namespace variable cell** the cursor names, when it names
+-/// one — the single entry point the cross-document variable tier
+-/// (go-to-definition / hover / find-references against
+-/// [`WorkspaceIndex`](crate::workspace_index::WorkspaceIndex)'s variable
+-/// tables) resolves through.
+-///
+-/// Two cursor shapes answer, and only these two:
+-///
+-/// 1. A **qualified occurrence** — `$::tomato::version`, `$app::colors::palette`,
+-///    `set ::ns::v 1`.  A relative qualifier roots against the cursor's own
+-///    command-resolution namespace, exactly as
+-///    [`lookup_var_in_scope_chain`] already roots the in-document lookup, so
+-///    the local and cross-document tiers agree on which cell a written name
+-///    means.
+-/// 2. A **namespace-scoped declaration** the current document holds — the
+-///    `version` token of `namespace eval tomato { variable version 1.3 }`, or
+-///    any same-cell write.  This is what lets find-references run *from* the
+-///    declaration and reach consumers in sibling files.
+-///
+-/// An **unqualified** occurrence that is not such a declaration answers
+-/// `None`: a bare `$v` names whichever cell the local scope chain supplies,
+-/// which no other document can know, so widening it to a workspace search
+-/// would be a guess.  A `$name`-shaped substring inside a comment or a data
+-/// brace answers `None` too — Tcl substitutes nothing there, and the
+-/// cross-document tier must not invent a reference the in-document one
+-/// correctly refuses.
+-///
+-/// The gap this closes is `$::NS::var` whose declaring `namespace eval NS {
+-/// variable var }` lives in a sibling file.
++/// Logical namespace-variable coordinate for the cross-document tier.
++/// Relative qualified occurrences require the same checked source namespace
++/// as the in-document lookup; unknown callers supply no namespace.
++/// Bare declarations use their independently retained declaration table.
+ #[must_use]
+ pub fn qualified_variable_cell_at(
+     source: &str,
+@@ -2097,14 +2009,18 @@ pub fn qualified_variable_cell_at(
+     }
+     let line_index = LineIndex::new(source);
+     let cursor_off = byte_offset_at(&line_index, source, line, character);
++    let scope = analysis.logical_variable_scope_advice(
++        &tcl_lexer::SourceImage::document(source),
++        analysis.body_lexer_config?,
++        cursor_off,
++    )?;
+     if let Some(name) = substituting_var_at_position(source, analysis, line, character, cursor_off)
+     {
+         let base = name.as_str();
+-        if !base.contains("::") {
++        if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
+             return None;
+         }
+-        let here = namespace_context_at(&analysis.global_scope, cursor_off, &[]);
+-        return Some(tcl_compiler::naming::qualify(&here, base));
++        return scope.namespace_variable_coordinate(base);
+     }
+     // A bareword sitting on a namespace-scoped declaration (or a later
+     // same-cell write): the scope tree already knows the cell's qualified
+@@ -2114,9 +2030,54 @@ pub fn qualified_variable_cell_at(
+         .find(|(_, var)| {
+             let contains =
+                 |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
+-            contains(var.definition_span) || var.references.iter().any(|&r| contains(r))
++            contains(var.definition_span)
+         })
+         .map(|(qualified, _)| qualified)
++        .or_else(|| logical_variable_write_coordinate(source, analysis, cursor_off, &scope))
++}
++
++fn logical_variable_write_coordinate(
++    source: &str,
++    analysis: &AnalysisResult,
++    cursor: u32,
++    scope: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
++) -> Option<String> {
++    let context = analysis.resolved_input.as_ref()?.context_registry();
++    let mut coordinate = None;
++    for advice in &analysis.original_variable_write_advice {
++        let span = advice.span();
++        if !(span.start() <= cursor && cursor < span.end())
++            || !advice.matches_context(&context)
++            || !crate::original_name_edit::original_input_matches_source(
++                source,
++                analysis,
++                advice.original_name_input(),
++                span,
++            )
++        {
++            continue;
++        }
++        let input = advice.original_name_input();
++        let protocol = input.policy().recipe();
++        let selected = match advice.receiver_form().input_form(protocol, input.bytes())? {
++            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
++                protocol.combined_variable_input(bytes)
++            }
++            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
++                protocol.separate_variable_input(root, element)
++            }
++        };
++        let written = std::str::from_utf8(selected.root().selected()).ok()?;
++        let current = scope.namespace_variable_coordinate(written)?;
++        if coordinate
++            .as_ref()
++            .is_some_and(|previous| previous != &current)
++        {
++            return None;
++        }
++        coordinate = Some(current);
++    }
++    coordinate
+ }
+ 
+ /// Whether a retained original namespace-variable producer or conflict covers
+@@ -2213,12 +2174,7 @@ pub(crate) fn lookup_var_read_at<'a>(
+     if !analysis.allows_lexical_declaration_advice() {
+         return None;
+     }
+-    let var_def = lookup_var_in_scope_chain(
+-        &analysis.global_scope,
+-        cursor_off,
+-        name,
+-        analysis.ns_var_global_fallback(),
+-    )?;
++    let var_def = lookup_var_in_scope_chain(analysis, source, cursor_off, name)?;
+     (!offset_is_inert(source, analysis, cursor_off)?).then_some(var_def)
+ }
+ 
+@@ -2389,103 +2345,52 @@ fn param_word_position(
+     }
+ }
+ 
+-/// Collect every variable name visible at `byte_offset` — the union
+-/// of `variables` across the scope chain (innermost first, then
+-/// enclosing scopes up to the global root).  Used by variable
+-/// completion so a `$`-trigger inside a proc / namespace body offers
+-/// that scope's locals + params alongside the globals.
+-///
+-/// Inside an `uplevel #0 { … }` body the script runs in the global
+-/// frame, so the enclosing proc's locals are *not* visible — only the
+-/// global / namespace frame's variables plus the uplevel body's own
+-/// locals.  When the chain contains an [`ScopeKind::Uplevel`] scope,
+-/// proc-scope variables are dropped from the visible set.
++/// Source declaration candidates from the shared Logical scope owner.
+ pub(crate) fn visible_variable_names(
+-    scope: &tcl_compiler::analyser::Scope,
+-    byte_offset: u32,
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+ ) -> Vec<String> {
+-    let chain = scope_chain_at(scope, byte_offset);
+-    let mut names: Vec<String> = Vec::new();
+-    for (i, sc) in chain.iter().enumerate().rev() {
+-        // Honour the `uplevel` frame semantics (see [`uplevel_hides_scope`]):
+-        // `#0` drops the enclosing proc's locals, a non-`#0` level drops
+-        // everything outside the uplevel body.
+-        if uplevel_hides_scope(&chain, i) {
+-            continue;
++    let mut names = Vec::new();
++    for scope in advice.eligible_scopes().rev() {
++        for name in scope.variables.keys() {
++            if !names.contains(name) {
++                names.push(name.clone());
++            }
+         }
+-        for k in sc.variables.keys() {
+-            if !names.iter().any(|n| n == k) {
+-                names.push(k.clone());
++    }
++    if advice.root_names_require_qualification()
++        || (advice.is_namespace_frame() && advice.namespace_global_fallback())
++    {
++        for name in advice.root().variables.keys() {
++            if !names.contains(name) {
++                names.push(name.clone());
+             }
+         }
+     }
+     names
+ }
+ 
+-/// For completion: the set of variable names defined in the *global/root*
+-/// scope, returned only when the cursor sits where an unqualified reference
+-/// does NOT resolve to the global — inside a proc (unqualified names are the
+-/// proc's locals) or inside a nested `namespace eval` (they resolve within
+-/// that namespace).  Such a global must be offered `::`-qualified (`$::foo`)
+-/// so the inserted reference actually reaches it, matching Tcl's name
+-/// resolution.  Returns `None` at global scope, where bare names are correct.
+-///
+-/// `ns_global_fallback` carries the document dialect's TIP 278 semantics
+-/// (`AnalysisResult::ns_var_global_fallback`): under a Tcl 8.x dialect a
+-/// bare name at a namespace frame *does* reach an unshadowed global, so a
+-/// namespace context only forces qualification under 9.0+ semantics.  Proc
+-/// bodies never had the fallback in any version.
++/// Independently declared root candidates requiring rooted completion insertion.
+ pub(crate) fn global_vars_needing_qualification(
+-    scope: &tcl_compiler::analyser::Scope,
+-    byte_offset: u32,
+-    ns_global_fallback: bool,
++    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+ ) -> Option<FxHashSet<String>> {
+-    use tcl_compiler::analyser::ScopeKind;
+-    let chain = scope_chain_at(scope, byte_offset);
+-    let in_local_context = chain.iter().any(|sc| {
+-        matches!(sc.kind, ScopeKind::Proc)
+-            || (matches!(sc.kind, ScopeKind::Namespace)
+-                && !sc.name.is_empty()
+-                && sc.name != "::"
+-                && !ns_global_fallback)
+-    });
+-    if !in_local_context {
++    if !advice.root_names_require_qualification() {
+         return None;
+     }
+-    // Collect root/global names, but drop any that a closer (proc / namespace /
+-    // uplevel) scope also defines: a local of the same name *shadows* the
+-    // global, so the bare `$name` correctly resolves to the local and must not
+-    // be rewritten to `$::name` (which would silently retarget the reference).
+-    let mut globals = FxHashSet::default();
+-    let mut shadows = FxHashSet::default();
+-    for sc in &chain {
+-        if matches!(sc.kind, ScopeKind::Global) {
+-            globals.extend(sc.variables.keys().cloned());
+-        } else {
+-            shadows.extend(sc.variables.keys().cloned());
++    let mut globals = advice
++        .root()
++        .variables
++        .keys()
++        .cloned()
++        .collect::<FxHashSet<_>>();
++    for scope in advice.eligible_scopes() {
++        if std::ptr::eq(scope, advice.root()) {
++            continue;
+         }
+-    }
+-    for name in &shadows {
+-        globals.remove(name);
+-    }
+-    Some(globals)
+-}
+-
+-/// Names of every namespace / global scope in the cursor's lexical chain.
+-/// Used by completion to skip cross-namespace candidates already offered as
+-/// bare names.
+-pub(crate) fn lexical_namespace_chain(
+-    scope: &tcl_compiler::analyser::Scope,
+-    byte_offset: u32,
+-) -> FxHashSet<String> {
+-    use tcl_compiler::analyser::ScopeKind;
+-    let mut chain = FxHashSet::default();
+-    for sc in scope_chain_at(scope, byte_offset) {
+-        if matches!(sc.kind, ScopeKind::Namespace | ScopeKind::Global) {
+-            chain.insert(sc.name.clone());
++        for name in scope.variables.keys() {
++            globals.remove(name);
+         }
+     }
+-    chain
++    Some(globals)
+ }
+ 
+ /// Namespace an unqualified command invoked at `byte_offset` resolves
+@@ -2803,11 +2708,10 @@ fn itcl_self_qualified_candidate(
+     {
+         return None;
+     }
+-    let member = word
+-        .strip_prefix(class_def.name.as_str())?
+-        .strip_prefix("::")?;
+-    (!member.is_empty() && !member.contains("::"))
+-        .then(|| format!("{}::{member}", class_def.qualified_name))
++    let member =
++        tcl_syntax::naming::unroot_rooted_key(word.strip_prefix(class_def.name.as_str())?)?;
++    (!member.is_empty() && !tcl_syntax::naming::is_qualified(member.as_bytes()))
++        .then(|| tcl_syntax::naming::qualify(&class_def.qualified_name, member))
+ }
+ 
+ /// The declaration name span of the class the cursor names: the class whose
+@@ -2820,10 +2724,24 @@ fn itcl_self_qualified_candidate(
+ /// the local extension would shadow the true definition.  When the class *is*
+ /// created here, `via_define` is false and this is that creation site.
+ fn class_declaration_at(
++    source: &str,
+     analysis: &AnalysisResult,
+     word: &str,
+     cursor_offset: u32,
+ ) -> Option<tcl_lexer::Span> {
++    if !analysis.allows_lexical_declaration_advice() {
++        let std::ops::ControlFlow::Break(Some(identity)) =
++            crate::original_declaration::select_at_offset("", source, analysis, cursor_offset)
++        else {
++            return None;
++        };
++        if identity.role() != crate::original_declaration::OriginalDeclarationRole::Class {
++            return None;
++        }
++        return identity
++            .class_metadata(analysis)
++            .map(|declaration| declaration.metadata().name_span);
++    }
+     if let Some((_, class_def)) = analysis
+         .all_classes
+         .iter()
+@@ -2949,7 +2867,7 @@ pub(crate) fn forced_import_shadows(
+     word: &str,
+     call_off: u32,
+ ) -> bool {
+-    if word.contains("::") {
++    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
+         return false;
+     }
+     let path = analysis
+@@ -2986,7 +2904,7 @@ pub fn forced_import_shadows_call(
+     resolution_candidates: &[String],
+     call_off: u32,
+ ) -> bool {
+-    if word.contains("::") {
++    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
+         return false;
+     }
+     live_import_over_candidates(
+@@ -3212,7 +3130,7 @@ fn wildcard_import_source_namespace(
+     word: &str,
+     call_off: u32,
+ ) -> Option<String> {
+-    if word.contains("::") {
++    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
+         return None;
+     }
+     let mut current = namespace.to_owned();
+@@ -3997,7 +3915,7 @@ fn only_route_is_a_dead_import(
+     call_off: u32,
+     target_qname: &str,
+ ) -> bool {
+-    if word.contains("::") {
++    if tcl_syntax::naming::is_qualified(word.as_bytes()) {
+         return false;
+     }
+     let (target_ns, tail) = tcl_syntax::naming::key_holder_and_tail(target_qname);
+@@ -8634,3 +8552,620 @@ mod itcl_family_context_tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++mod logical_variable_scope_owner_tests {
++    use super::*;
++    use tcl_compiler::analyser::Analyser;
++
++    #[test]
++    fn native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument() {
++        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++            for (source, missing) in [
++                ("oo::class create C {}\nrename C {}\nC new\n", "C new"),
++                (
++                    "oo::class create C {}\nunknown_command C\n",
++                    "unknown_command C",
++                ),
++            ] {
++                let analysis = Analyser::new().analyse(source, release);
++                assert!(!analysis.allows_lexical_declaration_advice());
++                let (_, line, character) = cursor(source, "oo::class create C");
++                assert_eq!(
++                    definition(source, line, character, &analysis)
++                        .iter()
++                        .map(|range| range.start_line)
++                        .collect::<Vec<_>>(),
++                    vec![0],
++                    "current source header {release}"
++                );
++                let missing_offset = u32::try_from(
++                    source.find(missing).unwrap()
++                        + if missing == "C new" {
++                            0
++                        } else {
++                            "unknown_command ".len()
++                        },
++                )
++                .unwrap();
++                let missing_position =
++                    LineIndex::new(source).position_at_utf16(missing_offset, source);
++                let (line, character) = (missing_position.line, missing_position.character.get());
++                assert!(
++                    definition(source, line, character, &analysis).is_empty(),
++                    "{release}: {source}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn logical_unknown_namespace_retains_body_tables_without_a_coordinate() {
++        let source = "set root ROOT\nnamespace eval $unknown {\n set local OWN\n puts $local\n puts $Target::x\n}\n";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        let (offset, line, character) = cursor(source, "puts $local");
++        let advice = analysis
++            .logical_variable_scope_advice(
++                &tcl_lexer::SourceImage::document(source),
++                analysis.body_lexer_config.unwrap(),
++                offset,
++            )
++            .unwrap();
++        assert!(advice.namespace().is_none());
++        assert!(!advice.is_namespace_frame());
++        assert!(
++            advice
++                .eligible_scopes()
++                .any(|scope| scope.variables.contains_key("local"))
++        );
++        assert_eq!(
++            definition(source, line, character, &analysis)
++                .iter()
++                .map(|range| range.start_line)
++                .collect::<Vec<_>>(),
++            vec![2]
++        );
++        let (_, line, character) = cursor(source, "puts $Target::x");
++        assert!(
++            qualified_variable_cell_at(
++                source,
++                analysis.resolved_profile().unwrap(),
++                &analysis,
++                line,
++                character
++            )
++            .is_none()
++        );
++    }
++
++    #[test]
++    fn logical_interpreter_source_body_cannot_borrow_the_parent_root() {
++        for source in [
++            "set x PARENT\ninterp create child\ninterp eval child {puts $x}\n",
++            "set x PARENT\ninterp eval $child {puts $x}\n",
++        ] {
++            let analysis = Analyser::new().analyse(source, "tcl");
++            assert!(analysis.allows_lexical_declaration_advice());
++            let (offset, line, character) = cursor(source, "puts $x");
++            assert!(
++                analysis
++                    .logical_variable_scope_advice(
++                        &tcl_lexer::SourceImage::document(source),
++                        analysis.body_lexer_config.unwrap(),
++                        offset
++                    )
++                    .is_none()
++            );
++            assert!(definition(source, line, character, &analysis).is_empty());
++        }
++    }
++
++    #[test]
++    fn logical_array_completion_keeps_the_actual_cursor_edit_extent() {
++        for (source, character, expected_end) in [
++            ("set arr(key) 1\nset v $arr(k more stuff\n", 12, 12),
++            ("set arr(key) 1\nset v $arr(k)\n", 12, 13),
++        ] {
++            let analysis = Analyser::new().analyse(source, "tcl");
++            assert!(analysis.allows_lexical_declaration_advice());
++            let items = crate::completion::completions(
++                source,
++                1,
++                character,
++                &analysis,
++                analysis.resolved_registry(),
++                None,
++                analysis.resolved_profile().unwrap(),
++            );
++            let candidate = items
++                .iter()
++                .find(|item| item.label == "$arr(key)")
++                .expect("current Logical source array candidate");
++            let edit = candidate.text_edit.as_ref().expect("cursor replacement");
++            assert_eq!((edit.start_char, edit.end_char), (6, expected_end));
++            assert_eq!(edit.new_text, "$arr(key)");
++            let stale = format!("{source} ");
++            assert!(
++                crate::completion::completions(
++                    &stale,
++                    1,
++                    character,
++                    &analysis,
++                    analysis.resolved_registry(),
++                    None,
++                    analysis.resolved_profile().unwrap()
++                )
++                .is_empty()
++            );
++        }
++    }
++
++    #[test]
++    fn logical_namespace_write_coordinates_require_current_source_and_store_cards() {
++        use std::sync::Arc;
++        use tcl_compiler::analyser::ResolvedAnalysisInput;
++        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        let offset = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
++        let position = LineIndex::new(source).position_at_utf16(offset, source);
++        let query = |source: &str, analysis: &AnalysisResult| {
++            qualified_variable_cell_at(
++                source,
++                analysis.resolved_profile().unwrap(),
++                analysis,
++                position.line,
++                position.character.get(),
++            )
++        };
++        assert_eq!(query(source, &analysis).as_deref(), Some("::N::x"));
++        let mut missing = analysis.clone();
++        missing.original_variable_write_advice.clear();
++        assert!(query(source, &missing).is_none());
++        assert!(query(&format!("{source} "), &analysis).is_none());
++
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let mut registry = analysis
++            .resolved_registry()
++            .unwrap()
++            .project_for_profile(input.unit_profile());
++        let mut changed = registry.get("puts").unwrap().clone();
++        if changed
++            .traits
++            .contains(tcl_registry::Traits::EVALUATES_CODE)
++        {
++            changed.traits.remove(tcl_registry::Traits::EVALUATES_CODE);
++        } else {
++            changed.traits.insert(tcl_registry::Traits::EVALUATES_CODE);
++        }
++        registry.insert(changed);
++        let context = Arc::new(
++            input
++                .context_registry()
++                .with_command_store(Arc::new(registry)),
++        );
++        let foreign_input = ResolvedAnalysisInput::new(
++            input.analyser_profile(),
++            input.unit_profile(),
++            context,
++            input.lexer_config(),
++        );
++        let foreign = Analyser::new()
++            .with_resolved_input(foreign_input)
++            .analyse(source, "tcl");
++        assert!(!foreign.original_variable_write_advice.is_empty());
++        let mut donated = analysis.clone();
++        donated.original_variable_write_advice = foreign.original_variable_write_advice;
++        assert!(query(source, &donated).is_none());
++    }
++
++    #[test]
++    fn logical_bare_procedure_writes_cannot_publish_namespace_coordinates() {
++        let source = "set x ROOT\nproc p {} {set x FIRST; set x AGAIN; set N::x QUALIFIED}\n";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        for (needle, expected) in [
++            ("set x AGAIN", None),
++            ("set N::x QUALIFIED", Some("::N::x")),
++        ] {
++            let offset = u32::try_from(source.find(needle).unwrap() + "set ".len()).unwrap();
++            let position = LineIndex::new(source).position_at_utf16(offset, source);
++            assert_eq!(
++                qualified_variable_cell_at(
++                    source,
++                    analysis.resolved_profile().unwrap(),
++                    &analysis,
++                    position.line,
++                    position.character.get(),
++                )
++                .as_deref(),
++                expected,
++            );
++        }
++    }
++
++    #[test]
++    fn native_conditional_publication_navigation_preserves_source_table_refusals() {
++        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++            for (source, needle, expected) in [
++                (
++                    "oo::class create C {}\nproc p {} {C new}\n",
++                    "C new",
++                    Some(0),
++                ),
++                (
++                    "proc p {} {Future new}\noo::class create Future {}\n",
++                    "Future new",
++                    Some(1),
++                ),
++                (
++                    "oo::class create C {}\nrename C {}\nproc p {} {C new}\n",
++                    "C new",
++                    None,
++                ),
++                (
++                    "oo::class create C {}\nproc C args {}\nproc p {} {C new}\n",
++                    "C new",
++                    Some(1),
++                ),
++                (
++                    "oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
++                    "C new",
++                    None,
++                ),
++            ] {
++                let analysis = Analyser::new().analyse(source, release);
++                assert!(!analysis.allows_lexical_declaration_advice());
++                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
++                let position = LineIndex::new(source).position_at_utf16(offset, source);
++                let selected =
++                    definition(source, position.line, position.character.get(), &analysis)
++                        .into_iter()
++                        .map(|range| range.start_line)
++                        .collect::<Vec<_>>();
++                assert_eq!(
++                    selected,
++                    expected.into_iter().collect::<Vec<_>>(),
++                    "{release}: {source}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables() {
++        let analysis = Analyser::new().analyse(SCOPED, "tcl");
++        for (needle, expected) in [
++            ("uplevel #0 {puts $x", Some(0)),
++            ("uplevel 0 {puts $x", Some(4)),
++            ("uplevel 1 {puts $x", None),
++        ] {
++            let (_, line, character) = cursor(SCOPED, needle);
++            let spans = crate::references::references(
++                SCOPED,
++                analysis.resolved_profile().unwrap(),
++                line,
++                character,
++                &analysis,
++                true,
++            );
++            let lines = spans.iter().map(|span| span.start_line).collect::<Vec<_>>();
++            if let Some(declaration) = expected {
++                assert!(lines.contains(&declaration), "{needle}: {lines:?}");
++                assert!(
++                    lines.contains(&line),
++                    "original selected read {needle}: {lines:?}"
++                );
++            } else {
++                assert!(lines.is_empty(), "unknown caller {needle}: {lines:?}");
++            }
++            assert!(
++                !lines.contains(&2),
++                "namespace cannot replace frame {needle}: {lines:?}"
++            );
++        }
++    }
++
++    const SCOPED: &str = "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n";
++
++    fn cursor(source: &str, needle: &str) -> (u32, u32, u32) {
++        let offset = u32::try_from(source.find(needle).unwrap() + needle.len() - 1).unwrap();
++        let position = LineIndex::new(source).position_at_utf16(offset, source);
++        (offset, position.line, position.character.get())
++    }
++
++    #[test]
++    fn logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables() {
++        let analysis = Analyser::new().analyse(SCOPED, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        for (needle, expected_line) in [
++            ("uplevel #0 {puts $x", Some(0)),
++            ("uplevel 0 {puts $x", Some(4)),
++            ("uplevel 1 {puts $x", None),
++        ] {
++            let (offset, line, character) = cursor(SCOPED, needle);
++            let scope = analysis
++                .logical_variable_scope_advice(
++                    &tcl_lexer::SourceImage::document(SCOPED),
++                    analysis.body_lexer_config.unwrap(),
++                    offset,
++                )
++                .unwrap();
++            let selected = definition(SCOPED, line, character, &analysis);
++            match expected_line {
++                Some(expected) => assert_eq!(
++                    selected
++                        .iter()
++                        .map(|range| range.start_line)
++                        .collect::<Vec<_>>(),
++                    vec![expected],
++                    "{needle}"
++                ),
++                None => assert!(selected.is_empty(), "{needle}: {selected:?}"),
++            }
++            let references = crate::references::references(
++                SCOPED,
++                analysis.resolved_profile().unwrap(),
++                line,
++                character,
++                &analysis,
++                true,
++            );
++            assert!(
++                !references.iter().any(|range| range.start_line == 2),
++                "outer namespace cannot substitute for the selected frame: {references:?}"
++            );
++            if expected_line.is_none() {
++                assert!(
++                    !references
++                        .iter()
++                        .any(|range| matches!(range.start_line, 0 | 4))
++                );
++            }
++            assert!(scope.eligible_scopes().all(|candidate| !matches!(
++                candidate.kind,
++                tcl_compiler::analyser::ScopeKind::Namespace
++            )));
++        }
++    }
++
++    #[test]
++    fn logical_method_root_and_nested_declared_local_frames_stay_distinct() {
++        for (source, needle, expected_line) in [
++            (
++                "set x ROOT\noo::class create C {\n method m {} {\n  set x METHOD\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n }\n}\n",
++                "uplevel #0 {puts $x",
++                0,
++            ),
++            (
++                "set x ROOT\noo::class create C {\n method m {} {\n  set x METHOD\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n }\n}\n",
++                "uplevel 0 {puts $x",
++                3,
++            ),
++            (
++                "set x ROOT\nproc outer {} {uplevel #0 {\n proc inner {} {\n  set x INNER\n  puts $x\n }\n}}\n",
++                "puts $x",
++                3,
++            ),
++        ] {
++            let analysis = Analyser::new().analyse(source, "tcl");
++            assert!(analysis.allows_lexical_declaration_advice());
++            let (offset, line, character) = cursor(source, needle);
++            assert!(
++                analysis
++                    .logical_variable_scope_advice(
++                        &tcl_lexer::SourceImage::document(source),
++                        analysis.body_lexer_config.unwrap(),
++                        offset
++                    )
++                    .is_some()
++            );
++            let selected = definition(source, line, character, &analysis);
++            assert_eq!(
++                selected
++                    .iter()
++                    .map(|range| range.start_line)
++                    .collect::<Vec<_>>(),
++                vec![expected_line],
++                "{source}"
++            );
++        }
++    }
++
++    #[test]
++    fn logical_root_namespace_eval_keeps_the_same_root_declaration_table() {
++        let source = "set x ROOT\nnamespace eval :: {puts $x}\n";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        let (offset, line, character) = cursor(source, "puts $x");
++        let advice = analysis
++            .logical_variable_scope_advice(
++                &tcl_lexer::SourceImage::document(source),
++                analysis.body_lexer_config.unwrap(),
++                offset,
++            )
++            .unwrap();
++        assert!(!advice.root_names_require_qualification());
++        assert_eq!(
++            definition(source, line, character, &analysis)
++                .iter()
++                .map(|range| range.start_line)
++                .collect::<Vec<_>>(),
++            vec![0]
++        );
++    }
++
++    #[test]
++    fn logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner() {
++        let source = "namespace eval Target {variable x ROOT_TARGET}\nnamespace eval N {\n namespace eval Target {variable x N_TARGET}\n proc p {} {\n  uplevel #0 {puts $Target::x}\n  uplevel 0 {puts $Target::x}\n  uplevel 1 {puts $Target::x}\n  uplevel 1 {puts $::Target::x}\n }\n}\n";
++        let analysis = Analyser::new().analyse(source, "tcl");
++        assert!(analysis.allows_lexical_declaration_advice());
++        for (needle, expected) in [
++            ("uplevel #0 {puts $Target::x", Some("::Target::x")),
++            ("uplevel 0 {puts $Target::x", Some("::N::Target::x")),
++            ("uplevel 1 {puts $Target::x", None),
++            ("uplevel 1 {puts $::Target::x", Some("::Target::x")),
++        ] {
++            let (_, line, character) = cursor(source, needle);
++            assert_eq!(
++                qualified_variable_cell_at(
++                    source,
++                    analysis.resolved_profile().unwrap(),
++                    &analysis,
++                    line,
++                    character
++                )
++                .as_deref(),
++                expected,
++                "{needle}"
++            );
++            assert!(
++                qualified_variable_cell_at(
++                    &format!("{source} "),
++                    analysis.resolved_profile().unwrap(),
++                    &analysis,
++                    line,
++                    character
++                )
++                .is_none()
++            );
++        }
++    }
++
++    #[test]
++    fn logical_scope_selector_current_image_and_domain_do_not_grant_edits() {
++        let analysis = Analyser::new().analyse(SCOPED, "tcl");
++        let image = tcl_lexer::SourceImage::document(SCOPED);
++        let config = analysis.body_lexer_config.unwrap();
++        let (offset, line, character) = cursor(SCOPED, "uplevel #0 {puts $x");
++        assert!(
++            analysis
++                .logical_variable_scope_advice(&image, config, offset)
++                .is_some()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &tcl_lexer::SourceImage::document(&format!("{SCOPED} ")),
++                    config,
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &tcl_lexer::SourceImage::native(SCOPED.as_bytes()),
++                    config,
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &image,
++                    tcl_lexer::LexerConfig {
++                        strict_quoting: !config.strict_quoting,
++                        ..config
++                    },
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &image,
++                    config,
++                    u32::try_from(SCOPED.len() + 1).unwrap()
++                )
++                .is_none()
++        );
++        for release in ["tcl8.6", "tcl9.0", "jim", "f5-iapps"] {
++            let original = Analyser::new().analyse(SCOPED, release);
++            assert!(
++                original
++                    .logical_variable_scope_advice(
++                        &image,
++                        original.body_lexer_config.unwrap(),
++                        offset
++                    )
++                    .is_none()
++            );
++        }
++        let mut detached = analysis.clone();
++        detached.resolved_input = None;
++        assert!(
++            detached
++                .logical_variable_scope_advice(&image, config, offset)
++                .is_none()
++        );
++        let stale = format!("{SCOPED} ");
++        assert!(
++            crate::rename::rename(
++                &stale,
++                analysis.resolved_profile().unwrap(),
++                line,
++                character,
++                "other",
++                &analysis,
++                None
++            )
++            .is_empty()
++        );
++    }
++
++    #[test]
++    fn native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection() {
++        let source =
++            "set shared 1\nproc first {argument} {global shared; upvar #0 shared link; puts $}\n";
++        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
++        let image = tcl_lexer::SourceImage::document(source);
++        let config = analysis.body_lexer_config.unwrap();
++        assert!(
++            analysis
++                .original_variable_alias_advice_in_source(&image, config)
++                .unwrap()
++                .iter()
++                .any(|alias| alias.local_name().as_bytes() == b"link")
++        );
++        analysis.original_variable_symbols.clear();
++        let offset = u32::try_from(source.find("puts $").unwrap() + "puts $".len()).unwrap();
++        let position = LineIndex::new(source).position_at_utf16(offset, source);
++        assert!(
++            analysis
++                .logical_variable_scope_advice(&image, config, offset)
++                .is_none()
++        );
++        let candidates = crate::completion::completions(
++            source,
++            position.line,
++            position.character.get(),
++            &analysis,
++            analysis.resolved_registry(),
++            None,
++            analysis.resolved_profile().unwrap(),
++        );
++        assert!(
++            candidates
++                .iter()
++                .any(|candidate| candidate.insert_text == "$link"
++                    && candidate.detail.as_deref()
++                        == Some("variable — source alias declaration candidate"))
++        );
++        let alias = u32::try_from(source.find("link;").unwrap()).unwrap();
++        let position = LineIndex::new(source).position_at_utf16(alias, source);
++        assert!(
++            crate::rename::rename(
++                source,
++                analysis.resolved_profile().unwrap(),
++                position.line,
++                position.character.get(),
++                "other",
++                &analysis,
++                analysis.resolved_registry()
++            )
++            .is_empty()
++        );
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/minify.rs b/rust/tcl-lsp-core/src/minify.rs
+index 8d55252f1..b0ac147ec 100644
+--- a/rust/tcl-lsp-core/src/minify.rs
++++ b/rust/tcl-lsp-core/src/minify.rs
+@@ -1316,7 +1316,7 @@ fn compact_names(
+         for qname in proc_keys {
+             let proc_def = &analysis.all_procs[qname];
+             let name = &proc_def.name;
+-            if name.len() <= 1 || name.contains("::") {
++            if name.len() <= 1 || tcl_syntax::naming::is_qualified(name.as_bytes()) {
+                 continue;
+             }
+             // A proc that overrides a registry-known command (`proc unknown
+@@ -1496,7 +1496,7 @@ fn process_scope(ctx: ScopeCtx<'_>, scope: &Scope, scope_label: &str, out: &mut
+         var_names.sort();
+         for var_name in var_names {
+             let var_def = &scope.variables[var_name];
+-            if var_name.len() <= 1 || var_name.contains("::") {
++            if var_name.len() <= 1 || tcl_syntax::naming::is_qualified(var_name.as_bytes()) {
+                 continue;
+             }
+             // A local that aliases a namespace / global cell (`global v`,
+diff --git a/rust/tcl-lsp-core/src/original_declaration.rs b/rust/tcl-lsp-core/src/original_declaration.rs
+index 7509256de..263c51e3c 100644
+--- a/rust/tcl-lsp-core/src/original_declaration.rs
++++ b/rust/tcl-lsp-core/src/original_declaration.rs
+@@ -701,22 +701,27 @@ pub fn select(
+             _ => None,
+         });
+     }
++    let Some(registry) = analysis.resolved_registry() else {
++        return ControlFlow::Break(None);
++    };
+     let headers = analysis
+         .original_procedure_declarations()
+         .filter_map(|row| {
+             OriginalDeclarationIdentity::for_procedure(uri, source, analysis, row)
+-                .map(|identity| (row.name(), identity))
++                .map(|identity| (row.name(), row.declaration_site(), identity))
+         })
+         .chain(analysis.original_class_declarations().filter_map(|row| {
+             OriginalDeclarationIdentity::for_class(uri, source, analysis, row)
+-                .map(|identity| (row.name(), identity))
++                .map(|identity| (row.name(), row.declaration_site(), identity))
+         }));
+-    ControlFlow::Break(lookup.matching_publications(headers).and_then(|matched| {
+-        match matched.as_slice() {
+-            [one] => Some(one.clone()),
+-            _ => None,
+-        }
+-    }))
++    ControlFlow::Break(
++        lookup
++            .matching_source_advice_publications(registry, headers)
++            .and_then(|matched| match matched.as_slice() {
++                [one] => Some(one.clone()),
++                _ => None,
++            }),
++    )
+ }
+ 
+ /// Readonly local references to this exact source declaration. Terminal command
+diff --git a/rust/tcl-lsp-core/src/references.rs b/rust/tcl-lsp-core/src/references.rs
+index 5d19ad799..b811b5ccf 100644
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -2573,7 +2573,9 @@ fn collect_stored_callback_writes(
+                 has_scope_alias = true;
+                 continue;
+             };
+-            if var.contains("::") || tcl_syntax::naming::split_element_ref(&var).is_some() {
++            if tcl_syntax::naming::is_qualified(var.as_bytes())
++                || tcl_syntax::naming::split_element_ref(&var).is_some()
++            {
+                 continue;
+             }
+             *counts.entry(var.clone()).or_default() += 1;
+diff --git a/rust/tcl-lsp-core/src/rename.rs b/rust/tcl-lsp-core/src/rename.rs
+index 6b1a00aa3..f55aa33d7 100644
+--- a/rust/tcl-lsp-core/src/rename.rs
++++ b/rust/tcl-lsp-core/src/rename.rs
+@@ -1491,27 +1491,24 @@ fn rename_var(
+     // *before* its scope's body span even starts, so fall back to the
+     // byte-offset span search there (see `var_def_at_declaration_offset`'s
+     // own doc).
+-    let Some(var_def) = crate::definition::lookup_var_in_scope_chain(
+-        &analysis.global_scope,
+-        byte_offset,
+-        var_name,
+-        analysis.ns_var_global_fallback(),
+-    )
+-    .or_else(|| {
+-        crate::definition::var_def_at_declaration_offset(&analysis.global_scope, byte_offset)
+-            .filter(|v| v.name == var_name)
+-    }) else {
++    let Some(var_def) =
++        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, var_name)
++            .or_else(|| {
++                crate::definition::var_def_at_declaration_offset(
++                    &analysis.global_scope,
++                    byte_offset,
++                )
++                .filter(|v| v.name == var_name)
++            })
++    else {
+         return Vec::new();
+     };
+     // Collision gate: refuse when `new_name` already resolves to a *different*
+     // variable visible at the cursor (e.g. a sibling `set y` in the same proc
+     // scope) — renaming would merge two distinct variables.
+-    if let Some(existing) = crate::definition::lookup_var_in_scope_chain(
+-        &analysis.global_scope,
+-        byte_offset,
+-        new_name,
+-        analysis.ns_var_global_fallback(),
+-    ) && existing.definition_span != var_def.definition_span
++    if let Some(existing) =
++        crate::definition::lookup_var_in_scope_chain(analysis, source, byte_offset, new_name)
++        && existing.definition_span != var_def.definition_span
+     {
+         return Vec::new();
+     }
+@@ -1638,7 +1635,7 @@ fn rename_proc(
+     // (`assist`); one declared qualified (`proc ::ns::greet`) stays qualified.
+     let decl_was_qualified = source
+         .get(proc_def.name_span.start() as usize..proc_def.name_span.end() as usize)
+-        .is_some_and(|t| t.contains("::"));
++        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
+     let new_decl_text = if decl_was_qualified {
+         qualified_decl
+     } else {
+@@ -1734,7 +1731,7 @@ fn rename_class(
+     // `rename_proc`'s identical `decl_was_qualified` handling.
+     let decl_was_qualified = source
+         .get(class_def.name_span.start() as usize..class_def.name_span.end() as usize)
+-        .is_some_and(|t| t.contains("::"));
++        .is_some_and(|t| tcl_syntax::naming::is_qualified(t.as_bytes()));
+     let new_decl_text = if decl_was_qualified {
+         qualified_decl
+     } else {
+@@ -2117,6 +2114,12 @@ pub fn namespace_variable_rename_edits(
+     if !is_safe_symbol_name(new_name) {
+         return Vec::new();
+     }
++    let Some(config) = analysis.body_lexer_config else {
++        return Vec::new();
++    };
++    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
++        return Vec::new();
++    }
+     let target = cell;
+     // Collision gate, the in-document half of the workspace one the server
+     // applies: renaming onto a cell this document already declares would
+@@ -5241,6 +5244,23 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn namespace_variable_rename_requires_the_retained_consumer_image() {
++        let source = "namespace eval N {variable x 1}\nputs $::N::x\n";
++        let analysis = analyse(source);
++        let edits = namespace_variable_rename_edits(source, &analysis, "::N::x", "total");
++        assert_eq!(
++            apply_edits(source, &edits),
++            "namespace eval N {variable total 1}\nputs $::N::total\n"
++        );
++        let changed_source = source.replace(" x 1", " y 1").replace("::N::x", "::N::y");
++        assert!(
++            namespace_variable_rename_edits(&changed_source, &analysis, "::N::x", "total")
++                .is_empty(),
++            "retained x spans cannot rename the changed document's y"
++        );
++    }
++
+     /// FP — `namespace upvar ::ns v
+     /// local` names the cell in its *third* word; `local` is an independent
+     /// local spelling.  Rewriting the alias token and leaving the target word
+diff --git a/rust/tcl-lsp-core/src/semantic_tokens.rs b/rust/tcl-lsp-core/src/semantic_tokens.rs
+index c9bd8bc26..21e5ecbad 100644
+--- a/rust/tcl-lsp-core/src/semantic_tokens.rs
++++ b/rust/tcl-lsp-core/src/semantic_tokens.rs
+@@ -5048,7 +5048,7 @@ fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option
+                 .unwrap_or("");
+             if is_number_literal(text, numbers) {
+                 Some(TokenKind::Number)
+-            } else if text.contains("::") && tok.content_offset == 0 {
++            } else if tcl_syntax::naming::is_qualified(text.as_bytes()) && tok.content_offset == 0 {
+                 // Only a *bare* word can be a namespace reference.  A quoted or
+                 // braced word is a string literal even when its content happens
+                 // to contain `::` — painting `append cmd "::scan \$field"`'s
+diff --git a/rust/tcl-lsp-core/src/workspace_index.rs b/rust/tcl-lsp-core/src/workspace_index.rs
+index 1adb9f3f8..bd9954c4a 100644
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -6958,7 +6958,7 @@ impl<'a> WildcardImportIndex<'a> {
+         resolution_candidates: &[String],
+         call: CallSite<'_>,
+     ) -> bool {
+-        if name.contains("::") {
++        if tcl_syntax::naming::is_qualified(name.as_bytes()) {
+             return false;
+         }
+         resolution_candidates.iter().any(|cand| {
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+index 7a7e04cf5..e9ce91bb0 100644
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -5855,7 +5855,18 @@ p\uD801 ordinary";
+         }
+         let mut foreign_registry = registry.project_for_profile(input.unit_profile());
+         let mut changed_spec = foreign_registry.get("puts").unwrap().clone();
+-        changed_spec.traits ^= tcl_registry::Traits::EVALUATES_CODE;
++        if changed_spec
++            .traits
++            .contains(tcl_registry::Traits::EVALUATES_CODE)
++        {
++            changed_spec
++                .traits
++                .remove(tcl_registry::Traits::EVALUATES_CODE);
++        } else {
++            changed_spec
++                .traits
++                .insert(tcl_registry::Traits::EVALUATES_CODE);
++        }
+         foreign_registry.insert(changed_spec);
+         assert!(
+             supplied_unit_build_options(&db, file, key, &foreign_registry, None, &declared, &input)
+diff --git a/rust/tcl-syntax/src/naming.rs b/rust/tcl-syntax/src/naming.rs
+index 0deb7d1aa..feea60804 100644
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -1620,6 +1620,14 @@ pub fn split_array_name_for_style(
+     }
+ }
+ 
++/// Split an editor's incomplete array-name fragment into source prefixes.
++/// Neither prefix is an evaluated name, complete reference or variable lookup.
++#[must_use]
++pub fn array_variable_completion_prefix(partial: &str) -> Option<(&str, &str)> {
++    let (name, index) = partial.split_once('(')?;
++    (!name.is_empty()).then_some((name, index))
++}
++
+ /// True when `word` carries a variable / command substitution anywhere —
+ /// e.g. `rename ::$c mystr` or `rename foo bar[x]` — so it cannot be
+ /// resolved to a static command name at compile time.

@@ -1,0 +1,145 @@
+[
+  {
+    "provider": "c84",
+    "expected_release": "8.4.20",
+    "captured_utc": "2026-10-13T19:40:58.676923+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "119374cea5de51f9a1403de570075853e750d41facafcb3c9fa3c5c0eed119d9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c85",
+    "expected_release": "8.5.19",
+    "captured_utc": "2026-10-13T19:40:58.791998+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "12c12dd9032f8a35dcc1e6aa6e28d726f8ded034630577a0cf3d135871189f33",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c86",
+    "expected_release": "8.6.18",
+    "captured_utc": "2026-10-13T19:40:58.909237+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "d4cd9370f341b710dbe8cea2be49570f468f5c86c24a40d68b887c6987214a7f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c90",
+    "expected_release": "9.0.4",
+    "captured_utc": "2026-10-13T19:40:59.042114+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "b561cdff85f28de9e9b9beedfd70f213ffe01d172dc9f812f9920b1cfdc57b13",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c91",
+    "expected_release": "9.1.0",
+    "captured_utc": "2026-10-13T19:40:59.176016+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "86d333f9dd79e9783e94c232fb8107431b38016e0b009bb82b38e13505bd0301",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "jim",
+    "expected_release": "selected latest Jim source checkout",
+    "captured_utc": "2026-10-13T19:40:59.214109+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-extension-command-inventory-20261013/root-context-oracles/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/root-context-oracles",
+    "selected_environment": {},
+    "unset_environment": [
+      "TCL_LIBRARY",
+      "TCLLIBPATH",
+      "LD_LIBRARY_PATH"
+    ],
+    "input_sha256": "8905b84de4bbd2df0e5ec44d8bdf7c1ca2236ccf65c064348a6653c6d32b2e9c",
+    "runner_sha256": "78603b7a3f23f57cf5f76d3464af3dc559c8752dedc5ef6d92122fc5f72ecdc7",
+    "exit_code": 0,
+    "stdout_sha256": "2c72b975c0307df3e39f45fe067611ebf9cfe3295ae824ec1cc8ea5cc91d8362",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable explicit root command operand and namespace-context controls; shared Rust bridge and actual Runtime inventory unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  }
+]

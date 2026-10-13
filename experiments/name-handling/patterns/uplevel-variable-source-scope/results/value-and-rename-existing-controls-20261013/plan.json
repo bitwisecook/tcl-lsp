@@ -1,0 +1,12 @@
+{
+  "exact": [
+    "definition::tests::bareword_inside_apply_body_resolves_against_the_lambdas_own_namespace",
+    "definition::tests::bareword_inside_var_indirected_apply_body_resolves_against_the_lambdas_namespace",
+    "definition::tests::bareword_inside_list_and_qualified_var_apply_resolves_against_the_lambdas_namespace",
+    "definition::tests::two_hop_apply_var_indirection_stays_unresolved",
+    "rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use",
+    "rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace",
+    "rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone"
+  ],
+  "scope": "Existing public variable/apply and namespace rename consumers; same frozen isolated production02 binary/input, no Cargo"
+}

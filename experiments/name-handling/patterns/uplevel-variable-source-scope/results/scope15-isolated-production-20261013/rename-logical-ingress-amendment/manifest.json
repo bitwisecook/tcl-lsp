@@ -1,0 +1,9 @@
+{
+  "owner": "rust/tcl-lsp-core/src/rename.rs",
+  "before_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
+  "after_sha256": "8c3215538e34096178e4df4c092e96a5c5d704d2d8de7f5b6890f8fe1a8fbb22",
+  "patch_sha256": "191ac383bc4b9e7e250ae26103fd530a8f74e697ac5ac5ee96f28a017fa12356",
+  "purpose": "Genuine explicit Logical source ingress for Logical-only direct public rename API; no production guard or expected assertion relaxed",
+  "measured_failure": "production02/test-15 positive setup calls module analyse helper tcl8.6; has_logical_source_name_context requires both profile native_name_protocol None; helper exact native C8.6 cannot satisfy first existing function gate",
+  "status": "Scratch only. No source mutation/build/acceptance after sealed Scope15."
+}

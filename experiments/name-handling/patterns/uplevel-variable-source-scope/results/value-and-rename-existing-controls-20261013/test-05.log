@@ -1,0 +1,6 @@
+
+running 1 test
+test rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.53s
+

@@ -1,0 +1,129 @@
+{
+  "actual_tests": 15,
+  "passed": 5,
+  "failed": 10,
+  "source_paths": 6741,
+  "source_stable": true,
+  "cases": [
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-01.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-02.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_interpreter_source_body_cannot_borrow_the_parent_root",
+      "pass": true,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-03.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-04.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-05.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-06.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-07.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-08.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+      "pass": true,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-09.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-10.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-11.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::native_class_navigation_cannot_borrow_a_deleted_head_or_unknown_argument",
+      "pass": true,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-12.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+      "pass": true,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-13.log"
+    },
+    {
+      "test": "definition::logical_variable_scope_owner_tests::native_source_alias_candidates_cannot_borrow_logical_scope_or_edit_selection",
+      "pass": true,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-14.log"
+    },
+    {
+      "test": "rename::tests::namespace_variable_rename_requires_the_retained_consumer_image",
+      "pass": false,
+      "actual_count": [
+        "1"
+      ],
+      "log": "production-02/test-15.log"
+    }
+  ]
+}

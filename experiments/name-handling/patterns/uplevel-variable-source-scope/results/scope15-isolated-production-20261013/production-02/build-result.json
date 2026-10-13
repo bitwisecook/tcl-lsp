@@ -1,0 +1,28 @@
+{
+  "started_utc": "2026-10-13T20:14:35.103967+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-core",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 191.16157328899862,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/name-implementation-worktrees/lsp_scope/target/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "sha256": "f9e25bc2cd430ca9ac7e742d91e9e2d1ed6621355b2e9e32a43a790519e875ae",
+    "bytes": 177360656
+  },
+  "build_source_stable": true
+}

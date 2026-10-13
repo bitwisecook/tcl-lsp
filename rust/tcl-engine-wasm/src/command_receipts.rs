@@ -122,7 +122,7 @@ pub(crate) fn buffer<C: AsContextMut<Data = HostState>>(
     Ok((pointer, length))
 }
 
-fn owned_string<C: AsContextMut<Data = HostState>>(
+pub(crate) fn owned_string<C: AsContextMut<Data = HostState>>(
     context: &mut C,
     exports: &Exports,
     object: i32,
