@@ -420,7 +420,7 @@ impl Interp {
                                 self.namespaces.borrow().native_command_reference(origin),
                             );
                             let check = || {
-                                self.original_command_cache_current(
+                                self.original_command_lookup_binding_current(
                                     scope.currency(),
                                     original,
                                     &cache,

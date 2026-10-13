@@ -4300,10 +4300,15 @@ impl Interp {
         &mut self,
         name: &[u8],
     ) -> Result<Option<obj::Owned>, tcl_syntax::value::ValueError> {
+        let recipe = self
+            .name_policy_protocol()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "alias query issuer",
+            ))?
+            .recipe();
         let command = self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name);
+            .original_alias_registration_binding(name)?
+            .map(|(_, command)| command);
         let original_prefix = match command {
             Some(Command::Alias {
                 original_prefix,
@@ -4327,12 +4332,6 @@ impl Interp {
             }
             _ => return Ok(None),
         };
-        let recipe = self
-            .name_policy_protocol()
-            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "alias query issuer",
-            ))?
-            .recipe();
         original_prefix.checked_ptr()?;
         if recipe.alias_query_returns_original_list() {
             return Ok(Some(obj::Owned::retain(original_prefix.checked_ptr()?)));
@@ -4358,18 +4357,23 @@ impl Interp {
         &mut self,
         path: &[Vec<u8>],
         alias: &[u8],
-    ) -> Option<Vec<Vec<u8>>> {
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
         let path_owned = path.to_vec();
         self.with_child_path(path, move |c| {
-            match c.namespaces.borrow().resolve(c.current_ns.get(), alias) {
-                Some(Command::Alias { .. }) => Some(path_owned),
-                Some(Command::ParentAlias { .. }) => {
-                    Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
-                }
-                _ => None,
-            }
+            Ok(
+                match c
+                    .original_alias_registration_binding(alias)?
+                    .map(|(_, command)| command)
+                {
+                    Some(Command::Alias { .. }) => Some(path_owned),
+                    Some(Command::ParentAlias { .. }) => {
+                        Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
+                    }
+                    _ => None,
+                },
+            )
         })
-        .flatten()
+        .unwrap_or(Ok(None))
     }
 
     /// Delete the command bound to `name` (the alias-clear form); returns whether
@@ -5829,40 +5833,24 @@ impl Interp {
     /// replace a retired source using its reported spelling.
     fn import_source_binding(
         &self,
-        source: &[u8],
         generation: u64,
         purpose: ImportQueryPurpose,
     ) -> Option<(Vec<u8>, u64, Command)> {
         match purpose {
             ImportQueryPurpose::Introspection => match self.command_by_generation(generation) {
-                CommandGenerationLookup::Found { fqn, command } => {
-                    return Some((fqn, generation, command));
-                }
-                CommandGenerationLookup::Unavailable => return None,
-                CommandGenerationLookup::Missing => {}
+                CommandGenerationLookup::Found { fqn, command } => Some((fqn, generation, command)),
+                CommandGenerationLookup::Unavailable | CommandGenerationLookup::Missing => None,
             },
-            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => {
-                return self
-                    .raw_command_location_by_generation(generation)
-                    .map(|(fqn, command)| (fqn, generation, command));
-            }
-        }
-        match purpose {
-            ImportQueryPurpose::Introspection => {
-                let (command, generation) =
-                    self.resolve_dispatchable_with_generation(GLOBAL, source)?;
-                let generation = generation?;
-                let (fqn, _) = self.raw_command_location_by_generation(generation)?;
-                Some((fqn, generation, command))
-            }
-            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => None,
+            ImportQueryPurpose::Origin | ImportQueryPurpose::OriginalObject => self
+                .raw_command_location_by_generation(generation)
+                .map(|(fqn, command)| (fqn, generation, command)),
         }
     }
 
-    /// Resolve an invocation's one immediate import source with its actual
-    /// availability gate. Query traversal shares this exact source selection.
-    fn resolve_import_source(&self, source: &[u8], generation: u64) -> Option<Command> {
-        self.import_source_binding(source, generation, ImportQueryPurpose::Introspection)
+    /// Resolve an invocation's captured immediate source token with its
+    /// availability gate. A recreated reported name never replaces that token.
+    fn resolve_import_source(&self, generation: u64) -> Option<Command> {
+        self.import_source_binding(generation, ImportQueryPurpose::Introspection)
             .map(|(_, _, command)| command)
     }
 
@@ -5892,7 +5880,6 @@ impl Interp {
                 return None;
             }
             let Command::Imported {
-                source,
                 source_generation,
                 ensemble,
                 ..
@@ -5919,9 +5906,7 @@ impl Interp {
                     });
                 }
             }
-            let source = ensemble.map_or_else(|| source.clone(), |token| token.name());
-            (fqn, generation, command) =
-                self.import_source_binding(&source, *source_generation, purpose)?;
+            (fqn, generation, command) = self.import_source_binding(*source_generation, purpose)?;
         }
     }
 
@@ -6006,8 +5991,53 @@ impl Interp {
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
-    pub(crate) fn alias_names(&self) -> Vec<Vec<u8>> {
-        self.namespaces.borrow().alias_names()
+    pub(crate) fn alias_names(&self) -> Result<Vec<obj::Owned>, tcl_syntax::value::ValueError> {
+        if self
+            .name_policy_protocol()
+            .is_some_and(|protocol| !protocol.recipe().is_jim084())
+        {
+            self.select_original_alias_registration_order()?;
+            let tokens = self
+                .native_alias_registrations
+                .borrow()
+                .ordered_tokens()
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original alias table order",
+                ))?
+                .into_iter()
+                .copied()
+                .collect::<Vec<_>>();
+            return tokens
+                .into_iter()
+                .map(|generation| {
+                    let registration = match self.raw_command_by_generation(generation) {
+                        Some(
+                            Command::Alias {
+                                registration_name: Some(registration),
+                                ..
+                            }
+                            | Command::ParentAlias {
+                                registration_name: Some(registration),
+                                ..
+                            },
+                        ) => registration,
+                        _ => {
+                            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias inventory token",
+                            ))
+                        }
+                    };
+                    Ok(obj::Owned::retain(registration.checked_ptr()?))
+                })
+                .collect();
+        }
+        Ok(self
+            .namespaces
+            .borrow()
+            .alias_names()
+            .iter()
+            .map(|name| obj::Owned::fresh(new_string(name)))
+            .collect())
     }
 
     /// The current namespace (the eval context) — for the `namespace` builtin.
@@ -15007,7 +15037,7 @@ impl Interp {
                         return self.dispatch_ensemble(&token, argv);
                     }
                 }
-                match self.resolve_import_source(&source, source_generation) {
+                match self.resolve_import_source(source_generation) {
                     // Transparent redirect: forward argv unchanged to the source.
                     Some(cmd) => self.invoke_bound(cmd, Some(source_generation), argv),
                     None => self.invalid_command(&source),
@@ -15546,11 +15576,12 @@ impl Interp {
                 if argv.len() != 2 {
                     return self.child_wrong_args(command, argv, arguments, b" aliases");
                 }
-                let names = self
-                    .with_child(name, |c| c.alias_names())
-                    .unwrap_or_default();
-                let elems: Vec<*mut TclObj> =
-                    names.iter().map(|n| obj::new_string_bytes(n)).collect();
+                let names = match self.with_child(name, |c| c.alias_names()) {
+                    Some(Ok(names)) => names,
+                    Some(Err(error)) => return self.report_cmd_error(error.into()),
+                    None => return self.error(b"could not find interpreter"),
+                };
+                let elems = names.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
                 self.set_result(self.new_list_object(&elems));
                 Code::Ok
             }

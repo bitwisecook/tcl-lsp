@@ -157,6 +157,8 @@ pub enum NativeNamePurpose {
     RenameSource,
     RenameDestination,
     AliasPublication,
+    /// C alias-record lookup, independent of the command's movable slot.
+    AliasRegistrationQuery,
     /// Child-interpreter alias extension registration, including Jim's C-string constructor.
     ChildAliasPublication,
     NamespaceAddress,
@@ -379,6 +381,23 @@ impl<'a> NativeNameProjection<'a> {
             return Err(NameProjectionUnavailable::PurposeNotModelled);
         }
         Ok((self.protocol == NativeNameProtocol::C(TclVersion::V8_4))
+            .then(|| c_string_extent(self.original)))
+    }
+
+    /// C alias-record coordinate for registration or query. Jim has no C table.
+    ///
+    /// # Errors
+    /// Refuses an operand selected for another naming purpose.
+    pub fn alias_registration_key(&self) -> Result<Option<&[u8]>, NameProjectionUnavailable> {
+        if !matches!(
+            self.purpose,
+            NativeNamePurpose::AliasPublication
+                | NativeNamePurpose::ChildAliasPublication
+                | NativeNamePurpose::AliasRegistrationQuery
+        ) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(matches!(self.protocol, NativeNameProtocol::C(_))
             .then(|| c_string_extent(self.original)))
     }
 
@@ -768,6 +787,44 @@ impl NativeNameProtocol {
                 Some(NativeNameContext::root()),
             )),
         }
+    }
+
+    /// Select the original C alias-table operand without namespace resolution.
+    ///
+    /// # Errors
+    /// Jim's alias queries use its independent command-object lookup.
+    pub fn alias_registration_query_input(
+        self,
+        original: &[u8],
+    ) -> Result<NativeNameProjection<'_>, NameProjectionUnavailable> {
+        match self {
+            Self::C(_) => Ok(projection(
+                self,
+                NativeNamePurpose::AliasRegistrationQuery,
+                original,
+                Cow::Borrowed(c_string_extent(original)),
+                None,
+            )),
+            Self::Jim084 => Err(NameProjectionUnavailable::PurposeNotModelled),
+        }
+    }
+
+    /// Construct a later-C alias record token after an occupied registration.
+    /// The complete getter result survives; its C-string table key is separate.
+    ///
+    /// # Errors
+    /// C8.4 deletes the colliding token and Jim has no C alias table.
+    pub fn alias_registration_collision_token(
+        self,
+        original: &[u8],
+    ) -> Result<Vec<u8>, NameProjectionUnavailable> {
+        if !matches!(self, Self::C(version) if version >= TclVersion::V8_5) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let mut token = Vec::with_capacity(original.len().saturating_add(2));
+        token.extend_from_slice(b"::");
+        token.extend_from_slice(original);
+        Ok(token)
     }
 
     /// Child alias extensions construct their command name independently of the

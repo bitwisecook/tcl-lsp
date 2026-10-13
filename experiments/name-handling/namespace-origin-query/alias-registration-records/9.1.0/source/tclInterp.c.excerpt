@@ -1,0 +1,146 @@
+900:     childPtr = &interpInfoPtr->child;
+901:     childPtr->parentInterp	= NULL;
+902:     childPtr->childEntryPtr	= NULL;
+903:     childPtr->childInterp	= interp;
+904:     childPtr->interpCmd		= NULL;
+905:     Tcl_InitHashTable(&childPtr->aliasTable, TCL_STRING_KEYS);
+906: 
+907:     Tcl_NRCreateCommand2(interp, "interp", Tcl_InterpObjCmd, NRInterpCmd,
+908: 	    NULL, NULL);
+909:     Tcl_CreateObjCommand2(interp, INIT_AUTO_PATH_CMD, InitAutoPathObjCmd,
+2089:  *
+2090:  * Side effects:
+2091:  *	None.
+2092:  *
+2093:  *----------------------------------------------------------------------
+2094:  */
+2095: 
+2096: static int
+2097: AliasDescribe(
+2098:     Tcl_Interp *interp,		/* Interpreter for result & errors. */
+2099:     Tcl_Interp *childInterp,	/* Interpreter containing alias. */
+2100:     Tcl_Obj *namePtr)		/* Name of alias to describe. */
+2101: {
+2102:     Child *childPtr;
+2103:     Tcl_HashEntry *hPtr;
+2104:     Alias *aliasPtr;
+2105:     Tcl_Obj *prefixPtr;
+2106: 
+2107:     /*
+2108:      * If the alias has been renamed in the child, the parent can still use
+2109:      * the original name (with which it was created) to find the alias to
+2110:      * describe it.
+2111:      */
+2112: 
+2113:     childPtr = &INTERP_INFO(childInterp)->child;
+2114:     hPtr = Tcl_FindHashEntry(&childPtr->aliasTable, TclGetString(namePtr));
+2115:     if (hPtr == NULL) {
+2116: 	return TCL_OK;
+2117:     }
+2118:     aliasPtr = (Alias *) Tcl_GetHashValue(hPtr);
+2119:     prefixPtr = Tcl_NewListObj(aliasPtr->objc, &aliasPtr->objPtr);
+2120:     Tcl_SetObjResult(interp, prefixPtr);
+2121:     return TCL_OK;
+2122: }
+2123: 
+2124: 
+2125: /*
+2126:  *----------------------------------------------------------------------
+2127:  *
+2128:  * AliasList --
+2129:  *
+2130:  *	Computes a list of aliases defined in a child interpreter.
+2131:  *
+2132:  * Results:
+2133:  *	A standard Tcl result.
+2134:  *
+2135:  * Side effects:
+2136:  *	None.
+2137:  *
+2138:  *----------------------------------------------------------------------
+2139:  */
+2140: 
+2141: static int
+2142: AliasList(
+2143:     Tcl_Interp *interp,		/* Interp for data return. */
+2144:     Tcl_Interp *childInterp)	/* Interp whose aliases to compute. */
+2145: {
+2146:     Tcl_HashEntry *entryPtr;
+2147:     Tcl_HashSearch hashSearch;
+2148:     Tcl_Obj *resultPtr;
+2149:     Alias *aliasPtr;
+2150:     Child *childPtr;
+2151: 
+2134:  *
+2135:  * Side effects:
+2136:  *	None.
+2137:  *
+2138:  *----------------------------------------------------------------------
+2139:  */
+2140: 
+2141: static int
+2142: AliasList(
+2143:     Tcl_Interp *interp,		/* Interp for data return. */
+2144:     Tcl_Interp *childInterp)	/* Interp whose aliases to compute. */
+2145: {
+2146:     Tcl_HashEntry *entryPtr;
+2147:     Tcl_HashSearch hashSearch;
+2148:     Tcl_Obj *resultPtr;
+2149:     Alias *aliasPtr;
+2150:     Child *childPtr;
+2151: 
+2152:     TclNewObj(resultPtr);
+2153:     childPtr = &INTERP_INFO(childInterp)->child;
+2154: 
+2155:     entryPtr = Tcl_FirstHashEntry(&childPtr->aliasTable, &hashSearch);
+2156:     for ( ; entryPtr != NULL; entryPtr = Tcl_NextHashEntry(&hashSearch)) {
+2157: 	aliasPtr = (Alias *) Tcl_GetHashValue(entryPtr);
+2158: 	Tcl_ListObjAppendElement(NULL, resultPtr, aliasPtr->token);
+2159:     }
+2160:     Tcl_SetObjResult(interp, resultPtr);
+2161:     return TCL_OK;
+2162: }
+2163: 
+2164: 
+2165: /*
+2166:  *----------------------------------------------------------------------
+2167:  *
+2168:  * TclAliasObjCmd, TclLocalAliasObjCmd --
+2169:  *
+2170:  *	This is the function that services invocations of aliases in a child
+2171:  *	interpreter. One such command exists for each alias. When invoked,
+2172:  *	this function redirects the invocation to the target command in the
+2173:  *	parent interpreter as designated by the Alias record associated with
+2174:  *	this command.
+2175:  *
+2176:  *	TclLocalAliasObjCmd is a stripped down version used when the source
+2177:  *	and target interpreters of the alias are the same. That lets a number
+2178:  *	of safety precautions be avoided: the state is much more precisely
+2179:  *	known.
+2180:  *
+2181:  * Results:
+2182:  *	A standard Tcl result.
+2183:  *
+2184:  * Side effects:
+2185:  *	Causes forwarding of the invocation; all possible side effects may
+2186:  *	occur as a result of invoking the command to which the invocation is
+2187:  *	forwarded.
+2188:  *
+2189:  *----------------------------------------------------------------------
+2190:  */
+2191: 
+2192: static int
+2193: AliasNRCmd(
+2194:     void *clientData,		/* Alias record. */
+2195:     Tcl_Interp *interp,		/* Current interpreter. */
+2196:     Tcl_Size objc,		/* Number of arguments. */
+2847:     childPtr->parentInterp = parentInterp;
+2848:     childPtr->childEntryPtr = hPtr;
+2849:     childPtr->childInterp = childInterp;
+2850:     childPtr->interpCmd = Tcl_NRCreateCommand2(parentInterp, path,
+2851: 	    TclChildObjCmd, NRChildCmd, childInterp, ChildObjCmdDeleteProc);
+2852:     Tcl_InitHashTable(&childPtr->aliasTable, TCL_STRING_KEYS);
+2853:     Tcl_SetHashValue(hPtr, childPtr);
+2854:     Tcl_SetVar2(childInterp, "tcl_interactive", NULL, "0", TCL_GLOBAL_ONLY);
+2855: 
+2856:     /*

@@ -1,0 +1,147 @@
+4050:     Tcl_HashEntry *hPtr)	/* Hash entry to free. */
+4051: {
+4052:     Tcl_Obj *objPtr = (Tcl_Obj *) hPtr->key.oneWordValue;
+4053: 
+4054:     Tcl_DecrRefCount(objPtr);
+4055:     ckfree((char *) hPtr);
+4056: }
+4057: 
+4058: 
+4059: /*
+4060:  *----------------------------------------------------------------------
+4061:  *
+4062:  * TclHashObjKey --
+4063:  *
+4064:  *	Compute a one-word summary of the string representation of the
+4065:  *	Tcl_Obj, which can be used to generate a hash index.
+4066:  *
+4067:  * Results:
+4068:  *	The return value is a one-word summary of the information in the
+4069:  *	string representation of the Tcl_Obj.
+4070:  *
+4071:  * Side effects:
+4072:  *	None.
+4073:  *
+4074:  *----------------------------------------------------------------------
+4075:  */
+4076: 
+4077: unsigned int
+4078: TclHashObjKey(
+4079:     Tcl_HashTable *tablePtr,	/* Hash table. */
+4080:     void *keyPtr)		/* Key from which to compute hash value. */
+4081: {
+4082:     Tcl_Obj *objPtr = (Tcl_Obj *) keyPtr;
+4083:     CONST char *string = TclGetString(objPtr);
+4084:     int length = objPtr->length;
+4085:     unsigned int result = 0;
+4086:     int i;
+4087: 
+4088:     /*
+4089:      * I tried a zillion different hash functions and asked many other people
+4090:      * for advice. Many people had their own favorite functions, all
+4091:      * different, but no-one had much idea why they were good ones. I chose
+4092:      * the one below (multiply by 9 and add new character) because of the
+4093:      * following reasons:
+4094:      *
+4095:      * 1. Multiplying by 10 is perfect for keys that are decimal strings, and
+4096:      *	  multiplying by 9 is just about as good.
+4097:      * 2. Times-9 is (shift-left-3) plus (old). This means that each
+4098:      *	  character's bits hang around in the low-order bits of the hash value
+4099:      *	  for ever, plus they spread fairly rapidly up to the high-order bits
+4100:      *	  to fill out the hash value. This seems works well both for decimal
+4101:      *	  and *non-decimal strings.
+4102:      */
+4103: 
+4104:     for (i=0 ; i<length ; i++) {
+4105: 	result += (result << 3) + string[i];
+4106:     }
+4107:     return result;
+4108: }
+4109: 
+4110: 
+4111: /*
+4112:  *----------------------------------------------------------------------
+4113:  *
+4114:  * Tcl_GetCommandFromObj --
+4115:  *
+4116:  *	Returns the command specified by the name in a Tcl_Obj.
+4117:  *
+4118:  * Results:
+4119:  *	Returns a token for the command if it is found. Otherwise, if it can't
+4120:  *	be found or there is an error, returns NULL.
+4121:  *
+4122:  * Side effects:
+4123:  *	May update the internal representation for the object, caching the
+4124:  *	command reference so that the next time this function is called with
+4125:  *	the same object, the command can be found quickly.
+4126:  *
+4127:  *----------------------------------------------------------------------
+4128:  */
+4129: 
+4130: Tcl_Command
+4131: Tcl_GetCommandFromObj(
+4132:     Tcl_Interp *interp,		/* The interpreter in which to resolve the
+4133: 				 * command and to report errors. */
+4134:     register Tcl_Obj *objPtr)	/* The object containing the command's name.
+4135: 				 * If the name starts with "::", will be
+4136: 				 * looked up in global namespace. Else, looked
+4137: 				 * up first in the current namespace, then in
+4138: 				 * global namespace. */
+4139: {
+4140:     register ResolvedCmdName *resPtr;
+4141:     register Command *cmdPtr;
+4142:     Namespace *refNsPtr;
+4143:     int result;
+4144: 
+4145:     /*
+4146:      * Get the internal representation, converting to a command type if
+4147:      * needed. The internal representation is a ResolvedCmdName that points to
+4148:      * the actual command.
+4149:      *
+4150:      * Check the context namespace and the namespace epoch of the resolved
+4151:      * symbol to make sure that it is fresh. Note that we verify that the
+4152:      * namespace id of the context namespace is the same as the one we cached;
+4153:      * this insures that the namespace wasn't deleted and a new one created at
+4154:      * the same address with the same command epoch. Note that fully qualified
+4155:      * names have a NULL refNsPtr, these checks needn't be made.
+4156:      *
+4157:      * Check also that the command's epoch is up to date, and that the command
+4158:      * is not deleted.
+4159:      *
+4160:      * If any check fails, then force another conversion to the command type,
+4161:      * to discard the old rep and create a new one.
+4162:      */
+4163: 
+4164:     resPtr = (ResolvedCmdName *) objPtr->internalRep.twoPtrValue.ptr1;
+4165:     if ((objPtr->typePtr != &tclCmdNameType)
+4166: 	    || (resPtr == NULL)
+4167: 	    || (cmdPtr = resPtr->cmdPtr, cmdPtr->cmdEpoch != resPtr->cmdEpoch)
+4168: 	    || (cmdPtr->flags & CMD_IS_DELETED)
+4169: 	    || (interp != cmdPtr->nsPtr->interp)
+4170: 	    || (cmdPtr->nsPtr->flags & 	NS_DYING)
+4171: 	    || ((resPtr->refNsPtr != NULL) &&
+4172: 		     (((refNsPtr = (Namespace *) TclGetCurrentNamespace(interp))
+4173: 			     != resPtr->refNsPtr)
+4174: 		     || (resPtr->refNsId != refNsPtr->nsId)
+4175: 		     || (resPtr->refNsCmdEpoch != refNsPtr->cmdRefEpoch)))
+4176: 	) {
+4177: 
+4178: 	result = tclCmdNameType.setFromAnyProc(interp, objPtr);
+4179: 
+4180: 	resPtr = (ResolvedCmdName *) objPtr->internalRep.twoPtrValue.ptr1;
+4181: 	if ((result == TCL_OK) && resPtr) {
+4182: 	    cmdPtr = resPtr->cmdPtr;
+4183: 	} else {
+4184: 	    cmdPtr = NULL;
+4185: 	}
+4186:     }
+4187: 
+4188:     return (Tcl_Command) cmdPtr;
+4189: }
+4190: 
+4191: 
+4192: /*
+4193:  *----------------------------------------------------------------------
+4194:  *
+4195:  * TclSetCmdNameObj --
+4196:  *

@@ -1,0 +1,89 @@
+--- a/rust/tcl-registry/src/native_command_literal.rs
++++ b/rust/tcl-registry/src/native_command_literal.rs
+@@ -58,10 +58,10 @@
+         self.0 == version
+     }
+ 
+-    /// Validate actual command-node and referencing-namespace observations.
+-    /// A false answer requests original native lookup; it does not erase cmdName.
+-    #[must_use]
+-    pub fn cache_is_current(
++    /// Validate the command selected by a fresh original lookup across reached
++    /// representation retirement. A dying holder can still own this binding.
++    #[must_use]
++    pub fn selected_binding_is_current(
+         self,
+         cache: &tcl_runtime_api::native_command_name::NativeCommandNameCache,
+         state: &tcl_runtime_api::native_command_name::NativeCommandNameLookupState,
+@@ -72,10 +72,23 @@
+                 .reference
+                 .is_none_or(|reference| reference == state.reference)
+             && state.target.as_ref().is_some_and(|target| {
+-                (self.0 == tcl_dialect::TclVersion::V8_4 || !target.namespace_dying)
+-                    && cache.token == target.token
++                cache.token == target.token
+                     && cache.implementation_generation == target.implementation_generation
+                     && cache.command_epoch == target.command_epoch
++            })
++    }
++
++    /// Validate cached reuse against the original release's namespace gate.
++    /// A false answer requests original native lookup; it does not erase cmdName.
++    #[must_use]
++    pub fn cache_is_current(
++        self,
++        cache: &tcl_runtime_api::native_command_name::NativeCommandNameCache,
++        state: &tcl_runtime_api::native_command_name::NativeCommandNameLookupState,
++    ) -> bool {
++        self.selected_binding_is_current(cache, state)
++            && state.target.as_ref().is_some_and(|target| {
++                self.0 == tcl_dialect::TclVersion::V8_4 || !target.namespace_dying
+             })
+     }
+ 
+--- a/runtime/rust/src/interp/native_command_names.rs
++++ b/runtime/rust/src/interp/native_command_names.rs
+@@ -441,7 +441,7 @@
+     }
+ 
+     /// Validate the already selected node and reference; never look its name up again.
+-    pub(super) fn original_command_cache_current(
++    pub(super) fn original_command_lookup_binding_current(
+         &self,
+         currency: &super::native_operation_currency::NativeOperationCurrency,
+         original: *mut TclObj,
+@@ -458,12 +458,12 @@
+             .ok_or(ValueError::CommandProtocolUnavailable(
+                 "original command cache purpose",
+             ))?;
+-        if !protocol.cache_is_current(
++        if !protocol.selected_binding_is_current(
+             cache,
+             &self.native_command_name_lookup_state_at(cache, origin)?,
+         ) {
+             return Err(ValueError::CommandProtocolUnavailable(
+-                "captured original command binding",
++                "captured fresh original command binding",
+             ));
+         }
+         Ok(())
+@@ -635,7 +635,7 @@
+                 if let Some(check) = extra {
+                     check(self)?;
+                 }
+-                self.original_command_cache_current(scope.currency(), original, &cache, origin)
++                self.original_command_lookup_binding_current(scope.currency(), original, &cache, origin)
+                     .map_err(|error| {
+                         if extra.is_some() {
+                             self.original_command_stage_refusal(error)
+--- a/runtime/rust/src/interp/native_literal_pool.rs
++++ b/runtime/rust/src/interp/native_literal_pool.rs
+@@ -420,7 +420,7 @@
+                                 self.namespaces.borrow().native_command_reference(origin),
+                             );
+                             let check = || {
+-                                self.original_command_cache_current(
++                                self.original_command_lookup_binding_current(
+                                     scope.currency(),
+                                     original,
+                                     &cache,

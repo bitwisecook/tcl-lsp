@@ -1281,7 +1281,7 @@ impl Namespaces {
                 implementation_generation: generation,
                 command_epoch: node.epoch,
                 reference: protocol.lookup_reference(
-                    original.starts_with(b"::"),
+                    written_command_parts(original).absolute,
                     self.native_command_reference(current),
                     self.native_command_reference(GLOBAL),
                 ),
@@ -2544,6 +2544,49 @@ impl Namespaces {
         }
     }
 
+    pub(crate) fn replace_alias_registration(
+        &mut self,
+        generation: u64,
+        original: &std::rc::Rc<crate::interp::NativeAliasHeader>,
+        replacement: &std::rc::Rc<crate::interp::NativeAliasHeader>,
+        report: &[u8],
+    ) -> bool {
+        for namespace in &mut self.arena {
+            for slot in namespace.commands.entries.values_mut() {
+                let Some(binding) = slot
+                    .binding
+                    .as_mut()
+                    .filter(|binding| binding.generation == generation)
+                else {
+                    continue;
+                };
+                let (registration_name, publication_name) = match &mut binding.command {
+                    Command::Alias {
+                        registration_name,
+                        publication_name,
+                        ..
+                    }
+                    | Command::ParentAlias {
+                        registration_name,
+                        publication_name,
+                        ..
+                    } => (registration_name, publication_name),
+                    _ => return false,
+                };
+                if !registration_name
+                    .as_ref()
+                    .is_some_and(|actual| std::rc::Rc::ptr_eq(actual, original))
+                {
+                    return false;
+                }
+                *registration_name = Some(std::rc::Rc::clone(replacement));
+                *publication_name = report.to_vec();
+                return true;
+            }
+        }
+        false
+    }
+
     /// Selected alias-record publication names, independently of lookup slots.
     /// Original C interp aliases preserves its registration spelling; command
     /// inventory has its own normalized reporting and lookup purpose.
@@ -2659,7 +2702,7 @@ impl Namespaces {
                 return existing;
             }
         }
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.ensure_child(ns, part);
@@ -2672,7 +2715,7 @@ impl Namespaces {
     /// but a dying/dead final token is never returned as a public namespace.
     #[must_use]
     pub fn find_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.arena[ns]
@@ -3489,7 +3532,7 @@ impl Namespaces {
     /// still-live child, but checks the final token's liveness; this helper
     /// specifically requires the final token itself to be dying.
     pub(crate) fn dying_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
-        let absolute = qualified.starts_with(b"::");
+        let absolute = written_command_parts(qualified).absolute;
         let mut ns = if absolute { GLOBAL } else { current };
         for part in split_qualifier(qualified) {
             ns = self.arena[ns]

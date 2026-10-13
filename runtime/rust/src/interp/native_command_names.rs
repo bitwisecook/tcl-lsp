@@ -441,7 +441,7 @@ impl Interp {
     }
 
     /// Validate the already selected node and reference; never look its name up again.
-    pub(super) fn original_command_cache_current(
+    pub(super) fn original_command_lookup_binding_current(
         &self,
         currency: &super::native_operation_currency::NativeOperationCurrency,
         original: *mut TclObj,
@@ -458,12 +458,12 @@ impl Interp {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "original command cache purpose",
             ))?;
-        if !protocol.cache_is_current(
+        if !protocol.selected_binding_is_current(
             cache,
             &self.native_command_name_lookup_state_at(cache, origin)?,
         ) {
             return Err(ValueError::CommandProtocolUnavailable(
-                "captured original command binding",
+                "captured fresh original command binding",
             ));
         }
         Ok(())
@@ -635,14 +635,19 @@ impl Interp {
                 if let Some(check) = extra {
                     check(self)?;
                 }
-                self.original_command_cache_current(scope.currency(), original, &cache, origin)
-                    .map_err(|error| {
-                        if extra.is_some() {
-                            self.original_command_stage_refusal(error)
-                        } else {
-                            error
-                        }
-                    })
+                self.original_command_lookup_binding_current(
+                    scope.currency(),
+                    original,
+                    &cache,
+                    origin,
+                )
+                .map_err(|error| {
+                    if extra.is_some() {
+                        self.original_command_stage_refusal(error)
+                    } else {
+                        error
+                    }
+                })
             };
             let reached = obj::install_native_command_name_cache_with_stage_check(
                 original,

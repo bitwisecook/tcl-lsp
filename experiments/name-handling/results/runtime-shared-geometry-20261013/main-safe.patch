@@ -1,0 +1,69 @@
+--- a/runtime/rust/src/namespace.rs
++++ b/runtime/rust/src/namespace.rs
+@@ -1281,7 +1281,7 @@
+                 implementation_generation: generation,
+                 command_epoch: node.epoch,
+                 reference: protocol.lookup_reference(
+-                    original.starts_with(b"::"),
++                    written_command_parts(original).absolute,
+                     self.native_command_reference(current),
+                     self.native_command_reference(GLOBAL),
+                 ),
+@@ -2659,7 +2659,7 @@
+                 return existing;
+             }
+         }
+-        let absolute = qualified.starts_with(b"::");
++        let absolute = written_command_parts(qualified).absolute;
+         let mut ns = if absolute { GLOBAL } else { current };
+         for part in split_qualifier(qualified) {
+             ns = self.ensure_child(ns, part);
+@@ -2672,7 +2672,7 @@
+     /// but a dying/dead final token is never returned as a public namespace.
+     #[must_use]
+     pub fn find_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
+-        let absolute = qualified.starts_with(b"::");
++        let absolute = written_command_parts(qualified).absolute;
+         let mut ns = if absolute { GLOBAL } else { current };
+         for part in split_qualifier(qualified) {
+             ns = self.arena[ns]
+@@ -3489,7 +3489,7 @@
+     /// still-live child, but checks the final token's liveness; this helper
+     /// specifically requires the final token itself to be dying.
+     pub(crate) fn dying_namespace(&self, current: NsId, qualified: &[u8]) -> Option<NsId> {
+-        let absolute = qualified.starts_with(b"::");
++        let absolute = written_command_parts(qualified).absolute;
+         let mut ns = if absolute { GLOBAL } else { current };
+         for part in split_qualifier(qualified) {
+             ns = self.arena[ns]
+--- a/runtime/rust/src/interp/native_namespace_names.rs
++++ b/runtime/rust/src/interp/native_namespace_names.rs
+@@ -112,7 +112,7 @@
+         if stage.is_some() {
+             check()?;
+         }
+-        let reference_ns = if bytes.as_ref().is_some_and(|bytes| bytes.starts_with(b"::")) {
++        let reference_ns = if bytes.as_ref().is_some_and(|bytes| tcl_syntax::naming::written_command_parts(&bytes).absolute) {
+             GLOBAL
+         } else {
+             current
+@@ -190,7 +190,7 @@
+                 .ok_or(ValueError::CommandProtocolUnavailable(
+                     "native namespace target incarnation",
+                 ))?;
+-            let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
++            let reference = (!tcl_syntax::naming::written_command_parts(&bytes).absolute || recipe.absolute_references_global())
+                 .then_some(reference);
+             let current = || reference_current(self);
+             obj::native_namespace_name::install_using(
+--- a/runtime/rust/src/vars/jim_alias_publication.rs
++++ b/runtime/rust/src/vars/jim_alias_publication.rs
+@@ -114,7 +114,7 @@
+                     .ok_or(ValueError::CommandProtocolUnavailable(
+                         "original Jim local table",
+                     ))?;
+-            let global = local.starts_with(b"::");
++            let global = tcl_syntax::naming::written_command_parts(local).absolute;
+             let frame = frames.original_jim_frame_incarnation(global);
+             let Some(cell) = table_mut(&mut frames, &mut namespaces, place.home)
+                 .prepare_jim_alias_local(&place.name)?

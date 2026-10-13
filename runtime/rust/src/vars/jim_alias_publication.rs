@@ -114,7 +114,7 @@ impl PreparedJimAliasLocal {
                     .ok_or(ValueError::CommandProtocolUnavailable(
                         "original Jim local table",
                     ))?;
-            let global = local.starts_with(b"::");
+            let global = tcl_syntax::naming::written_command_parts(local).absolute;
             let frame = frames.original_jim_frame_incarnation(global);
             let Some(cell) = table_mut(&mut frames, &mut namespaces, place.home)
                 .prepare_jim_alias_local(&place.name)?

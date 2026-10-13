@@ -1,0 +1,349 @@
+478:     slavePtr = &interpInfoPtr->slave;
+479:     slavePtr->masterInterp	= NULL;
+480:     slavePtr->slaveEntryPtr	= NULL;
+481:     slavePtr->slaveInterp	= interp;
+482:     slavePtr->interpCmd		= NULL;
+483:     Tcl_InitHashTable(&slavePtr->aliasTable, TCL_STRING_KEYS);
+484: 
+485:     Tcl_CreateObjCommand(interp, "interp", Tcl_InterpObjCmd, NULL, NULL);
+486: 
+487:     Tcl_CallWhenDeleted(interp, InterpInfoDeleteProc, NULL);
+1432:  * Side effects:
+1433:  *	An alias command is created and entered into the alias table for the
+1434:  *	slave interpreter.
+1435:  *
+1436:  *----------------------------------------------------------------------
+1437:  */
+1438: 
+1439: static int
+1440: AliasCreate(
+1441:     Tcl_Interp *interp,		/* Interp for error reporting. */
+1442:     Tcl_Interp *slaveInterp,	/* Interp where alias cmd will live or from
+1443: 				 * which alias will be deleted. */
+1444:     Tcl_Interp *masterInterp,	/* Interp in which target command will be
+1445: 				 * invoked. */
+1446:     Tcl_Obj *namePtr,		/* Name of alias cmd. */
+1447:     Tcl_Obj *targetNamePtr,	/* Name of target cmd. */
+1448:     int objc,			/* Additional arguments to store */
+1449:     Tcl_Obj *const objv[])	/* with alias. */
+1450: {
+1451:     Alias *aliasPtr;
+1452:     Tcl_HashEntry *hPtr;
+1453:     Target *targetPtr;
+1454:     Slave *slavePtr;
+1455:     Master *masterPtr;
+1456:     Tcl_Obj **prefv;
+1457:     int isNew, i;
+1458: 
+1459:     aliasPtr = (Alias *) ckalloc((unsigned) (sizeof(Alias)
+1460: 	    + objc * sizeof(Tcl_Obj *)));
+1461:     aliasPtr->token = namePtr;
+1462:     Tcl_IncrRefCount(aliasPtr->token);
+1463:     aliasPtr->targetInterp = masterInterp;
+1464: 
+1465:     aliasPtr->objc = objc + 1;
+1466:     prefv = &aliasPtr->objPtr;
+1467: 
+1468:     *prefv = targetNamePtr;
+1469:     Tcl_IncrRefCount(targetNamePtr);
+1470:     for (i = 0; i < objc; i++) {
+1471: 	*(++prefv) = objv[i];
+1472: 	Tcl_IncrRefCount(objv[i]);
+1473:     }
+1474: 
+1475:     Tcl_Preserve(slaveInterp);
+1476:     Tcl_Preserve(masterInterp);
+1477: 
+1478:     aliasPtr->slaveCmd = Tcl_CreateObjCommand(slaveInterp,
+1479: 	    TclGetString(namePtr), AliasObjCmd, aliasPtr,
+1480: 	    AliasObjCmdDeleteProc);
+1481: 
+1482:     if (TclPreventAliasLoop(interp, slaveInterp,
+1483: 	    aliasPtr->slaveCmd) != TCL_OK) {
+1484: 	/*
+1485: 	 * Found an alias loop! The last call to Tcl_CreateObjCommand made the
+1486: 	 * alias point to itself. Delete the command and its alias record. Be
+1487: 	 * careful to wipe out its client data first, so the command doesn't
+1488: 	 * try to delete itself.
+1489: 	 */
+1490: 
+1491: 	Command *cmdPtr;
+1492: 
+1493: 	Tcl_DecrRefCount(aliasPtr->token);
+1494: 	Tcl_DecrRefCount(targetNamePtr);
+1495: 	for (i = 0; i < objc; i++) {
+1496: 	    Tcl_DecrRefCount(objv[i]);
+1497: 	}
+1498: 
+1499: 	cmdPtr = (Command *) aliasPtr->slaveCmd;
+1500: 	cmdPtr->clientData = NULL;
+1501: 	cmdPtr->deleteProc = NULL;
+1502: 	cmdPtr->deleteData = NULL;
+1503: 	Tcl_DeleteCommandFromToken(slaveInterp, aliasPtr->slaveCmd);
+1504: 
+1505: 	ckfree((char *) aliasPtr);
+1506: 
+1507: 	/*
+1508: 	 * The result was already set by TclPreventAliasLoop.
+1509: 	 */
+1510: 
+1511: 	Tcl_Release(slaveInterp);
+1512: 	Tcl_Release(masterInterp);
+1513: 	return TCL_ERROR;
+1514:     }
+1515: 
+1516:     /*
+1517:      * Make an entry in the alias table. If it already exists, retry.
+1518:      */
+1519: 
+1520:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1521:     while (1) {
+1522: 	Tcl_Obj *newToken;
+1523: 	char *string;
+1524: 
+1525: 	string = TclGetString(aliasPtr->token);
+1526: 	hPtr = Tcl_CreateHashEntry(&slavePtr->aliasTable, string, &isNew);
+1527: 	if (isNew != 0) {
+1528: 	    break;
+1529: 	}
+1530: 
+1531: 	/*
+1532: 	 * The alias name cannot be used as unique token, it is already taken.
+1533: 	 * We can produce a unique token by prepending "::" repeatedly. This
+1534: 	 * algorithm is a stop-gap to try to maintain the command name as
+1535: 	 * token for most use cases, fearful of possible backwards compat
+1536: 	 * problems. A better algorithm would produce unique tokens that need
+1537: 	 * not be related to the command name.
+1538: 	 *
+1539: 	 * ATTENTION: the tests in interp.test and possibly safe.test depend
+1540: 	 * on the precise definition of these tokens.
+1541: 	 */
+1542: 
+1543: 	TclNewLiteralStringObj(newToken, "::");
+1544: 	Tcl_AppendObjToObj(newToken, aliasPtr->token);
+1545: 	Tcl_DecrRefCount(aliasPtr->token);
+1546: 	aliasPtr->token = newToken;
+1547: 	Tcl_IncrRefCount(aliasPtr->token);
+1548:     }
+1549: 
+1550:     aliasPtr->aliasEntryPtr = hPtr;
+1551:     Tcl_SetHashValue(hPtr, aliasPtr);
+1552: 
+1553:     /*
+1554:      * Create the new command. We must do it after deleting any old command,
+1555:      * because the alias may be pointing at a renamed alias, as in:
+1556:      *
+1557:      * interp alias {} foo {} bar		# Create an alias "foo"
+1558:      * rename foo zop				# Now rename the alias
+1559:      * interp alias {} foo {} zop		# Now recreate "foo"...
+1560:      */
+1561: 
+1562:     targetPtr = (Target *) ckalloc((unsigned) sizeof(Target));
+1563:     targetPtr->slaveCmd = aliasPtr->slaveCmd;
+1564:     targetPtr->slaveInterp = slaveInterp;
+1565: 
+1566:     masterPtr = &((InterpInfo *) ((Interp*) masterInterp)->interpInfo)->master;
+1567:     targetPtr->nextPtr = masterPtr->targetsPtr;
+1568:     targetPtr->prevPtr = NULL;
+1569:     if (masterPtr->targetsPtr != NULL) {
+1570: 	masterPtr->targetsPtr->prevPtr = targetPtr;
+1571:     }
+1572:     masterPtr->targetsPtr = targetPtr;
+1573:     aliasPtr->targetPtr = targetPtr;
+1574: 
+1575:     Tcl_SetObjResult(interp, aliasPtr->token);
+1576: 
+1577:     Tcl_Release(slaveInterp);
+1578:     Tcl_Release(masterInterp);
+1579:     return TCL_OK;
+1580: }
+1581: 
+1582: 
+1583: /*
+1584:  *----------------------------------------------------------------------
+1585:  *
+1586:  * AliasDelete --
+1587:  *
+1588:  *	Deletes the given alias from the slave interpreter given.
+1589:  *
+1590:  * Results:
+1591:  *	A standard Tcl result.
+1592:  *
+1593:  * Side effects:
+1594:  *	Deletes the alias from the slave interpreter.
+1595:  *
+1596:  *----------------------------------------------------------------------
+1597:  */
+1598: 
+1599: static int
+1600: AliasDelete(
+1601:     Tcl_Interp *interp,		/* Interpreter for result & errors. */
+1602:     Tcl_Interp *slaveInterp,	/* Interpreter containing alias. */
+1603:     Tcl_Obj *namePtr)		/* Name of alias to delete. */
+1604: {
+1605:     Slave *slavePtr;
+1606:     Alias *aliasPtr;
+1607:     Tcl_HashEntry *hPtr;
+1608: 
+1609:     /*
+1610:      * If the alias has been renamed in the slave, the master can still use
+1611:      * the original name (with which it was created) to find the alias to
+1612:      * delete it.
+1613:      */
+1614: 
+1615:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1616:     hPtr = Tcl_FindHashEntry(&slavePtr->aliasTable, TclGetString(namePtr));
+1617:     if (hPtr == NULL) {
+1618: 	Tcl_AppendResult(interp, "alias \"", TclGetString(namePtr),
+1619: 		"\" not found", NULL);
+1620: 	Tcl_SetErrorCode(interp, "TCL", "LOOKUP", "ALIAS",
+1621: 		TclGetString(namePtr), NULL);
+1622: 	return TCL_ERROR;
+1623:     }
+1624:     aliasPtr = Tcl_GetHashValue(hPtr);
+1625:     Tcl_DeleteCommandFromToken(slaveInterp, aliasPtr->slaveCmd);
+1626:     return TCL_OK;
+1627: }
+1628: 
+1629: 
+1630: /*
+1631:  *----------------------------------------------------------------------
+1632:  *
+1633:  * AliasDescribe --
+1634:  *
+1641:  *
+1642:  * Side effects:
+1643:  *	None.
+1644:  *
+1645:  *----------------------------------------------------------------------
+1646:  */
+1647: 
+1648: static int
+1649: AliasDescribe(
+1650:     Tcl_Interp *interp,		/* Interpreter for result & errors. */
+1651:     Tcl_Interp *slaveInterp,	/* Interpreter containing alias. */
+1652:     Tcl_Obj *namePtr)		/* Name of alias to describe. */
+1653: {
+1654:     Slave *slavePtr;
+1655:     Tcl_HashEntry *hPtr;
+1656:     Alias *aliasPtr;
+1657:     Tcl_Obj *prefixPtr;
+1658: 
+1659:     /*
+1660:      * If the alias has been renamed in the slave, the master can still use
+1661:      * the original name (with which it was created) to find the alias to
+1662:      * describe it.
+1663:      */
+1664: 
+1665:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1666:     hPtr = Tcl_FindHashEntry(&slavePtr->aliasTable, Tcl_GetString(namePtr));
+1667:     if (hPtr == NULL) {
+1668: 	return TCL_OK;
+1669:     }
+1670:     aliasPtr = Tcl_GetHashValue(hPtr);
+1671:     prefixPtr = Tcl_NewListObj(aliasPtr->objc, &aliasPtr->objPtr);
+1672:     Tcl_SetObjResult(interp, prefixPtr);
+1673:     return TCL_OK;
+1674: }
+1675: 
+1676: 
+1677: /*
+1678:  *----------------------------------------------------------------------
+1679:  *
+1680:  * AliasList --
+1681:  *
+1682:  *	Computes a list of aliases defined in a slave interpreter.
+1683:  *
+1684:  * Results:
+1685:  *	A standard Tcl result.
+1686:  *
+1687:  * Side effects:
+1688:  *	None.
+1689:  *
+1690:  *----------------------------------------------------------------------
+1691:  */
+1692: 
+1693: static int
+1694: AliasList(
+1695:     Tcl_Interp *interp,		/* Interp for data return. */
+1696:     Tcl_Interp *slaveInterp)	/* Interp whose aliases to compute. */
+1697: {
+1698:     Tcl_HashEntry *entryPtr;
+1699:     Tcl_HashSearch hashSearch;
+1700:     Tcl_Obj *resultPtr = Tcl_NewObj();
+1701:     Alias *aliasPtr;
+1702:     Slave *slavePtr;
+1703: 
+1686:  *
+1687:  * Side effects:
+1688:  *	None.
+1689:  *
+1690:  *----------------------------------------------------------------------
+1691:  */
+1692: 
+1693: static int
+1694: AliasList(
+1695:     Tcl_Interp *interp,		/* Interp for data return. */
+1696:     Tcl_Interp *slaveInterp)	/* Interp whose aliases to compute. */
+1697: {
+1698:     Tcl_HashEntry *entryPtr;
+1699:     Tcl_HashSearch hashSearch;
+1700:     Tcl_Obj *resultPtr = Tcl_NewObj();
+1701:     Alias *aliasPtr;
+1702:     Slave *slavePtr;
+1703: 
+1704:     slavePtr = &((InterpInfo *) ((Interp *) slaveInterp)->interpInfo)->slave;
+1705: 
+1706:     entryPtr = Tcl_FirstHashEntry(&slavePtr->aliasTable, &hashSearch);
+1707:     for ( ; entryPtr != NULL; entryPtr = Tcl_NextHashEntry(&hashSearch)) {
+1708: 	aliasPtr = Tcl_GetHashValue(entryPtr);
+1709: 	Tcl_ListObjAppendElement(NULL, resultPtr, aliasPtr->token);
+1710:     }
+1711:     Tcl_SetObjResult(interp, resultPtr);
+1712:     return TCL_OK;
+1713: }
+1714: 
+1715: 
+1716: /*
+1717:  *----------------------------------------------------------------------
+1718:  *
+1719:  * AliasObjCmd --
+1720:  *
+1721:  *	This is the function that services invocations of aliases in a slave
+1722:  *	interpreter. One such command exists for each alias. When invoked,
+1723:  *	this function redirects the invocation to the target command in the
+1724:  *	master interpreter as designated by the Alias record associated with
+1725:  *	this command.
+1726:  *
+1727:  * Results:
+1728:  *	A standard Tcl result.
+1729:  *
+1730:  * Side effects:
+1731:  *	Causes forwarding of the invocation; all possible side effects may
+1732:  *	occur as a result of invoking the command to which the invocation is
+1733:  *	forwarded.
+1734:  *
+1735:  *----------------------------------------------------------------------
+1736:  */
+1737: 
+1738: static int
+1739: AliasObjCmd(
+1740:     ClientData clientData,	/* Alias record. */
+1741:     Tcl_Interp *interp,		/* Current interpreter. */
+1742:     int objc,			/* Number of arguments. */
+1743:     Tcl_Obj *const objv[])	/* Argument vector. */
+1744: {
+1745: #define ALIAS_CMDV_PREALLOC 10
+1746:     Alias *aliasPtr = clientData;
+1747:     Tcl_Interp *targetInterp = aliasPtr->targetInterp;
+1748:     int result, prefc, cmdc, i;
+2208:     slavePtr->masterInterp = masterInterp;
+2209:     slavePtr->slaveEntryPtr = hPtr;
+2210:     slavePtr->slaveInterp = slaveInterp;
+2211:     slavePtr->interpCmd = Tcl_CreateObjCommand(masterInterp, path,
+2212: 	    SlaveObjCmd, slaveInterp, SlaveObjCmdDeleteProc);
+2213:     Tcl_InitHashTable(&slavePtr->aliasTable, TCL_STRING_KEYS);
+2214:     Tcl_SetHashValue(hPtr, slavePtr);
+2215:     Tcl_SetVar(slaveInterp, "tcl_interactive", "0", TCL_GLOBAL_ONLY);
+2216: 
+2217:     /*

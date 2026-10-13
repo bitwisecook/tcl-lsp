@@ -447,24 +447,20 @@ mod tests {
         }
 
         let mut interp = core();
-        assert!(
-            interp
-                .create_counted_engine_obj_command(
-                    b"completion",
-                    crate::interp::ObjCommand::new(callback, core::ptr::null_mut(), None),
-                )
-                .is_some()
-        );
+        assert!(interp
+            .create_counted_engine_obj_command(
+                b"completion",
+                crate::interp::ObjCommand::new(callback, core::ptr::null_mut(), None),
+            )
+            .is_some());
         let completion = interp.eval_completion(b"completion").unwrap();
         assert_eq!(completion.code, Code::Error);
         assert_eq!(completion.result, b"ERR\0\xff");
         assert_eq!(interp.error_code_bytes_checked().unwrap(), b"HOST OPAQUE");
-        assert!(
-            completion
-                .options
-                .windows(8)
-                .any(|bytes| bytes == b"opaque\0\xff")
-        );
+        assert!(completion
+            .options
+            .windows(8)
+            .any(|bytes| bytes == b"opaque\0\xff"));
     }
 
     #[test]

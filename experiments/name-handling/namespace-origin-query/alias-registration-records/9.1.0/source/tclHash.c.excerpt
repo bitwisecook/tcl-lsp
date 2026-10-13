@@ -1,0 +1,63 @@
+888:  *
+889:  * Side effects:
+890:  *	None.
+891:  *
+892:  *----------------------------------------------------------------------
+893:  */
+894: 
+895: size_t
+896: TclHashStringKey(
+897:     TCL_UNUSED(Tcl_HashTable *),
+898:     void *keyPtr)		/* Key from which to compute hash value. */
+899: {
+900:     const char *string = (const char *)keyPtr;
+901:     size_t result;
+902:     char c;
+903: 
+904:     /*
+905:      * I tried a zillion different hash functions and asked many other people
+906:      * for advice. Many people had their own favorite functions, all
+907:      * different, but no-one had much idea why they were good ones. I chose
+908:      * the one below (multiply by 9 and add new character) because of the
+909:      * following reasons:
+910:      *
+911:      * 1. Multiplying by 10 is perfect for keys that are decimal strings, and
+912:      *    multiplying by 9 is just about as good.
+913:      * 2. Times-9 is (shift-left-3) plus (old). This means that each
+914:      *    character's bits hang around in the low-order bits of the hash value
+915:      *    for ever, plus they spread fairly rapidly up to the high-order bits
+916:      *    to fill out the hash value. This seems works well both for decimal
+917:      *    and non-decimal strings, but isn't strong against maliciously-chosen
+918:      *    keys.
+919:      *
+920:      * Note that this function is very weak against malicious strings; it's
+921:      * very easy to generate multiple keys that have the same hashcode. On the
+922:      * other hand, that hardly ever actually occurs and this function *is*
+923:      * very cheap, even by comparison with industry-standard hashes like FNV.
+924:      * If real strength of hash is required though, use a custom hash based on
+925:      * Bob Jenkins's lookup3(), but be aware that it's significantly slower.
+926:      * Since Tcl command and namespace names are usually reasonably-named (the
+927:      * main use for string hashes in modern Tcl) speed is far more important
+928:      * than strength.
+929:      *
+930:      * See also HashString in tclLiteral.c.
+931:      * See also TclObjHashKey in tclObj.c.
+932:      *
+933:      * See [tcl-Feature Request #2958832]
+934:      */
+935: 
+936:     if ((result = UCHAR(*string)) != 0) {
+937: 	while ((c = *++string) != 0) {
+938: 	    result += (result << 3) + UCHAR(c);
+939: 	}
+940:     }
+941:     return result;
+942: }
+943: 
+944: 
+945: /*
+946:  *----------------------------------------------------------------------
+947:  *
+948:  * BogusCreate --
+949:  *
+950:  *	This function is invoked when Tcl_CreateHashEntry is called on a

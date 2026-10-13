@@ -1,0 +1,41 @@
+{
+  "scope": "C alias registration query, target and deletion; modern registration token allocation and actual owner replacement; original measured C5/Jim controls",
+  "validation": "Rustfmt succeeded; no Cargo compile or Native rerun yet",
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_alias.rs",
+      "before_sha256": "e399886f547d77372e98e4216ac7abffc9bc35d3df67363978df212a9ba72935",
+      "after_sha256": "020194f2b869e0784667d5ea2ceddcc5ac36315fb00f631a2efb432b5e39e343"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_alias_registration.rs",
+      "before_sha256": "9be297fd8d234e1b8b4da3aaee03cf319ae87513ec2220d557ccb4b223bc5c13",
+      "after_sha256": "4e9e24f3de5c0e7e08fc3f392d7e39151ddfc4b02a3c9d02c01603b229b0779f"
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "before_sha256": "238c205abf65afe620d77e52d7f37b38f2e7904d937bd3d78cedf75e1de4fc10",
+      "after_sha256": "528c43689985e0b24ba6b378e3f5bc708b6c0db1853712e5fde0669bbdb51701"
+    },
+    {
+      "path": "runtime/rust/src/namespace.rs",
+      "before_sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
+      "after_sha256": "941ae1e21260d6a2753cf26e6cdf63dea4a27d2d59d9f5b2a743ffb617d50d73"
+    },
+    {
+      "path": "runtime/rust/tests/native_namespace_command_query.rs",
+      "before_sha256": "7891b79f17e8885cf8bb40032acaa6ca7bb3ab89d258316cb480ae9bf4d21bd2",
+      "after_sha256": "3d742c13624f651715dea2164e58c39e09992d58accebd9e6b84646203555ff1"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_alias_registration.rs",
+      "before_sha256": "0174f99085391ef92f4e616cfd322e6e22ec381fb7086acdae7f1b1888a73f2c",
+      "after_sha256": "76dc5d2e56b71005381d8590e0c9e0952529d22b72bb6b90e6bc599dbb64c595"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "before_sha256": "9d3e8640306338a31b2a50bf436fd7f2c674f1a8c1c6affe6f0b236fa0001282",
+      "after_sha256": "b87b2ee3e607f5060ed15dd7ca60f6ff67a496603d9382b1b0ee25b27551ef81"
+    }
+  ]
+}

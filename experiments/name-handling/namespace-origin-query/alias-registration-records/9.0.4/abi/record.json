@@ -1,0 +1,50 @@
+{
+  "provider": "9.0.4",
+  "compiler_argv": [
+    "gcc",
+    "-std=gnu23",
+    "-O2",
+    "-fcommon",
+    "-Wno-implicit-int",
+    "-Wno-implicit-function-declaration",
+    "-pipe",
+    "-finput-charset=UTF-8",
+    "-shared",
+    "-fPIC",
+    "-DUSE_TCL_STUBS",
+    "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+    "/tmp/runtime-alias-record-oracles-20261013/abi.c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtclstub.a",
+    "-o",
+    "/tmp/runtime-alias-record-oracles-20261013/9.0.4/abi/aliasabi.so"
+  ],
+  "compiler_exit_code": 0,
+  "oracle_argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/tmp/runtime-alias-record-oracles-20261013/9.0.4/abi/input.tcl"
+  ],
+  "oracle_exit_code": 0,
+  "before": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh": "cf6f93b09949ceddf21ee3735d130954255e559d8fa714ac3b5aafd81418492f",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtclstub.a": "112a0f370e5c8d8a93cb414e469026966356df63514791a5c78459698a9028c8",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDecls.h": "28ad708ea0738fbf8bfb13dcde87ea8064220982d29b8c082df87c7987ff2c70",
+    "/tmp/runtime-alias-record-oracles-20261013/abi.c": "4386df65f4717ae1fe4bc60bb4dcddef9e8feb88238100feff3bd029d3be89a0",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29"
+  },
+  "after": {
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh": "cf6f93b09949ceddf21ee3735d130954255e559d8fa714ac3b5aafd81418492f",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtclstub.a": "112a0f370e5c8d8a93cb414e469026966356df63514791a5c78459698a9028c8",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclDecls.h": "28ad708ea0738fbf8bfb13dcde87ea8064220982d29b8c082df87c7987ff2c70",
+    "/tmp/runtime-alias-record-oracles-20261013/abi.c": "4386df65f4717ae1fe4bc60bb4dcddef9e8feb88238100feff3bd029d3be89a0",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29"
+  },
+  "drift": {},
+  "source_sha256": "4386df65f4717ae1fe4bc60bb4dcddef9e8feb88238100feff3bd029d3be89a0",
+  "input_sha256": "4b3df5d84fa8bd284a5a86aad07250d14c5fda3ccc8c2225b778854ad23eb3ac",
+  "module_sha256": "6667bbca48674db6b3c39a480d3b437bdc02e8427803679bda922ffc88c26e25",
+  "stdout_sha256": "332f791b8135594abae67a30ec3d0eeebd865f293297855868a4f02dbe1ca247",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "Actual matching-header C extension compiled with this oracle build configuration and loaded into the original C interpreter; CHAR_MIN, sizeof(unsigned int), sizeof(size_t)"
+}

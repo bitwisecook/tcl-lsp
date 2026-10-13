@@ -1,0 +1,42 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_alias.rs",
+      "before_sha256": "cf8be67a464f4cd61874064b287e48f355ffc5f73092bcc81d5aa873697a462e",
+      "after_sha256": "5381f862a8d21fe8165de7f9c7a30b9fe2212c6078fd2d7f7dc387a495c18117"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_alias_registration.rs",
+      "before_sha256": "9be297fd8d234e1b8b4da3aaee03cf319ae87513ec2220d557ccb4b223bc5c13",
+      "after_sha256": "dc704ff7787f47f354596de69373ac3665ea1bef2eaaf141f4724dbc0c673ef5"
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "before_sha256": "27d6a0318fa53d8511699bac694e2ca9840e939fe0779f3765a313429a002db4",
+      "after_sha256": "9d4f670af36555a943d8b66c25302df0b295c177f4eed1e643736627ad3f47b4"
+    },
+    {
+      "path": "runtime/rust/src/namespace.rs",
+      "before_sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669",
+      "after_sha256": "e35b27a175e05240b732a7d944df7e6a30ee849c1003937c979eb6be9bc39cba"
+    },
+    {
+      "path": "runtime/rust/tests/native_namespace_command_query.rs",
+      "before_sha256": "7891b79f17e8885cf8bb40032acaa6ca7bb3ab89d258316cb480ae9bf4d21bd2",
+      "after_sha256": "962b2b9c2a4179603d6f054e5e66b46dddc7cfeaf0cf040c31d04eff4c9b96e5"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_alias_registration.rs",
+      "before_sha256": "0174f99085391ef92f4e616cfd322e6e22ec381fb7086acdae7f1b1888a73f2c",
+      "after_sha256": "7ce518e435ef076662bf8a41e14f51beddb1dbd5b7686fc6773d76efed501b80"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "before_sha256": "56fd076fadd7d16832d197c4be0877ccd4f441651167e272312671e8c755b403",
+      "after_sha256": "a97339ff5495e37aa381490041a6a9b6082e5f33db943619963bd8ea57a1703b"
+    }
+  ],
+  "basis": "Current Main plus exact owned blocks; no Main mutation",
+  "validation": "rustfmt only; compile/tests unexecuted",
+  "patch_sha256": "cebe1b202c972bbdcc0080a6c0c80edb9d90153059a3864b06b3d1d6c58dce51"
+}

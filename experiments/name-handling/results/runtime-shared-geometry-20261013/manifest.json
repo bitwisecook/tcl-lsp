@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/namespace.rs",
+      "before_sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669",
+      "after_sha256": "68411dce8fadb06fdda77f3b44fae3681e5094c0ef3266335692f8201d6de500"
+    },
+    {
+      "path": "runtime/rust/src/interp/native_namespace_names.rs",
+      "before_sha256": "0a97b585d3cdbfea6d4db30b137a866281c8769dd1aebd77cbee64ce58af2f28",
+      "after_sha256": "ed9d77aeeb5699788ae9c695cc21a253a30100931ade82cb0a60e4418d321cbd"
+    },
+    {
+      "path": "runtime/rust/src/vars/jim_alias_publication.rs",
+      "before_sha256": "40e37574196ad3bc9d773c47879868859c0f305e39b6f59012d14f0f8c85ed89",
+      "after_sha256": "76ebad470274dde863b5c50a62db8563fd9c14572cc339286e7378b060d77ae8"
+    }
+  ],
+  "scope": "Delegate written root qualification geometry only; actual namespaces, cache purposes, original byte extents and Jim frame ownership unchanged",
+  "validation": "Uncompiled; byte-identical boolean behavior through existing owner"
+}

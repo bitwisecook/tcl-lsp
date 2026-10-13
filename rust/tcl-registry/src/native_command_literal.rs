@@ -58,10 +58,10 @@ impl NativeCommandNameProtocol {
         self.0 == version
     }
 
-    /// Validate actual command-node and referencing-namespace observations.
-    /// A false answer requests original native lookup; it does not erase cmdName.
+    /// Validate the command selected by a fresh original lookup across reached
+    /// representation retirement. A dying holder can still own this binding.
     #[must_use]
-    pub fn cache_is_current(
+    pub fn selected_binding_is_current(
         self,
         cache: &tcl_runtime_api::native_command_name::NativeCommandNameCache,
         state: &tcl_runtime_api::native_command_name::NativeCommandNameLookupState,
@@ -72,10 +72,23 @@ impl NativeCommandNameProtocol {
                 .reference
                 .is_none_or(|reference| reference == state.reference)
             && state.target.as_ref().is_some_and(|target| {
-                (self.0 == tcl_dialect::TclVersion::V8_4 || !target.namespace_dying)
-                    && cache.token == target.token
+                cache.token == target.token
                     && cache.implementation_generation == target.implementation_generation
                     && cache.command_epoch == target.command_epoch
+            })
+    }
+
+    /// Validate cached reuse against the original release's namespace gate.
+    /// A false answer requests original native lookup; it does not erase cmdName.
+    #[must_use]
+    pub fn cache_is_current(
+        self,
+        cache: &tcl_runtime_api::native_command_name::NativeCommandNameCache,
+        state: &tcl_runtime_api::native_command_name::NativeCommandNameLookupState,
+    ) -> bool {
+        self.selected_binding_is_current(cache, state)
+            && state.target.as_ref().is_some_and(|target| {
+                self.0 == tcl_dialect::TclVersion::V8_4 || !target.namespace_dying
             })
     }
 

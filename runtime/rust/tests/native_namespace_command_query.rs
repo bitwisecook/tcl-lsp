@@ -535,3 +535,45 @@ fn retained_import_original_jim() {
         1,
     );
 }
+
+#[test]
+fn alias_registration_guest_nul_format_original_jim() {
+    compare_reports("jim",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/stdout.bin"), 11);
+}
+
+#[test]
+fn alias_registration_records_original_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.4.20/stdout.bin"), 26);
+}
+
+#[test]
+fn alias_registration_records_original_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.5.19/stdout.bin"), 26);
+}
+
+#[test]
+fn alias_registration_records_original_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.6.18/stdout.bin"), 26);
+}
+
+#[test]
+fn alias_registration_records_original_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.0.4/stdout.bin"), 26);
+}
+
+#[test]
+fn alias_registration_records_original_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin"), 26);
+}

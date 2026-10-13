@@ -1,0 +1,63 @@
+911:  *
+912:  * Side effects:
+913:  *	None.
+914:  *
+915:  *----------------------------------------------------------------------
+916:  */
+917: 
+918: static unsigned int
+919: HashStringKey(
+920:     Tcl_HashTable *tablePtr,	/* Hash table. */
+921:     VOID *keyPtr)		/* Key from which to compute hash value. */
+922: {
+923:     register const char *string = (const char *) keyPtr;
+924:     register unsigned int result;
+925:     register int c;
+926: 
+927:     /*
+928:      * I tried a zillion different hash functions and asked many other people
+929:      * for advice. Many people had their own favorite functions, all
+930:      * different, but no-one had much idea why they were good ones. I chose
+931:      * the one below (multiply by 9 and add new character) because of the
+932:      * following reasons:
+933:      *
+934:      * 1. Multiplying by 10 is perfect for keys that are decimal strings, and
+935:      *	  multiplying by 9 is just about as good.
+936:      * 2. Times-9 is (shift-left-3) plus (old). This means that each
+937:      *	  character's bits hang around in the low-order bits of the hash value
+938:      *	  for ever, plus they spread fairly rapidly up to the high-order bits
+939:      *	  to fill out the hash value. This seems works well both for decimal
+940:      *	  and non-decimal strings, but isn't strong against maliciously-chosen
+941:      *	  keys.
+942:      */
+943: 
+944:     result = 0;
+945: 
+946:     for (c=*string++ ; c ; c=*string++) {
+947: 	result += (result<<3) + c;
+948:     }
+949:     return result;
+950: }
+951: 
+952: 
+953: /*
+954:  *----------------------------------------------------------------------
+955:  *
+956:  * BogusFind --
+957:  *
+958:  *	This function is invoked when an Tcl_FindHashEntry is called on a
+959:  *	table that has been deleted.
+960:  *
+961:  * Results:
+962:  *	If Tcl_Panic returns (which it shouldn't) this function returns NULL.
+963:  *
+964:  * Side effects:
+965:  *	Generates a panic.
+966:  *
+967:  *----------------------------------------------------------------------
+968:  */
+969: 
+970: 	/* ARGSUSED */
+971: static Tcl_HashEntry *
+972: BogusFind(
+973:     Tcl_HashTable *tablePtr,	/* Table in which to lookup entry. */

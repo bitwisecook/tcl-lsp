@@ -112,7 +112,10 @@ impl Interp {
         if stage.is_some() {
             check()?;
         }
-        let reference_ns = if bytes.as_ref().is_some_and(|bytes| bytes.starts_with(b"::")) {
+        let reference_ns = if bytes
+            .as_ref()
+            .is_some_and(|bytes| tcl_syntax::naming::written_command_parts(&bytes).absolute)
+        {
             GLOBAL
         } else {
             current
@@ -190,8 +193,9 @@ impl Interp {
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "native namespace target incarnation",
                 ))?;
-            let reference = (!bytes.starts_with(b"::") || recipe.absolute_references_global())
-                .then_some(reference);
+            let reference = (!tcl_syntax::naming::written_command_parts(&bytes).absolute
+                || recipe.absolute_references_global())
+            .then_some(reference);
             let current = || reference_current(self);
             obj::native_namespace_name::install_using(
                 original,

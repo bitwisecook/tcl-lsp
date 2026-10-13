@@ -483,7 +483,7 @@ fn interp_target_original(
         Err(error) => return interp.report_cmd_error(error),
     };
     match interp.alias_target_path(&path, &alias) {
-        Some(target_path) => {
+        Ok(Some(target_path)) => {
             let elems: Vec<*mut TclObj> = target_path
                 .iter()
                 .map(|n| obj::new_string_bytes(n))
@@ -494,7 +494,8 @@ fn interp_target_original(
             }
             Code::Ok
         }
-        None => {
+        Err(error) => interp.report_cmd_error(error.into()),
+        Ok(None) => {
             let mut m = b"alias \"".to_vec();
             m.extend_from_slice(&alias);
             m.extend_from_slice(b"\" in path \"");
@@ -1373,7 +1374,10 @@ fn interp_alias_original(
                             return Err(owner.clone());
                         }
                     };
-                owner.delete_command(&name);
+                if let Err(error) = owner.delete_original_alias_registration(&name) {
+                    owner.refuse_completion_value_access(error);
+                    return Err(owner.clone());
+                }
                 match scope.currency().ensure_current_or_refuse() {
                     Ok(()) => Ok(()),
                     Err(first) => {
@@ -1389,7 +1393,9 @@ fn interp_alias_original(
                 return interp.transport_host_refusal_from(&owner);
             }
         } else {
-            interp.delete_command(&name);
+            if let Err(error) = interp.delete_original_alias_registration(&name) {
+                return interp.report_cmd_error(error.into());
+            }
             if let Err(error) = arguments.check() {
                 return interp.report_cmd_error(error);
             }
@@ -1443,10 +1449,8 @@ fn interp_alias_original(
                 Code::Ok
             }
             Ok(None) => {
-                let mut message = b"alias \"".to_vec();
-                message.extend_from_slice(&name);
-                message.extend_from_slice(b"\" not found");
-                interp.set_error(&message)
+                interp.set_result_bytes(b"");
+                Code::Ok
             }
             Err(owner) => interp.transport_host_refusal_from(&owner),
         };
@@ -1513,6 +1517,10 @@ fn interp_alias_original(
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);
         }
+        if recipe != tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
+            let result = obj::Owned::retain(owner.result_obj());
+            interp.set_result(result.as_ptr());
+        }
     } else {
         let installed =
             interp.install_alias_objects(&original_name, registration_name, original_prefix);
@@ -1525,7 +1533,9 @@ fn interp_alias_original(
             Err(error) => return interp.report_cmd_error(error),
         }
     }
-    interp.set_result(argv[3]);
+    if recipe == tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
+        interp.set_result(argv[3]);
+    }
     Code::Ok
 }
 
@@ -1609,7 +1619,10 @@ pub(crate) fn child_alias_handle_original(
         }
     };
     if delete {
-        owner.delete_command(&name);
+        if let Err(error) = owner.delete_original_alias_registration(&name) {
+            owner.refuse_completion_value_access(error);
+            return interp.transport_host_refusal_from(&owner);
+        }
         if let Err(first) = scope.currency().ensure_current_or_refuse() {
             owner.refuse_native_execution(first);
         }
@@ -1638,11 +1651,15 @@ pub(crate) fn child_alias_handle_original(
                 interp.set_result(query.as_ptr());
                 Code::Ok
             }
-            Ok(None) => {
+            Ok(None) if recipe.is_jim084() => {
                 let mut message = b"alias \"".to_vec();
                 message.extend_from_slice(&name);
                 message.extend_from_slice(b"\" not found");
                 interp.set_error(&message)
+            }
+            Ok(None) => {
+                interp.set_result_bytes(b"");
+                Code::Ok
             }
             Err(error) => {
                 owner.refuse_completion_value_access(error);
@@ -1701,7 +1718,12 @@ pub(crate) fn child_alias_handle_original(
         }
     }
     if recipe.child_alias_returns_original_registration_name() {
-        interp.set_result(argv[2]);
+        if recipe == tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4) {
+            interp.set_result(argv[2]);
+        } else {
+            let result = obj::Owned::retain(owner.result_obj());
+            interp.set_result(result.as_ptr());
+        }
     } else {
         interp.set_result_bytes(b"");
     }
@@ -1722,14 +1744,12 @@ fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         },
     };
     let names = match interp.with_child_path(&path, |owner| owner.alias_names()) {
-        Some(names) => names,
+        Some(Ok(names)) => names,
+        Some(Err(error)) => return interp.report_cmd_error(error.into()),
         None => return not_found_original_path(interp, argv[2]),
     };
-    let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
+    let elems = names.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
     interp.set_result(interp.new_list_object(&elems));
-    for e in elems {
-        drop_fresh(e);
-    }
     Code::Ok
 }
 

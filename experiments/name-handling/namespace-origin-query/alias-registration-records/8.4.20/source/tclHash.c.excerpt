@@ -1,0 +1,63 @@
+1031:  *
+1032:  * Side effects:
+1033:  *	None.
+1034:  *
+1035:  *----------------------------------------------------------------------
+1036:  */
+1037: 
+1038: static unsigned int
+1039: HashStringKey(tablePtr, keyPtr)
+1040:     Tcl_HashTable *tablePtr;	/* Hash table. */
+1041:     VOID *keyPtr;		/* Key from which to compute hash value. */
+1042: {
+1043:     register CONST char *string = (CONST char *) keyPtr;
+1044:     register unsigned int result;
+1045:     register int c;
+1046: 
+1047:     /*
+1048:      * I tried a zillion different hash functions and asked many other
+1049:      * people for advice.  Many people had their own favorite functions,
+1050:      * all different, but no-one had much idea why they were good ones.
+1051:      * I chose the one below (multiply by 9 and add new character)
+1052:      * because of the following reasons:
+1053:      *
+1054:      * 1. Multiplying by 10 is perfect for keys that are decimal strings,
+1055:      *    and multiplying by 9 is just about as good.
+1056:      * 2. Times-9 is (shift-left-3) plus (old).  This means that each
+1057:      *    character's bits hang around in the low-order bits of the
+1058:      *    hash value for ever, plus they spread fairly rapidly up to
+1059:      *    the high-order bits to fill out the hash value.  This seems
+1060:      *    works well both for decimal and non-decimal strings.
+1061:      */
+1062: 
+1063:     result = 0;
+1064:     while (1) {
+1065: 	c = *string;
+1066: 	if (c == 0) {
+1067: 	    break;
+1068: 	}
+1069: 	result += (result<<3) + c;
+1070: 	string++;
+1071:     }
+1072:     return result;
+1073: }
+1074: 
+1075: 
+1076: #if TCL_PRESERVE_BINARY_COMPATABILITY
+1077: /*
+1078:  *----------------------------------------------------------------------
+1079:  *
+1080:  * BogusFind --
+1081:  *
+1082:  *	This procedure is invoked when an Tcl_FindHashEntry is called
+1083:  *	on a table that has been deleted.
+1084:  *
+1085:  * Results:
+1086:  *	If panic returns (which it shouldn't) this procedure returns
+1087:  *	NULL.
+1088:  *
+1089:  * Side effects:
+1090:  *	Generates a panic.
+1091:  *
+1092:  *----------------------------------------------------------------------
+1093:  */
