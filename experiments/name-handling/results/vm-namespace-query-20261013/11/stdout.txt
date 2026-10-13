@@ -1,0 +1,11 @@
+
+running 1 test
+test interp::native_variable_query_tests::original_variable_queries_c90 ... FAILED
+
+failures:
+
+failures:
+    interp::native_variable_query_tests::original_variable_queries_c90
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1211 filtered out; finished in 2.26s
+

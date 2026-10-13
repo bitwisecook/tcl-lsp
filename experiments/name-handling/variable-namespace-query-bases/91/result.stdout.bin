@@ -1,0 +1,9 @@
+PATCHLEVEL 9.1.0
+bare-global {}
+relative-root {}
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g

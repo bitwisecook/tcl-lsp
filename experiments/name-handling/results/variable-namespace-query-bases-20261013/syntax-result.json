@@ -1,0 +1,36 @@
+{
+  "captured_ns": 1791902046422226123,
+  "compared_source_paths": 42445,
+  "changed_paths": [],
+  "artifacts": {
+    "tmp/name-target-names/debug/deps/variable_resolution_conformance-19e7b9443f3d63bf": "42c5fa8407849d6c83e222df82de43601ed46ccc37c60088cb2a108f0a6f988c",
+    "tmp/name-target-names/debug/deps/tcl_syntax-88fc50aa79bbd375": "1b15f51505ca72f42154b680029a8fa2cb10352ca08c7802573f21232da9addc",
+    "tmp/name-target-names/debug/deps/jim_name_resolution_conformance-a57b93f8885f963a": "bd96546a97c2dcdd04dd6c9dc0867e73433d59e3b0af13ca4fe72063a7b16fd3",
+    "tmp/name-target-names/debug/deps/namespace_op_conformance-2422fa24a390991b": "781ee8fa07dafa2724deffb9ea0b1c7acc7090c51080bb366eabfb759a23e657"
+  },
+  "selectors": [
+    {
+      "command": "cargo test -p tcl-syntax --lib naming::variable_geometry::tests:: -- --nocapture",
+      "tests_passed": 5
+    },
+    {
+      "command": "cargo test -p tcl-syntax --lib naming::native::empty_ -- --nocapture",
+      "tests_passed": 2
+    },
+    {
+      "command": "cargo test -p tcl-syntax --test variable_resolution_conformance --test namespace_op_conformance --test jim_name_resolution_conformance -- --nocapture",
+      "tests_passed": 9
+    }
+  ],
+  "target": "tmp/name-target-names",
+  "env_script": "/tmp/name-env.sh",
+  "required_providers": [
+    "C8.4.20",
+    "C8.5.19",
+    "C8.6.18",
+    "C9.0.4",
+    "C9.1.0",
+    "Jim0.84-9-g5bac7c9"
+  ],
+  "scope": "production Syntax owner and original unchanged C5/Jim conformance; no Runtime/VM/Core/query source execution or repository gate pass inferred"
+}

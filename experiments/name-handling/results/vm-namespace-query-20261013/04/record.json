@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_namespace_address_tests::original_namespace_address_c90",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:59:04.637123+00:00",
+  "exit_code": 101,
+  "stdout_sha256": "1ae0af8262dc333ed8e7c468c48ff731339078a992758e46931bbb821b18a634",
+  "stderr_sha256": "55822d3e10d4e3490b73f2bc595df7551d65806742a0bc1dafa83bbd28f1b76f"
+}

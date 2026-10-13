@@ -1,0 +1,10 @@
+{
+  "source-before.json.gz": {
+    "expanded_sha256": "44eb0ed1781c7c9c6d1dd37290a3c936e1d2703c8730b8f513d002030a4610fe",
+    "compressed_sha256": "906ca920366ffc94441d33f0d7f9e6cb879fb45dc38a8093dc4012fd4e29a22e"
+  },
+  "data-before.json.gz": {
+    "expanded_sha256": "01020dc4b15455808d321f3739d73b1eefddd42a18b5ea7892e2a4b7b28b562b",
+    "compressed_sha256": "f734798a6131fbb9a323203d0113e2a3386e870ad9860c6614dc2119f6639e5f"
+  }
+}

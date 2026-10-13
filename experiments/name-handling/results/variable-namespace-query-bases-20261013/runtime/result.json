@@ -1,0 +1,37 @@
+{
+  "captured_ns": 1791903947342779028,
+  "build_initial": "initial-build.jsonl / initial-build.stderr retained E0308 test-leaf borrow error",
+  "source_only_correction": {
+    "path": "/workspace/tcl-lsp/runtime/rust/tests/native_namespace_query_bases.rs",
+    "old_sha256": "e4ebb173788ba4e8402604025e25a8e86436196c54e6a25cc68e3a827520cf90",
+    "new_sha256": "c52c51c93967f91adbc5d3273782e36c4d0664b3f852542c285954c1864c1c53",
+    "reason": "owned result Vec retained before UTF8 borrowing; initial E0308 preserved separately"
+  },
+  "corrected_build_exit": 0,
+  "test": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/native_namespace_query_bases-8780b99e42579c10",
+      "namespace_queries_match_original_source_reports",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit": 0,
+    "seconds": 6.939254283905029,
+    "executable_sha256": "8ba4327c1057bcbcad219f8c14d66b18fc5aff85ae183ff7865f328023d2fca8",
+    "stdout_sha256": "673a60547f7e70c6427dd4ec05b384285c6575f6e522dd2226497a6945fbb5dd",
+    "stderr_sha256": "bc807ffb78b3d8f351f162c7dc24e51a7ef0965bb67bad20ffa5544f284073f9"
+  },
+  "compared_input_count": 31669,
+  "changed_inputs": [],
+  "actual_compiled_input_count": 4894,
+  "uncovered_before_inputs": [],
+  "unresolved_dep_inputs": [],
+  "missing_artifact_dep_info": [],
+  "executable_sha256_before": "8ba4327c1057bcbcad219f8c14d66b18fc5aff85ae183ff7865f328023d2fca8",
+  "executable_sha256_after": "8ba4327c1057bcbcad219f8c14d66b18fc5aff85ae183ff7865f328023d2fca8",
+  "query_reports_compared": 48,
+  "provider_count": 6,
+  "scope": "actual standalone Runtime namespace query execution on exact retained ASCII result-input.tcl, compared all8queryrows/provider against authentic C5/latestJim reporting answers; Cguestpatchlevelmatches reference, JimRust0.84/currentexternal0.84-9 marker explicitly separate; no VM/Core/F5/gate/originalobjectidentity or ordinaryscalar/element claim",
+  "compiler_trace": "allfive temporary Compilerowners absent from Runtime metadata and full input inventory, see closure.json"
+}

@@ -1,0 +1,60 @@
+
+running 1 test
+test namespace_queries_match_original_source_reports ... PATCHLEVEL 8.4.20
+bare-global ::g
+relative-root ::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g
+PATCHLEVEL 8.5.19
+bare-global ::g
+relative-root ::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g
+PATCHLEVEL 8.6.18
+bare-global ::g
+relative-root ::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g
+PATCHLEVEL 9.0.4
+bare-global {}
+relative-root {}
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g
+PATCHLEVEL 9.1.0
+bare-global {}
+relative-root {}
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g
+PATCHLEVEL 0.84
+bare-global ::N::g
+relative-root ::N::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent ::N::missing
+declaration-shell ::N::g
+procedure-local ::N::local
+procedure-global-link ::N::g
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.93s
+

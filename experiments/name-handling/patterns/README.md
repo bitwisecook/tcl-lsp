@@ -23,6 +23,13 @@ The separate [frame-capture prefix pair](frame-capture-prefix/README.md) retains
 C5 observations of an aliased caller-relative link with/without namespace
 capture, original Jim setup refusals and unanswered native F5 contexts.
 
+The [namespace-variable query experiment](../variable-namespace-query-bases/README.md)
+separates namespace-table lookup from procedure locals and ordinary variable
+access. Original C5/Jim query rows feed exact Runtime and VM consumer controls;
+their [acceptance scopes](../results/RESULTS.md#shared-namespace-variable-query-consumers)
+retain failed and unreached providers separately. Empty namespace addresses are
+measured independently in [namespace-address-purpose](../namespace-address-purpose/README.md).
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

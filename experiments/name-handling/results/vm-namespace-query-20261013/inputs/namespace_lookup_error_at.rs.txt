@@ -1,0 +1,57 @@
+      )
+    }
+
+    pub(crate) fn namespace_lookup_error_at(
+        &mut self,
+        original: &[u8],
+        operation: tcl_syntax::naming::NativeNamespaceLookupOperation,
+    ) -> Completion<Value> {
+        let Some(policy) = self.name_policy_protocol() else {
+            return self
+                .refuse_host_command("native namespace reporting protocol is unavailable".into());
+        };
+        let current = tcl_runtime_api::Namespaces::name_bytes(self, self.current_ns_id());
+        let report = match tcl_syntax::naming::report_native_namespace_operation_error(
+            policy.recipe(),
+            operation,
+            original,
+            &current,
+        ) {
+            Ok(report) => report,
+            Err(error) => return self.refuse_host_command(format!("{error:?}")),
+        };
+        self.namespace_operation_error(report)
+    }
+
+    fn namespace_operation_error(
+        &mut self,
+        report: tcl_syntax::naming::NativeNamespaceOperationError,
+    ) -> Completion<Value> {
+        let string_protocol = report.string_protocol;
+        let message = report.message.clone();
+        let error = match report.error_code {
+            Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+            None => tcl_cmd_core::CmdError::new_bytes(report.message),
+        };
+        let mut completion = crate::command::completion_from_cmd_error(self, error);
+        let dialect = self.native_invocation_dialect();
+        if dialect.native_string_protocol() == Some(string_protocol) {
+            completion.result = match Value::from_native_string_cache(
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+                    protocol: string_protocol,
+                    num_chars: None,
+                    unicode: None,
+                },
+                dialect,
+                Some((
+                    message.into(),
+                    tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+                )),
+            ) {
+                Ok(value) => value,
+                Err(error) => return self.refuse_host_command(error.to_string()),
+            };
+        }
+        completion
+    }
+

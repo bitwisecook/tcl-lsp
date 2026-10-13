@@ -7,6 +7,123 @@
 use super::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
 use tcl_core_types::{ByteNamespacePath, NameBytes};
 
+/// Namespace lookup coordinates; table and frame ownership stay with the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableLookupBase<T> {
+    Context(T),
+    Root,
+}
+
+/// Namespace-only variable order under an explicitly supplied fallback policy.
+/// Absolute names use root; relative names never consult namespace paths.
+pub fn variable_namespace_lookup_bases<T>(
+    absolute: bool,
+    current: T,
+    allow_global_fallback: bool,
+) -> impl Iterator<Item = VariableLookupBase<T>> {
+    (!absolute)
+        .then_some(VariableLookupBase::Context(current))
+        .into_iter()
+        .chain((absolute || allow_global_fallback).then_some(VariableLookupBase::Root))
+}
+
+/// Purpose-selected C variable components without a namespace or cell receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeVariableNamespaceProjection {
+    qualifiers: ByteNamespacePath,
+    simple: NameBytes,
+    qualification: NativeNameQualification,
+    protocol: NativeNameProtocol,
+    purpose: super::NativeNamePurpose,
+}
+
+impl NativeVariableNamespaceProjection {
+    #[must_use]
+    pub fn qualifiers(&self) -> &[NameBytes] {
+        self.qualifiers.as_segments()
+    }
+    #[must_use]
+    pub const fn simple(&self) -> &NameBytes {
+        &self.simple
+    }
+    #[must_use]
+    pub const fn qualification(&self) -> NativeNameQualification {
+        self.qualification
+    }
+    #[must_use]
+    pub const fn purpose(&self) -> super::NativeNamePurpose {
+        self.purpose
+    }
+    /// Ordered namespace-variable query bases, independently of scalar access.
+    ///
+    /// # Errors
+    /// Ordinary variable roots and Jim's textual query do not grant this policy.
+    pub fn namespace_query_bases<T: PartialEq>(
+        &self,
+        current: T,
+        root: &T,
+    ) -> Result<impl Iterator<Item = VariableLookupBase<T>>, super::NameProjectionUnavailable> {
+        if self.purpose != super::NativeNamePurpose::NamespaceVariableQuery {
+            return Err(super::NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let NativeNameProtocol::C(version) = self.protocol else {
+            return Err(super::NameProjectionUnavailable::PurposeNotModelled);
+        };
+        let fallback = version.namespace_var_global_fallback() && &current != root;
+        Ok(variable_namespace_lookup_bases(
+            self.qualification == NativeNameQualification::Absolute,
+            current,
+            fallback,
+        ))
+    }
+}
+
+impl super::NativeNameProjection<'_> {
+    /// C variable components from this operand's retained purpose and extent.
+    /// Original namespace tokens must be walked directly by the caller.
+    ///
+    /// # Errors
+    /// Refuses unrelated purposes and Jim's independent flat variable model.
+    pub fn variable_namespace_projection(
+        &self,
+    ) -> Result<NativeVariableNamespaceProjection, super::NameProjectionUnavailable> {
+        if self.protocol().is_jim084()
+            || !matches!(
+                self.purpose(),
+                super::NativeNamePurpose::VariableRoot
+                    | super::NativeNamePurpose::NamespaceVariableQuery
+            )
+        {
+            return Err(super::NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok(c_variable_namespace_projection(self))
+    }
+}
+
+fn c_variable_namespace_projection(
+    input: &super::NativeNameProjection<'_>,
+) -> NativeVariableNamespaceProjection {
+    let mut qualifiers = ByteNamespacePath::root();
+    let simple = if input.qualification() == NativeNameQualification::Unqualified {
+        input.selected()
+    } else {
+        let simple = super::written_command_tail(input.selected());
+        let parts = super::qualifier_segments(input.selected());
+        let qualifier_count = parts.len().saturating_sub(usize::from(!simple.is_empty()));
+        for qualifier in &parts[..qualifier_count] {
+            qualifiers.push(*qualifier);
+        }
+        simple
+    };
+    NativeVariableNamespaceProjection {
+        qualifiers,
+        simple: simple.into(),
+        qualification: input.qualification(),
+        protocol: input.protocol(),
+        purpose: input.purpose(),
+    }
+}
+
 /// Name geometry selected by the runtime variable receiver purpose.
 /// This carries bytes and component boundaries, never a table or slot receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,15 +239,13 @@ impl NativeNameProtocol {
         } else {
             context.namespace.clone()
         };
-        let simple = super::written_command_tail(selected.selected());
-        let parts = super::qualifier_segments(selected.selected());
-        let qualifier_count = parts.len().saturating_sub(usize::from(!simple.is_empty()));
-        for qualifier in &parts[..qualifier_count] {
-            namespace.push(*qualifier);
+        let projected = c_variable_namespace_projection(&selected);
+        for qualifier in projected.qualifiers() {
+            namespace.push(qualifier.as_bytes());
         }
         NativeVariableRootGeometry::CNamespace {
             namespace,
-            simple: simple.into(),
+            simple: projected.simple,
         }
     }
 }
@@ -203,6 +318,101 @@ impl NativeNameProtocol {
 mod tests {
     use super::*;
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn namespace_query_bases_keep_the_selected_purpose_and_original_extent() {
+        use super::super::{NameProjectionUnavailable, NativeNamePurpose};
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = NativeNameProtocol::C(version);
+            let query = protocol
+                .namespace_variable_query_input(b"v\0tail::x")
+                .variable_namespace_projection()
+                .unwrap();
+            assert_eq!(query.purpose(), NativeNamePurpose::NamespaceVariableQuery);
+            assert_eq!(query.simple().as_bytes(), b"v");
+            assert!(query.qualifiers().is_empty());
+            let expected = if version.namespace_var_global_fallback() {
+                vec![VariableLookupBase::Context(9), VariableLookupBase::Root]
+            } else {
+                vec![VariableLookupBase::Context(9)]
+            };
+            assert_eq!(
+                query
+                    .namespace_query_bases(9, &0)
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                query
+                    .namespace_query_bases(0, &0)
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [VariableLookupBase::Context(0)]
+            );
+            let absolute = protocol
+                .namespace_variable_query_input(b"::N:::v\0suffix")
+                .variable_namespace_projection()
+                .unwrap();
+            assert_eq!(absolute.simple().as_bytes(), b"v");
+            assert_eq!(absolute.qualifiers(), [NameBytes::from(b"N".as_slice())]);
+            assert_eq!(
+                absolute
+                    .namespace_query_bases(9, &0)
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [VariableLookupBase::Root]
+            );
+            let root = protocol
+                .variable_root_input(b"v\0tail::x")
+                .variable_namespace_projection()
+                .unwrap();
+            assert_eq!(
+                root.simple().as_bytes(),
+                if version == tcl_dialect::TclVersion::V8_4 {
+                    b"v".as_slice()
+                } else {
+                    b"v\0tail::x".as_slice()
+                }
+            );
+            assert!(matches!(
+                root.namespace_query_bases(9, &0),
+                Err(NameProjectionUnavailable::PurposeNotModelled)
+            ));
+            assert!(
+                protocol
+                    .command_lookup_input(NativeNameContext::root(), b"v")
+                    .unwrap()
+                    .variable_namespace_projection()
+                    .is_err()
+            );
+        }
+        assert!(
+            NativeNameProtocol::Jim084
+                .namespace_variable_query_input(b"absent")
+                .variable_namespace_projection()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn logical_variable_namespace_bases_use_only_the_supplied_fallback_policy() {
+        assert_eq!(
+            variable_namespace_lookup_bases(false, "current", true).collect::<Vec<_>>(),
+            [
+                VariableLookupBase::Context("current"),
+                VariableLookupBase::Root
+            ]
+        );
+        assert_eq!(
+            variable_namespace_lookup_bases(false, "current", false).collect::<Vec<_>>(),
+            [VariableLookupBase::Context("current")]
+        );
+        assert_eq!(
+            variable_namespace_lookup_bases(true, "current", false).collect::<Vec<_>>(),
+            [VariableLookupBase::Root]
+        );
+    }
 
     #[test]
     fn combined_bridge_preserves_selected_parts_and_refuses_lost_counted_roots() {

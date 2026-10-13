@@ -1,0 +1,29 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.99s
+     Running tests/jim_name_resolution_conformance.rs (tmp/name-target-names/debug/deps/jim_name_resolution_conformance-a57b93f8885f963a)
+
+running 5 tests
+test jim_global_alias_local_names_use_original_counted_operands ... ok
+test jim_scalar_and_combined_dictionary_names_match_actual_cells ... ok
+test jim_namespace_objects_and_text_helpers_match_native_operations ... ok
+test jim_publication_preserves_actual_flat_keys_and_procedure_namespaces ... ok
+test jim_lookup_searches_its_counted_flat_table_in_native_order ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/namespace_op_conformance.rs (tmp/name-target-names/debug/deps/namespace_op_conformance-2422fa24a390991b)
+
+running 2 tests
+test tagging_matches_whether_the_releases_disagree ... ok
+test vectors_match_real_tclsh ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s
+
+     Running tests/variable_resolution_conformance.rs (tmp/name-target-names/debug/deps/variable_resolution_conformance-19e7b9443f3d63bf)
+
+running 2 tests
+test tagging_matches_whether_the_releases_disagree ... ok
+test vectors_match_real_tclsh ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+

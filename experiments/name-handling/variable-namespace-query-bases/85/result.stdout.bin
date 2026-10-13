@@ -1,0 +1,9 @@
+PATCHLEVEL 8.5.19
+bare-global ::g
+relative-root ::RootChild::v
+relative-local ::N::Child::v
+absolute-root ::RootChild::v
+absent {}
+declaration-shell ::N::g
+procedure-local {}
+procedure-global-link ::N::g

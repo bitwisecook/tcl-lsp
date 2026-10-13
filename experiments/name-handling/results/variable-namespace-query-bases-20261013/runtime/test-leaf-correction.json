@@ -1,0 +1,6 @@
+{
+  "path": "/workspace/tcl-lsp/runtime/rust/tests/native_namespace_query_bases.rs",
+  "old_sha256": "e4ebb173788ba4e8402604025e25a8e86436196c54e6a25cc68e3a827520cf90",
+  "new_sha256": "c52c51c93967f91adbc5d3273782e36c4d0664b3f852542c285954c1864c1c53",
+  "reason": "owned result Vec retained before UTF8 borrowing; initial E0308 preserved separately"
+}

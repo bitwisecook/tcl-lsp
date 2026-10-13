@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:59:09.173836+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "e4826706fc24c0de2201cb589521abf492cb7a077a90641fe0cae5832b424e06",
+  "stderr_sha256": "775c7006d0d1003063e38b75f4ac1a743dd75d4e035a0db8643cf584d123de2e"
+}

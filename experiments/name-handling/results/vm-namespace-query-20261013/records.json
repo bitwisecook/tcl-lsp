@@ -1,0 +1,249 @@
+[
+  {
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c84",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c84",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:56:38.501609+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "6b3752fcbb08efa917c008d9c03291d07da2bc0038d101d0c4de8c5a0477d22d",
+    "stderr_sha256": "3bdedf9be12909288cb2a94969ba4da35a4c08992f1573820312ddd2ebc46808"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c85",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c85",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:01.235215+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "45e3b901d6547d11fd9cdbe36b4983d61f023ae80463e499a0f533c20706b243",
+    "stderr_sha256": "92f016569ab60f75853ac4e77aed07abaa234d0622209aeb3b4b9e9ad09d5b51"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c86",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c86",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:02.461769+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "2a407409b35462f56492e20a9c12e2529274ab3b2c6821bace37fe8af994b42f",
+    "stderr_sha256": "cbacf13cfb908e7605be65319f210f1e588e748efc38bf45ec337faf32afeca0"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c90",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:04.637123+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "1ae0af8262dc333ed8e7c468c48ff731339078a992758e46931bbb821b18a634",
+    "stderr_sha256": "55822d3e10d4e3490b73f2bc595df7551d65806742a0bc1dafa83bbd28f1b76f"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::original_namespace_address_c91",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::original_namespace_address_c91",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:06.883936+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "36f0946630a7506886778955e7b49b7ac5a2020af9f80fef9b488787d59676a0",
+    "stderr_sha256": "b20caf0fb1166e93eb9772694c3bb3efbe238607d606ffce6ed760fb76665d81"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:09.173836+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "e4826706fc24c0de2201cb589521abf492cb7a077a90641fe0cae5832b424e06",
+    "stderr_sha256": "775c7006d0d1003063e38b75f4ac1a743dd75d4e035a0db8643cf584d123de2e"
+  },
+  {
+    "selector": "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:10.018784+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "88ba6474afae7e543c5c1587ba66ba7d126fe4fff4349da57bc8b73a7b783976",
+    "stderr_sha256": "9a9ca786b95e68a4ee460f77094fdf0a8350eb4dbd24164021b2669ae6852f71"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c84",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c84",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:10.419360+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "e0847e5ca742137fc16a21b22004e6e3860101fcb6fc22e0c1f17a849af911f5",
+    "stderr_sha256": "cd77248e22baa72f67c7995bb266626504850e3e8fda9f2fd3fcbfd48fbab01e"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c85",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c85",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:11.831729+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "617362a8a6f972662bb07513c9cbb6b4ad343edd72d8ad4a2a93b3f56dee617b",
+    "stderr_sha256": "cdc37d595c9ca20e9b88c2b91e2fb1a83e88f112cabca7f64742d1698c46da47"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c86",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c86",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:13.774612+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "99a67836034e9291ae85b32dacf7c90c7b6c361e2bc2b65b511572e170de1939",
+    "stderr_sha256": "7ebaa505461df949d592a8d0bdf4a6aaf4f5a544996a0faa893b8ee2ea45ab28"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c90",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c90",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:16.227573+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "22c5f58f285ead6e24bea21665992e9b9ad8265f87029fe310213b4f532a1230",
+    "stderr_sha256": "f7c8ff477adf35575ad50e3545c6d5cbb7543c74ae42c74d8256b59635b180d7"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_c91",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_c91",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:18.639306+00:00",
+    "exit_code": 101,
+    "stdout_sha256": "63a406378b89fcb8994416a8b19eaac2b6f123cf7bec042e30a2d06cb8d94e80",
+    "stderr_sha256": "fb746f88a70845a53d2d5e91039e763a494c8c2f748741ec256d15e91453dd49"
+  },
+  {
+    "selector": "interp::native_variable_query_tests::original_variable_queries_jim",
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "interp::native_variable_query_tests::original_variable_queries_jim",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "started_utc": "2026-10-13T14:59:21.261269+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "19e0b1e3296b0ad0c9d4ced714fa7bf407f65e8768098211410986368e117cff",
+    "stderr_sha256": "37994f0be6060ddda9b6865e672ac8b4196869795d8fa005def1bcd627ed4591"
+  }
+]

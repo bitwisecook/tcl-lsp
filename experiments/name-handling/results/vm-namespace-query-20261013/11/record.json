@@ -1,0 +1,19 @@
+{
+  "selector": "interp::native_variable_query_tests::original_variable_queries_c90",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "interp::native_variable_query_tests::original_variable_queries_c90",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "started_utc": "2026-10-13T14:59:16.227573+00:00",
+  "exit_code": 101,
+  "stdout_sha256": "22c5f58f285ead6e24bea21665992e9b9ad8265f87029fe310213b4f532a1230",
+  "stderr_sha256": "f7c8ff477adf35575ad50e3545c6d5cbb7543c74ae42c74d8256b59635b180d7"
+}

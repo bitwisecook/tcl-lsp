@@ -57,7 +57,10 @@ mod reporting;
 pub use reporting::{ReportedQNameNamespacePurpose, reported_qname_namespace};
 mod compiled_variables;
 mod variable_geometry;
-pub use variable_geometry::{NativeVariableBridgeUnavailable, NativeVariableRootGeometry};
+pub use variable_geometry::{
+    NativeVariableBridgeUnavailable, NativeVariableNamespaceProjection, NativeVariableRootGeometry,
+    VariableLookupBase, variable_namespace_lookup_bases,
+};
 mod variable_spelling;
 pub use variable_spelling::{NativeScalarSourceSpelling, native_scalar_source_spelling};
 mod jim_enumeration;
@@ -102,9 +105,9 @@ pub use native::{
     native_namespace_full_name_bytes, native_namespace_source_spelling,
     native_procedure_compilation_name_input, report_native_c_variable_value_name,
     report_native_dictionary_missing_key, report_native_name_bytes,
-    report_native_namespace_lookup_error, report_native_namespace_operation_error,
-    report_native_variable_access_trace_names, report_native_variable_diagnostic,
-    report_native_variable_diagnostic_at,
+    report_native_namespace_creation_error, report_native_namespace_lookup_error,
+    report_native_namespace_operation_error, report_native_variable_access_trace_names,
+    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
 };
 
 /// Jim's flat global-variable key from a rooted constructed namespace.

@@ -5,6 +5,21 @@ executable uses the selected native core at allocation time and real matching
 upstream libraries. Completed assertion results, host refusals and unexecuted
 suite regions remain separate evidence.
 
+## Shared namespace-variable query consumers
+
+The [purpose-selected owner and Runtime capture](variable-namespace-query-bases-20261013/README.md)
+records16 shared-owner/C5/Jim conformance controls and48 actual Runtime query
+comparisons passing. The Runtime capture independently covers every compiled
+input and preserves initial test-build failure and corrected build separately.
+
+The [actual VM capture](vm-namespace-query-20261013/README.md) executes13 selectors:
+6 pass and7 fail. Accepted scope is12 C84 ASCII namespace-operation rows,
+two retained/retired namespace controls, and24 C84/C85/Jim variable-query rows.
+Four C85+ namespace tests wrongly require global errorCode publication after
+direct object entry; their full results are not accepted. Three C86+ query
+fixtures refuse compiler preflight before producing a result. None establishes
+Core, F5, ordinary scalar/element behavior or complete naming conformance.
+
 ## Actual C8.6 constructor and startup
 
 The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actual

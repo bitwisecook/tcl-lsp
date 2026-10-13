@@ -107,6 +107,8 @@ pub(crate) mod native_name_consumers;
 mod native_name_operands;
 mod native_name_queries;
 mod native_name_world;
+#[cfg(test)]
+mod native_namespace_address_tests;
 mod native_namespace_names;
 #[cfg(test)]
 mod native_namespace_root_tests;
@@ -124,6 +126,8 @@ pub(crate) mod native_scalar_ingress;
 mod native_upvar_info_exists_tests;
 mod native_variable_names;
 mod native_variable_observers;
+#[cfg(test)]
+mod native_variable_query_tests;
 mod object_materialization;
 pub(crate) mod oo_cleanup;
 pub(crate) mod original_authored_operands;
@@ -10026,14 +10030,9 @@ impl Vm {
             });
         }
         let absolute = selected.qualification() == NativeNameQualification::Absolute;
-        let mut path = if absolute {
-            NamespacePath::root()
-        } else {
-            context_path.clone()
-        };
-        for segment in tcl_syntax::naming::qualifier_segments(selected.selected()) {
-            path.push(segment);
-        }
+        let path = protocol
+            .namespace_address_path(native_context, original)
+            .map_err(NativeNamespaceAddressError::Projection)?;
         Ok(NativeNamespaceAddress::C { path, absolute })
     }
 
@@ -10129,9 +10128,14 @@ impl Vm {
         &mut self,
         original: &[u8],
     ) -> Result<bool, Completion<Value>> {
-        let address = self
-            .namespace_address_from_native_bytes(self.current_ns_id(), original)
-            .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+        let address = match self.namespace_address_from_native_bytes(self.current_ns_id(), original)
+        {
+            Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => return Ok(false),
+            Err(error) => return Err(self.refuse_host_command(format!("{error:?}"))),
+        };
         match address {
             NativeNamespaceAddress::C { path, .. } => Ok(self.delete_namespace_path(&path)),
             NativeNamespaceAddress::Jim { object, .. } => {
@@ -10171,6 +10175,21 @@ impl Vm {
         let address = match self.namespace_address_from_native_bytes(self.current_ns_id(), original)
         {
             Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                reason @ tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => {
+                let Some(policy) = self.name_policy_protocol() else {
+                    return Err(self.refuse_host_command(
+                        "native namespace creation protocol is unavailable".into(),
+                    ));
+                };
+                let report = tcl_syntax::naming::report_native_namespace_creation_error(
+                    policy.recipe(),
+                    reason,
+                )
+                .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+                return Err(self.namespace_operation_error(report));
+            }
             Err(error) => return Err(self.refuse_host_command(format!("{error:?}"))),
         };
         match address {
@@ -10253,6 +10272,13 @@ impl Vm {
             Ok(report) => report,
             Err(error) => return self.refuse_host_command(format!("{error:?}")),
         };
+        self.namespace_operation_error(report)
+    }
+
+    fn namespace_operation_error(
+        &mut self,
+        report: tcl_syntax::naming::NativeNamespaceOperationError,
+    ) -> Completion<Value> {
         let string_protocol = report.string_protocol;
         let message = report.message.clone();
         let error = match report.error_code {
@@ -18325,6 +18351,7 @@ impl Vm {
         })
     }
 
+    #[cfg(test)]
     fn namespace_child_token(&self, parent: NsId, simple: impl AsRef<[u8]>) -> Option<NsId> {
         self.name_world
             .borrow()
@@ -26508,11 +26535,17 @@ impl Namespaces for Vm {
                 "namespace lookup",
             ));
         }
-        let address = self
-            .namespace_address_from_native_bytes(cxt, original)
-            .map_err(|_| {
-                tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace lookup")
-            })?;
+        let address = match self.namespace_address_from_native_bytes(cxt, original) {
+            Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => return Ok(None),
+            Err(_) => {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "namespace lookup",
+                ));
+            }
+        };
         Ok(match address {
             NativeNamespaceAddress::C { path, absolute } => self
                 .namespace_token_at_path(&path, absolute)
@@ -26542,15 +26575,6 @@ impl Namespaces for Vm {
     }
 
     fn find_namespace_bytes(&self, cxt: NsId, original: &[u8]) -> Option<NsId> {
-        // The context itself survives deletion while its activation owns it.
-        if original.is_empty() {
-            return self
-                .name_world
-                .borrow()
-                .ns_arena
-                .get(cxt.0 as usize)
-                .map(|_| cxt);
-        }
         match self
             .namespace_address_from_native_bytes(cxt, original)
             .ok()?
@@ -26776,16 +26800,19 @@ impl Namespaces for Vm {
                 "namespace variable query world",
             ));
         }
-        let mut contexts = vec![context];
-        if protocol
-            .tcl_version()
-            .is_some_and(|version| version <= tcl_dialect::TclVersion::V8_6)
-            && context != ROOT_NS
-            && !projected.selected().starts_with(b"::")
-        {
-            contexts.push(ROOT_NS);
-        }
-        for context in contexts {
+        let query = projected.variable_namespace_projection().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("namespace variable query purpose")
+        })?;
+        let bases = query
+            .namespace_query_bases(context, &ROOT_NS)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("namespace variable query lookup policy")
+            })?;
+        for base in bases {
+            let context = match base {
+                tcl_syntax::naming::VariableLookupBase::Context(context) => context,
+                tcl_syntax::naming::VariableLookupBase::Root => ROOT_NS,
+            };
             let Some(binding) =
                 self.namespace_var_binding_from_token_bytes(context, projected.selected())
             else {

@@ -1,0 +1,85 @@
+{
+  "script_sha256": "10b4e6a869a181f82eeeb692c203bc77ace0b124b7fc6f28771191b7e58d8dec",
+  "rows": [
+    {
+      "provider": "84",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "stdout_sha256": "5a21feff3cca60394910a0b5269428645915140241f0d96b6d0c928262eb23ae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 8.4.20"
+    },
+    {
+      "provider": "85",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "stdout_sha256": "95b526a589d73448779ee10e7b3a2a71101c3cd2fd513060c2039330e972e200",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 8.5.19"
+    },
+    {
+      "provider": "86",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout_sha256": "31825b308600843be3a882d77cee55f5413f60992cf3a0db369b9ff36cafab5a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 8.6.18"
+    },
+    {
+      "provider": "90",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit": 0,
+      "stdout_sha256": "d42870629516ee5aa21fc5c0c6a2082741aa9759b540411023a553fe84b5bf06",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 9.0.4"
+    },
+    {
+      "provider": "91",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit": 0,
+      "stdout_sha256": "2c3cafa313efbfe25c0075921fda29cdb4fcbac7a56ef2285ddd7775bace9d01",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 9.1.0"
+    },
+    {
+      "provider": "jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
+      ],
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit": 0,
+      "stdout_sha256": "71e01abdb19381edb3ab60d3d78da5015410e6222f426e15abafb9313dcd095d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "query_count": 8,
+      "patchlevel": "PATCHLEVEL 0.84-9-g5bac7c9"
+    }
+  ],
+  "total_query_count": 48,
+  "scope": "ASCII source reporting/return collector; result stdout matches the original input for each provider; no object/cell proof or Rust run"
+}

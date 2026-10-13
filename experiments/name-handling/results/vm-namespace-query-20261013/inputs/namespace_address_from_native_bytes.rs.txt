@@ -1,0 +1,51 @@
+    fn namespace_address_from_native_bytes(
+        &self,
+        context: NsId,
+        original: &[u8],
+    ) -> Result<NativeNamespaceAddress, NativeNamespaceAddressError> {
+        use tcl_syntax::naming::{NativeNameContext, NativeNameQualification};
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(NativeNamespaceAddressError::ProtocolUnavailable)?
+            .recipe();
+        let root_object = if protocol.is_jim084() && context == ROOT_NS {
+            Some(
+                self.native_jim_root_namespace_bytes()
+                    .map_err(|_| NativeNamespaceAddressError::ContextUnavailable)?,
+            )
+        } else {
+            None
+        };
+        let world = self.name_world.borrow();
+        let context_path = world
+            .ns_arena
+            .get(context.0 as usize)
+            .ok_or(NativeNamespaceAddressError::ContextUnavailable)?;
+        let native_context = if protocol.is_jim084() {
+            let object = world
+                .jim_namespace_objects
+                .get(&context)
+                .ok_or(NativeNamespaceAddressError::ContextUnavailable)?;
+            NativeNameContext::with_jim_namespace(
+                context_path,
+                root_object.as_deref().unwrap_or_else(|| object.as_bytes()),
+            )
+        } else {
+            NativeNameContext::new(context_path)
+        };
+        let selected = protocol
+            .namespace_address_input(native_context, original)
+            .map_err(NativeNamespaceAddressError::Projection)?;
+        if protocol.is_jim084() {
+            return Ok(NativeNamespaceAddress::Jim {
+                object: NameBytes::from(selected.selected()),
+                original: NameBytes::from(original),
+            });
+        }
+        let absolute = selected.qualification() == NativeNameQualification::Absolute;
+        let path = protocol
+            .namespace_address_path(native_context, original)
+            .map_err(NativeNamespaceAddressError::Projection)?;
+        Ok(NativeNamespaceAddress::C { path, absolute })
+    }
+

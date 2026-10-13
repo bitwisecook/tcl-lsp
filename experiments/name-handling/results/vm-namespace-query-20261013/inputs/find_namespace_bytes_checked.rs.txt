@@ -1,0 +1,68 @@
+    }
+
+    fn find_namespace_bytes_checked(
+        &self,
+        cxt: NsId,
+        original: &[u8],
+    ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        if !self.name_world.borrow().is_live() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "namespace lookup",
+            ));
+        }
+        let address = match self.namespace_address_from_native_bytes(cxt, original) {
+            Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => return Ok(None),
+            Err(_) => {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "namespace lookup",
+                ));
+            }
+        };
+        Ok(match address {
+            NativeNamespaceAddress::C { path, absolute } => self
+                .namespace_token_at_path(&path, absolute)
+                .filter(|namespace| self.native_namespace_token_has_owner(*namespace)),
+            NativeNamespaceAddress::Jim { object, .. } => self
+                .name_world
+                .borrow()
+                .jim_namespace_objects
+                .iter()
+                .find_map(|(token, actual)| (actual == &object).then_some(*token)),
+        })
+    }
+
+    fn find_namespace_child_bytes_checked(
+        &self,
+        parent: NsId,
+        member: &[u8],
+    ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        let child = self
+            .name_world
+            .borrow()
+            .namespace_child_token(parent, member);
+        Ok(child.filter(|child| {
+            self.native_namespace_token_has_owner(*child)
+                && tcl_runtime_api::Namespaces::parent(self, *child) == Some(parent)
+        }))
+    }
+
+    fn find_namespace_bytes(&self, cxt: NsId, original: &[u8]) -> Option<NsId> {
+        match self
+            .namespace_address_from_native_bytes(cxt, original)
+            .ok()?
+        {
+            NativeNamespaceAddress::C { path, absolute } => self
+                .namespace_token_at_path(&path, absolute)
+                .filter(|namespace| self.native_namespace_token_has_owner(*namespace)),
+            NativeNamespaceAddress::Jim { object, .. } => self
+                .name_world
+                .borrow()
+                .jim_namespace_objects
+                .iter()
+                .find_map(|(token, actual)| (actual == &object).then_some(*token)),
+        }
+    }
+

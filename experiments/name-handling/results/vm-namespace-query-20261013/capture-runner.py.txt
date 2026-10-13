@@ -1,0 +1,60 @@
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+
+root = Path('/workspace/tcl-lsp')
+output = root / 'experiments/name-handling/results/vm-namespace-query-20261013'
+output.mkdir(exist_ok=False)
+paths = sorted({
+    str(path.relative_to(root))
+    for path in (root / 'rust').rglob('*')
+    if path.is_file() and (path.suffix == '.rs' or path.name == 'Cargo.toml')
+} | {'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'} | {
+    str(path.relative_to(root))
+    for directory in ['namespace-address-purpose', 'variable-namespace-query-bases']
+    for path in (root / 'experiments/name-handling' / directory).rglob('*')
+    if path.is_file()
+})
+def scope():
+    return {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in paths}
+
+before = scope()
+(output / 'source-hashes-before.json').write_text(json.dumps(before, indent=2) + '\n')
+selectors = ['interp::native_namespace_address_tests::original_namespace_address_c84', 'interp::native_namespace_address_tests::original_namespace_address_c85', 'interp::native_namespace_address_tests::original_namespace_address_c86', 'interp::native_namespace_address_tests::original_namespace_address_c90', 'interp::native_namespace_address_tests::original_namespace_address_c91', 'interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct', 'interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing', 'interp::native_variable_query_tests::original_variable_queries_c84', 'interp::native_variable_query_tests::original_variable_queries_c85', 'interp::native_variable_query_tests::original_variable_queries_c86', 'interp::native_variable_query_tests::original_variable_queries_c90', 'interp::native_variable_query_tests::original_variable_queries_c91', 'interp::native_variable_query_tests::original_variable_queries_jim']
+environment = os.environ.copy()
+environment['CARGO_TARGET_DIR'] = str(root / 'tmp/name-target-names')
+rows = []
+for index, selector in enumerate(selectors):
+    destination = output / f'{index + 1:02d}'
+    destination.mkdir()
+    command = ['cargo', 'test', '-p', 'tcl-vm', '--lib', selector, '--', '--exact', '--nocapture', '--test-threads=1']
+    print('START', selector, flush=True)
+    started = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    with (destination / 'stdout.txt').open('wb') as stdout, (destination / 'stderr.txt').open('wb') as stderr:
+        process = subprocess.run(command, cwd=root, env=environment, stdout=stdout, stderr=stderr, check=False)
+    row = {'selector': selector, 'command': command, 'started_utc': started,
+           'exit_code': process.returncode,
+           'stdout_sha256': hashlib.sha256((destination / 'stdout.txt').read_bytes()).hexdigest(),
+           'stderr_sha256': hashlib.sha256((destination / 'stderr.txt').read_bytes()).hexdigest()}
+    (destination / 'record.json').write_text(json.dumps(row, indent=2) + '\n')
+    rows.append(row)
+    (output / 'records.json').write_text(json.dumps(rows, indent=2) + '\n')
+    print('END', selector, process.returncode, flush=True)
+after = scope()
+(output / 'source-hashes-after.json').write_text(json.dumps(after, indent=2) + '\n')
+record = {'git_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
+          'scope': 'Genuine VM constructor original ASCII namespace command vectors with matching compiler for namespace body; retained/retired actual namespace adapter controls; exact original namespace-variable query result-input source with external identity reporting separate; no broad VM parity/native C API/raw-NUL/F5 equivalence claim',
+          'source_hashes_stable': before == after,
+          'target': environment['CARGO_TARGET_DIR'],
+          'planned_selectors': selectors, 'completed_selectors': len(rows),
+          'rustc': subprocess.check_output(['rustc', '-Vv'], cwd=root, env=environment, text=True),
+          'cargo': subprocess.check_output(['cargo', '-V'], cwd=root, env=environment, text=True),
+          'configuration': {name: environment.get(name) for name in ['CARGO_INCREMENTAL', 'CARGO_PROFILE_DEV_DEBUG', 'CARGO_PROFILE_TEST_DEBUG', 'RUSTFLAGS', 'TCL_LSP_REQUIRE_ALL_TCL_ORACLES', 'TCL_LSP_REQUIRE_JIM_ORACLE']},
+          'capture_runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+          'unexecuted': 'Unicode NUL source namespace rows, raw C-NUL APIs, errorInfo formatting, F5 outcomes, general VM/compiler correctness and native C object allocation equivalence are not established by this capture'}
+(output / 'provenance.json').write_text(json.dumps(record, indent=2) + '\n')
+(output / 'capture-runner.py.txt').write_bytes(Path(__file__).read_bytes())
+print('DONE stable=', before == after, flush=True)

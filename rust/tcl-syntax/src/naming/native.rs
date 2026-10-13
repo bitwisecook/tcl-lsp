@@ -287,11 +287,13 @@ pub fn native_procedure_compilation_name_input(
     }
 }
 
-/// Unsupported policy/context, rather than a native guest failure.
+/// A name projection refusal, including an independently selected invalid address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NameProjectionUnavailable {
     MissingJimNamespaceObject,
     PurposeNotModelled,
+    /// A selected empty relative C address cannot denote a non-root namespace.
+    EmptyNamespaceOutsideRoot,
 }
 
 impl std::fmt::Display for NameProjectionUnavailable {
@@ -299,6 +301,7 @@ impl std::fmt::Display for NameProjectionUnavailable {
         formatter.write_str(match self {
             Self::MissingJimNamespaceObject => "native Jim namespace object is unavailable",
             Self::PurposeNotModelled => "native name purpose is not modelled for this engine",
+            Self::EmptyNamespaceOutsideRoot => "empty namespace name outside the root namespace",
         })
     }
 }
@@ -1088,7 +1091,7 @@ impl NativeNameProtocol {
             && selected.qualification() != NativeNameQualification::Absolute
             && !context.namespace.is_root()
         {
-            return Err(NameProjectionUnavailable::PurposeNotModelled);
+            return Err(NameProjectionUnavailable::EmptyNamespaceOutsideRoot);
         }
         let mut path = if selected.qualification() == NativeNameQualification::Absolute {
             ByteNamespacePath::root()
@@ -1861,6 +1864,28 @@ pub struct NativeNamespaceOperationError {
     /// The native append/format result owns an unknown-count String primary.
     /// This pure recipe does not itself authorise physical cache installation.
     pub string_protocol: crate::native_string::NativeStringProtocol,
+}
+
+/// Report the selected invalid C namespace-creation address.
+///
+/// # Errors
+/// Refuses unsupported recipes and failures without this exact address reason.
+pub fn report_native_namespace_creation_error(
+    protocol: NativeNameProtocol,
+    reason: NameProjectionUnavailable,
+) -> Result<NativeNamespaceOperationError, NameProjectionUnavailable> {
+    let NativeNameProtocol::C(version) = protocol else {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    };
+    if reason != NameProjectionUnavailable::EmptyNamespaceOutsideRoot {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    }
+    Ok(NativeNamespaceOperationError {
+        message: b"can't create namespace \"\": only global namespace can have empty name".to_vec(),
+        error_code: (version >= TclVersion::V8_6)
+            .then(|| b"TCL OPERATION NAMESPACE CREATEGLOBAL".to_vec()),
+        string_protocol: crate::native_string::NativeStringProtocol::C(version),
+    })
 }
 
 /// Report a missing namespace using the actual operation and engine release.
@@ -4075,6 +4100,44 @@ fn rename_alias_loop_diagnostic_uses_selected_release_and_original_slot() {
 }
 
 #[test]
+fn empty_namespace_creation_diagnostic_requires_its_selected_address_reason() {
+    for version in TclVersion::ALL {
+        let report = report_native_namespace_creation_error(
+            NativeNameProtocol::C(version),
+            NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+        )
+        .unwrap();
+        assert_eq!(
+            report.message,
+            b"can't create namespace \"\": only global namespace can have empty name"
+        );
+        assert_eq!(
+            report.error_code.as_deref(),
+            (version >= TclVersion::V8_6)
+                .then_some(b"TCL OPERATION NAMESPACE CREATEGLOBAL".as_slice())
+        );
+        assert_eq!(
+            report.string_protocol,
+            crate::native_string::NativeStringProtocol::C(version)
+        );
+        assert!(
+            report_native_namespace_creation_error(
+                NativeNameProtocol::C(version),
+                NameProjectionUnavailable::PurposeNotModelled
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        report_native_namespace_creation_error(
+            NativeNameProtocol::Jim084,
+            NameProjectionUnavailable::EmptyNamespaceOutsideRoot
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn empty_relative_namespace_address_does_not_select_nonroot_caller() {
     let mut parent = ByteNamespacePath::root();
     parent.push(b"outer");
@@ -4087,10 +4150,9 @@ fn empty_relative_namespace_address_does_not_select_nonroot_caller() {
     ] {
         let recipe = NativeNameProtocol::C(version);
         for written in [b"".as_slice(), b"\0suffix"] {
-            assert!(
-                recipe
-                    .namespace_address_path(NativeNameContext::new(&parent), written)
-                    .is_err()
+            assert_eq!(
+                recipe.namespace_address_path(NativeNameContext::new(&parent), written),
+                Err(NameProjectionUnavailable::EmptyNamespaceOutsideRoot)
             );
             assert_eq!(
                 recipe

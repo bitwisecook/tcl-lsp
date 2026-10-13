@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src/lib.rs (tmp/name-target-names/debug/deps/tcl_syntax-88fc50aa79bbd375)
+
+running 2 tests
+test naming::native::empty_namespace_creation_diagnostic_requires_its_selected_address_reason ... ok
+test naming::native::empty_relative_namespace_address_does_not_select_nonroot_caller ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 668 filtered out; finished in 0.00s
+

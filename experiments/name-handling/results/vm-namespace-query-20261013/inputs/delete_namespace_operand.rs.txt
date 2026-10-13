@@ -1,0 +1,96 @@
+    }
+
+    pub(crate) fn delete_namespace_operand(
+        &mut self,
+        original: &[u8],
+    ) -> Result<bool, Completion<Value>> {
+        let address = match self.namespace_address_from_native_bytes(self.current_ns_id(), original)
+        {
+            Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => return Ok(false),
+            Err(error) => return Err(self.refuse_host_command(format!("{error:?}"))),
+        };
+        match address {
+            NativeNamespaceAddress::C { path, .. } => Ok(self.delete_namespace_path(&path)),
+            NativeNamespaceAddress::Jim { object, .. } => {
+                // The script helper retires matching flat commands and globals;
+                // it does not destroy a namespace object or reject an absent name.
+                if original.is_empty() || original == b"::" {
+                    return Ok(true);
+                }
+                let mut pattern = object.as_bytes().to_vec();
+                pattern.extend_from_slice(b"::*");
+                let keys = self.commands.keys().cloned().collect::<Vec<_>>();
+                for key in keys {
+                    let Some(slot) = self.command_slot(&key) else {
+                        continue;
+                    };
+                    let matched = self
+                        .native_namespace_match(
+                            tcl_syntax::native_glob::NativeNameGlobPurpose::InfoCommandsSearch,
+                            &pattern,
+                            slot.simple.as_bytes(),
+                        )
+                        .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+                    if matched {
+                        self.remove_registered_command(&key);
+                    }
+                }
+                self.delete_jim_namespace_globals_pattern(object.as_bytes())?;
+                Ok(true)
+            }
+        }
+    }
+
+    pub(crate) fn activate_namespace_operand(
+        &mut self,
+        original: &[u8],
+    ) -> Result<NsId, Completion<Value>> {
+        let address = match self.namespace_address_from_native_bytes(self.current_ns_id(), original)
+        {
+            Ok(address) => address,
+            Err(NativeNamespaceAddressError::Projection(
+                reason @ tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot,
+            )) => {
+                let Some(policy) = self.name_policy_protocol() else {
+                    return Err(self.refuse_host_command(
+                        "native namespace creation protocol is unavailable".into(),
+                    ));
+                };
+                let report = tcl_syntax::naming::report_native_namespace_creation_error(
+                    policy.recipe(),
+                    reason,
+                )
+                .map_err(|error| self.refuse_host_command(format!("{error:?}")))?;
+                return Err(self.namespace_operation_error(report));
+            }
+            Err(error) => return Err(self.refuse_host_command(format!("{error:?}"))),
+        };
+        match address {
+            NativeNamespaceAddress::Jim { object, .. } => {
+                Ok(self.intern_jim_namespace_object(object.as_bytes()))
+            }
+            NativeNamespaceAddress::C { path, absolute } => {
+                let dying = self
+                    .namespace_token_at_path(&path, absolute)
+                    .is_some_and(|token| {
+                        self.name_world.borrow().dying_namespaces.contains(&token)
+                    });
+                if dying {
+                    let mut message = b"can't create namespace \"::".to_vec();
+                    message
+                        .extend_from_slice(Self::namespace_path_reporting_bytes(&path).as_bytes());
+                    message.extend_from_slice(b"\": already exists");
+                    return Err(err(message));
+                }
+                if !absolute && let Some(token) = self.retained_token_at_path(&path) {
+                    return Ok(token);
+                }
+                self.declare_namespace_path_with_origin(path.clone(), absolute);
+                Ok(self.definition_namespace_token_at_path(&path, absolute))
+            }
+        }
+    }
+

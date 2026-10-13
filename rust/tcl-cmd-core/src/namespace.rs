@@ -624,23 +624,8 @@ pub fn which_variable_bytes_checked<O: Namespaces + ?Sized>(
     ops.namespace_variable_name_bytes_checked(ops.current(), name)
 }
 
-/// `namespace which -variable name` — the fully-qualified name `name` resolves
-/// to as a **namespace** variable from the current namespace, or the empty
-/// string.
-///
-/// C's `NamespaceWhichCmd` case 1 calls `Tcl_FindNamespaceVar(interp, name,
-/// NULL, 0)` (`tclNamesp.c:4657-4664`), which walks namespace `varTable`s and
-/// **never** the call frame: a proc-local variable answers the empty string
-/// even while it is set, and a qualified name commits to the namespace its
-/// qualifier resolves to.
-///
-/// The one release axis is the *alternate* search. `ObjFindNamespaceVar`
-/// (`tclVar.c`) hands `TclGetNamespaceForQualName` two candidate namespaces
-/// and tries both; Tcl 9.0 added `flags |= TCL_NAMESPACE_ONLY`
-/// (`tcl9.0.4 tclVar.c:5951-5953`), which blanks the second, so 8.x falls back
-/// to the **global** namespace where 9.0 does not — tclsh-pinned:
-/// `set ::gv 1; namespace eval n {namespace which -variable gv}` is `::gv` on
-/// 8.6.16 and `{}` on 9.0.4.
+/// Render explicit Logical namespace-variable advice.
+/// Original receivers use [`which_variable_bytes_checked`].
 pub fn which_variable<O: ValueOps + Namespaces>(
     ops: &mut O,
     name: &str,
@@ -652,59 +637,57 @@ pub fn which_variable<O: ValueOps + Namespaces>(
     }
 }
 
-/// [`which_variable`]'s resolution step over a **byte-valued** name — the
-/// `&self` form for adapters that hold names as bytes.
-///
-/// A Tcl variable name is a byte string (`set [binary format c 255] 1`), so
-/// the resolution runs on bytes end to end: the qualifier split is already a
-/// byte op, and the namespace/table probes go through the `Namespaces`
-/// byte-valued spellings. A byte-native runtime therefore never has to route
-/// a name through `str`.
+/// Explicit Logical namespace-variable reporting over the supplied table adapter.
+/// Original native queries use [`which_variable_bytes_checked`].
 pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
     ops: &O,
     name: &[u8],
     profile: &tcl_dialect::DialectProfile,
 ) -> Option<Vec<u8>> {
+    use tcl_syntax::naming::{VariableLookupBase, variable_namespace_lookup_bases};
     let cur = ops.current();
-    // Variable resolution has no existence-checked fall-through the way
-    // command resolution does (`tclVar.c`'s `TclLookupSimpleVar`): the
-    // qualifier names the namespace outright.
-    let (primary, simple): (Option<tcl_runtime_api::NsId>, Vec<u8>) = match qualifier(name) {
-        Qualifier::Unqualified => (Some(cur), name.to_vec()),
-        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => {
-            (ops.find_namespace_bytes(cur, prefix), tail(name).to_vec())
-        }
+    let qualifier = qualifier(name);
+    let simple = match qualifier {
+        Qualifier::Unqualified => name,
+        Qualifier::Absolute(_) | Qualifier::Relative(_) => tail(name),
     };
-    // The alternate (global-rooted) candidate — TIP 278, dropped from 9.0 on.
-    // The release test is the dialect layer's to own (it follows the vendor
-    // shells' embedded core version, which a bare `TCL90_PLUS` mask test gets
-    // wrong), so ask it rather than re-deriving the comparison here. An
-    // absolute name has no alternate in any release: it already names the
-    // global-rooted namespace.
-    let alternate = match qualifier(name) {
-        _ if !profile.namespace_var_global_fallback() => None,
-        Qualifier::Absolute(_) => None,
-        Qualifier::Unqualified => ops.find_namespace_bytes(cur, b"::"),
-        Qualifier::Relative(prefix) => {
+    let namespaces: Vec<_> = variable_namespace_lookup_bases(
+        matches!(qualifier, Qualifier::Absolute(_)),
+        cur,
+        profile.namespace_var_global_fallback(),
+    )
+    .map(|base| match (base, &qualifier) {
+        (VariableLookupBase::Context(current), Qualifier::Unqualified) => Some(current),
+        (VariableLookupBase::Context(current), Qualifier::Relative(prefix)) => {
+            ops.find_namespace_bytes(current, prefix)
+        }
+        (VariableLookupBase::Root, Qualifier::Unqualified) => ops.find_namespace_bytes(cur, b"::"),
+        (VariableLookupBase::Root, Qualifier::Absolute(prefix)) => {
+            ops.find_namespace_bytes(cur, prefix)
+        }
+        (VariableLookupBase::Root, Qualifier::Relative(prefix)) => {
             let mut rooted = b"::".to_vec();
             rooted.extend_from_slice(prefix);
             ops.find_namespace_bytes(cur, &rooted)
         }
-    };
-    let ns = [primary, alternate]
+        (VariableLookupBase::Context(_), Qualifier::Absolute(_)) => {
+            unreachable!("absolute names have only a root base")
+        }
+    })
+    .collect();
+    let ns = namespaces
         .into_iter()
         .flatten()
-        .find(|ns| ops.namespace_var_exists_bytes(*ns, &simple))?;
+        .find(|ns| ops.namespace_var_exists_bytes(*ns, simple))?;
     let mut fqn = ops.name_bytes(ns);
     if fqn != b"::" {
         fqn.extend_from_slice(b"::");
     }
-    fqn.extend_from_slice(&simple);
+    fqn.extend_from_slice(simple);
     Some(fqn)
 }
 
-/// [`variable_fqn_bytes`] for the UTF-8-keyed adapters (the VM), whose own
-/// tables cannot hold a non-UTF-8 name in the first place.
+/// Lossy UTF-8 presentation of the explicit Logical reporting result.
 pub fn variable_fqn<O: Namespaces + ?Sized>(
     ops: &O,
     name: &str,

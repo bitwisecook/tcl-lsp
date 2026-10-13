@@ -1,0 +1,150 @@
+{
+  "script_sha256": "9430513a6bc38199293e523cbb5acd1b61a1bf8c205361d1509bf84fac39b827",
+  "rows": [
+    {
+      "provider": "84",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 8.4.20\nbare-global ::g\nrelative-root ::RootChild::v\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent {}\ndeclaration-shell ::N::g\nprocedure-local {}\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "5a21feff3cca60394910a0b5269428645915140241f0d96b6d0c928262eb23ae",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011"
+      },
+      "init_tcl_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "query_count": 8
+    },
+    {
+      "provider": "85",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 8.5.19\nbare-global ::g\nrelative-root ::RootChild::v\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent {}\ndeclaration-shell ::N::g\nprocedure-local {}\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "95b526a589d73448779ee10e7b3a2a71101c3cd2fd513060c2039330e972e200",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+      },
+      "init_tcl_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "query_count": 8
+    },
+    {
+      "provider": "86",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 8.6.18\nbare-global ::g\nrelative-root ::RootChild::v\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent {}\ndeclaration-shell ::N::g\nprocedure-local {}\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "31825b308600843be3a882d77cee55f5413f60992cf3a0db369b9ff36cafab5a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+      },
+      "init_tcl_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "query_count": 8
+    },
+    {
+      "provider": "90",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 9.0.4\nbare-global {}\nrelative-root {}\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent {}\ndeclaration-shell ::N::g\nprocedure-local {}\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "d42870629516ee5aa21fc5c0c6a2082741aa9759b540411023a553fe84b5bf06",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/tcl9.0.4/unix/libtcl9.0.a": "c1fef73d6842ea10b5ec81de5f4a92bd9376e2f0f842b2b434be8a3b87e7a86f"
+      },
+      "init_tcl_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "query_count": 8
+    },
+    {
+      "provider": "91",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 9.1.0\nbare-global {}\nrelative-root {}\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent {}\ndeclaration-shell ::N::g\nprocedure-local {}\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "2c3cafa313efbfe25c0075921fda29cdb4fcbac7a56ef2285ddd7775bace9d01",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/tcl9.1.0/unix/libtcl9.1.a": "7065af82e6e2c2b15dd45e3146ebb4fa7ed6b0b293a8c66c17b91b27dfdcaa61"
+      },
+      "init_tcl_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "query_count": 8
+    },
+    {
+      "provider": "jim",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit": 0,
+      "stdout": "PATCHLEVEL 0.84-9-g5bac7c9\nbare-global ::N::g\nrelative-root ::N::RootChild::v\nrelative-local ::N::Child::v\nabsolute-root ::RootChild::v\nabsent ::N::missing\ndeclaration-shell ::N::g\nprocedure-local ::N::local\nprocedure-global-link ::N::g\n",
+      "stderr": "",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/variable-namespace-query-bases/input.tcl"
+      ],
+      "channel": "complete ASCII source file; original bytes retained",
+      "evidence_argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-variable-query-controls.tcl"
+      ],
+      "stdout_sha256": "71e01abdb19381edb3ab60d3d78da5015410e6222f426e15abafb9313dcd095d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "library_files": {
+        "tmp/jimtcl-oracle/libjim.a": "2e75f1e259dc7896fa6996ebe2ad0fb5de2864770a772a0d102b2b6306280c61"
+      },
+      "query_count": 8
+    }
+  ],
+  "total_query_count": 48,
+  "scope": "Native source-script namespace-variable reporting only; no raw CString NUL, original object/header or cell identity, ordinary read/write, F5, or Rust execution measurement."
+}

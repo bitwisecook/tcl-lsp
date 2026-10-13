@@ -1,0 +1,34 @@
+{
+  "git_commit": "c8dbf8c384ed613ae9032114a141d0a470206947",
+  "scope": "Genuine VM constructor original ASCII namespace command vectors with matching compiler for namespace body; retained/retired actual namespace adapter controls; exact original namespace-variable query result-input source with external identity reporting separate; no broad VM parity/native C API/raw-NUL/F5 equivalence claim",
+  "source_hashes_stable": true,
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "planned_selectors": [
+    "interp::native_namespace_address_tests::original_namespace_address_c84",
+    "interp::native_namespace_address_tests::original_namespace_address_c85",
+    "interp::native_namespace_address_tests::original_namespace_address_c86",
+    "interp::native_namespace_address_tests::original_namespace_address_c90",
+    "interp::native_namespace_address_tests::original_namespace_address_c91",
+    "interp::native_namespace_address_tests::namespace_address_keeps_retained_context_and_live_root_distinct",
+    "interp::native_namespace_address_tests::namespace_address_retired_owner_is_unavailable_not_missing",
+    "interp::native_variable_query_tests::original_variable_queries_c84",
+    "interp::native_variable_query_tests::original_variable_queries_c85",
+    "interp::native_variable_query_tests::original_variable_queries_c86",
+    "interp::native_variable_query_tests::original_variable_queries_c90",
+    "interp::native_variable_query_tests::original_variable_queries_c91",
+    "interp::native_variable_query_tests::original_variable_queries_jim"
+  ],
+  "completed_selectors": 13,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "configuration": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": null,
+    "RUSTFLAGS": null,
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1"
+  },
+  "capture_runner_sha256": "db87ef38cf3600cf77c15d5c4c5e3f0128a66aff74163af14064b57275345ff6",
+  "unexecuted": "Unicode NUL source namespace rows, raw C-NUL APIs, errorInfo formatting, F5 outcomes, general VM/compiler correctness and native C object allocation equivalence are not established by this capture"
+}

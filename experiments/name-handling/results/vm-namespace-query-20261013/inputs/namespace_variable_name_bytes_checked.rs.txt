@@ -1,0 +1,78 @@
+    //
+    fn namespace_variable_name_bytes_checked(
+        &self,
+        context: NsId,
+        original: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::{naming::NativeNameContext, value::ValueError};
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace variable query issuer",
+            ))?;
+        let protocol = policy.recipe();
+        let projected = protocol.namespace_variable_query_input(original);
+        if protocol.is_jim084() {
+            let path = self.ns_path(context);
+            let world = self.name_world.borrow();
+            let object = world.jim_namespace_objects.get(&context).ok_or(
+                ValueError::CommandProtocolUnavailable("namespace variable query context"),
+            )?;
+            let canonical = protocol
+                .jim_namespace_canonical_input(
+                    NativeNameContext::with_jim_namespace(&path, object.as_bytes()),
+                    projected.selected(),
+                )
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable(
+                        "namespace variable query canonicalisation",
+                    )
+                })?;
+            let mut report = b"::".to_vec();
+            report.extend_from_slice(canonical.selected());
+            return Ok(Some(report));
+        }
+        if !self.name_world.borrow().is_live() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "namespace variable query world",
+            ));
+        }
+        let query = projected.variable_namespace_projection().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("namespace variable query purpose")
+        })?;
+        let bases = query
+            .namespace_query_bases(context, &ROOT_NS)
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("namespace variable query lookup policy")
+            })?;
+        for base in bases {
+            let context = match base {
+                tcl_syntax::naming::VariableLookupBase::Context(context) => context,
+                tcl_syntax::naming::VariableLookupBase::Root => ROOT_NS,
+            };
+            let Some(binding) =
+                self.namespace_var_binding_from_token_bytes(context, projected.selected())
+            else {
+                continue;
+            };
+            let Some(raw) = self.raw_variable_binding(&binding) else {
+                continue;
+            };
+            if self.var_arena.get(raw).is_none() {
+                continue;
+            }
+            let VarTableOwner::Namespace(namespace) = binding.owner else {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "namespace variable query owner",
+                ));
+            };
+            let mut report = Namespaces::name_bytes(self, namespace);
+            if namespace != ROOT_NS {
+                report.extend_from_slice(b"::");
+            }
+            report.extend_from_slice(binding.name.as_bytes());
+            return Ok(Some(report));
+        }
+        Ok(None)
+    }
+

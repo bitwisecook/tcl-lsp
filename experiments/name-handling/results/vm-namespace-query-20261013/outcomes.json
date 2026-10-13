@@ -1,0 +1,24 @@
+{
+  "test_binary": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_vm-fca3c8e51a016987",
+  "test_binary_sha256": "218507cf5b4f809056102a663e7c9796c3a38f354082d5fb7b4a43559754c96a",
+  "executed_selectors": 13,
+  "passed_selectors": 6,
+  "failed_selectors": 7,
+  "completed_namespace_ascii_rows": 12,
+  "completed_variable_query_rows": 24,
+  "failed_namespace_observation": "C85/C86/C90/C91 code/result observations reached nonroot empty creation but test incorrectly required global errorCode publication after direct object entry; completion metadata is the correct observation. No full12-row result claimed for those providers.",
+  "failed_query_entry": "C86/C90/C91 original result-input source rejected with CompilationAdmission(NativePreflightRequired); no query result claimed.",
+  "source_hashes_stable": true,
+  "inputs": {
+    "namespace_lookup_error_at.rs.txt": "0dc889bcf23003b5143b42aad175769b84c4a330a47971b01725a3c023bcfc86",
+    "native-fixture.rs.txt": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+    "find_namespace_bytes_checked.rs.txt": "a70012d14b480d9679902d91309baa14eb5e1fd81851a78229aee86fa0d9d073",
+    "namespace_variable_name_bytes_checked.rs.txt": "71fee1df96a0e9355b692f752813d170306be924bad0b6c888d8e7d7d6db9653",
+    "delete_namespace_operand.rs.txt": "e6a9315cc0576e25e8fc50ecbaba3b15b53a3dd6e74d23d0343c10866d2a8df9",
+    "namespace_address_from_native_bytes.rs.txt": "e040117d04e7d2d983a968b2f8e1a49bd55ce3baa7dd39ba92c3d40be4404b56",
+    "namespace-address-tests.rs.txt": "bf61edfe7c2a8d7210a72c40c9a4012dcd528836405075d8a92b10f7537d1b2d",
+    "variable-query-tests.rs.txt": "51e5415704f0901b054a2f6d89761e5dd36c3c0d666cbb067402de774a52758d",
+    "namespace-address-input.tcl.txt": "de5b5ee583c39848355513925420e1a316f262f183173feffc7072fba8da49ab",
+    "variable-query-input.tcl.txt": "10b4e6a869a181f82eeeb692c203bc77ace0b124b7fc6f28771191b7e58d8dec"
+  }
+}

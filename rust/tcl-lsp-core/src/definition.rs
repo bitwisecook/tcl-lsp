@@ -1900,34 +1900,10 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     ns_global_fallback: bool,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
     use tcl_compiler::analyser::ScopeKind;
-    // A `::`-qualified name first tries a direct, single-table lookup in
-    // exactly the namespace the qualifier names (tclsh 9.0.4/8.6.16-verified:
-    // `$other::v` referenced from inside namespace ::mine never tries
-    // ::mine::other::v — only the one namespace the qualifier actually
-    // resolves to). An absolute qualifier (leading `::`) resolves from the
-    // global namespace; a relative one resolves under the cursor's own
-    // command-resolution namespace — empirically the *same* namespace an
-    // unqualified command there would resolve against, including the
-    // `oo::class` method global-only special case and the `uplevel #0`
-    // reset, so [`innermost_namespace_at`] (already the single canonical
-    // implementation of that rule) doubles as the qualifier's base with no
-    // separate variable-specific namespace logic. This alone covers every
-    // `variable`-declared namespace cell from *anywhere* in the file — the
-    // case the qualified outward walk below can't reach, since it only
-    // ever sees scopes on the cursor's own lexical chain.
-    //
-    // A miss falls through to that walk rather than returning early: a
-    // literal-qualified write with no preceding `namespace eval` / `variable`
-    // (`set ns::var val`) records its `VarDef` verbatim under the writer's
-    // own active scope, with no namespace-tree node to find by path — that
-    // shape is only reachable when the cursor's own chain happens to include
-    // the scope that wrote it (`chain[0]`, the global scope, always does).
+    // Qualified Logical advice first queries its constructed namespace; literal
+    // qualified writes can also be recorded on the active lexical scope chain.
     if name.contains("::") {
-        // Variable ($var) resolution deliberately does not consult
-        // `namespace_overrides` (an `apply` namespace override scopes
-        // command/bareword resolution only) — `&[]` keeps this call
-        // provably unaffected; `scope` alone (no `analysis`) is available
-        // here regardless.
+        // Variable advice does not borrow command-only namespace overrides.
         let here = namespace_context_at(scope, byte_offset, &[]);
         let qualified = tcl_compiler::naming::qualify(&here, name);
         let (target_ns, base_name) = tcl_compiler::naming::key_holder_and_tail(&qualified);
@@ -1937,20 +1913,9 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
             return Some(v);
         }
     }
-    // First, find the innermost scope containing the cursor.
     let chain = scope_chain_at(scope, byte_offset);
-    // A bare name at a **namespace frame** (cursor directly in a `namespace
-    // eval` body) follows C Tcl's two-table rule: the namespace's own
-    // variables, then — only under a Tcl 8.x dialect (TIP 278;
-    // `ns_global_fallback`, from
-    // `AnalysisResult::ns_var_global_fallback`) — the global namespace.
-    // Enclosing *intermediate* namespaces are never consulted in **any**
-    // version.  Qualified names (the direct namespace lookup above already
-    // missed) and proc-like frames (proc / method / uplevel bodies) keep the
-    // lenient outward walk below.  (An `interp eval` child scope shares the
-    // `Namespace` kind, so under 8.x the global leg can still cross the
-    // interp boundary — a leniency this rule narrows from "every enclosing
-    // scope" to "the global table only".)
+    // Bare namespace-frame advice tries its own table and the selected global
+    // alternate, never an intermediate enclosing namespace.
     if !name.contains("::")
         && chain.len() > 1
         && chain
@@ -1958,18 +1923,17 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
             .is_some_and(|sc| sc.kind == ScopeKind::Namespace)
     {
         let ns = chain.last().expect("guarded: chain has a last element");
-        if let Some(v) = ns.variables.get(name) {
-            return Some(v);
-        }
-        return ns_global_fallback
-            .then(|| {
-                chain
+        return tcl_syntax::naming::variable_namespace_lookup_bases(false, ns, ns_global_fallback)
+            .find_map(|base| match base {
+                tcl_syntax::naming::VariableLookupBase::Context(current) => {
+                    current.variables.get(name)
+                }
+                tcl_syntax::naming::VariableLookupBase::Root => chain
                     .first()
                     .expect("guarded: chain has a first element")
                     .variables
-                    .get(name)
-            })
-            .flatten();
+                    .get(name),
+            });
     }
     // Walk outward (innermost-first) looking for the var, honouring the
     // `uplevel` frame semantics (see [`uplevel_hides_scope`]).

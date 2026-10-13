@@ -40,8 +40,9 @@ The original full library/tests inventory was independently validated against
 the retained upstream Git blob receipt. A separate identity control verifies
 the same hashed binary's reported release, patchlevel and matching library
 after measurement; its original input and raw channels are retained. Tcltest
-is not used. No Jim, F5 or VM result is claimed; these observations are not
-promoted to consumer conformance tests.
+is not used. No Jim or F5 result is claimed. These observations supply the expected
+ASCII command results in the VM tests linked below; the reference captures
+alone do not prove a VM consumer executes those commands.
 
 The NUL control is a Tcl STRING operand constructed by `format %c 0`, not a
 byte buffer passed directly to a C namespace API. Native string materialisation
@@ -59,21 +60,30 @@ LD_LIBRARY_PATH=/absolute/tcl8.6.18/unix \
   > /absolute/new-stdout.bin 2> /absolute/new-stderr.bin
 ```
 
-## Consumer obligations
+## Consumer contract
 
-VM `namespace_address_from_native_bytes` repeats the shared C address geometry
-and currently selects its context path for empty relative input.
-`NativeNameProtocol::namespace_address_path` instead refuses that non-global
-geometry. Checked lookup must preserve a proved missing original operand as
-`Ok(None)`, separately from unsupported context/protocol. Namespace creation
-needs its measured operation-specific diagnostic and release error code.
+`NativeNameProtocol::namespace_address_path` owns C operand selection and
+component geometry. An explicit empty relative operand outside the root emits
+`NameProjectionUnavailable::EmptyNamespaceOutsideRoot`, a known invalid
+address distinct from an unavailable protocol or context. VM namespace lookup
+maps only that reason to a missing namespace; creation uses
+`report_native_namespace_creation_error` and the existing guest completion
+transport. Actual namespace tokens, cache validity, retained context and
+recreated namespace incarnations remain the adapter's responsibility.
 
-Unchecked `Namespaces::find_namespace_bytes` also contains an explicit
-empty-to-current shortcut. Its callers need purpose review: an omitted optional
-operand is already represented independently as `None` in the shared
-parent/children resolver, while an explicit operand is a lookup. Import and
-namespace-variable qualifier helpers retain their own original input purpose
-and absolute-root prefix. Do not change a sentinel contract by assuming it is
-an original operand, or introduce an empty-to-current fallback for actual
-lookup. Direct VM original-object `exists` uses the checked namespace getter;
-cache validity and namespace incarnation must stay independent of display text.
+An omitted optional operand is represented independently as `None` in the
+shared parent/children resolver. An explicit empty operand uses the address
+owner; it cannot donate an implicit current-namespace token. Import patterns
+and namespace-variable qualifiers retain their own input purposes and
+absolute-root prefixes.
+
+[`native_namespace_address_tests.rs`](../../../rust/tcl-vm/src/interp/native_namespace_address_tests.rs)
+selects 12 ASCII empty/absolute-root command rows per C release and compares
+completion code, result bytes and failed-creation errorCode through original
+command-object entry. Actual native core construction precedes namespace
+allocation; namespace-body execution uses the independently selected source
+compiler. The six Unicode-NUL rows per release are explicitly outside that
+control, as is errorInfo formatting. Separate adapter controls exercise
+retained namespace context against a same-named live recreation and reject a
+retired interpreter owner. Their execution evidence must be assessed
+separately from these real C observations.
