@@ -1,0 +1,207 @@
+{
+  "probe_sha256": "3938fcadcfddafad48ab4dc52a80918fcb6f11cc10dbffc8680613df6be66e3a",
+  "oracles": [
+    {
+      "oracle": "C Tcl",
+      "version": "8.4.20",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "shell_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.626144+00:00",
+      "elapsed_seconds": 0.005109444000026997,
+      "exit_code": 0,
+      "stdout": "c-8.4.20.stdout",
+      "stderr": "c-8.4.20.stderr"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "8.5.19",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "shell_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.631329+00:00",
+      "elapsed_seconds": 0.005986851999750797,
+      "exit_code": 0,
+      "stdout": "c-8.5.19.stdout",
+      "stderr": "c-8.5.19.stderr"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "8.6.18",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "shell_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.637384+00:00",
+      "elapsed_seconds": 0.008347141999820451,
+      "exit_code": 0,
+      "stdout": "c-8.6.18.stdout",
+      "stderr": "c-8.6.18.stderr"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "9.0.4",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "shell_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.645803+00:00",
+      "elapsed_seconds": 0.016587631000220426,
+      "exit_code": 0,
+      "stdout": "c-9.0.4.stdout",
+      "stderr": "c-9.0.4.stderr"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "9.1.0",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "shell_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.662477+00:00",
+      "elapsed_seconds": 0.017492010000296432,
+      "exit_code": 0,
+      "stdout": "c-9.1.0.stdout",
+      "stderr": "c-9.1.0.stderr"
+    },
+    {
+      "oracle": "JimTcl",
+      "commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "shell": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "shell_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe.tcl"
+      ],
+      "started_utc": "2026-10-13T13:17:18.680004+00:00",
+      "elapsed_seconds": 0.007590586000333133,
+      "exit_code": 0,
+      "stdout": "jim.stdout",
+      "stderr": "jim.stderr"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "8.4.20",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "shell_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.850672+00:00",
+      "elapsed_seconds": 0.0024857379999048135,
+      "exit_code": 0,
+      "stdout": "c-8.4.20-crlf.stdout",
+      "stderr": "c-8.4.20-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "8.5.19",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "shell_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.853235+00:00",
+      "elapsed_seconds": 0.0022503929999402317,
+      "exit_code": 0,
+      "stdout": "c-8.5.19-crlf.stdout",
+      "stderr": "c-8.5.19-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "8.6.18",
+      "shell": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "shell_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.855544+00:00",
+      "elapsed_seconds": 0.0026697560001593956,
+      "exit_code": 0,
+      "stdout": "c-8.6.18-crlf.stdout",
+      "stderr": "c-8.6.18-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "9.0.4",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "shell_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.858273+00:00",
+      "elapsed_seconds": 0.006144595000023401,
+      "exit_code": 0,
+      "stdout": "c-9.0.4-crlf.stdout",
+      "stderr": "c-9.0.4-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    },
+    {
+      "oracle": "C Tcl",
+      "version": "9.1.0",
+      "shell": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "shell_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.864473+00:00",
+      "elapsed_seconds": 0.005881599000076676,
+      "exit_code": 0,
+      "stdout": "c-9.1.0-crlf.stdout",
+      "stderr": "c-9.1.0-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    },
+    {
+      "oracle": "JimTcl",
+      "commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "shell": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "shell_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/braced-source-correspondence/probe-crlf.tcl"
+      ],
+      "started_utc": "2026-10-13T13:18:07.870414+00:00",
+      "elapsed_seconds": 0.004191941000044608,
+      "exit_code": 0,
+      "stdout": "jim-crlf.stdout",
+      "stderr": "jim-crlf.stderr",
+      "input": "probe-crlf.tcl",
+      "probe_sha256": "0837f939e5f15088cf10972ba4913c2924c5a3bd990d9d5fb4f7a2cbd29d20d8"
+    }
+  ]
+}

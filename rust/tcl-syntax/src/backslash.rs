@@ -89,14 +89,39 @@ fn collapse_continuations(
     trim_preceding: bool,
     channel: tcl_lexer::SourceChannel,
 ) -> Cow<'_, [u8]> {
+    collapse_continuations_mapped(raw, trim_preceding, channel, false).bytes
+}
+
+struct CollapsedSource<'a> {
+    bytes: Cow<'a, [u8]>,
+    boundaries: Vec<usize>,
+    continuations: Vec<std::ops::Range<usize>>,
+}
+
+fn collapse_continuations_mapped(
+    raw: &[u8],
+    trim_preceding: bool,
+    channel: tcl_lexer::SourceChannel,
+    mapped: bool,
+) -> CollapsedSource<'_> {
     if !raw
         .iter()
         .enumerate()
         .any(|(i, _)| tcl_lexer::source_backslash_continuation_end(raw, i, channel).is_some())
+        && !mapped
     {
-        return source_literal_bytes(raw, channel);
+        return CollapsedSource {
+            bytes: source_literal_bytes(raw, channel),
+            boundaries: Vec::new(),
+            continuations: Vec::new(),
+        };
     }
     let mut out = Vec::with_capacity(raw.len());
+    let mut boundaries = Vec::new();
+    let mut continuations = Vec::new();
+    if mapped {
+        boundaries.push(0);
+    }
     let mut i = 0;
     while i < raw.len() {
         if raw[i] == b'\\' {
@@ -107,8 +132,16 @@ fn collapse_continuations(
                         while matches!(out.last(), Some(b' ' | b'\t')) {
                             out.pop();
                         }
+                        if mapped {
+                            boundaries.truncate(out.len() + 1);
+                        }
                     }
+                    let start = out.len();
                     out.push(b' ');
+                    if mapped {
+                        boundaries.push(i);
+                        continuations.push(start..out.len());
+                    }
                     continue;
                 }
                 // A non-continuation backslash escapes the next byte for
@@ -118,11 +151,17 @@ fn collapse_continuations(
                 None if let Some(&b) = raw.get(i + 1) => {
                     out.push(b'\\');
                     out.push(b);
+                    if mapped {
+                        boundaries.extend([i + 1, i + 2]);
+                    }
                     i += 2;
                     continue;
                 }
                 None => {
                     out.push(b'\\');
+                    if mapped {
+                        boundaries.push(i + 1);
+                    }
                     i += 1;
                     continue;
                 }
@@ -135,8 +174,15 @@ fn collapse_continuations(
             out.push(raw[i]);
         }
         i += 1;
+        if mapped {
+            boundaries.push(i);
+        }
     }
-    Cow::Owned(out)
+    CollapsedSource {
+        bytes: Cow::Owned(out),
+        boundaries,
+        continuations,
+    }
 }
 
 /// Literal value bytes selected by the original source channel. This produces
@@ -304,6 +350,141 @@ pub fn native_source_braced_word_bytes(
             native_source_literal_bytes(&bytes, channel, protocol)?.into_owned(),
         )),
     }
+}
+
+/// Readonly correspondence for an original braced word and its selected value.
+/// A folded continuation has no ordinary original occurrence extent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBracedWordSourceMap {
+    bytes: Vec<u8>,
+    boundaries: Vec<Option<usize>>,
+    originals: Vec<(usize, usize)>,
+    continuations: Vec<std::ops::Range<usize>>,
+}
+
+impl NativeBracedWordSourceMap {
+    /// Exact value bytes under the independently selected source recipe.
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Map complete native units without crossing a folded continuation.
+    #[must_use]
+    pub fn original_extent(
+        &self,
+        native: std::ops::Range<usize>,
+    ) -> Option<std::ops::Range<usize>> {
+        if native.start > native.end
+            || self.continuations.iter().any(|continuation| {
+                native.start < continuation.end && continuation.start < native.end
+            })
+        {
+            return None;
+        }
+        Some(
+            self.boundaries.get(native.start).copied().flatten()?
+                ..self.boundaries.get(native.end).copied().flatten()?,
+        )
+    }
+
+    /// Reverse only exact original boundaries whose forward map agrees.
+    #[must_use]
+    pub fn native_extent(
+        &self,
+        original: std::ops::Range<usize>,
+    ) -> Option<std::ops::Range<usize>> {
+        if original.start > original.end {
+            return None;
+        }
+        let boundary = |at| {
+            self.originals
+                .binary_search_by_key(&at, |&(original, _)| original)
+                .ok()
+                .map(|index| self.originals[index].1)
+        };
+        let native = boundary(original.start)?..boundary(original.end)?;
+        (self.original_extent(native.clone())? == original).then_some(native)
+    }
+}
+
+/// Retain the existing continuation and native-unit owners' boundary map.
+/// This grants source correspondence, never edit or execution authority.
+///
+/// # Errors
+/// Returns the same source-channel refusal as [`native_source_braced_word_bytes`].
+pub fn native_source_braced_word_map(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    rule: tcl_dialect::BraceBackslashNewline,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<NativeBracedWordSourceMap, NativeSourceUnavailable> {
+    let collapsed = if rule.folds() {
+        collapse_continuations_mapped(raw, false, channel, true)
+    } else {
+        CollapsedSource {
+            bytes: Cow::Borrowed(raw),
+            boundaries: (0..=raw.len()).collect(),
+            continuations: Vec::new(),
+        }
+    };
+    let ingress = if channel == tcl_lexer::SourceChannel::Document {
+        native_document_ingress(&collapsed.bytes, protocol)?
+    } else {
+        NativeDocumentIngress {
+            bytes: Cow::Borrowed(&collapsed.bytes),
+            boundaries: None,
+        }
+    };
+    let text = if channel == tcl_lexer::SourceChannel::Document {
+        Some(
+            std::str::from_utf8(raw)
+                .map_err(|_| NativeSourceUnavailable::InvalidDocumentUnicode)?,
+        )
+    } else {
+        None
+    };
+    let boundaries: Vec<_> = (0..=ingress.bytes.len())
+        .map(|native| {
+            let collapsed_offset = ingress.original_offset(native)?;
+            let original = *collapsed.boundaries.get(collapsed_offset)?;
+            text.is_none_or(|text| text.is_char_boundary(original))
+                .then_some(original)
+        })
+        .collect();
+    let originals = boundaries
+        .iter()
+        .enumerate()
+        .filter_map(|(native, original)| original.map(|original| (original, native)))
+        .collect();
+    let continuations = collapsed
+        .continuations
+        .iter()
+        .map(|extent| {
+            Some(ingress.native_offset(extent.start)?..ingress.native_offset(extent.end)?)
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(NativeSourceUnavailable::GrammarProtocolMismatch)?;
+    Ok(NativeBracedWordSourceMap {
+        bytes: ingress.bytes.into_owned(),
+        boundaries,
+        originals,
+        continuations,
+    })
+}
+
+/// Checked original extent of a braced native value range.
+#[must_use]
+pub fn native_source_braced_word_extent(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    rule: tcl_dialect::BraceBackslashNewline,
+    protocol: crate::native_string::NativeStringProtocol,
+    native: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    native_source_braced_word_map(raw, channel, rule, protocol)
+        .ok()?
+        .original_extent(native)
 }
 
 /// Source-to-native value map. Only boundaries owned by original input are
@@ -1620,6 +1801,86 @@ mod executable_text_tests {
 #[cfg(test)]
 mod original_literal_extent_tests {
     use super::*;
+
+    #[test]
+    fn braced_continuation_correspondence_retains_separate_original_occurrences() {
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            let rule = tcl_dialect::BraceBackslashNewline::Folds;
+            for channel in [Document, NativeValue] {
+                let raw = b"a  \\\n\t b";
+                let map = native_source_braced_word_map(raw, channel, rule, protocol).unwrap();
+                assert_eq!(map.bytes(), b"a   b");
+                assert_eq!(map.original_extent(0..3), Some(0..3));
+                assert_eq!(map.original_extent(4..5), Some(7..8));
+                assert_eq!(map.native_extent(7..8), Some(4..5));
+                assert!(map.original_extent(2..5).is_none());
+                assert!(map.original_extent(3..4).is_none());
+                assert!(map.native_extent(3..7).is_none());
+
+                let escaped = b"a\\\\\n b";
+                let map = native_source_braced_word_map(escaped, channel, rule, protocol).unwrap();
+                assert_eq!(map.bytes(), escaped);
+                assert_eq!(
+                    map.original_extent(0..escaped.len()),
+                    Some(0..escaped.len())
+                );
+            }
+            let raw = b"A\\\r\n\t B";
+            let document = native_source_braced_word_map(raw, Document, rule, protocol).unwrap();
+            assert_eq!(document.bytes(), b"A B");
+            assert_eq!(document.original_extent(2..3), Some(6..7));
+            assert!(document.native_extent(2..3).is_none());
+            assert!(document.original_extent(0..3).is_none());
+            let native = native_source_braced_word_map(raw, NativeValue, rule, protocol).unwrap();
+            assert_eq!(native.bytes(), raw);
+            assert_eq!(native.original_extent(0..raw.len()), Some(0..raw.len()));
+        }
+        let raw = b"a\\\n b";
+        let literal = native_source_braced_word_map(
+            raw,
+            NativeValue,
+            tcl_dialect::BraceBackslashNewline::Literal,
+            crate::native_string::NativeStringProtocol::Jim084,
+        )
+        .unwrap();
+        assert_eq!(literal.bytes(), raw);
+        assert_eq!(literal.original_extent(0..raw.len()), Some(0..raw.len()));
+    }
+
+    #[test]
+    fn braced_correspondence_refuses_partial_native_units_and_foreign_ranges() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            let map = native_source_braced_word_map(
+                b"a\0b\\\n c",
+                tcl_lexer::SourceChannel::Document,
+                tcl_dialect::BraceBackslashNewline::Folds,
+                protocol,
+            )
+            .unwrap();
+            let zero =
+                native_source_literal_bytes(b"\0", tcl_lexer::SourceChannel::Document, protocol)
+                    .unwrap()
+                    .len();
+            assert_eq!(map.original_extent(1..1 + zero), Some(1..2));
+            if zero > 1 {
+                assert!(map.original_extent(1..2).is_none());
+            }
+            assert!(map.original_extent(0..map.bytes().len() + 1).is_none());
+            assert!(map.native_extent(0..100).is_none());
+        }
+        assert!(
+            native_source_braced_word_map(
+                &[0xff],
+                tcl_lexer::SourceChannel::Document,
+                tcl_dialect::BraceBackslashNewline::Folds,
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn original_literal_extents_share_channel_translation_and_exact_unit_boundaries() {

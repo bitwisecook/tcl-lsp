@@ -1,0 +1,30 @@
+{
+  "commands": [
+    "cargo test --locked -p tcl-syntax --lib backslash::",
+    "cargo test --locked -p tcl-registry --lib native_compiler_words"
+  ],
+  "target": "tmp/name-target-names (exclusive coordinator lease)",
+  "results": {
+    "syntax": {
+      "passed": 25,
+      "failed": 0
+    },
+    "registry": {
+      "passed": 6,
+      "failed": 0
+    }
+  },
+  "owner_inputs": {
+    "rust/tcl-syntax/src/backslash.rs": "11c502d41530e9d4d3b1f88363c0f940b6d7a7bf53205e76845f215b66cd9781",
+    "rust/tcl-registry/src/native_compiler_words.rs": "89e0bd666ba6eb0ef1876f4f74cc180334d876e5985f3dbb4e038bf801acb5cf",
+    "rust/tcl-syntax/src/naming.rs": "ff4b23d0f40412708daac73540ac175885463125068250c6d49e6d78ab48fa73",
+    "rust/tcl-syntax/src/naming/native/routing.rs": "6206f6d88982eae4abc3aa10c674a3b6aef0a0de1bc772d1b1551597d5ce43b4",
+    "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "input_binding": "Owner hashes match the frozen Compiler source snapshot captured for braced-source-correspondence-2026-10-13. Correlated by coordinator; these two commands did not independently seal their entire dependency closure. Later consumer/descriptor changes are outside this acceptance.",
+  "artifacts": {
+    "registry.log": "f7807c94bfc64d363a08d5c5e3cb8d1cc6bf9f43b2898ba6d0c2a74d63c2f81f",
+    "syntax.log": "b1fb3fb365ed57b78115dd12f2a5daf942fae0a3eab65dc3b83a3234cd572370"
+  }
+}

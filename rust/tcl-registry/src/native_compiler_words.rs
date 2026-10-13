@@ -116,8 +116,8 @@ impl<'w> NativeCompilerWords<'w> {
 
     /// Original source extent of a static native-value range. Channel units
     /// map through the shared literal owner; an escape maps only at its whole
-    /// selected token boundaries. Folded braced continuations and ambiguous
-    /// boundaries decline. This is readonly correspondence, without edit or
+    /// selected token boundaries. Ranges crossing folded braced continuations
+    /// or ambiguous boundaries decline. This is readonly correspondence, without edit or
     /// compilation authority.
     #[must_use]
     pub fn original_literal_extent(
@@ -133,18 +133,20 @@ impl<'w> NativeCompilerWords<'w> {
         if word.group().kind == WordKind::Braced {
             let content = word.content_span().ok()?;
             let raw = word.image().bytes().get(content.as_range())?;
-            let literal = tcl_syntax::backslash::native_source_literal_bytes(
+            let literal = tcl_syntax::backslash::native_source_braced_word_bytes(
                 raw,
                 word.image().channel(),
+                word.config().brace_backslash_newline,
                 self.protocol,
             )
             .ok()?;
             if literal.as_ref() != value {
                 return None;
             }
-            let extent = tcl_syntax::backslash::native_source_literal_extent(
+            let extent = tcl_syntax::backslash::native_source_braced_word_extent(
                 raw,
                 word.image().channel(),
+                word.config().brace_backslash_newline,
                 self.protocol,
                 native,
             )?;
@@ -613,7 +615,15 @@ mod tests {
         let captured =
             NativeCompilerWords::capture(&original, NativeStringProtocol::C(TclVersion::V9_0))
                 .unwrap();
-        assert!(captured.original_literal_extent(1, 0..1).is_none());
+        assert_eq!(
+            captured.original_literal_extent(1, 0..1),
+            Some(tcl_lexer::Span::new(5, 6))
+        );
+        assert_eq!(
+            captured.original_literal_extent(1, 2..3),
+            Some(tcl_lexer::Span::new(9, 10))
+        );
+        assert!(captured.original_literal_extent(1, 0..3).is_none());
 
         let source = b"set {v\0tail} value";
         let image = SourceImage::document(std::str::from_utf8(source).unwrap());

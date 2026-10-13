@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (tmp/name-target-names/debug/deps/tcl_syntax-88fc50aa79bbd375)
+
+running 25 tests
+test backslash::native_source_tests::c86_selected_token_decode_retains_original_literal_suffix ... ok
+test backslash::executable_text_tests::source_channel_changes_value_bytes_without_changing_original_extents ... ok
+test backslash::executable_text_tests::original_arena_text_keeps_raw_nul_separate_from_escaped_nul ... ok
+test backslash::executable_text_tests::escaped_text_extents_keep_complete_escapes_and_channel_unit_boundaries ... ok
+test backslash::native_source_tests::materialisation_source_escape_and_literal_bytes_keep_separate_inputs ... ok
+test backslash::original_literal_extent_tests::original_literal_extents_share_channel_translation_and_exact_unit_boundaries ... ok
+test backslash::original_literal_extent_tests::braced_continuation_correspondence_retains_separate_original_occurrences ... ok
+test backslash::original_literal_extent_tests::braced_correspondence_refuses_partial_native_units_and_foreign_ranges ... ok
+test backslash::native_source_tests::source_values_match_actual_c84_through_c91_and_current_jim ... ok
+test backslash::tests::bytes_decode_matches_tcl9 ... ok
+test backslash::tests::brace_continuations_collapse_like_tcl9 ... ok
+test backslash::tests::brace_continuations_str_matches_bytes_and_borrows ... ok
+test backslash::tests::decode_bytes_follows_the_release ... ok
+test backslash::tests::decode_bytes_passes_through_non_utf8 ... ok
+test backslash::tests::decode_control_escapes_match_tclsh ... ok
+test backslash::tests::decode_numeric_escapes_match_tclsh ... ok
+test backslash::tests::decode_unknown_escape_drops_backslash ... ok
+test backslash::tests::escape_extent_follows_the_release ... ok
+test backslash::tests::decode_no_backslash_borrows ... ok
+test backslash::tests::literal_text_inverse_roundtrips_actual_document_ingress_units ... ok
+test backslash::tests::document_native_ingress_matches_readchars_and_preserves_counted_source ... ok
+test backslash::tests::literal_source_renderer_preserves_selected_native_bytes_and_channel ... ok
+test backslash::tests::separator_continuations_str_matches_bytes ... ok
+test backslash::tests::separator_continuations_trim_preceding_whitespace ... ok
+test backslash::tests::quoted_fragments_preserve_literal_characters_and_original_substitutions ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 642 filtered out; finished in 0.00s
+
