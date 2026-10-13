@@ -1,0 +1,3078 @@
+[
+  {
+    "question": "naming.alias.captured-prefix-allocation-contract",
+    "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs"
+  },
+  {
+    "question": "naming.alias.captured-prefix-allocation-contract",
+    "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs"
+  },
+  {
+    "question": "naming.alias.captured-prefix-allocation-contract",
+    "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-compiler/src/analyser/recovery.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-compiler/src/analyser/handlers.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-lsp-core/src/references.rs"
+  },
+  {
+    "question": "naming.analysis.constructed-key-consumer-projections",
+    "path": "rust/tcl-lsp-core/src/inlay_hints.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/cfg_builder/mod.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/cfg_builder/summary_candidates.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/interprocedural.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.analysis.procedure-summary-candidate-keys",
+    "path": "rust/tcl-compiler/src/optimiser/elimination.rs"
+  },
+  {
+    "question": "naming.analysis.reported-qname-namespace-prefix",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.analysis.reported-qname-namespace-prefix",
+    "path": "rust/tcl-compiler/src/type_infer.rs"
+  },
+  {
+    "question": "naming.analysis.reported-qname-namespace-prefix",
+    "path": "rust/tcl-compiler/src/inlining/frame.rs"
+  },
+  {
+    "question": "naming.analysis.reported-qname-namespace-prefix",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.analysis.resolved-static-variable-patterns",
+    "path": "rust/tcl-compiler/src/side_effects.rs"
+  },
+  {
+    "question": "naming.analysis.resolved-static-variable-patterns",
+    "path": "rust/tcl-compiler/src/var_resolve.rs"
+  },
+  {
+    "question": "naming.analysis.resolved-static-variable-patterns",
+    "path": "rust/tcl-compiler/src/irules_checks.rs"
+  },
+  {
+    "question": "naming.analysis.resolved-static-variable-patterns",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/environment_ingress.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-compiler/src/type_infer.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-registry/src/invocation_words.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-registry/src/lib.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.analysis.selected-scope-alias-role-metadata",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.bigip.activated-procedure-replacement",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.activated-procedure-replacement",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.activated-procedure-replacement",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/cleanup-after-reverse-creation.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-a-b-read-after-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-a-b-read-after-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-a-b-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-a-b-write-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-a-b-write-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-b-a-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-bfirst-read-after-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-bfirst-read-after-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-bfirst-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-bfirst-write-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/collision-bfirst-write-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias_rename-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias_rename-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias_rename-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_alias_rename-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_colon_names-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_colon_names-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_colon_names-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_colon_names-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_exists-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_exists-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_exists-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_exists-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_expr-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_expr-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_expr-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_expr-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_global_alias-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_global_alias-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_global_alias-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_global_alias-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_delete-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_delete-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_delete-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_delete-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_import-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_import-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_import-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_namespace_import-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package_resolution-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package_resolution-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package_resolution-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_package_resolution-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_provider-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_provider-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_provider-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_provider-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_shadow-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_shadow-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_shadow-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_path_shadow-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_read_failure-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_read_failure-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_read_failure-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_read_failure-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_rename_epoch-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_rename_epoch-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_rename_epoch-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_rename_epoch-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_static_global_link-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_static_global_link-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_static_global_link-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_static_global_link-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_scalar-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_scalar-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_scalar-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_scalar-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_static-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_static-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_static-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_static-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_upvar_array-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_upvar_array-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_upvar_array-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_trace_upvar_array-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel_absolute-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel_absolute-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel_absolute-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_uplevel_absolute-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_absolute-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_absolute-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_absolute-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_absolute-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_unset-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_unset-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_unset-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_unset-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_zero-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_zero-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_zero-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_upvar_zero-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_word_bytes-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_word_bytes-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_word_bytes-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/dynamic_word_bytes-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/event-frames-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/event-frames-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/final-runtime-cleanup.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-no-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/global-cmp-yes-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/procedure-a-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/procedure-b-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/procedure-bfirst-create.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-no-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/triggers/static-group-cmp-yes-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-cleanup-after-reverse-creation.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-a-b-read-after-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-a-b-read-after-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-a-b-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-a-b-write-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-a-b-write-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-b-a-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-bfirst-read-after-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-bfirst-read-after-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-bfirst-read.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-bfirst-write-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-collision-bfirst-write-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias_rename-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias_rename-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias_rename-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_alias_rename-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_colon_names-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_colon_names-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_colon_names-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_colon_names-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_exists-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_exists-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_exists-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_exists-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_expr-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_expr-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_expr-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_expr-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_global_alias-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_global_alias-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_global_alias-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_global_alias-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_delete-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_delete-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_delete-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_delete-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_import-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_import-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_import-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_namespace_import-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package_resolution-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package_resolution-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package_resolution-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_package_resolution-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_provider-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_provider-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_provider-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_provider-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_shadow-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_shadow-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_shadow-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_path_shadow-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_read_failure-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_read_failure-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_read_failure-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_read_failure-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_rename_epoch-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_rename_epoch-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_rename_epoch-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_rename_epoch-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_static_global_link-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_static_global_link-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_static_global_link-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_static_global_link-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_scalar-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_scalar-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_scalar-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_scalar-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_static-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_static-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_static-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_static-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_upvar_array-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_upvar_array-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_upvar_array-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_trace_upvar_array-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel_absolute-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel_absolute-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel_absolute-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_uplevel_absolute-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_absolute-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_absolute-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_absolute-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_absolute-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_unset-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_unset-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_unset-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_unset-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_zero-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_zero-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_zero-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_upvar_zero-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_word_bytes-clean-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_word_bytes-clean-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_word_bytes-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-dynamic_word_bytes-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-event-frames-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-event-frames-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-final-runtime-cleanup.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-no-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-global-cmp-yes-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-procedure-a-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-procedure-b-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-procedure-bfirst-create.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-no-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-read-after-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-read-after-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-read-after-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-read-initial.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-recreate.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-unset.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/trigger-static-group-cmp-yes-write.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/final-runtime-cleanup/appliance/trigger.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/final-runtime-cleanup/dev/trigger-final-runtime-cleanup.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/appliance/after-recreate-a-trigger.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/appliance/after-recreate-b-trigger.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/appliance/initial-trigger.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/dev/trigger-after-recreate-a.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/dev/trigger-after-recreate-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/single-recreate/dev/trigger-initial-a-b.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-ascii_binary-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-ascii_binary-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-dynamic_embedded_nul-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-dynamic_embedded_nul-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-physical_ascii_crlf-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-physical_ascii_crlf-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-physical_ascii_lf-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/appliance/trigger-physical_ascii_lf-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-ascii_binary-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-ascii_binary-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-dynamic_embedded_nul-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-dynamic_embedded_nul-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-physical_ascii_crlf-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-physical_ascii_crlf-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-physical_ascii_lf-cmp-no.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de/dev/trigger-physical_ascii_lf-cmp-yes.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-a-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-a-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-root-before-provider-delete.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-root-provider-deleted.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-root-provider-recreated.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-root-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/common-root-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-a-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-a-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-nested-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-nested-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-root-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-root-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/partition-vip-common-rule.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/pre-provider-common-root.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/pre-provider-partition-root.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/unicode-dynamic-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/unicode-dynamic-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/unicode_literal_emoji_flag.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/unicode_literal_emoji_grinning.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/triggers/unicode_literal_emoji_skin_tone.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-a-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-a-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-root-before-provider-delete.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-root-provider-deleted.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-root-provider-recreated.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-root-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-common-root-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-pre-provider-common-root.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-unicode-dynamic-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-unicode-dynamic-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-unicode_literal_emoji_flag.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-unicode_literal_emoji_grinning.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/common/trigger-unicode_literal_emoji_skin_tone.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-a-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-a-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-nested-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-nested-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-root-providers-forward-providers-forward.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-root-providers-reverse-providers-reverse.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-partition-vip-common-rule.json"
+  },
+  {
+    "question": "naming.bigip.actual-responding-unit-coverage",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/traffic/partition/trigger-pre-provider-partition-root.json"
+  },
+  {
+    "question": "naming.bigip.counted-key-input-boundaries",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.counted-key-input-boundaries",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.counted-key-input-boundaries",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.counted-key-input-boundaries",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.counted-key-input-boundaries",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.counted-name-producer-identity",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.counted-name-producer-identity",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.counted-name-producer-identity",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.cross-context-lexical-names",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.cross-context-lexical-names",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.cross-context-lexical-names",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.cross-context-lexical-names",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.cross-context-variable-links-traces",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.cross-context-variable-links-traces",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.cross-context-variable-links-traces",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.cross-context-variable-links-traces",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.dynamic-resolution-controls",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.dynamic-resolution-controls",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.dynamic-resolution-controls",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.expression-matches-precedence",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.expression-matches-precedence",
+    "path": "scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.expression-matches-precedence",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.hosted-context-parser-matrix",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.hosted-context-parser-matrix",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.hosted-context-parser-matrix",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.lexical-byte-singleton-domain",
+    "path": "scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.lexical-byte-singleton-domain",
+    "path": "scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.lexical-event-transport-completeness",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json"
+  },
+  {
+    "question": "naming.bigip.literal-head-loader-boundary",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.literal-head-loader-boundary",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.literal-head-loader-boundary",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.namespace-command-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.namespace-command-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.namespace-command-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.namespace-command-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json"
+  },
+  {
+    "question": "naming.bigip.procedure-owner-route",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.procedure-owner-route",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.procedure-owner-route",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/ltm-raw.log"
+  },
+  {
+    "question": "naming.bigip.procedure-owner-route",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/dev/backend.log"
+  },
+  {
+    "question": "naming.bigip.procedure-owner-route",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.static-state-tmm-locality",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.static-state-tmm-locality",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.static-state-tmm-locality",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.unicode-loader-runtime-values",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.unicode-loader-runtime-values",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.unicode-loader-runtime-values",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json"
+  },
+  {
+    "question": "naming.bigip.variable-assignment-control-frontiers",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-assignment-control-frontiers",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-assignment-control-frontiers",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json"
+  },
+  {
+    "question": "naming.bigip.variable-read-destroy-recreate",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-read-destroy-recreate",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-read-destroy-recreate",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json"
+  },
+  {
+    "question": "naming.bigip.variable-static-event-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-static-event-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md"
+  },
+  {
+    "question": "naming.bigip.variable-static-event-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/vl-context-events.log"
+  },
+  {
+    "question": "naming.bigip.variable-static-event-currency",
+    "path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json"
+  },
+  {
+    "question": "naming.command.native-command-entry-currency",
+    "path": "runtime/rust/src/interp/native_body_artifact.rs"
+  },
+  {
+    "question": "naming.command.native-command-entry-currency",
+    "path": "rust/tcl-registry/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.command.original-publication-row-sharing",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.command.original-publication-row-sharing",
+    "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+  },
+  {
+    "question": "naming.command.original-world-readonly-query",
+    "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+  },
+  {
+    "question": "naming.command.original-world-readonly-query",
+    "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs"
+  },
+  {
+    "question": "naming.command.original-world-readonly-query",
+    "path": "rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs"
+  },
+  {
+    "question": "naming.command.shared-noop-source-joins",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.compiler.active-manifest-revalidation",
+    "path": "rust/tcl-vm/src/interp.rs"
+  },
+  {
+    "question": "naming.compiler.active-manifest-revalidation",
+    "path": "rust/tcl-vm/src/exec.rs"
+  },
+  {
+    "question": "naming.compiler.chunk-selection-runtime-occupancy",
+    "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.conditional-registry-source-metadata",
+    "path": "rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs"
+  },
+  {
+    "question": "naming.compiler.logical-upvar-target-element-geometry",
+    "path": "rust/tcl-compiler/src/analyser/handlers.rs"
+  },
+  {
+    "question": "naming.compiler.logical-upvar-target-element-geometry",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/unit_scope.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/signature_scan/ctx.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/source_name_lookup.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/common_aot_plan.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/environment_ingress.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/gvn.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/lowering/mod.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-registry/src/lib.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/analyser/handlers.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+  },
+  {
+    "question": "naming.compiler.original-analysis-metadata-context",
+    "path": "rust/tcl-compiler/src/word_subst.rs"
+  },
+  {
+    "question": "naming.compiler.original-compiler-operand-coordinates",
+    "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-compiler-operand-coordinates",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-compiler-operand-coordinates",
+    "path": "rust/tcl-registry/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/dispatch_proof.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/native_lowering/lower.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.compiler.original-dispatch-ledger-subjects",
+    "path": "rust/tcl-compiler/src/environment_ingress.rs"
+  },
+  {
+    "question": "naming.compiler.original-name-effect-separation",
+    "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-callee-body-availability",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-callee-body-availability",
+    "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-callee-body-availability",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-callee-body-availability",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-callee-body-availability",
+    "path": "rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-child-body-reachability",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.compiler.original-positioned-child-body-reachability",
+    "path": "rust/tcl-compiler/src/interprocedural.rs"
+  },
+  {
+    "question": "naming.compiler.original-preparation-name-effects",
+    "path": "rust/tcl-registry/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.compiler.original-preparation-name-effects",
+    "path": "rust/tcl-registry/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.compiler.original-slot-presence",
+    "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs"
+  },
+  {
+    "question": "naming.compiler.original-summary-dependency-source-heads",
+    "path": "rust/tcl-lsp-db/src/lib.rs"
+  },
+  {
+    "question": "naming.compiler.original-symbol-declaration-advice",
+    "path": "rust/tcl-compiler/src/analyser/handlers.rs"
+  },
+  {
+    "question": "naming.compiler.retained-representation-metadata",
+    "path": "rust/tcl-compiler/src/word_subst.rs"
+  },
+  {
+    "question": "naming.consumer.original-call-hierarchy",
+    "path": "rust/tcl-lsp-core/src/references.rs"
+  },
+  {
+    "question": "naming.consumer.original-type-and-implementation-navigation",
+    "path": "rust/tcl-lsp-core/src/method_symbol.rs"
+  },
+  {
+    "question": "naming.consumer.original-workspace-diagnostic-refinement",
+    "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs"
+  },
+  {
+    "question": "naming.consumer.original-workspace-diagnostic-refinement",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.core.logical-call-target-owner",
+    "path": "rust/tcl-lsp-core/src/references.rs"
+  },
+  {
+    "question": "naming.core.original-command-source-schema",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.core.original-command-source-schema",
+    "path": "rust/tcl-compiler/src/command_binding/source_name_lookup.rs"
+  },
+  {
+    "question": "naming.core.original-command-source-schema",
+    "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs"
+  },
+  {
+    "question": "naming.core.original-dispatch-region-context",
+    "path": "rust/tcl-lsp-core/src/references.rs"
+  },
+  {
+    "question": "naming.core.original-format-hint-producer",
+    "path": "rust/tcl-lsp-core/src/inlay_hints.rs"
+  },
+  {
+    "question": "naming.core.original-hint-effective-origins",
+    "path": "rust/tcl-lsp-core/src/inlay_hints.rs"
+  },
+  {
+    "question": "naming.core.original-member-reference-hazard",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs"
+  },
+  {
+    "question": "naming.core.original-member-reference-hazard",
+    "path": "rust/tcl-registry/src/definer.rs"
+  },
+  {
+    "question": "naming.database.original-call-arity-diagnostics",
+    "path": "rust/tcl-lsp-db/src/lib.rs"
+  },
+  {
+    "question": "naming.database.original-callback-future-lookup",
+    "path": "rust/tcl-lsp-db/src/lib.rs"
+  },
+  {
+    "question": "naming.database.original-header-arity",
+    "path": "rust/tcl-lsp-db/src/lib.rs"
+  },
+  {
+    "question": "naming.diagnostic.original-materialized-write-footprint",
+    "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+  },
+  {
+    "question": "naming.diagnostic.typed-subject-reporting",
+    "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs"
+  },
+  {
+    "question": "naming.diagnostics.original-resolved-variable-name-advice",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.diagnostics.original-variable-name-anchor",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.diagnostics.original-w216-literal-source-replacement",
+    "path": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs"
+  },
+  {
+    "question": "naming.diagnostics.original-w216-literal-source-replacement",
+    "path": "rust/tcl-syntax/src/backslash.rs"
+  },
+  {
+    "question": "naming.editor.logical-written-component-geometry",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.editor.original-diagnostic-invalidation",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs"
+  },
+  {
+    "question": "naming.editor.original-method-candidates",
+    "path": "rust/tcl-lsp-core/src/method_symbol.rs"
+  },
+  {
+    "question": "naming.editor.original-method-candidates",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs"
+  },
+  {
+    "question": "naming.editor.original-own-object-member-navigation",
+    "path": "rust/tcl-lsp-core/src/method_symbol.rs"
+  },
+  {
+    "question": "naming.embedding.original-active-object-command-deletion",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/engine.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-registry/src/native_numeric_error/command.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/obj/native_scalar_adoption_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/typed_value.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_string_stage_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/value.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/exec/native_jim_script.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_name_consumers.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_oo/native_method_cache/owner_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/oo_cleanup.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_encoding_source.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_encoding_source/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/cmd_array/original_list_conversion_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_append.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_argument_usage/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact/original_word_input_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_return_instruction.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/list/original_adoption_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/engine_abi/value_carriers.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-engine-tclvm/src/c84_wide_transport_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-engine-tclvm/src/lib.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/cmd_oo/native_method_cache.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_command_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/cmd_string.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/variable_cleanup.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/stock_ensembles.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/value_ops.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_read_boundary_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/exec.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_operation_currency.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/exec/original_activation_cleanup_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_package/original/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_package/original.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_package.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/authored_package.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/selected_frame.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/selected_frame/tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/frame/native_variable_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_namespace_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "runtime/rust/src/interp/native_variable_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_command_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_binary.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-runtime-api/src/backing.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/xtask/src/command_backing.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-spec-hooks/src/pack_eval.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/cmd_binary.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/embed.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/authored_rule_callables.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_command_names.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/native_operation_currency.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/interp/original_authored_operands.rs"
+  },
+  {
+    "question": "naming.embedding.original-host-publication-and-fact-transport",
+    "path": "rust/tcl-vm/src/value.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "runtime/rust/src/cmd_fs.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "runtime/rust/src/cmd_misc.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "runtime/rust/src/interp/native_encoding_source.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "runtime/rust/src/interp/native_encoding_source/tests.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "rust/tcl-host-native/src/lib.rs"
+  },
+  {
+    "question": "naming.encoding.original-byte-name-lookup-and-source-order",
+    "path": "rust/tcl-platform/src/lib.rs"
+  },
+  {
+    "question": "naming.ensemble.original-missing-selector-source-usage",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.ensemble.original-missing-selector-source-usage",
+    "path": "rust/tcl-vm/src/interp.rs"
+  },
+  {
+    "question": "naming.error.c84-publication-order",
+    "path": "runtime/rust/src/interp/native_append.rs"
+  },
+  {
+    "question": "naming.error.nonempty-info-publication-order",
+    "path": "runtime/rust/src/interp/native_append.rs"
+  },
+  {
+    "question": "naming.error.original-explicit-error-code-header-setter",
+    "path": "runtime/rust/src/capi/collections.rs"
+  },
+  {
+    "question": "naming.error.original-explicit-error-code-header-setter",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.error.original-explicit-error-code-header-setter",
+    "path": "runtime/rust/src/interp/native_error_variables.rs"
+  },
+  {
+    "question": "naming.error.original-explicit-error-code-header-setter",
+    "path": "runtime/rust/src/interp/native_body_artifact/original_return_parent_tests.rs"
+  },
+  {
+    "question": "naming.error.original-invocation-context-capture",
+    "path": "rust/tcl-vm/src/value.rs"
+  },
+  {
+    "question": "naming.expression.original-function-navigation",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.expression.selected-reference-root",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-syntax/src/naming/native.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-lexer/src/ranges.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-vm/src/cmd_math.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-registry/src/mathfunc.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-registry/src/commands/tcl/mod.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-diagram/src/data.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-spec-studio/src/infer.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-spec-studio/src/infer/extension.rs"
+  },
+  {
+    "question": "naming.grammar.shared-written-name-boundaries",
+    "path": "rust/tcl-spectcl/src/loader/semantics.rs"
+  },
+  {
+    "question": "naming.info.original-coroutine-name-compiler",
+    "path": "rust/tcl-registry/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.inlining.original-frame-source-context",
+    "path": "rust/tcl-compiler/src/inlining/frame.rs"
+  },
+  {
+    "question": "naming.inlining.original-reference-descriptor-selection",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.inlining.original-reference-descriptor-selection",
+    "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+  },
+  {
+    "question": "naming.inlining.original-reference-descriptor-selection",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.inlining.original-reference-descriptor-selection",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.interpreter.original-child-host-refusal-transport",
+    "path": "runtime/rust/src/interp/native_children.rs"
+  },
+  {
+    "question": "naming.interprocedural.original-procedure-completion-source-context",
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs"
+  },
+  {
+    "question": "naming.invocation.execution-policy-canonical-point",
+    "path": "rust/tcl-registry/src/invocation_words.rs"
+  },
+  {
+    "question": "naming.invocation.known-native-byte-values",
+    "path": "rust/tcl-registry/src/invocation_words.rs"
+  },
+  {
+    "question": "naming.invocation.known-native-byte-values",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.list.original-value-append-storage-currency",
+    "path": "runtime/rust/src/list.rs"
+  },
+  {
+    "question": "naming.list.original-value-append-storage-currency",
+    "path": "runtime/rust/src/value_ops.rs"
+  },
+  {
+    "question": "naming.list.original-value-append-storage-currency",
+    "path": "rust/tcl-syntax/src/value.rs"
+  },
+  {
+    "question": "naming.minifier.complete-logical-metadata",
+    "path": "rust/tcl-compiler/src/signature_scan/ctx.rs"
+  },
+  {
+    "question": "naming.minifier.complete-logical-metadata",
+    "path": "rust/tcl-compiler/src/analyser/handlers.rs"
+  },
+  {
+    "question": "naming.minifier.complete-logical-metadata",
+    "path": "rust/tcl-compiler/src/analyser/commands.rs"
+  },
+  {
+    "question": "naming.minifier.original-naming-permission",
+    "path": "rust/tcl-cli/src/commands/transform.rs"
+  },
+  {
+    "question": "naming.namespace.command-teardown-frontier",
+    "path": "rust/tcl-syntax/src/naming/native.rs"
+  },
+  {
+    "question": "naming.namespace.procedure-call-level-context",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.navigation.retained-path-source-inventory",
+    "path": "rust/tcl-compiler/src/auto_path_eval.rs"
+  },
+  {
+    "question": "naming.navigation.retained-path-source-inventory",
+    "path": "rust/tcl-registry/src/resolved_invocation.rs"
+  },
+  {
+    "question": "naming.numeric.io-debug-public-conversion-and-side-effect-order",
+    "path": "rust/tcl-registry/src/native_numeric_error/command.rs"
+  },
+  {
+    "question": "naming.numeric.io-debug-public-conversion-and-side-effect-order",
+    "path": "runtime/rust/src/cmd_binary.rs"
+  },
+  {
+    "question": "naming.numeric.io-debug-public-conversion-and-side-effect-order",
+    "path": "rust/tcl-registry/src/native_numeric_error/command.rs"
+  },
+  {
+    "question": "naming.numeric.io-debug-public-conversion-and-side-effect-order",
+    "path": "rust/tcl-vm/src/cmd_chan.rs"
+  },
+  {
+    "question": "naming.numeric.io-debug-public-conversion-and-side-effect-order",
+    "path": "rust/tcl-vm/src/interp/native_string_stage_tests.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/environment_ingress.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/ir.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-compiler/src/type_infer.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-registry/src/invocation_words.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-registry/src/lib.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.optimisation.original-source-purpose",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.optimiser.original-chain-write-metadata",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.optimiser.original-chain-write-metadata",
+    "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs"
+  },
+  {
+    "question": "naming.procedure.original-usage-called-name-and-formatter",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.procedure.original-usage-called-name-and-formatter",
+    "path": "rust/tcl-vm/src/exec.rs"
+  },
+  {
+    "question": "naming.proof-records.exact-evidence-and-coverage",
+    "path": "scripts/dev/update-name-resolution-proof-index.py"
+  },
+  {
+    "question": "naming.property.opaque-name-custom-getter-option-cache",
+    "path": "runtime/rust/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.opaque-name-custom-getter-option-cache",
+    "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.original-accessor-clientdata",
+    "path": "runtime/rust/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.original-accessor-clientdata",
+    "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.original-configure-retained-table-and-read-snapshot",
+    "path": "runtime/rust/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.original-configure-retained-table-and-read-snapshot",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.property.original-foundation-epoch-and-cache",
+    "path": "runtime/rust/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.property.original-foundation-epoch-and-cache",
+    "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs"
+  },
+  {
+    "question": "naming.refactor.original-frame-traversal",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.refactor.original-inline-destination-command",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_lookup.rs"
+  },
+  {
+    "question": "naming.refactor.original-variable-extraction-permission",
+    "path": "rust/tcl-mcp/src/tools.rs"
+  },
+  {
+    "question": "naming.registry.constructed-command-declaration-keys",
+    "path": "rust/tcl-registry/src/registry.rs"
+  },
+  {
+    "question": "naming.registry.constructed-command-declaration-keys",
+    "path": "rust/tcl-syntax/src/naming.rs"
+  },
+  {
+    "question": "naming.registry.constructed-command-declaration-keys",
+    "path": "rust/tcl-registry/src/spec.rs"
+  },
+  {
+    "question": "naming.registry.constructed-command-declaration-keys",
+    "path": "rust/tcl-registry/src/lib.rs"
+  },
+  {
+    "question": "naming.registry.constructed-command-declaration-keys",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs"
+  },
+  {
+    "question": "naming.runtime.compiled-procedure-fallback-and-source-log",
+    "path": "runtime/rust/src/codegen_abi.rs"
+  },
+  {
+    "question": "naming.runtime.compiled-procedure-fallback-and-source-log",
+    "path": "runtime/rust/src/interp.rs"
+  },
+  {
+    "question": "naming.runtime.native-tcloo-class-capability",
+    "path": "rust/tcl-runtime-api/src/native_compilation.rs"
+  },
+  {
+    "question": "naming.server.original-method-query",
+    "path": "rust/tcl-lsp-core/src/method_symbol.rs"
+  },
+  {
+    "question": "naming.source.authored-command-transition-advice",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+  },
+  {
+    "question": "naming.source.authored-command-transition-advice",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs"
+  },
+  {
+    "question": "naming.source.declaration-flow-report-cache",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs"
+  },
+  {
+    "question": "naming.source.entered-body-selected-namespace",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.source.jim-original-concatenation-ownership",
+    "path": "rust/tcl-vm/src/value_ops.rs"
+  },
+  {
+    "question": "naming.source.literal-text-source-inversion",
+    "path": "rust/tcl-syntax/src/backslash.rs"
+  },
+  {
+    "question": "naming.source.logical-original-operation-transfer",
+    "path": "rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs"
+  },
+  {
+    "question": "naming.source.namespace-inventory-selection-sharing",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.source.namespace-inventory-selection-sharing",
+    "path": "rust/tcl-compiler/src/lowering/mod.rs"
+  },
+  {
+    "question": "naming.source.namespace-inventory-selection-sharing",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.source.original-authored-command-prefix-data",
+    "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs"
+  },
+  {
+    "question": "naming.source.original-authored-command-prefix-data",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+  },
+  {
+    "question": "naming.source.original-class-publications",
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+  },
+  {
+    "question": "naming.source.original-collection-body-owner",
+    "path": "rust/tcl-compiler/src/irules_checks.rs"
+  },
+  {
+    "question": "naming.source.original-collection-body-owner",
+    "path": "rust/tcl-compiler/src/lowering/mod.rs"
+  },
+  {
+    "question": "naming.source.original-collection-body-owner",
+    "path": "rust/tcl-lsp-db/src/lib.rs"
+  },
+  {
+    "question": "naming.source.original-configured-script-completeness",
+    "path": "rust/tcl-compiler/src/signature_scan/ctx.rs"
+  },
+  {
+    "question": "naming.source.original-configured-script-completeness",
+    "path": "rust/tcl-compiler/src/analyser/utils.rs"
+  },
+  {
+    "question": "naming.source.original-counted-filename-filesystem-extent",
+    "path": "runtime/rust/src/interp/native_encoding_source.rs"
+  },
+  {
+    "question": "naming.source.original-counted-filename-filesystem-extent",
+    "path": "runtime/rust/src/interp/native_encoding_source/tests.rs"
+  },
+  {
+    "question": "naming.source.original-counted-filename-filesystem-extent",
+    "path": "rust/tcl-platform/src/lib.rs"
+  },
+  {
+    "question": "naming.source.original-declaration-layout-visits",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+  },
+  {
+    "question": "naming.source.original-declaration-name-publication",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+  },
+  {
+    "question": "naming.source.original-declaration-name-publication",
+    "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs"
+  },
+  {
+    "question": "naming.source.original-declared-command-word-contract",
+    "path": "rust/tcl-syntax/src/naming/authored_source.rs"
+  },
+  {
+    "question": "naming.source.original-direct-token-owner",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.source.original-point-operand-projection",
+    "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+  },
+  {
+    "question": "naming.source.recursive-driver-state-transport",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.source.retained-explorer-consumers",
+    "path": "editors/vscode/src/compilerExplorerHtml.ts"
+  },
+  {
+    "question": "naming.source.retained-explorer-consumers",
+    "path": "rust/tcl-registry/src/lib.rs"
+  },
+  {
+    "question": "naming.source.retained-positioned-command-realm",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.source.retained-positioned-command-realm",
+    "path": "rust/tcl-compiler/src/unit_scope.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding/namespace_slots.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/registry_invocation.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-registry/src/definer.rs"
+  },
+  {
+    "question": "naming.tcloo.original-class-relation-candidates",
+    "path": "rust/tcl-compiler/src/command_binding.rs"
+  },
+  {
+    "question": "naming.tcloo.original-classvariable-preflight-and-link-owner",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-classvariable-preflight-and-link-owner",
+    "path": "runtime/rust/src/interp/native_variable_names.rs"
+  },
+  {
+    "question": "naming.tcloo.original-definition-getter-and-effect-owner",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-entered-call-chain-report-record-and-flags",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-entered-call-chain-report-record-and-flags",
+    "path": "runtime/rust/src/cmd_oo/native_method_cache.rs"
+  },
+  {
+    "question": "naming.tcloo.original-introspection-target-continuation",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-property-accessor-source-advice",
+    "path": "rust/tcl-syntax/src/naming/native.rs"
+  },
+  {
+    "question": "naming.tcloo.original-property-accessor-source-advice",
+    "path": "rust/tcl-registry/src/definer.rs"
+  },
+  {
+    "question": "naming.tcloo.original-relation-provider-fold-contract",
+    "path": "rust/tcl-registry/src/definer.rs"
+  },
+  {
+    "question": "naming.tcloo.original-selected-method-role-report",
+    "path": "runtime/rust/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-selected-method-role-report",
+    "path": "runtime/rust/src/cmd_oo/native_method_cache.rs"
+  },
+  {
+    "question": "naming.tcloo.original-selected-method-role-report",
+    "path": "rust/tcl-vm/src/cmd_oo.rs"
+  },
+  {
+    "question": "naming.tcloo.original-selected-method-role-report",
+    "path": "rust/tcl-vm/src/cmd_oo/native_method_cache.rs"
+  },
+  {
+    "question": "naming.tcloo.original-selected-method-role-report",
+    "path": "docs/design/contracts/tcloo-implementation.md"
+  },
+  {
+    "question": "naming.variable.event-cell-execution-isolation",
+    "path": "rust/tcl-compiler/src/var_resolve.rs"
+  },
+  {
+    "question": "naming.workspace.original-declaration-transport",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs"
+  },
+  {
+    "question": "naming.workspace.original-package-requirement-transport",
+    "path": "rust/tcl-lsp-core/src/workspace_index.rs"
+  }
+]

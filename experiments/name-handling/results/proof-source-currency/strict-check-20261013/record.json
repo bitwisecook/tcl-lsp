@@ -1,0 +1,23 @@
+{
+  "command": "python3 scripts/dev/check-name-resolution-proofs.py",
+  "exit_code": 1,
+  "summary": {
+    "candidate_records": 7069,
+    "corpus_files": 31924,
+    "pending_candidates": 0,
+    "questions": 2606,
+    "structural_errors": 1739,
+    "unlinked_tests": 0
+  },
+  "categories": {
+    "evidence_digest_changes": 769,
+    "scrub_census_digest_changes": 952,
+    "missing_annotation_bindings": 2,
+    "missing_document_assertions": 4,
+    "census_path_changes": 12
+  },
+  "changed_questions": 136,
+  "changed_evidence_paths": 548,
+  "log_sha256": "4ebdfba062b4610e6ca7b8aefbb0448d8ac1a51e3b4935f3f1d2d29962946544",
+  "scope": "Diagnostic checker run against shared work checkout. Two coordinated test-only corrections and new experiment files occurred during the scan. This is not an immutable whole-tree execution receipt or final currentness certificate. No proof binding or inventory was renewed."
+}
