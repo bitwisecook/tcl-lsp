@@ -1,0 +1,8 @@
+{
+  "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+  "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+  "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+  "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+}
