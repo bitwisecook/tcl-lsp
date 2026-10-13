@@ -1,0 +1,209 @@
+[
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-explorer/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_explorer",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-explorer/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "warning: function `known_profile_for_dialect` is never used\n  --> rust/tcl-explorer/src/environment.rs:94:8\n   |\n94 | pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {\n   |        ^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "`#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default",
+          "rendered": null,
+          "spans": []
+        }
+      ],
+      "level": "warning",
+      "message": "function `known_profile_for_dialect` is never used",
+      "spans": [
+        {
+          "byte_end": 5085,
+          "byte_start": 5060,
+          "column_end": 33,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-explorer/src/environment.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 94,
+          "line_start": 94,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 33,
+              "highlight_start": 8,
+              "text": "pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "dead_code",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-explorer/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_explorer",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-explorer/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "warning: function `catalogue_profile_for_dialect` is never used\n   --> rust/tcl-explorer/src/environment.rs:110:8\n    |\n110 | pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "warning",
+      "message": "function `catalogue_profile_for_dialect` is never used",
+      "spans": [
+        {
+          "byte_end": 5863,
+          "byte_start": 5834,
+          "column_end": 37,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-explorer/src/environment.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 110,
+          "line_start": 110,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 37,
+              "highlight_start": 8,
+              "text": "pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "dead_code",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-mcp/Cargo.toml",
+    "target": {
+      "kind": [
+        "bin"
+      ],
+      "crate_types": [
+        "bin"
+      ],
+      "name": "tcl-mcp",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-mcp/src/main.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": false,
+      "test": true
+    },
+    "message": {
+      "rendered": "warning: unused import: `Diagnostic`\n  --> rust/tcl-mcp/src/tools.rs:28:56\n   |\n28 | use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};\n   |                                                        ^^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "`#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "remove the unused import",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 1294,
+              "byte_start": 1282,
+              "column_end": 66,
+              "column_start": 54,
+              "expansion": null,
+              "file_name": "rust/tcl-mcp/src/tools.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 28,
+              "line_start": 28,
+              "suggested_replacement": "",
+              "suggestion_applicability": "MachineApplicable",
+              "text": [
+                {
+                  "highlight_end": 66,
+                  "highlight_start": 54,
+                  "text": "use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "warning",
+      "message": "unused import: `Diagnostic`",
+      "spans": [
+        {
+          "byte_end": 1294,
+          "byte_start": 1284,
+          "column_end": 66,
+          "column_start": 56,
+          "expansion": null,
+          "file_name": "rust/tcl-mcp/src/tools.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28,
+          "line_start": 28,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 66,
+              "highlight_start": 56,
+              "text": "use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "unused_imports",
+        "explanation": null
+      }
+    }
+  }
+]

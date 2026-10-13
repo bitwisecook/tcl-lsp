@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+    "irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T00:36:42.564518+00:00",
+  "end_utc": "2026-10-13T00:36:44.726905+00:00",
+  "elapsed_seconds": 2.1623837830047705,
+  "exit_code": 0,
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 132
+  },
+  "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+  "source_unchanged_after": true
+}

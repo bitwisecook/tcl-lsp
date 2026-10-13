@@ -1,0 +1,25 @@
+    #[test]
+    fn original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps() {
+        // Implementation contract: naming.consumer.original-mcp-event-source-advice
+        // docs/design/analysis/name-resolution-proofs/original-mcp-event-source-advice.md
+        let source = "when HTTP_REQUEST {}";
+        let mut analysis = analyse(source, "f5-irules");
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        for invocation in &mut analysis.command_invocations {
+            invocation.name = "counterfactual".to_owned();
+        }
+        assert_eq!(detect_events(source, &analysis)[0]["name"], "HTTP_REQUEST");
+        assert_eq!(
+            event_order_list(source, &analysis)[0]["name"],
+            "HTTP_REQUEST"
+        );
+        assert!(detect_events(&format!("# moved\n{source}"), &analysis).is_empty());
+        for profile in ["tcl8.6", "tcl9.0", "f5-iapps"] {
+            let result = analyze(&json!({"source":source,"dialect":profile}));
+            assert_eq!(result["events"], json!([]), "{profile}");
+            assert_eq!(result["event_order"], json!([]), "{profile}");
+        }
+        let shadow = "proc when {args} {}; when HTTP_REQUEST {}";
+        assert!(detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty());
+    }

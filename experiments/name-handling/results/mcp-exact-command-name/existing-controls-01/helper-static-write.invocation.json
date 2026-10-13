@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_mcp-0700f7245459bc2c",
+    "irule_gen::tests::called_helper_static_write_preserves_hot_event_for_multi_tmm",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T00:06:32.106705+00:00",
+  "end_utc": "2026-10-13T00:06:37.227228+00:00",
+  "elapsed_seconds": 5.120525430000271,
+  "exit_code": 0,
+  "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "source_unchanged_after_test": true,
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 132
+  }
+}

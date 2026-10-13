@@ -1,0 +1,38 @@
+{
+  "oracle_execution": false,
+  "exit_code": 0,
+  "elapsed_seconds": 29.039404949995514,
+  "selected_package": "tcl-mcp",
+  "selected_binary_target": "tcl-mcp",
+  "selected_test": "tools::dialect_param_tests::command_info_preserves_exact_literal_names",
+  "test_execution_count": 1,
+  "passed": 1,
+  "failed": 0,
+  "filtered_out": 132,
+  "ordinary_key": "HTTP::uri",
+  "adverse_exact_values": [
+    " HTTP::uri ",
+    " HTTP::uri",
+    "HTTP::uri ",
+    "\tHTTP::uri",
+    "HTTP::uri\n",
+    "HTTP::\u0000uri",
+    "missing-command-name"
+  ],
+  "control_source_unchanged_from_validation_01": true,
+  "frozen_conservative_packages": 39,
+  "frozen_files": 5307,
+  "source_changes": [],
+  "observed_workspace_artifact_packages": 39,
+  "cargo_artifact_records": 361,
+  "selected_executable_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "warnings": 3,
+  "limits": [
+    "This validates the exact catalogue name request; it does not validate Tcl command dispatch.",
+    "Existing event/schema writer-hint controls were not executed in this capture.",
+    "Original existing fixtures and assertions were not changed by the API repairs; the two hint call sites receive a captured context from their same original source.",
+    "VM is in the observed closure; standalone Runtime is excluded and may change independently.",
+    "Conservative package file scope is not claimed to be every compiled Rust input.",
+    "Selected binary path may be reused by subsequent compilation; use the retained SHA256."
+  ]
+}

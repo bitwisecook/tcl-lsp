@@ -1,0 +1,281 @@
+{
+  "local_graph": {
+    "tcl-core-types": [],
+    "tcl-dialect": [
+      "tcl-core-types"
+    ],
+    "tcl-version": [],
+    "tcl-lexer": [
+      "tcl-core-types",
+      "tcl-dialect"
+    ],
+    "tcl-syntax": [
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer"
+    ],
+    "tcl-platform": [],
+    "tcl-runtime-api": [
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-syntax"
+    ],
+    "tcl-cmd-core": [
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-platform",
+      "tcl-runtime-api",
+      "tcl-syntax"
+    ],
+    "tcl-bytecode": [
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-runtime-api",
+      "tcl-syntax"
+    ],
+    "tcl-regex": [
+      "tcl-cmd-core",
+      "tcl-core-types",
+      "tcl-syntax"
+    ],
+    "tcl-registry": [
+      "tcl-cmd-core",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-regex",
+      "tcl-runtime-api",
+      "tcl-syntax"
+    ],
+    "tcl-compiler": [
+      "tcl-bytecode",
+      "tcl-cmd-core",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-runtime-api",
+      "tcl-syntax"
+    ],
+    "tcl-irules": [
+      "tcl-compiler",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-syntax"
+    ],
+    "tcl-diagram": [
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-irules",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-syntax"
+    ],
+    "tcl-sslictcl": [
+      "tcl-compiler",
+      "tcl-core-types",
+      "tcl-lexer",
+      "tcl-syntax"
+    ],
+    "tcl-bigip": [
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-irules",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-sslictcl",
+      "tcl-syntax"
+    ],
+    "tcl-lsp-core": [
+      "tcl-bigip",
+      "tcl-cmd-core",
+      "tcl-compiler",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-irules",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-sslictcl",
+      "tcl-syntax"
+    ],
+    "tcl-engine-api": [
+      "tcl-core-types",
+      "tcl-runtime-api"
+    ],
+    "tcl-host-c-abi": [
+      "tcl-platform"
+    ],
+    "tcl-host-native": [
+      "tcl-host-c-abi",
+      "tcl-platform"
+    ],
+    "tcl-vm": [
+      "tcl-bytecode",
+      "tcl-cmd-core",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-host-native",
+      "tcl-lexer",
+      "tcl-platform",
+      "tcl-regex",
+      "tcl-registry",
+      "tcl-runtime-api",
+      "tcl-syntax"
+    ],
+    "tcl-engine-tclvm": [
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-engine-api",
+      "tcl-registry",
+      "tcl-runtime-api",
+      "tcl-syntax",
+      "tcl-vm"
+    ],
+    "tcl-spec-hooks": [
+      "tcl-dialect",
+      "tcl-engine-api",
+      "tcl-engine-tclvm",
+      "tcl-registry",
+      "tcl-syntax",
+      "tcl-vm"
+    ],
+    "tcl-userdirs": [],
+    "tcl-pkg-model": [
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-syntax"
+    ],
+    "tcl-spectcl": [
+      "tcl-compiler",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-pkg-model",
+      "tcl-registry",
+      "tcl-runtime-api",
+      "tcl-spec-hooks",
+      "tcl-syntax",
+      "tcl-userdirs"
+    ],
+    "tcl-spec-studio": [
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-registry",
+      "tcl-spectcl",
+      "tcl-syntax"
+    ],
+    "tcl-sandbox": [],
+    "tcl-pkg": [
+      "tcl-dialect",
+      "tcl-pkg-model",
+      "tcl-sandbox",
+      "tcl-userdirs"
+    ],
+    "tcl-cli-support": [
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-pkg",
+      "tcl-registry",
+      "tcl-spec-studio",
+      "tcl-spectcl"
+    ],
+    "tcl-explorer": [
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-spectcl",
+      "tcl-syntax"
+    ],
+    "tcl-cli": [
+      "tcl-cli-support",
+      "tcl-compiler",
+      "tcl-diagram",
+      "tcl-dialect",
+      "tcl-explorer",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-pkg",
+      "tcl-registry",
+      "tcl-sandbox",
+      "tcl-spec-studio",
+      "tcl-spectcl",
+      "tcl-syntax",
+      "tcl-version"
+    ],
+    "f5-xc": [
+      "tcl-compiler",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-registry",
+      "tcl-syntax"
+    ],
+    "tcl-bigip-io": [
+      "tcl-bigip",
+      "tcl-core-types"
+    ],
+    "tcl-bigip-query": [
+      "tcl-bigip",
+      "tcl-core-types",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-syntax"
+    ],
+    "tcl-irule-test": [
+      "tcl-bigip",
+      "tcl-bytecode",
+      "tcl-cmd-core",
+      "tcl-compiler",
+      "tcl-dialect",
+      "tcl-irules",
+      "tcl-lexer",
+      "tcl-registry",
+      "tcl-runtime-api",
+      "tcl-syntax",
+      "tcl-vm"
+    ],
+    "tcl-f5mku": [],
+    "f5-cli": [
+      "tcl-bigip",
+      "tcl-bigip-io",
+      "tcl-bigip-query",
+      "tcl-cli-support",
+      "tcl-dialect",
+      "tcl-f5mku",
+      "tcl-irule-test",
+      "tcl-irules",
+      "tcl-lsp-core",
+      "tcl-registry",
+      "tcl-version"
+    ],
+    "tcl-mcp": [
+      "f5-cli",
+      "f5-xc",
+      "tcl-bigip",
+      "tcl-cli",
+      "tcl-cli-support",
+      "tcl-compiler",
+      "tcl-diagram",
+      "tcl-dialect",
+      "tcl-irules",
+      "tcl-lexer",
+      "tcl-lsp-core",
+      "tcl-registry",
+      "tcl-spec-studio",
+      "tcl-spectcl",
+      "tcl-syntax",
+      "tcl-version"
+    ]
+  },
+  "limit": "Path-dependency manifest closure including all target tables; root dev only; no feature/optional/host pruning and not resolved Cargo compiled graph. Full offline Cargo metadata failed on absent addr2line 0.25.1; host-filtered metadata failed on absent addr2line 0.26.1. No fetch/build performed."
+}

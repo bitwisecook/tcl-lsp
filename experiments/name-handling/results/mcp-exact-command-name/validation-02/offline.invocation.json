@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "-p",
+    "tcl-mcp",
+    "--bin",
+    "tcl-mcp",
+    "--message-format=json",
+    "tools::dialect_param_tests::command_info_preserves_exact_literal_names",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-12T23:54:12.489768+00:00",
+  "end_utc": "2026-10-12T23:54:41.529161+00:00",
+  "exit_code": 0,
+  "elapsed_seconds": 29.039404949995514
+}

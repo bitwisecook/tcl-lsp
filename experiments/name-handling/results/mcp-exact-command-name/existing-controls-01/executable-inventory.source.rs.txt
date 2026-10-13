@@ -1,0 +1,26 @@
+    #[test]
+    fn executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions() {
+        let inert = "when HTTP_REQUEST {\n # set static::ghost 1; HTTP::respond 200; pool stale; table incr key\n set q {HTTP::respond 201; pool inert; table incr key; set static::data 1}\n set r \"pool quoted; set static::quoted 1\"\n set x [HTTP::uri]\n pool live\n}\n";
+        let commands = executable(inert);
+        let names = extract_irule_commands(&commands);
+        assert!(names.contains(&"HTTP::uri".to_owned()), "{names:?}");
+        assert!(names.contains(&"pool".to_owned()), "{names:?}");
+        assert!(!names.contains(&"HTTP::respond".to_owned()), "{names:?}");
+        assert!(!names.contains(&"table".to_owned()), "{names:?}");
+        let variables = extract_variables(&commands);
+        assert!(
+            variables.static_vars.is_empty(),
+            "{:?}",
+            variables.static_vars
+        );
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(inert, registry());
+        assert!(!needs_multi_tmm(context.as_ref(), &commands, &variables));
+        assert_eq!(object_refs(inert).pools, ["live"]);
+
+        let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
+        let commands = executable(live);
+        let variables = extract_variables(&commands);
+        assert_eq!(variables.static_vars, ["hits"]);
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(live, registry());
+        assert!(needs_multi_tmm(context.as_ref(), &commands, &variables));
+    }

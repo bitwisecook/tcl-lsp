@@ -1,0 +1,81 @@
+{
+  "binary_sha256_before": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "binary_sha256_after": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "source_changes_during_capture": [],
+  "validation_02_source_drift": [],
+  "conservative_packages": 39,
+  "frozen_files": 5307,
+  "tests": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "irule_gen::tests::called_helper_static_write_preserves_hot_event_for_multi_tmm",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:06:32.106705+00:00",
+      "end_utc": "2026-10-13T00:06:37.227228+00:00",
+      "elapsed_seconds": 5.120525430000271,
+      "exit_code": 0,
+      "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+      "source_unchanged_after_test": true,
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      }
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:06:38.908597+00:00",
+      "end_utc": "2026-10-13T00:06:40.684232+00:00",
+      "elapsed_seconds": 1.7756399310019333,
+      "exit_code": 101,
+      "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+      "source_unchanged_after_test": true,
+      "test_result": {
+        "status": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      }
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:06:42.218407+00:00",
+      "end_utc": "2026-10-13T00:06:46.192351+00:00",
+      "elapsed_seconds": 3.9739500590003445,
+      "exit_code": 0,
+      "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+      "source_unchanged_after_test": true,
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      }
+    }
+  ],
+  "oracle_execution": false,
+  "no_build": true,
+  "literal_control_repeated": false,
+  "test_sources_or_assertions_changed": false,
+  "cache_released": true
+}

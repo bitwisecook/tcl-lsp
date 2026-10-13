@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+    "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T00:36:51.818673+00:00",
+  "end_utc": "2026-10-13T00:37:00.208203+00:00",
+  "elapsed_seconds": 8.389528556006553,
+  "exit_code": 101,
+  "test_result": {
+    "status": "FAILED",
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 132
+  },
+  "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+  "source_unchanged_after": true
+}

@@ -1,0 +1,9 @@
+{
+  "validation_02_files": 5307,
+  "current_files": 5307,
+  "drift": [],
+  "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "expected_binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "package_count": 39,
+  "standalone_runtime_excluded": true
+}

@@ -1,0 +1,416 @@
+[
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+    "level": "warning",
+    "code": {
+      "code": "dead_code",
+      "explanation": null
+    },
+    "message": "function `known_profile_for_dialect` is never used",
+    "spans": [
+      {
+        "byte_end": 5085,
+        "byte_start": 5060,
+        "column_end": 33,
+        "column_start": 8,
+        "expansion": null,
+        "file_name": "rust/tcl-explorer/src/environment.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 94,
+        "line_start": 94,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 33,
+            "highlight_start": 8,
+            "text": "pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {"
+          }
+        ]
+      }
+    ],
+    "rendered": "warning: function `known_profile_for_dialect` is never used\n  --> rust/tcl-explorer/src/environment.rs:94:8\n   |\n94 | pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {\n   |        ^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+    "level": "warning",
+    "code": {
+      "code": "dead_code",
+      "explanation": null
+    },
+    "message": "function `catalogue_profile_for_dialect` is never used",
+    "spans": [
+      {
+        "byte_end": 5863,
+        "byte_start": 5834,
+        "column_end": 37,
+        "column_start": 8,
+        "expansion": null,
+        "file_name": "rust/tcl-explorer/src/environment.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 110,
+        "line_start": 110,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 37,
+            "highlight_start": 8,
+            "text": "pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {"
+          }
+        ]
+      }
+    ],
+    "rendered": "warning: function `catalogue_profile_for_dialect` is never used\n   --> rust/tcl-explorer/src/environment.rs:110:8\n    |\n110 | pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "error",
+    "code": {
+      "code": "E0433",
+      "explanation": "An undeclared crate, module, or type was used.\n\nErroneous code example:\n\n```compile_fail,E0433\nlet map = HashMap::new();\n// error: failed to resolve: use of undeclared type `HashMap`\n```\n\nPlease verify you didn't misspell the type/module's name or that you didn't\nforget to import it:\n\n```\nuse std::collections::HashMap; // HashMap has been imported.\nlet map: HashMap<u32, u32> = HashMap::new(); // So it can be used!\n```\n\nIf you've expected to use a crate name:\n\n```compile_fail\nuse ferris_wheel::BigO;\n// error: failed to resolve: use of undeclared module or unlinked crate\n```\n\nMake sure the crate has been added as a dependency in `Cargo.toml`.\n\nTo use a module from your current crate, add the `crate::` prefix to the path.\n"
+    },
+    "message": "cannot find `SpecSurface` in `model`",
+    "spans": [
+      {
+        "byte_end": 145302,
+        "byte_start": 145291,
+        "column_end": 59,
+        "column_start": 48,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": true,
+        "label": "could not find `SpecSurface` in `model`",
+        "line_end": 3665,
+        "line_start": 3665,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 59,
+            "highlight_start": 48,
+            "text": "            surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),"
+          }
+        ]
+      }
+    ],
+    "rendered": "error[E0433]: cannot find `SpecSurface` in `model`\n    --> rust/tcl-mcp/src/tools.rs:3665:48\n     |\n3665 |             surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),\n     |                                                ^^^^^^^^^^^ could not find `SpecSurface` in `model`\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "warning",
+    "code": {
+      "code": "unused_imports",
+      "explanation": null
+    },
+    "message": "unused import: `EvalRoute`",
+    "spans": [
+      {
+        "byte_end": 1655,
+        "byte_start": 1646,
+        "column_end": 45,
+        "column_start": 36,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 37,
+        "line_start": 37,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 45,
+            "highlight_start": 36,
+            "text": "use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};"
+          }
+        ]
+      }
+    ],
+    "rendered": "warning: unused import: `EvalRoute`\n  --> rust/tcl-mcp/src/irule_gen.rs:37:36\n   |\n37 | use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};\n   |                                    ^^^^^^^^^\n   |\n   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "warning",
+    "code": {
+      "code": "unused_imports",
+      "explanation": null
+    },
+    "message": "unused imports: `ArgRole`, `InvocationWord`, and `InvocationWords`",
+    "spans": [
+      {
+        "byte_end": 1698,
+        "byte_start": 1691,
+        "column_end": 27,
+        "column_start": 20,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 38,
+        "line_start": 38,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 27,
+            "highlight_start": 20,
+            "text": "use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};"
+          }
+        ]
+      },
+      {
+        "byte_end": 1731,
+        "byte_start": 1717,
+        "column_end": 60,
+        "column_start": 46,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 38,
+        "line_start": 38,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 60,
+            "highlight_start": 46,
+            "text": "use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};"
+          }
+        ]
+      },
+      {
+        "byte_end": 1748,
+        "byte_start": 1733,
+        "column_end": 77,
+        "column_start": 62,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 38,
+        "line_start": 38,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 77,
+            "highlight_start": 62,
+            "text": "use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};"
+          }
+        ]
+      }
+    ],
+    "rendered": "warning: unused imports: `ArgRole`, `InvocationWord`, and `InvocationWords`\n  --> rust/tcl-mcp/src/irule_gen.rs:38:20\n   |\n38 | use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};\n   |                    ^^^^^^^                   ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "warning",
+    "code": {
+      "code": "unused_imports",
+      "explanation": null
+    },
+    "message": "unused import: `Diagnostic`",
+    "spans": [
+      {
+        "byte_end": 1294,
+        "byte_start": 1284,
+        "column_end": 66,
+        "column_start": 56,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 28,
+        "line_start": 28,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 66,
+            "highlight_start": 56,
+            "text": "use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};"
+          }
+        ]
+      }
+    ],
+    "rendered": "warning: unused import: `Diagnostic`\n  --> rust/tcl-mcp/src/tools.rs:28:56\n   |\n28 | use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};\n   |                                                        ^^^^^^^^^^\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "error",
+    "code": {
+      "code": "E0425",
+      "explanation": "An unresolved name was used.\n\nErroneous code examples:\n\n```compile_fail,E0425\nsomething_that_doesnt_exist::foo;\n// error: unresolved name `something_that_doesnt_exist::foo`\n\n// or:\n\ntrait Foo {\n    fn bar() {\n        Self; // error: unresolved name `Self`\n    }\n}\n\n// or:\n\nlet x = unknown_variable;  // error: unresolved name `unknown_variable`\n```\n\nPlease verify that the name wasn't misspelled and ensure that the\nidentifier being referred to is valid for the given situation. Example:\n\n```\nenum something_that_does_exist {\n    Foo,\n}\n```\n\nOr:\n\n```\nmod something_that_does_exist {\n    pub static foo : i32 = 0i32;\n}\n\nsomething_that_does_exist::foo; // ok!\n```\n\nOr:\n\n```\nlet unknown_variable = 12u32;\nlet x = unknown_variable; // ok!\n```\n\nIf the item is not defined in the current module, it must be imported using a\n`use` statement, like so:\n\n```\n# mod foo { pub fn bar() {} }\n# fn main() {\nuse foo::bar;\nbar();\n# }\n```\n\nIf the item you are importing is not defined in some super-module of the\ncurrent module, then it must also be declared as public (e.g., `pub fn`).\n"
+    },
+    "message": "cannot find function `cell_written` in this scope",
+    "spans": [
+      {
+        "byte_end": 9825,
+        "byte_start": 9813,
+        "column_end": 29,
+        "column_start": 17,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": "not found in this scope",
+        "line_end": 263,
+        "line_start": 263,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 29,
+            "highlight_start": 17,
+            "text": "                cell_written(registry, fact),"
+          }
+        ]
+      }
+    ],
+    "rendered": "error[E0425]: cannot find function `cell_written` in this scope\n   --> rust/tcl-mcp/src/irule_gen.rs:263:17\n    |\n263 |                 cell_written(registry, fact),\n    |                 ^^^^^^^^^^^^ not found in this scope\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "error",
+    "code": {
+      "code": "E0425",
+      "explanation": "An unresolved name was used.\n\nErroneous code examples:\n\n```compile_fail,E0425\nsomething_that_doesnt_exist::foo;\n// error: unresolved name `something_that_doesnt_exist::foo`\n\n// or:\n\ntrait Foo {\n    fn bar() {\n        Self; // error: unresolved name `Self`\n    }\n}\n\n// or:\n\nlet x = unknown_variable;  // error: unresolved name `unknown_variable`\n```\n\nPlease verify that the name wasn't misspelled and ensure that the\nidentifier being referred to is valid for the given situation. Example:\n\n```\nenum something_that_does_exist {\n    Foo,\n}\n```\n\nOr:\n\n```\nmod something_that_does_exist {\n    pub static foo : i32 = 0i32;\n}\n\nsomething_that_does_exist::foo; // ok!\n```\n\nOr:\n\n```\nlet unknown_variable = 12u32;\nlet x = unknown_variable; // ok!\n```\n\nIf the item is not defined in the current module, it must be imported using a\n`use` statement, like so:\n\n```\n# mod foo { pub fn bar() {} }\n# fn main() {\nuse foo::bar;\nbar();\n# }\n```\n\nIf the item you are importing is not defined in some super-module of the\ncurrent module, then it must also be declared as public (e.g., `pub fn`).\n"
+    },
+    "message": "cannot find function `cell_written` in this scope",
+    "spans": [
+      {
+        "byte_end": 10094,
+        "byte_start": 10082,
+        "column_end": 25,
+        "column_start": 13,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/irule_gen.rs",
+        "is_primary": true,
+        "label": "not found in this scope",
+        "line_end": 270,
+        "line_start": 270,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 25,
+            "highlight_start": 13,
+            "text": "            cell_written(registry, fact),"
+          }
+        ]
+      }
+    ],
+    "rendered": "error[E0425]: cannot find function `cell_written` in this scope\n   --> rust/tcl-mcp/src/irule_gen.rs:270:13\n    |\n270 |             cell_written(registry, fact),\n    |             ^^^^^^^^^^^^ not found in this scope\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "error",
+    "code": {
+      "code": "E0061",
+      "explanation": "An invalid number of arguments was passed when calling a function.\n\nErroneous code example:\n\n```compile_fail,E0061\nfn f(u: i32) {}\n\nf(); // error!\n```\n\nThe number of arguments passed to a function must match the number of arguments\nspecified in the function signature.\n\nFor example, a function like:\n\n```\nfn f(a: u16, b: &str) {}\n```\n\nMust always be called with exactly two arguments, e.g., `f(2, \"test\")`.\n\nNote that Rust does not have a notion of optional function arguments or\nvariadic functions (except for its C-FFI).\n"
+    },
+    "message": "this function takes 2 arguments but 1 argument was supplied",
+    "spans": [
+      {
+        "byte_end": 34665,
+        "byte_start": 34657,
+        "column_end": 40,
+        "column_start": 32,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": false,
+        "label": "argument #2 of type `&tcl_compiler::analyser::AnalysisResult` is missing",
+        "line_end": 878,
+        "line_start": 878,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 40,
+            "highlight_start": 32,
+            "text": "        \"events\": detect_events(source),"
+          }
+        ]
+      },
+      {
+        "byte_end": 34657,
+        "byte_start": 34644,
+        "column_end": 32,
+        "column_start": 19,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 878,
+        "line_start": 878,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 32,
+            "highlight_start": 19,
+            "text": "        \"events\": detect_events(source),"
+          }
+        ]
+      }
+    ],
+    "rendered": "error[E0061]: this function takes 2 arguments but 1 argument was supplied\n   --> rust/tcl-mcp/src/tools.rs:878:19\n    |\n878 |         \"events\": detect_events(source),\n    |                   ^^^^^^^^^^^^^-------- argument #2 of type `&tcl_compiler::analyser::AnalysisResult` is missing\n    |\nnote: function defined here\n   --> rust/tcl-mcp/src/tools.rs:542:4\n    |\n542 | fn detect_events(source: &str, analysis: &AnalysisResult) -> Vec<Value> {\n    |    ^^^^^^^^^^^^^               -------------------------\nhelp: provide the argument\n    |\n878 |         \"events\": detect_events(source, /* &AnalysisResult */),\n    |                                       +++++++++++++++++++++++\n\n"
+  },
+  {
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "level": "error",
+    "code": {
+      "code": "E0061",
+      "explanation": "An invalid number of arguments was passed when calling a function.\n\nErroneous code example:\n\n```compile_fail,E0061\nfn f(u: i32) {}\n\nf(); // error!\n```\n\nThe number of arguments passed to a function must match the number of arguments\nspecified in the function signature.\n\nFor example, a function like:\n\n```\nfn f(a: u16, b: &str) {}\n```\n\nMust always be called with exactly two arguments, e.g., `f(2, \"test\")`.\n\nNote that Rust does not have a notion of optional function arguments or\nvariadic functions (except for its C-FFI).\n"
+    },
+    "message": "this function takes 2 arguments but 1 argument was supplied",
+    "spans": [
+      {
+        "byte_end": 34714,
+        "byte_start": 34706,
+        "column_end": 48,
+        "column_start": 40,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": false,
+        "label": "argument #2 of type `&tcl_compiler::analyser::AnalysisResult` is missing",
+        "line_end": 879,
+        "line_start": 879,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 48,
+            "highlight_start": 40,
+            "text": "        \"event_order\": event_order_list(source),"
+          }
+        ]
+      },
+      {
+        "byte_end": 34706,
+        "byte_start": 34690,
+        "column_end": 40,
+        "column_start": 24,
+        "expansion": null,
+        "file_name": "rust/tcl-mcp/src/tools.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 879,
+        "line_start": 879,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 40,
+            "highlight_start": 24,
+            "text": "        \"event_order\": event_order_list(source),"
+          }
+        ]
+      }
+    ],
+    "rendered": "error[E0061]: this function takes 2 arguments but 1 argument was supplied\n   --> rust/tcl-mcp/src/tools.rs:879:24\n    |\n879 |         \"event_order\": event_order_list(source),\n    |                        ^^^^^^^^^^^^^^^^-------- argument #2 of type `&tcl_compiler::analyser::AnalysisResult` is missing\n    |\nnote: function defined here\n   --> rust/tcl-mcp/src/tools.rs:500:4\n    |\n500 | fn event_order_list(source: &str, analysis: &AnalysisResult) -> Vec<Value> {\n    |    ^^^^^^^^^^^^^^^^               -------------------------\nhelp: provide the argument\n    |\n879 |         \"event_order\": event_order_list(source, /* &AnalysisResult */),\n    |                                               +++++++++++++++++++++++\n\n"
+  }
+]

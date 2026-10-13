@@ -6,14 +6,41 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 pub(crate) const ORIGINALS: &[(&str, &str)] = &[
-    ("tcl8.4", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.4.20/execute.stdout")),
-    ("tcl8.5", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.5.19/execute.stdout")),
-    ("tcl8.6", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.6.18/execute.stdout")),
-    ("tcl9.0", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.0.4/execute.stdout")),
-    ("tcl9.1", include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.1.0/execute.stdout")),
+    (
+        "tcl8.4",
+        include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.4.20/execute.stdout"
+        ),
+    ),
+    (
+        "tcl8.5",
+        include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.5.19/execute.stdout"
+        ),
+    ),
+    (
+        "tcl8.6",
+        include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/8.6.18/execute.stdout"
+        ),
+    ),
+    (
+        "tcl9.0",
+        include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.0.4/execute.stdout"
+        ),
+    ),
+    (
+        "tcl9.1",
+        include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499c/providers/9.1.0/execute.stdout"
+        ),
+    ),
 ];
 
-pub(crate) const JIM_ORIGINAL: &str = include_str!("../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/jim/execute.stdout");
+pub(crate) const JIM_ORIGINAL: &str = include_str!(
+    "../../../../rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original/499d/providers/jim/execute.stdout"
+);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Event {

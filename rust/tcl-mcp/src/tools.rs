@@ -138,11 +138,9 @@ fn arg_u32(args: &Value, key: &str) -> u32 {
         .unwrap_or(0)
 }
 
-/// The registry every dialect-taking tool answers from — the shared
-/// per-dialect cache, **plus the shipped `.tclspec` loadables**, because the
-/// EDA vendor libraries live in those now (`docs/design/registry/spec-packs.md`) and an
-/// MCP client asking about `synth_design` would otherwise be told it does not
-/// exist.
+/// Registry for dialect-taking tools, including shipped `.tclspec` loadables.
+/// EDA vendor commands come from bundled packs selected by the dialect's
+/// ambient package set (`docs/design/registry/spec-packs.md`).
 fn registry(dialect: &str) -> std::sync::Arc<CommandRegistry> {
     tcl_spectcl::bundled::registry_for_dialect(dialect)
 }
@@ -877,8 +875,8 @@ fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
         "diagnostic_count": diagnostics.len(),
         "diagnostics": diagnostics,
         "symbols": symbols,
-        "events": detect_events(source),
-        "event_order": event_order_list(source),
+        "events": detect_events(source, &analysed.findings.analysis),
+        "event_order": event_order_list(source, &analysed.findings.analysis),
         "suppressed": suppressed_json(&report, &sm, |_| true),
     })
 }
@@ -1091,12 +1089,9 @@ fn event_info(args: &Value) -> Value {
 }
 
 fn command_info(args: &Value) -> Value {
-    let command = arg_str(args, "command_name").trim();
+    let command = arg_str(args, "command_name");
     let reg = registry(IRULES_DIALECT);
-    // The fixed iRules assistance view — the `ResolvedContext` that
-    // replaces `ProfileQueries`. It answers over the pack-layered store
-    // this tool holds rather than its own generation, which is what
-    // `resolve_spec` exists for.
+    // Query availability through the fixed iRules context over this store.
     let irules = crate::environment::context_for_dialect(IRULES_DIALECT);
     let Some(spec) = irules.resolve_spec(&reg, command) else {
         return json!({ "command": command, "found": false });
@@ -2455,6 +2450,28 @@ mod dialect_param_tests {
     use super::*;
     use tcl_dialect::model::EnvironmentRegistry;
 
+    #[test]
+    fn command_info_preserves_exact_literal_names() {
+        let ordinary = dispatch("command_info", &json!({ "command_name": "HTTP::uri" }))
+            .expect("command_info tool");
+        assert_eq!(ordinary["command"], "HTTP::uri");
+        assert_eq!(ordinary["found"], true);
+        for name in [
+            " HTTP::uri ",
+            " HTTP::uri",
+            "HTTP::uri ",
+            "\tHTTP::uri",
+            "HTTP::uri\n",
+            "HTTP::\0uri",
+            "missing-command-name",
+        ] {
+            let result = dispatch("command_info", &json!({ "command_name": name }))
+                .expect("command_info tool");
+            assert_eq!(result["command"], name, "{name:?}");
+            assert_eq!(result["found"], false, "{name:?}");
+        }
+    }
+
     /// Serialise the tests that move the session dialect — it is process
     /// state shared by the whole parallel test binary — and restore it on
     /// drop, so neither test order nor interleaving can change what another
@@ -3645,7 +3662,7 @@ mod original_refactor_request_tests {
         // An authored source output surface is independent of loaded handlers.
         registry.insert(tcl_registry::CommandSpec {
             name: "class",
-            surface: Some(tcl_registry::model::SpecSurface::TCL90_PLUS),
+            surface: Some(tcl_dialect::model::SpecSurface::TCL90_PLUS),
             subcommands: OUTPUTS,
             ..tcl_registry::CommandSpec::DEFAULT
         });

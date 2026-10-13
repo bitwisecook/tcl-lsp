@@ -19,9 +19,9 @@
 /**
  * Parsing and rendering for the bundled `snippets/tcl.code-snippets` catalogue.
  *
- * Split out of `./templateSnippets` (which keeps the `fs` reader) so the
- * browser entry can read the same bundled file through
- * `vscode.workspace.fs` and share the parser rather than duplicating it.
+ * No Node builtins: the browser reads the catalogue through
+ * `vscode.workspace.fs` and shares this parser. The node-side `fs` reader
+ * lives in `./templateSnippets`.
  */
 
 /** The bundled catalogue's path, relative to the extension root. */

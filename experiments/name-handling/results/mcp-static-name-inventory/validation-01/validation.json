@@ -1,0 +1,123 @@
+{
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "-p",
+      "tcl-mcp",
+      "--bin",
+      "tcl-mcp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "start_utc": "2026-10-13T00:33:33.781932+00:00",
+    "end_utc": "2026-10-13T00:36:40.882556+00:00",
+    "elapsed_seconds": 187.1006117020006,
+    "exit_code": 0
+  },
+  "tests": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:36:42.564518+00:00",
+      "end_utc": "2026-10-13T00:36:44.726905+00:00",
+      "elapsed_seconds": 2.1623837830047705,
+      "exit_code": 0,
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      },
+      "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+      "source_unchanged_after": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "irule_gen::tests::called_helper_static_write_preserves_hot_event_for_multi_tmm",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:36:46.376059+00:00",
+      "end_utc": "2026-10-13T00:36:50.220070+00:00",
+      "elapsed_seconds": 3.8440092870005174,
+      "exit_code": 0,
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      },
+      "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+      "source_unchanged_after": true
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+        "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:36:51.818673+00:00",
+      "end_utc": "2026-10-13T00:37:00.208203+00:00",
+      "elapsed_seconds": 8.389528556006553,
+      "exit_code": 101,
+      "test_result": {
+        "status": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 132
+      },
+      "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+      "source_unchanged_after": true
+    }
+  ],
+  "test_execution_count": 3,
+  "passed": 2,
+  "failed": 1,
+  "source_changes": [],
+  "binary_sha256_before": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+  "binary_sha256_after": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+  "conservative_packages": 39,
+  "frozen_files": 5307,
+  "observed_workspace_packages": 39,
+  "cargo_artifact_records": 361,
+  "oracle_execution": false,
+  "original_fixture_and_assertions_byte_unchanged": true,
+  "source_or_test_updates_during_validation": false,
+  "literal_or_event_controls_repeated": false,
+  "full_suite_run": false,
+  "cache_released": true,
+  "observed_workspace_artifact_records": 43,
+  "target_cache_provenance": {
+    "granted_target": "/workspace/tcl-lsp/tmp/name-target-issues",
+    "actual_target": "/workspace/tcl-lsp/target",
+    "explicit_CARGO_TARGET_DIR_set": false,
+    "cause": "Runner sourced /tmp/name-env.sh but omitted explicit CARGO_TARGET_DIR for granted issues target.",
+    "concurrent_default_target_builds_checked": false,
+    "scope": "Actual binary and before/after source hashes are retained; root checking whether default target was exclusive. No repeat build executed."
+  },
+  "single_capture_contract_reached_and_passed": true,
+  "remaining_failure": {
+    "test": "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+    "location": "rust/tcl-mcp/src/irule_gen.rs:1438",
+    "actual_datagroups": [],
+    "expected_datagroups": [
+      "helper_dg"
+    ],
+    "later_scaffold_assertions_reached": false
+  }
+}

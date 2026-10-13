@@ -1,0 +1,7 @@
+{
+  "head": "394085097a26a42f7a4dc2b23717cc24b6bd04be",
+  "all_source_scope_count": 6244,
+  "source_scope": "Conservative Rust/runtime Rust C/header files plus Cargo manifests/lock and root configuration, excluding target/.git/node_modules; includes generated and vendored sources and does not claim all are compiled",
+  "tools_sha256": "d9abd2dd729e249f37603f3221eb8c19fe2e30abf6b40b2f0f2ffdfd8e0aae6b",
+  "extra_graph_plan": "/tmp/ai-tool-command-info-plan.json"
+}

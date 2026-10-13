@@ -1,0 +1,135 @@
+--- a/rust/tcl-mcp/src/irule_gen.rs
++++ b/rust/tcl-mcp/src/irule_gen.rs
+@@ -100,6 +100,31 @@
+     static_vars: Vec<String>,
+ }
+ 
++/// One captured source context and its presentation projection.
++#[derive(Debug)]
++struct SourceInventory {
++    context: Option<tcl_irules::OriginalIrulesSourceContext>,
++    commands: Vec<tcl_irules::IrulesExecutableCommand>,
++}
++
++impl SourceInventory {
++    fn capture(source: &str, registry: &tcl_registry::CommandRegistry) -> Self {
++        let context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
++        let commands = context
++            .as_ref()
++            .map_or_else(Vec::new, |context| context.presentation_commands(source));
++        Self { context, commands }
++    }
++}
++
++impl std::ops::Deref for SourceInventory {
++    type Target = [tcl_irules::IrulesExecutableCommand];
++
++    fn deref(&self) -> &Self::Target {
++        &self.commands
++    }
++}
++
+ /// MCP tool entry point: analyse the `source` argument and return the
+ /// `generate_irule_test` wire shape (the `test_script` is a
+ /// conditional source scaffold with independently supplied outcome obligations).
+@@ -108,10 +133,11 @@
+     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
+ 
+     let registry = crate::environment::store_for_dialect("f5-irules");
+-    let source_context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
++    let inventory = SourceInventory::capture(source, registry);
++    let source_context = inventory.context.as_ref();
+     let event_registry = EventRegistry::build();
+     let mut seen_events = BTreeSet::new();
+-    let event_names = source_context.as_ref().map_or_else(Vec::new, |context| {
++    let event_names = source_context.map_or_else(Vec::new, |context| {
+         context
+             .events()
+             .iter()
+@@ -121,19 +147,15 @@
+     });
+     let ordered_events = event_registry.order_events(&event_names);
+     let profiles = infer_profiles(&ordered_events);
+-    let closure = source_context
+-        .as_ref()
+-        .map_or_else(Vec::new, |context| context.presentation_commands(source));
+-    let commands_used = extract_irule_commands(&closure);
+-    let objects = source_context
+-        .as_ref()
+-        .map_or_else(ObjectRefs::default, |context| {
+-            extract_object_refs(source, context)
+-        });
+-    let variables = extract_variables(&closure);
++    let closure = &inventory.commands;
++    let commands_used = extract_irule_commands(closure);
++    let objects = source_context.map_or_else(ObjectRefs::default, |context| {
++        extract_object_refs(source, context)
++    });
++    let variables = extract_variables(&inventory);
+ 
+     let cfg_paths = crate::irule_test::cfg_paths_json(source);
+-    let multi_tmm = needs_multi_tmm(source_context.as_ref(), &closure, &variables);
++    let multi_tmm = needs_multi_tmm(source_context, closure, &variables);
+ 
+     let ctx = ScriptContext {
+         basename: "irule.tcl",
+@@ -209,16 +231,45 @@
+     }
+ }
+ 
+-/// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
+-fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
++/// Collect conditional static-name hints from source tokens and authored roles.
++fn extract_variables(commands: &SourceInventory) -> Variables {
+     let mut static_vars: BTreeSet<String> = BTreeSet::new();
+-    for fact in commands {
++    for fact in commands.iter() {
+         for name in &fact.variable_names {
+             // These are presentation labels from the source owner. Remove
+             // the one displayed prefix; later components remain literal.
+             if let Some(tail) = name.strip_prefix("static::") {
+                 static_vars.insert(tail.to_owned());
+             }
++        }
++    }
++    if let Some(context) = &commands.context {
++        for command in context.commands() {
++            let words = command.words();
++            let _ = words.with_source_schema(context.context_registry(), |selected| {
++                if !selected
++                    .argument_count_for_arity()
++                    .is_some_and(|count| selected.semantics.arity.accepts(count))
++                {
++                    return;
++                }
++                for (argument, _) in selected.authored_source_variable_name_arguments() {
++                    if words.original_argument_word(argument).is_none() {
++                        continue;
++                    }
++                    let Some(name) = words
++                        .arguments()
++                        .get(argument)
++                        .and_then(|word| word.literal_bytes())
++                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
++                    else {
++                        continue;
++                    };
++                    if let Some(tail) = name.strip_prefix("static::") {
++                        static_vars.insert(tail.to_owned());
++                    }
++                }
++            });
+         }
+     }
+     Variables {
+@@ -1020,8 +1071,8 @@
+         crate::environment::store_for_dialect("f5-irules")
+     }
+ 
+-    fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
+-        tcl_irules::irules_executable_commands(src, registry())
++    fn executable(src: &str) -> SourceInventory {
++        SourceInventory::capture(src, registry())
+     }
+ 
+     fn object_refs(src: &str) -> ObjectRefs {

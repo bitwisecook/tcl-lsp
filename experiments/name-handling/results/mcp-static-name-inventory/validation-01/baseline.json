@@ -1,0 +1,77 @@
+{
+  "conservative_packages": 39,
+  "package_dirs": {
+    "f5-cli": "rust/f5-cli",
+    "f5-xc": "rust/f5-xc",
+    "tcl-bigip": "rust/tcl-bigip",
+    "tcl-bigip-io": "rust/tcl-bigip-io",
+    "tcl-bigip-query": "rust/tcl-bigip-query",
+    "tcl-bytecode": "rust/tcl-bytecode",
+    "tcl-cli": "rust/tcl-cli",
+    "tcl-cli-support": "rust/tcl-cli-support",
+    "tcl-cmd-core": "rust/tcl-cmd-core",
+    "tcl-compiler": "rust/tcl-compiler",
+    "tcl-core-types": "rust/tcl-core-types",
+    "tcl-diagram": "rust/tcl-diagram",
+    "tcl-dialect": "rust/tcl-dialect",
+    "tcl-engine-api": "rust/tcl-engine-api",
+    "tcl-engine-tclvm": "rust/tcl-engine-tclvm",
+    "tcl-explorer": "rust/tcl-explorer",
+    "tcl-f5mku": "rust/tcl-f5mku",
+    "tcl-host-native": "rust/tcl-host-native",
+    "tcl-irule-test": "rust/tcl-irule-test",
+    "tcl-irules": "rust/tcl-irules",
+    "tcl-lexer": "rust/tcl-lexer",
+    "tcl-lsp-core": "rust/tcl-lsp-core",
+    "tcl-mcp": "rust/tcl-mcp",
+    "tcl-pkg": "rust/tcl-pkg",
+    "tcl-pkg-model": "rust/tcl-pkg-model",
+    "tcl-platform": "rust/tcl-platform",
+    "tcl-regex": "rust/tcl-regex",
+    "tcl-registry": "rust/tcl-registry",
+    "tcl-runtime-api": "rust/tcl-runtime-api",
+    "tcl-sandbox": "rust/tcl-sandbox",
+    "tcl-spec-hooks": "rust/tcl-spec-hooks",
+    "tcl-spec-studio": "rust/tcl-spec-studio",
+    "tcl-spectcl": "rust/tcl-spectcl",
+    "tcl-sslictcl": "rust/tcl-sslictcl",
+    "tcl-syntax": "rust/tcl-syntax",
+    "tcl-userdirs": "rust/tcl-userdirs",
+    "tcl-version": "rust/tcl-version",
+    "tcl-vm": "rust/tcl-vm",
+    "tcl-host-c-abi": "rust/tcl-host-c-abi"
+  },
+  "frozen_file_count": 5307,
+  "source_scope": "Conservative local manifest path closure of selected MCP package (normal/root-dev/build, all target and optional entries), Rust/C/header/Cargo.toml files plus root config/lock/toolchain. Not every frozen file claimed compiled. Standalone Runtime excluded.",
+  "changes_since_validation_02": [
+    {
+      "path": "rust/tcl-cmd-core/src/clock.rs",
+      "validation_02": "2c7bdda92709814555611c2698ecdede9cfb05a45aba6776ef091c2939f3c859",
+      "current": "6caabdbdcd57b4e6d58c5aab98f3e141d48ec6fd646c2aeca8810887ddb0419f"
+    },
+    {
+      "path": "rust/tcl-irule-test/src/live.rs",
+      "validation_02": "499d13759b52ca8161f86edfc3f062e2c77424ca11e421c6816e239dddccb8ee",
+      "current": "177f0e3454b70726ccb8866c0973d2d3bec1ddf37f6df8718fe838cdcf6acc37"
+    },
+    {
+      "path": "rust/tcl-mcp/src/irule_gen.rs",
+      "validation_02": "ab48a470e00dbf69e1f4014afee3c836f3f789d2b52f2dcc061b9a11feb20abe",
+      "current": "db83e63cb52238c77fa41061b51dc0bc3839cf4eb673ac9587cff5f61001a931"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/clock_.rs",
+      "validation_02": "31c88b47e0d315b3f84c6fb59d19c7f0853aa5e3a0b3160b46928b51fde48ebd",
+      "current": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/mod.rs",
+      "validation_02": "184f6f4dc396de4fb0fbb6d9fd7593eb246c071062a8ac04297636a5d2827d67",
+      "current": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f"
+    }
+  ],
+  "irule_gen_sha256": "db83e63cb52238c77fa41061b51dc0bc3839cf4eb673ac9587cff5f61001a931",
+  "tools_sha256": "fd114232db002cc84b1752c4ef96409b634b953206edc4a50dcba1c861e1aad2",
+  "original_fixtures_and_assertions_byte_unchanged": true,
+  "test_helper_transport_changed": true
+}

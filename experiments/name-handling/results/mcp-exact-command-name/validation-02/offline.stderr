@@ -1,0 +1,12 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+    Finished `test` profile [unoptimized] target(s) in 26.56s
+     Running unittests src/main.rs (tmp/name-target-issues/debug/deps/tcl_mcp-0700f7245459bc2c)

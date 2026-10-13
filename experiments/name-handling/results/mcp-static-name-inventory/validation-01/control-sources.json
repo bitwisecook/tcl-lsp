@@ -1,0 +1,23 @@
+[
+  {
+    "test": "irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions",
+    "source_file": "rust/tcl-mcp/src/irule_gen.rs",
+    "start_line": 1336,
+    "control_source_sha256": "843bccac84f5535c46bb6cf9e4fc4518b1dde5d841c03507d45ff0a9a84086f3",
+    "unchanged_from_preimage": true
+  },
+  {
+    "test": "irule_gen::tests::called_helper_static_write_preserves_hot_event_for_multi_tmm",
+    "source_file": "rust/tcl-mcp/src/irule_gen.rs",
+    "start_line": 1397,
+    "control_source_sha256": "fd6ed287111aabab425a80a24f6cc22b6b8e6fc6066d4eac7d503fa7858cda67",
+    "unchanged_from_preimage": true
+  },
+  {
+    "test": "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+    "source_file": "rust/tcl-mcp/src/irule_gen.rs",
+    "start_line": 1414,
+    "control_source_sha256": "66695f725aea53b2a67a4af9657de2f808977569fdab5a40ff6546547ad49c4a",
+    "unchanged_from_preimage": true
+  }
+]

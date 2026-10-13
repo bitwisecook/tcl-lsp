@@ -33,9 +33,9 @@ use std::fmt::Write as _;
 
 use regex::Regex;
 use serde_json::{Value, json};
+use tcl_registry::ArgRole;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
-use tcl_registry::{ArgRole, CommandRegistry, InvocationWord, InvocationWords};
 use tcl_syntax::list::list_element;
 
 /// The prose emitted for `multi_tmm_hint` when multi-TMM patterns are detected.
@@ -100,6 +100,31 @@ struct Variables {
     static_vars: Vec<String>,
 }
 
+/// One captured source context and its presentation projection.
+#[derive(Debug)]
+struct SourceInventory {
+    context: Option<tcl_irules::OriginalIrulesSourceContext>,
+    commands: Vec<tcl_irules::IrulesExecutableCommand>,
+}
+
+impl SourceInventory {
+    fn capture(source: &str, registry: &tcl_registry::CommandRegistry) -> Self {
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
+        let commands = context
+            .as_ref()
+            .map_or_else(Vec::new, |context| context.presentation_commands(source));
+        Self { context, commands }
+    }
+}
+
+impl std::ops::Deref for SourceInventory {
+    type Target = [tcl_irules::IrulesExecutableCommand];
+
+    fn deref(&self) -> &Self::Target {
+        &self.commands
+    }
+}
+
 /// MCP tool entry point: analyse the `source` argument and return the
 /// `generate_irule_test` wire shape (the `test_script` is a
 /// conditional source scaffold with independently supplied outcome obligations).
@@ -108,10 +133,11 @@ pub fn generate_irule_test(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
 
     let registry = crate::environment::store_for_dialect("f5-irules");
-    let source_context = tcl_irules::OriginalIrulesSourceContext::capture(source, registry);
+    let inventory = SourceInventory::capture(source, registry);
+    let source_context = inventory.context.as_ref();
     let event_registry = EventRegistry::build();
     let mut seen_events = BTreeSet::new();
-    let event_names = source_context.as_ref().map_or_else(Vec::new, |context| {
+    let event_names = source_context.map_or_else(Vec::new, |context| {
         context
             .events()
             .iter()
@@ -121,19 +147,15 @@ pub fn generate_irule_test(args: &Value) -> Value {
     });
     let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let closure = source_context
-        .as_ref()
-        .map_or_else(Vec::new, |context| context.presentation_commands(source));
-    let commands_used = extract_irule_commands(&closure);
-    let objects = source_context
-        .as_ref()
-        .map_or_else(ObjectRefs::default, |context| {
-            extract_object_refs(source, context)
-        });
-    let variables = extract_variables(&closure);
+    let closure = &inventory.commands;
+    let commands_used = extract_irule_commands(closure);
+    let objects = source_context.map_or_else(ObjectRefs::default, |context| {
+        extract_object_refs(source, context)
+    });
+    let variables = extract_variables(&inventory);
 
     let cfg_paths = crate::irule_test::cfg_paths_json(source);
-    let multi_tmm = needs_multi_tmm(registry, &closure, &variables);
+    let multi_tmm = needs_multi_tmm(source_context, closure, &variables);
 
     let ctx = ScriptContext {
         basename: "irule.tcl",
@@ -209,16 +231,45 @@ fn extract_object_refs(
     }
 }
 
-/// Extract `static::` variable names (`_extract_variables`), sorted + deduped.
-fn extract_variables(commands: &[tcl_irules::IrulesExecutableCommand]) -> Variables {
+/// Collect conditional static-name hints from source tokens and authored roles.
+fn extract_variables(commands: &SourceInventory) -> Variables {
     let mut static_vars: BTreeSet<String> = BTreeSet::new();
-    for fact in commands {
+    for fact in commands.iter() {
         for name in &fact.variable_names {
             // These are presentation labels from the source owner. Remove
             // the one displayed prefix; later components remain literal.
             if let Some(tail) = name.strip_prefix("static::") {
                 static_vars.insert(tail.to_owned());
             }
+        }
+    }
+    if let Some(context) = &commands.context {
+        for command in context.commands() {
+            let words = command.words();
+            let _ = words.with_source_schema(context.context_registry(), |selected| {
+                if !selected
+                    .argument_count_for_arity()
+                    .is_some_and(|count| selected.semantics.arity.accepts(count))
+                {
+                    return;
+                }
+                for (argument, _) in selected.authored_source_variable_name_arguments() {
+                    if words.original_argument_word(argument).is_none() {
+                        continue;
+                    }
+                    let Some(name) = words
+                        .arguments()
+                        .get(argument)
+                        .and_then(|word| word.literal_bytes())
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    else {
+                        continue;
+                    };
+                    if let Some(tail) = name.strip_prefix("static::") {
+                        static_vars.insert(tail.to_owned());
+                    }
+                }
+            });
         }
     }
     Variables {
@@ -247,31 +298,55 @@ fn infer_profiles(events: &[String]) -> Vec<String> {
     profiles
 }
 
-/// Suggest an independently observed multi-TMM scenario from source patterns
-/// (`_needs_multi_tmm`).
+/// Suggest a multi-TMM scenario from conditional source patterns.
+/// Missing advice does not prove the absence of writes or shared state.
 fn needs_multi_tmm(
-    registry: &CommandRegistry,
+    context: Option<&tcl_irules::OriginalIrulesSourceContext>,
     commands: &[tcl_irules::IrulesExecutableCommand],
     variables: &Variables,
 ) -> bool {
     let has_static_vars = !variables.static_vars.is_empty();
-    let static_in_hot = commands.iter().any(|fact| {
-        fact.event
-            .as_deref()
-            .is_some_and(|event| HOT_EVENTS.contains(&event))
-            && matches!(
-                cell_written(registry, fact),
-                Some((NativeEvalId::CellWrite | NativeEvalId::CellIncrement, name))
-                    if name.starts_with("static::")
-            )
-    });
-    let has_counter = commands.iter().any(|fact| {
-        matches!(
-            cell_written(registry, fact),
-            Some((NativeEvalId::CellIncrement, name))
-                if name.starts_with("static::") || name.to_ascii_lowercase().contains("count")
-        )
-    });
+    let mut static_in_hot = false;
+    let mut has_counter = false;
+    if let Some(context) = context {
+        for command in context.commands() {
+            let _ = command
+                .words()
+                .with_source_schema(context.context_registry(), |selected| {
+                    let Some(EvalRoute::Direct {
+                        id: id @ (NativeEvalId::CellWrite | NativeEvalId::CellIncrement),
+                    }) = selected.semantics.value.route()
+                    else {
+                        return;
+                    };
+                    if !selected
+                        .argument_count_for_arity()
+                        .is_some_and(|count| selected.semantics.arity.accepts(count))
+                    {
+                        return;
+                    }
+                    for (argument, role) in selected.authored_source_variable_name_arguments() {
+                        if role != ArgRole::VarWrite {
+                            continue;
+                        }
+                        let Some(name) = command
+                            .words()
+                            .arguments()
+                            .get(argument)
+                            .and_then(|word| word.literal_bytes())
+                            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                        else {
+                            continue;
+                        };
+                        static_in_hot |= HOT_EVENTS.contains(&command.event_source().event())
+                            && name.starts_with("static::");
+                        has_counter |= id == NativeEvalId::CellIncrement
+                            && (name.starts_with("static::")
+                                || name.to_ascii_lowercase().contains("count"));
+                    }
+                });
+        }
+    }
     let uses_shared_table = commands.iter().any(|fact| {
         fact.command == "table"
             && fact
@@ -996,8 +1071,8 @@ mod tests {
         crate::environment::store_for_dialect("f5-irules")
     }
 
-    fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
-        tcl_irules::irules_executable_commands(src, registry())
+    fn executable(src: &str) -> SourceInventory {
+        SourceInventory::capture(src, registry())
     }
 
     fn object_refs(src: &str) -> ObjectRefs {
@@ -1273,14 +1348,16 @@ mod tests {
             "{:?}",
             variables.static_vars
         );
-        assert!(!needs_multi_tmm(registry(), &commands, &variables));
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(inert, registry());
+        assert!(!needs_multi_tmm(context.as_ref(), &commands, &variables));
         assert_eq!(object_refs(inert).pools, ["live"]);
 
         let live = "when HTTP_REQUEST { set static::hits 0; incr static::hits; table incr key; HTTP::respond 200 }";
         let commands = executable(live);
         let variables = extract_variables(&commands);
         assert_eq!(variables.static_vars, ["hits"]);
-        assert!(needs_multi_tmm(registry(), &commands, &variables));
+        let context = tcl_irules::OriginalIrulesSourceContext::capture(live, registry());
+        assert!(needs_multi_tmm(context.as_ref(), &commands, &variables));
     }
 
     #[test]

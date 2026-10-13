@@ -1,0 +1,190 @@
+--- rust/tcl-lsp-core/src/references.rs
++++ rust/tcl-lsp-core/src/references.rs
+@@ -2452,6 +2452,13 @@
+ /// is omitted.  That makes reassignment, branch joins, parameters, and other
+ /// incomplete SSA cases abstain without teaching this LSP scanner a command
+ /// name or inventing a target.
++#[cfg(test)]
++fn trace_stored_callback_guard(stage: &str, offset: u32, passed: bool) {
++    if std::env::var_os("TCL_LSP_TRACE_STORED_CALLBACK_GUARDS").is_some() {
++        eprintln!("STORED_CALLBACK_GUARD stage={stage} offset={offset} passed={passed}");
++    }
++}
++
+ fn stored_callback_targets(
+     ctx: MyMethodScan<'_>,
+     body_span: tcl_lexer::Span,
+@@ -2466,12 +2473,19 @@
+     let mut counts: HashMap<String, usize> = HashMap::new();
+     let has_scope_alias =
+         collect_stored_callback_writes(ctx, start, end, 0, &mut writes, &mut counts);
++    #[cfg(test)]
++    trace_stored_callback_guard("store.no_scope_alias", body_span.start(), !has_scope_alias);
+     if has_scope_alias {
+         return Vec::new();
+     }
+     writes
+         .into_iter()
+         .filter_map(|(name, (assignment_end, target))| {
++            #[cfg(test)]
++            {
++                trace_stored_callback_guard("store.unique_write", body_span.start(), counts.get(&name) == Some(&1));
++                trace_stored_callback_guard("store.value_target", body_span.start(), target.is_some());
++            }
+             if counts.get(&name) != Some(&1) {
+                 return None;
+             }
+@@ -2522,13 +2536,17 @@
+     );
+     let mut has_scope_alias = false;
+     for cmd in commands {
+-        let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, &cmd)
+-        else {
++        let words = source_structure::source_registry_words(ctx.source, ctx.analysis, &cmd);
++        #[cfg(test)]
++        trace_stored_callback_guard("writer.words", cmd.span.start(), words.is_some());
++        let Some(words) = words else {
+             has_scope_alias = true;
+             continue;
+         };
+         let Some((aliases, setter, variables)) = words
+             .with_source_schema(&context, |schema| {
++                #[cfg(test)]
++                trace_stored_callback_guard("writer.roles", cmd.span.start(), words.roles().is_some());
+                 let roles = words.roles()?;
+                 let variables = roles
+                     .iter()
+@@ -2564,11 +2582,22 @@
+             })
+             .flatten()
+         else {
++            #[cfg(test)]
++            trace_stored_callback_guard("writer.schema", cmd.span.start(), false);
+             has_scope_alias = true;
+             continue;
+         };
++        #[cfg(test)]
++        {
++            trace_stored_callback_guard("writer.schema", cmd.span.start(), true);
++            trace_stored_callback_guard("writer.no_alias", cmd.span.start(), !aliases);
++            trace_stored_callback_guard("writer.setter", cmd.span.start(), setter);
++            trace_stored_callback_guard("writer.has_varwrite", cmd.span.start(), !variables.is_empty());
++        }
+         has_scope_alias |= aliases;
+         for (ordinal, variable) in variables {
++            #[cfg(test)]
++            trace_stored_callback_guard("writer.variable_literal", cmd.span.start(), variable.is_some());
+             let Some(var) = variable else {
+                 has_scope_alias = true;
+                 continue;
+@@ -2581,16 +2610,31 @@
+             // retain their value but never borrow a caller's value-token index.
+             let value_target = setter
+                 .then(|| {
+-                    let origin = words.origins().get(ordinal.checked_add(2)?)?;
++                    let value_origin = ordinal.checked_add(2).and_then(|at| words.origins().get(at));
++                    #[cfg(test)]
++                    trace_stored_callback_guard("writer.value_origin", cmd.span.start(), value_origin.is_some());
++                    let origin = value_origin?;
++                    #[cfg(test)]
++                    trace_stored_callback_guard("writer.value_written", cmd.span.start(), matches!(origin, InvocationWordOrigin::Written(_)));
+                     let InvocationWordOrigin::Written(written) = origin else {
+                         return None;
+                     };
+                     let &token = cmd.argv.get(*written)?;
++                    #[cfg(test)]
++                    {
++                        trace_stored_callback_guard("writer.value_cmd", token.span.start(), token.kind == TokenType::Cmd);
++                        trace_stored_callback_guard("writer.value_whole", token.span.start(), cmd.single_token_word.get(*written) == Some(&true));
++                        trace_stored_callback_guard("writer.value_no_expansion", token.span.start(), positions_are_literal_through(&cmd, *written));
++                    }
+                     (token.kind == TokenType::Cmd
+                         && cmd.single_token_word.get(*written) == Some(&true)
+                         && positions_are_literal_through(&cmd, *written))
+                     .then(|| command_prefix_targets_from_word(ctx, &token, 0))
+-                    .and_then(|targets| (targets.len() == 1).then(|| targets[0]))
++                    .and_then(|targets| {
++                        #[cfg(test)]
++                        trace_stored_callback_guard("writer.one_target", token.span.start(), targets.len() == 1);
++                        (targets.len() == 1).then(|| targets[0])
++                    })
+                 })
+                 .flatten();
+             writes.insert(var, (cmd.span.end(), value_target));
+@@ -2918,6 +2962,8 @@
+     let context = input.context_registry();
+     let regions =
+         crate::executable_regions::command_substitution_regions(ctx.source, ctx.config, *word_tok);
++    #[cfg(test)]
++    trace_stored_callback_guard("prefix.one_region", word_tok.span.start(), regions.len() == 1);
+     let [(inner_start, inner_end)] = regions.as_slice() else {
+         return Vec::new();
+     };
+@@ -2929,11 +2975,15 @@
+         offset,
+         ctx.config.nested(),
+     );
++    #[cfg(test)]
++    trace_stored_callback_guard("prefix.one_command", word_tok.span.start(), built.len() == 1);
+     let [builder] = built.as_slice() else {
+         return Vec::new();
+     };
+-    let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, builder)
+-    else {
++    let words = source_structure::source_registry_words(ctx.source, ctx.analysis, builder);
++    #[cfg(test)]
++    trace_stored_callback_guard("prefix.words", builder.span.start(), words.is_some());
++    let Some(words) = words else {
+         return Vec::new();
+     };
+     let Some((builds, wraps)) = words.with_source_schema(&context, |schema| {
+@@ -2956,8 +3006,16 @@
+                 .contains(Traits::WRAPS_COMMAND_PREFIX),
+         )
+     }) else {
++        #[cfg(test)]
++        trace_stored_callback_guard("prefix.schema", builder.span.start(), false);
+         return Vec::new();
+     };
++    #[cfg(test)]
++    {
++        trace_stored_callback_guard("prefix.schema", builder.span.start(), true);
++        trace_stored_callback_guard("prefix.builds", builder.span.start(), builds);
++        trace_stored_callback_guard("prefix.wraps", builder.span.start(), wraps);
++    }
+     if builds {
+         if let Some(prefix) =
+             source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, builder)
+@@ -2971,6 +3029,8 @@
+                 .original_argument(0)
+                 .and_then(bare_original_prefix_span)
+         {
++            #[cfg(test)]
++            trace_stored_callback_guard("prefix.internal_target", builder.span.start(), true);
+             return vec![PrefixTargetAtSpan {
+                 kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+                 span,
+@@ -3012,11 +3072,22 @@
+         })
+         .flatten()
+     else {
++        #[cfg(test)]
++        trace_stored_callback_guard("prefix.wrapper_position_schema", builder.span.start(), false);
+         return Vec::new();
+     };
++    #[cfg(test)]
++    trace_stored_callback_guard("prefix.wrapper_position_schema", builder.span.start(), true);
++    #[cfg(test)]
++    trace_stored_callback_guard("prefix.wrapper_positions", builder.span.start(), !positions.is_empty());
+     positions
+         .into_iter()
+-        .filter_map(|ordinal| written_prefix_operand(&words, builder, ordinal))
++        .filter_map(|ordinal| {
++            let operand = written_prefix_operand(&words, builder, ordinal);
++            #[cfg(test)]
++            trace_stored_callback_guard("prefix.wrapper_written_operand", builder.span.start(), operand.is_some());
++            operand
++        })
+         .flat_map(|body| command_prefix_targets_from_word(ctx, &body, depth + 1))
+         .collect()
+ }

@@ -1,0 +1,167 @@
+[
+  {
+    "stage": "writer.words",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.roles",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.schema",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.no_alias",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.setter",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.has_varwrite",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.variable_literal",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.value_origin",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.value_written",
+    "offset": 150,
+    "passed": true
+  },
+  {
+    "stage": "writer.value_cmd",
+    "offset": 157,
+    "passed": true
+  },
+  {
+    "stage": "writer.value_whole",
+    "offset": 157,
+    "passed": true
+  },
+  {
+    "stage": "writer.value_no_expansion",
+    "offset": 157,
+    "passed": true
+  },
+  {
+    "stage": "prefix.one_region",
+    "offset": 157,
+    "passed": true
+  },
+  {
+    "stage": "prefix.one_command",
+    "offset": 157,
+    "passed": true
+  },
+  {
+    "stage": "prefix.words",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "prefix.schema",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "prefix.builds",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "prefix.wraps",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "writer.one_target",
+    "offset": 157,
+    "passed": false
+  },
+  {
+    "stage": "writer.words",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "writer.roles",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "writer.schema",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "writer.no_alias",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "writer.setter",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "writer.has_varwrite",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "writer.words",
+    "offset": 174,
+    "passed": true
+  },
+  {
+    "stage": "writer.roles",
+    "offset": 174,
+    "passed": true
+  },
+  {
+    "stage": "writer.schema",
+    "offset": 174,
+    "passed": true
+  },
+  {
+    "stage": "writer.no_alias",
+    "offset": 174,
+    "passed": true
+  },
+  {
+    "stage": "writer.setter",
+    "offset": 174,
+    "passed": false
+  },
+  {
+    "stage": "writer.has_varwrite",
+    "offset": 174,
+    "passed": false
+  },
+  {
+    "stage": "writer.words",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "store.no_scope_alias",
+    "offset": 140,
+    "passed": false
+  }
+]

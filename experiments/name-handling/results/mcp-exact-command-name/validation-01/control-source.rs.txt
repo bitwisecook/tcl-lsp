@@ -1,0 +1,22 @@
+    #[test]
+    fn command_info_preserves_exact_literal_names() {
+        let ordinary = dispatch("command_info", &json!({ "command_name": "HTTP::uri" }))
+            .expect("command_info tool");
+        assert_eq!(ordinary["command"], "HTTP::uri");
+        assert_eq!(ordinary["found"], true);
+        for name in [
+            " HTTP::uri ",
+            " HTTP::uri",
+            "HTTP::uri ",
+            "\tHTTP::uri",
+            "HTTP::uri\n",
+            "HTTP::\0uri",
+            "missing-command-name",
+        ] {
+            let result = dispatch("command_info", &json!({ "command_name": name }))
+                .expect("command_info tool");
+            assert_eq!(result["command"], name, "{name:?}");
+            assert_eq!(result["found"], false, "{name:?}");
+        }
+    }
+

@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "-p",
+    "tcl-mcp",
+    "--bin",
+    "tcl-mcp",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "start_utc": "2026-10-13T00:33:33.781932+00:00",
+  "end_utc": "2026-10-13T00:36:40.882556+00:00",
+  "elapsed_seconds": 187.1006117020006,
+  "exit_code": 0
+}

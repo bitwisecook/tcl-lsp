@@ -1,0 +1,52 @@
+    #[test]
+    fn generator_builds_one_request_closure_for_every_execution_sensitive_output() {
+        let src = concat!(
+            "proc rooted_helper {} { pool helper_pool; call chain_helper }\n",
+            "proc chain_helper {} { set selected [class match [HTTP::uri] equals helper_dg]; call rooted_helper }\n",
+            "proc dormant {} { pool dormant_pool; set static::dormant 1; table incr dormant }\n",
+            "when HTTP_REQUEST { pool first_pool; set static::hits 0; call rooted_helper; dormant; apply {{} { pool lambda_pool; set static::lambda 1 }}; when CLIENT_DATA { pool nested_other_event_pool; set static::nested 1 } }\n",
+            "when http_request { pool second_pool; incr static::hits }\n",
+        );
+
+        reset_request_closure_builds();
+        let generated = generate_irule_test(&json!({"source": src}));
+
+        assert_eq!(
+            request_closure_builds(),
+            1,
+            "one request must construct exactly one event-rooted closure"
+        );
+        assert_eq!(generated["events"], json!(["HTTP_REQUEST"]));
+        assert_eq!(
+            generated["pools"],
+            json!(["first_pool", "helper_pool", "second_pool"]),
+            "both same-event roots and the rooted call cycle share one closure"
+        );
+        assert_eq!(generated["datagroups"], json!(["helper_dg"]));
+        assert_eq!(generated["multi_tmm_detected"], json!(true));
+
+        let commands = generated["commands_used"].as_array().unwrap();
+        for name in ["HTTP::uri", "call", "class", "incr", "pool", "set"] {
+            assert!(
+                commands.iter().any(|value| value == name),
+                "live closure command {name:?} missing: {commands:?}"
+            );
+        }
+
+        let script = generated["test_script"].as_str().unwrap();
+        assert!(script.contains("::orch::configure_static hits"), "{script}");
+        for inert in ["dormant_pool", "lambda_pool", "nested_other_event_pool"] {
+            assert!(
+                !generated["pools"].to_string().contains(inert)
+                    && !generated["datagroups"].to_string().contains(inert)
+                    && !script.contains(&format!("::orch::add_pool {inert}")),
+                "dormant/direct/lambda/nested-other-event pool leaked into setup: {inert:?}\n{script}"
+            );
+        }
+        for inert in ["dormant", "lambda", "nested"] {
+            assert!(
+                !script.contains(&format!("::orch::configure_static {inert}")),
+                "dormant/direct/lambda/nested-other-event static leaked into setup: {inert:?}\n{script}"
+            );
+        }
+    }

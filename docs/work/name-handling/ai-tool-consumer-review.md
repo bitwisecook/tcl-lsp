@@ -1,94 +1,105 @@
 # Bounded MCP and AI consumer review
 
-Temporary coordination note; remove before merge. Read-only review on `work`
-at `d72ab9471`; no tests, generators or oracle experiments were executed.
-Owners inspected: MCP `tools.rs`, Core `procedure_symbol.rs`, and AI
-`gen_ai.rs`, with their immediate contracts, templates and context seam.
-This does not establish coverage of every AI/tool consumer.
+Temporary coordination snapshot; remove before merge. This bounded review on
+`work` covers MCP `tools.rs` and `irule_gen.rs`, Core `procedure_symbol.rs`,
+and AI `gen_ai.rs` with their immediate contracts/templates/context seam.
+It does not establish every AI/tool consumer or a green MCP suite.
 
-## Findings
+## Current implementation
 
-1. **Literal catalogue request is changed before central lookup.**
-   `rust/tcl-mcp/src/tools.rs:1094` applies `.trim()` to the API's
-   `command_name`; `:1101` then calls `ResolvedContext::resolve_spec`.
-   The tool schema at `:2003` calls this a command name and documents no
-   whitespace coercion. Thus `" HTTP::uri "` requests metadata for
-   `"HTTP::uri"`, rather than its exact value. Preserve the incoming name
-   for the central query, or explicitly define a separate search query
-   contract. Test the ordinary key against leading/trailing space, tab,
-   embedded NUL and missing-key variants. This is catalogue metadata,
-   not a runtime command-resolution claim.
+- `command_info` forwards the literal incoming command name to the shared
+  context query; independent BIG-IP version trimming remains unchanged.
+- Procedure documentation uses the shared original declaration inventory,
+  transports original spelling separately from display labels, and distinguishes
+  zero/one/multiple declarations. It supplies no live target or alias resolution.
+- Graph tools retain the analysis's actual input/context; cursor tools adapt
+  Core provider results for that source/analysis. Transport review does not
+  establish provider completeness.
+- Event readers receive the actual retained analysis. Conditional writer hints
+  use the same source context/schema, actual arity/roles and original operands.
+- The static-name repair keeps one genuine captured source context plus its
+  presentation list in MCP-owned `SourceInventory`. The collector preserves
+  variable-token hints and adds valid literal variable-role operands selected
+  through shared schema, actual post-head ordinals, original-word guards and
+  literal-byte projections. Dynamic/expanded/missing-original operands and
+  invalid arity decline; context/currentness guards stay with the shared owner.
+  Presentation labels select no cell, frame, Native handler, rename target or
+  worker. Unknown advice proves no absence of writes.
+- Generated AI catalogue prose uses the shared registry/context seam and
+  describes modelled commands. Generator drift/generated copies remain
+  unverified in this bounded task.
 
-2. **Procedure documentation delegates to current original declarations.**
-   `rust/tcl-mcp/src/tools.rs:1505` uses
-   `procedure_symbol::for_literal_name`; `:1509` distinguishes one match,
-   no match and multiple declarations. `:1534` uses the shared declaration
-   inventory and `:1559` transports original source spelling separately
-   from display names. `rust/tcl-lsp-core/src/procedure_symbol.rs:17`
-   validates the full source image/configuration; `:60` selects literal
-   values through the publication recipe, with an independent hosted
-   header-only branch. It does not claim a live target or resolve aliases.
-   Existing unexecuted-in-this-review tests at MCP `:3583`, `:3592`, `:3602`
-   cover qualification, missing namespace scope, opaque names and repeated
-   declarations. A useful additional finite control is a dynamic
-   `proc $name ...` followed by `rename`: documentation must describe only
-   admitted source declarations rather than infer current dispatch from
-   the final displayed name.
+`tools.rs` SHA256 remains
+`fd114232db002cc84b1752c4ef96409b634b953206edc4a50dcba1c861e1aad2`.
+Current `irule_gen.rs` SHA256 is
+`db83e63cb52238c77fa41061b51dc0bc3839cf4eb673ac9587cff5f61001a931`;
+its earlier sealed captures use `ab48a470...`. All original test bodies,
+fixtures and assertions are byte-identical; only the `executable` transport
+helper changed. Direct Rust formatting passed.
 
-3. **Graph tools retain their analysis's actual context.**
-   `rust/tcl-mcp/src/tools.rs:579` (`supplied_source_graph`) takes
-   `analysis.resolved_input`, refuses an absent input and passes its own
-   `context.commands()` plus that input to the Core graph builder. The
-   call/symbol/dataflow tools at `:591`, `:595`, `:599` share this seam.
-   No local name splitting or alias reconstruction occurs there. Next
-   finite consumer comparison: the same document's literal list-built
-   callback alias before and after an unknown command writer; compare MCP
-   graph output with the same Core builder and retain unknown target
-   alternatives rather than treating a matching report label as identity.
+## Observed validation
 
-4. **Cursor tools adapt Core naming results rather than reconstruct names.**
-   MCP definitions at `rust/tcl-mcp/src/tools.rs:1225`, references at
-   `:1242` and rename at `:1261` delegate to the respective Core providers
-   with the same source and analysis. Rename returns null when Core
-   supplies no edits (`:1270`). This verifies transport at these call
-   sites, not the correctness/completeness of their providers. Use a
-   namespace-imported procedure, rename it between two calls, and add an
-   unknown intervening writer as three finite comparison controls; MCP
-   locations/edits should agree with Core, including refusals.
+Earlier sealed evidence remains unchanged:
+[first five-error compile capture](../../../experiments/name-handling/results/mcp-exact-command-name/validation-01/validation.json),
+[exact literal-name pass](../../../experiments/name-handling/results/mcp-exact-command-name/validation-02/README.md),
+and [three original controls](../../../experiments/name-handling/results/mcp-exact-command-name/existing-controls-01/README.md).
+The exact-name control passed its real key and seven adverse values. The
+original three controls passed helper/event reports and failed static inventory
+with `[]` against `["hits"]`; the later multi-TMM assertion was not reached.
 
-5. **Generated AI catalogue prose uses the shared context seam.**
-   `rust/xtask/src/gen_ai.rs:304` obtains the iRules command store and
-   `:306` calls its environment's `vendor_command_surface`; missing
-   metadata yields no invented summary. The output at `:318` calls the
-   inventory "modelled commands". Templates
-   `ai/prompts/tcl_system.md.j2:20` and
-   `ai/prompts/irules_system.md.j2:36` explicitly distinguish conditional
-   candidates, missing/stale/unsupported inputs and exact oracle contexts.
-   Generator drift and all generated copies remain unverified here.
-   During broad comment cleanup, shorten `gen_ai.rs:298`'s account of
-   retired `ProfileQueries` to the present context/store invariant; no
-   runtime behavior change is implied.
+The current MCP-only repair compiled once offline with `-j2`, selected binary
+`--no-run`, in 187.10 seconds. Three unchanged exact controls then ran once each
+on that same new executable:
 
-Suggested controls are proposals only. Bind any conformance assertions to
-the retained C Tcl/Jim/native-context F5 results for those exact questions.
-No Tcltest execution in F5 TMM/MCPD is proposed.
+| Existing exact control | Observed result |
+| --- | --- |
+| `executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions` | 1 passed, 0 failed |
+| `called_helper_static_write_preserves_hot_event_for_multi_tmm` | 1 passed, 0 failed |
+| `generator_builds_one_request_closure_for_every_execution_sensitive_output` | 0 passed, 1 failed |
 
-## Exact-name repair prepared outside the repository
+Each filtered 132 tests. Inventory now passes both the original `["hits"]`
+assertion and later multi-TMM assertion. The generator control passes its first
+`request_closure_builds() == 1` assertion, then fails at
+`rust/tcl-mcp/src/irule_gen.rs:1438`: datagroups `[]`, expected `["helper_dg"]`.
+Later static-scaffold assertions remain unreached. No source changed or test
+repeated after the failure. Full raw outputs, unchanged controls, exact
+invocations, prepared patch, current source, source/artifact provenance and
+classification are in the
+[current receipts](../../../experiments/name-handling/results/mcp-static-name-inventory/validation-01/README.md).
 
-Scratch source: `/tmp/ai-tool-command-info-tools.rs`. It removes only the
-command-name trim, shortens the adjacent obsolete API history, and adds
-`tools::dialect_param_tests::command_info_preserves_exact_literal_names`
-through public tool dispatch. The original ordinary request must find its
-real registry row; seven exact adverse names must remain unchanged and
-not found. BIG-IP version trimming remains unchanged. Source is not applied
-and the test is unexecuted while shared Rust inputs are frozen.
+The actual selected executable is
+`/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c`, SHA256
+`f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2`.
+The runner sourced `/tmp/name-env.sh` but omitted explicit `CARGO_TARGET_DIR`,
+so Cargo used the default repository target rather than the root-granted issues
+cache. Root was informed; default-target exclusivity is unverified in the
+sealed receipt. No repeated build was performed. Actual source/binary identity
+and fresh artifact results remain retained with that provenance limitation.
 
-`/tmp/ai-tool-command-info-plan.json` records the source hashes, exact
-`cargo test -p tcl-mcp --bin tcl-mcp ... -- --exact --nocapture` command
-and conservative 39-package local path-dependency graph. This graph
-includes `tcl-vm`, excludes standalone Runtime, includes the root's dev
-dependencies and all manifest target tables, and is not a compiled graph.
-Full offline Cargo metadata failed on absent `addr2line` 0.25.1; an
-explicit Linux-host filtered query failed on absent 0.26.1. No fetch or
-build was performed. Resolve the actual selected target graph before
-attesting compilation or leasing its cache.
+All 5,307 frozen files in the 39-package conservative MCP scope stayed unchanged
+through build and controls; current clock/Core fixes are included. VM is
+included; standalone Runtime is excluded. Cargo emitted 361 artifact records,
+including exactly 39 owned workspace packages/43 fresh target records. The
+scope does not claim every frozen file compiled or independently freeze every
+generated build output. Registry-cache manifests under repository `tmp/` are
+excluded from the corrected owned-package count; raw Cargo output is unchanged.
+No literal/event controls repeated, full suite, codegen, interpreter oracle or
+F5 TMM/MCPD test ran. All source/cache leases are released.
+
+## Remaining obligations
+
+Check default-target exclusivity for the actual 00:33:33–00:37:02 UTC capture
+before treating cache provenance as settled. Root coordinates any required
+follow-up; no repeat build/test is authorised by this snapshot.
+
+The unchanged generator datagroup assertion is now the bounded unresolved
+implementation failure. Trace its actual source-reference owner and closure
+before changing MCP or shared source. Preserve the original fixture/assertions
+and sealed failing logs. A new source edit or build needs a separately scoped
+owner/cache lease and fresh source/binary evidence.
+
+Proposed future finite consumer comparisons remain unexecuted: dynamic
+procedure declarations followed by rename; a literal callback alias before
+and after an unknown writer; namespace-imported cursor locations before rename
+and with an unknown intervening writer. Tie conformance claims to the retained
+interpreter/native-context oracle for the exact question.

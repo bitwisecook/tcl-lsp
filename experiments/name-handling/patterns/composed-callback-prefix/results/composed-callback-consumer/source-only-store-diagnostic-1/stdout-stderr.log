@@ -1,0 +1,52 @@
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 27.68s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 1 test
+STORED_CALLBACK_GUARD stage=writer.words offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.roles offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.schema offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.no_alias offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.setter offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.has_varwrite offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.variable_literal offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.value_origin offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.value_written offset=150 passed=true
+STORED_CALLBACK_GUARD stage=writer.value_cmd offset=157 passed=true
+STORED_CALLBACK_GUARD stage=writer.value_whole offset=157 passed=true
+STORED_CALLBACK_GUARD stage=writer.value_no_expansion offset=157 passed=true
+STORED_CALLBACK_GUARD stage=prefix.one_region offset=157 passed=true
+STORED_CALLBACK_GUARD stage=prefix.one_command offset=157 passed=true
+STORED_CALLBACK_GUARD stage=prefix.words offset=158 passed=true
+STORED_CALLBACK_GUARD stage=prefix.schema offset=158 passed=true
+STORED_CALLBACK_GUARD stage=prefix.builds offset=158 passed=false
+STORED_CALLBACK_GUARD stage=prefix.wraps offset=158 passed=false
+STORED_CALLBACK_GUARD stage=writer.one_target offset=157 passed=false
+STORED_CALLBACK_GUARD stage=writer.words offset=158 passed=true
+STORED_CALLBACK_GUARD stage=writer.roles offset=158 passed=true
+STORED_CALLBACK_GUARD stage=writer.schema offset=158 passed=true
+STORED_CALLBACK_GUARD stage=writer.no_alias offset=158 passed=true
+STORED_CALLBACK_GUARD stage=writer.setter offset=158 passed=false
+STORED_CALLBACK_GUARD stage=writer.has_varwrite offset=158 passed=false
+STORED_CALLBACK_GUARD stage=writer.words offset=174 passed=true
+STORED_CALLBACK_GUARD stage=writer.roles offset=174 passed=true
+STORED_CALLBACK_GUARD stage=writer.schema offset=174 passed=true
+STORED_CALLBACK_GUARD stage=writer.no_alias offset=174 passed=true
+STORED_CALLBACK_GUARD stage=writer.setter offset=174 passed=false
+STORED_CALLBACK_GUARD stage=writer.has_varwrite offset=174 passed=false
+STORED_CALLBACK_GUARD stage=writer.words offset=211 passed=false
+STORED_CALLBACK_GUARD stage=store.no_scope_alias offset=140 passed=false
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (247353) panicked at rust/tcl-lsp-core/src/references.rs:6456:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... FAILED
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.12s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

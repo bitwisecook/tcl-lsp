@@ -1,0 +1,35 @@
+{
+  "validation_02_files": 5307,
+  "current_files": 5312,
+  "drift": [
+    {
+      "path": "rust/f5-cli/tests/fixtures/pcap-remap-schema-overlay.toml",
+      "validation_02": null,
+      "current": "ff5483755c7897aa7634a52a40afeb2678c43badffa2092b6527a192ffa220c4"
+    },
+    {
+      "path": "rust/f5-cli/tests/fixtures/pcap-remap.map.toml",
+      "validation_02": null,
+      "current": "513f3956b7825b4b69ee1a9d3dadace03d2b31e9e8db928acaaf9479117d26e7"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml",
+      "validation_02": null,
+      "current": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml",
+      "validation_02": null,
+      "current": "3bd93d33248db8d373f1b7d53d344ee12ae2815c11653449ce5f227a0ec9d3cb"
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml",
+      "validation_02": null,
+      "current": "d2d5c72d85fcb433a74ab889ff849c2b972767077443a8e39ea65a9d20b714ba"
+    }
+  ],
+  "binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "expected_binary_sha256": "363856c3e8169e3d2720507b7bd11959c69dca83ffe18fa9d5e40e8be9986447",
+  "package_count": 39,
+  "standalone_runtime_excluded": true
+}

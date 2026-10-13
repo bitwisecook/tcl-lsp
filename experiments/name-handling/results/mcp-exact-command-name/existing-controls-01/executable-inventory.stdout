@@ -1,0 +1,11 @@
+
+running 1 test
+test irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions ... FAILED
+
+failures:
+
+failures:
+    irule_gen::tests::executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 132 filtered out; finished in 1.76s
+

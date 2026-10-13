@@ -115,12 +115,8 @@ const CTX_KEYS: &[&str] = &[
 
 /// Whether reading `key` leaves a body inside the shape key.
 ///
-/// Asked of the engine rather than answered from a list kept here: the same
-/// [`HookInputs`] that decides caching at `allocate` time decides it here, so
-/// the two cannot drift. They had drifted in both directions — this tool
-/// called `tcl-version` and `in-event-body` uncacheable when `ShapeKey`
-/// carries both, and called the option trio cacheable when it carries
-/// neither.
+/// Use the engine's [`HookInputs`] rule so this report and cache allocation
+/// agree on which declared inputs are shape-only.
 fn ctx_key_in_shape(key: &str) -> bool {
     HookInputs::parse(&[key]).shape_only()
 }
@@ -1178,9 +1174,8 @@ speclib mylib 1.0 {
         assert_eq!(result["summary"]["uncacheable_hooks"], 1);
     }
 
-    /// `in-event-body` and `tcl-version` are *in* the shape key — `ShapeKey`
-    /// carries both — so declaring and reading them is cacheable. This is the
-    /// pair this tool used to call uncacheable while the engine cached them.
+    /// `in-event-body` and `tcl-version` are declared shape-only inputs,
+    /// retained by `ShapeKey`, so declaring and reading them is cacheable.
     #[test]
     fn the_shape_key_extends_past_the_words() {
         let source = r"
@@ -1202,10 +1197,9 @@ speclib mylib 1.0 {
         assert_eq!(result["summary"]["uncacheable_hooks"], 0);
     }
 
-    /// The one silent miscompile a pack can cause: the declaration arms the
-    /// cache, the body reads something the key does not carry, and nothing at
-    /// runtime checks one against the other. `dialect` is outside the key, so
-    /// two documents of different dialects share an answer.
+    /// `dialect` is not a declared shape-only input. Reading it under a
+    /// `nwords` declaration is a conflict, even though `ShapeKey` retains the
+    /// call's dialect independently to keep cache entries dialect-specific.
     #[test]
     fn a_body_reading_past_its_declaration_is_flagged_as_a_conflict() {
         let source = r"

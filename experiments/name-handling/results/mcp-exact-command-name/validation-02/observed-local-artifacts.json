@@ -1,0 +1,983 @@
+{
+  "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "manifest": "rust/tcl-dialect/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "fresh": true,
+      "target_source_sha256": "38ce2919368beb1d308c66a6b42db0b31458e25e57325ee5838623ddc23e18ea",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "manifest": "rust/tcl-dialect/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_dialect",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "208f14e0bea1dcfee50366bc656cf54c4177552f6259445147340349f9b08b10",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "manifest": "rust/tcl-core-types/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_core_types",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-core-types/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "a25c183654dae774adfb9882e58790b34781a8b170b2b07e1fd7536b74410844",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "manifest": "rust/tcl-lexer/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_lexer",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-lexer/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "539f4a86a73e3e42356e9bc477e0c6ff595e858ffa05174ceb847c7bc93f9481",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "manifest": "rust/tcl-syntax/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_syntax",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-syntax/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "6ad16dac695833e45052276f0523986885877dc00634e10e06ff81e2d62d93e5",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "manifest": "rust/tcl-runtime-api/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_runtime_api",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "d00d8a46607175d40d04e2d4a781d591f87a637ad8976e23aa7c05c1cd782c5d",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "manifest": "rust/tcl-platform/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_platform",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-platform/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "7dc60681a4127c56ecf8b47d6d7c7107ea83d74ca4988c2fda7baffc53818158",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "manifest": "rust/tcl-cmd-core/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_cmd_core",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "1545797232853f4f71b910fde2cd22a72a022dc6ed089c0af056c18c5e9dd2eb",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "manifest": "rust/tcl-regex/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_regex",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-regex/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "1d21f1cfa7ace0267efd67dae77131be39f2bb9b5a98e1e422cb9430be1283df",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "manifest": "rust/tcl-registry/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_registry",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-registry/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "470180fd53f131b4b6d628c7e42e7d3640e720d4e5a9107de86d0f0309a906d6",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "manifest": "rust/tcl-bytecode/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_bytecode",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-bytecode/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "792d510bd3502096658e046c4deff1c41400e217b746a9507178c2a94d3b931d",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "manifest": "rust/tcl-compiler/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_compiler",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+      "manifest": "rust/tcl-irules/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_irules",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-irules/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "9d89beceb7971be5e2006747c5086817b110828f8ea124d7fd11253f5d5fc3a4",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "manifest": "rust/tcl-host-c-abi/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "fresh": true,
+      "target_source_sha256": "01ccc95172b9ad4a62cadc7988ea435524b687677b14707061ba96c3e53bd827",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "manifest": "rust/tcl-host-c-abi/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_host_c_abi",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "af3845ce56bdfcba065ca435f334db5e21d5bd5863c09227c21c93da53913fa7",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sslictcl#0.1.0",
+      "manifest": "rust/tcl-sslictcl/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_sslictcl",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-sslictcl/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "2f8fbcca46df64b69ef4d2ccf2b5e8643b5b06d9f8a11bff88227ff0f377f79c",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip#0.1.0",
+      "manifest": "rust/tcl-bigip/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_bigip",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-bigip/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "1b67951b4014d6efaf6aa3302fa9fac096953bc5680babb905875163aad4ddc4",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "manifest": "rust/tcl-host-native/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_host_native",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-native/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "3d3f8ec0b5b1b6b7716573cf3d2bb6e8e0e6aa1289af9dd0c0552f0cac6d6483",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "manifest": "rust/tcl-vm/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_vm",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-vm/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "03b30bf5ee368c7603dda87dc0048d16817d4ddb3cb65b7b93b8da7b84157720",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-api#0.1.0",
+      "manifest": "rust/tcl-engine-api/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_engine_api",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-engine-api/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "fd346d854b77f3ef2306099beccf68055c0d2089c672e913b19fa3ae5a98776d",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-engine-tclvm#0.1.0",
+      "manifest": "rust/tcl-engine-tclvm/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_engine_tclvm",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-engine-tclvm/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "93a9d7e47b1f45a2f8b2278902c9a484d3f1fb5c7469481c70648ef0c4433f0b",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg-model#0.1.0",
+      "manifest": "rust/tcl-pkg-model/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_pkg_model",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-pkg-model/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "2f184c23453ff87627d648df893a8ca62c191de5dd4477dff92dfa4a4fe1f002",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-userdirs#0.1.0",
+      "manifest": "rust/tcl-userdirs/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_userdirs",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-userdirs/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "2785034714cb65909c129a9251a54d9118a16cb2f7ad55c9cfd0704ae24fa5d0",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-hooks#0.1.0",
+      "manifest": "rust/tcl-spec-hooks/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_spec_hooks",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-spec-hooks/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "edb07a2567f9b65d97f10c299e68a4fac6eec2479184bb5a506576ddf18c217f",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-sandbox#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-sandbox#0.1.0",
+      "manifest": "rust/tcl-sandbox/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_sandbox",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-sandbox/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "94fe5a5cc71a85cd68749c34db4a4e0a58465eeb14ed938fd9083e115f66a177",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "manifest": "rust/tcl-version/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-version/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "fresh": true,
+      "target_source_sha256": "74b82e7d7f5c5c5e61cd2befb81a23c84bf493a44fb9974f5703f56c72323df8",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-version#0.1.0",
+      "manifest": "rust/tcl-version/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_version",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-version/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "ce38d816ea23b99ca0d09ffe0acd8e54f4f6329e4a462fae6b208d635a42f544",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-pkg#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-pkg#0.1.0",
+      "manifest": "rust/tcl-pkg/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_pkg",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-pkg/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "b421943dd56d38ea34d349c7664ab94a9acacda3dce54bc60c6c68e7845a320a",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "manifest": "rust/tcl-cli/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-cli/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "fresh": true,
+      "target_source_sha256": "a3db0a3f7a7fa01edbec3191c8d907f4643642f0ac5e95237e67d661b8ddc46c",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli#0.1.0",
+      "manifest": "rust/tcl-cli/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_cli",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-cli/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "2421056bc3f804223aceb24dd54561c8a411ce3d0037e832102d5c275ebcaca2",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-bigip-io#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip-io#0.1.0",
+      "manifest": "rust/tcl-bigip-io/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_bigip_io",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-bigip-io/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "2855577ed402e8ad9605e5b9ebfda5fbeebe1e158d68c9c2f6f710272bb8639a",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-bigip-query#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bigip-query#0.1.0",
+      "manifest": "rust/tcl-bigip-query/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_bigip_query",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-bigip-query/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "ae1f96a2c8cec0c5aece2e7e2bf7b1ef7e5ef139b80a9b2c7d3a979b4482d687",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-irule-test#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irule-test#0.1.0",
+      "manifest": "rust/tcl-irule-test/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_irule_test",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-irule-test/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "9bcf70f19b45d6b08c8db25548bfbb186330cbc2468f7f826040de18337f472f",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-diagram#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-diagram#0.1.0",
+      "manifest": "rust/tcl-diagram/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_diagram",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-diagram/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "c0f2c5a18568d96b94aaddb8b0ed110248aaaf257f91c948a57a17fd66cf94d5",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-f5mku#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-f5mku#0.1.0",
+      "manifest": "rust/tcl-f5mku/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_f5mku",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-f5mku/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": true,
+      "target_source_sha256": "99fedfaf1483246aad85f625540f80cd69c3d669ba66882778fdb8b5a53e5ebc",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "manifest": "rust/tcl-spectcl/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_spectcl",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-spectcl/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "1552b0a04d11f8ead2f93bc444fa9a6955417cf5ab2aa3ebacfea80d6a41abd6",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "manifest": "rust/tcl-lsp-core/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_lsp_core",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "af601143313ec01d115f4c2f229269056e421cf18d702e33ce124e3266c95db7",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-spec-studio#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-studio#0.1.0",
+      "manifest": "rust/tcl-spec-studio/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_spec_studio",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-spec-studio/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "f29603da284e8ea47e331de902975b4e208ad766b30d927c209fd7cf72286ce2",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-cli-support#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cli-support#0.1.0",
+      "manifest": "rust/tcl-cli-support/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_cli_support",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-cli-support/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "ac5ef6283506cccfe3c37b28cc81427f0662a6221476f6d1656e1077c8e62180",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-explorer#0.1.0",
+      "manifest": "rust/tcl-explorer/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_explorer",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-explorer/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "d11c9aeaf637f4951a7e95ed4b9fd0a2c26c14c0793d6eaf2d4cc47ca35dfc8b",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/f5-cli#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/f5-cli#0.1.0",
+      "manifest": "rust/f5-cli/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "f5_cli",
+        "src_path": "/workspace/tcl-lsp/rust/f5-cli/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "83e393b8d4419623411ec329727835963545d703a0d4e8eee653755a2a3766af",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/f5-xc#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/f5-xc#0.1.0",
+      "manifest": "rust/f5-xc/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "f5_xc",
+        "src_path": "/workspace/tcl-lsp/rust/f5-xc/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "efac1d1dfadcdfcb30953051e9393c6f74e94992d363eb155603273c31ae573a",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ],
+  "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+      "manifest": "rust/tcl-mcp/Cargo.toml",
+      "target": {
+        "kind": [
+          "bin"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "tcl-mcp",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-mcp/src/main.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": false,
+        "test": true
+      },
+      "fresh": false,
+      "target_source_sha256": "063964e7bcd307228faf71ab1a47b2c02a27221dae525de300d12fa7392182c7",
+      "target_source_hash_scope": "Frozen package source inventory, unchanged through compilation and exact test completion"
+    }
+  ]
+}

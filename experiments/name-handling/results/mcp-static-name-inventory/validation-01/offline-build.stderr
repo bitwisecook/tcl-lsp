@@ -1,0 +1,316 @@
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling zeroize v1.9.0
+   Compiling subtle v2.6.1
+   Compiling typenum v1.20.1
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.2
+   Compiling hybrid-array v0.4.15
+   Compiling rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling proc-macro2 v1.0.107
+   Compiling crypto-common v0.2.2
+   Compiling unicode-ident v1.0.26
+   Compiling quote v1.0.47
+   Compiling block-buffer v0.12.1
+   Compiling const-oid v0.10.2
+   Compiling syn v3.0.6
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+   Compiling cpufeatures v0.3.1
+   Compiling digest v0.11.3
+   Compiling block-padding v0.4.2
+   Compiling serde_core v1.0.229
+   Compiling inout v0.2.2
+   Compiling cipher v0.5.2
+   Compiling find-msvc-tools v0.1.14
+   Compiling shlex v2.0.1
+   Compiling bitflags v2.13.2
+   Compiling sha2 v0.11.0
+   Compiling jobserver v0.1.35
+   Compiling cc v1.6.0
+   Compiling cpubits v0.1.1
+   Compiling memchr v2.8.3
+   Compiling thiserror v2.0.21
+   Compiling thiserror-impl v2.0.21
+   Compiling base64ct v1.8.3
+   Compiling pem-rfc7468 v1.0.0
+   Compiling chacha20 v0.10.2
+   Compiling num-integer v0.1.47
+   Compiling hmac v0.13.0
+   Compiling universal-hash v0.6.1
+   Compiling bytecount v0.6.9
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling rand v0.10.3
+   Compiling syn v2.0.119
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling libm v0.2.16
+   Compiling num-bigint v0.5.1
+   Compiling polyval v0.7.3
+   Compiling der v0.8.2
+   Compiling aes v0.9.3
+   Compiling crypto-bigint v0.7.5
+   Compiling ghash v0.6.0
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling pbkdf2 v0.13.0
+   Compiling ctr v0.10.1
+   Compiling aead v0.6.1
+   Compiling foldhash v0.2.0
+   Compiling hashbrown v0.17.1
+   Compiling aes-gcm v0.11.1
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling spki v0.8.0
+   Compiling salsa20 v0.11.0
+   Compiling smallvec v1.16.2
+   Compiling scrypt v0.12.0
+   Compiling cbc v0.2.1
+   Compiling regex-syntax v0.8.11
+   Compiling pkcs5 v0.8.1
+   Compiling itoa v1.0.18
+   Compiling pkcs8 v0.11.0
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling sha1 v0.11.0
+   Compiling ff v0.14.0
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling group v0.14.0
+   Compiling aho-corasick v1.1.5
+   Compiling serde_derive v1.0.229
+   Compiling md-5 v0.11.0
+   Compiling signature v3.0.0
+   Compiling equivalent v1.0.2
+   Compiling pkg-config v0.3.34
+   Compiling base16ct v1.0.0
+   Compiling sec1 v0.8.1
+   Compiling indexmap v2.14.2
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling regex-automata v0.4.18
+   Compiling hkdf v0.13.0
+   Compiling ring v0.17.14
+   Compiling serde_json v1.0.151
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling elliptic-curve v0.14.1
+   Compiling regex v1.13.1
+   Compiling primefield v0.14.0
+   Compiling rustc-hash v2.1.3
+   Compiling unicode-general-category v1.1.0
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling wnaf v0.14.1
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling rfc6979 v0.6.0
+   Compiling getrandom v0.2.17
+   Compiling minimal-lexical v0.2.1
+   Compiling time-core v0.1.9
+   Compiling num-conv v0.2.2
+   Compiling untrusted v0.9.0
+   Compiling time-macros v0.2.32
+   Compiling nom v7.1.3
+   Compiling ecdsa v0.17.0
+   Compiling primeorder v0.14.0
+   Compiling synstructure v0.13.2
+   Compiling deranged v0.5.8
+   Compiling powerfmt v0.2.0
+   Compiling base64 v0.23.1
+   Compiling bytes v1.12.1
+   Compiling time v0.3.55
+   Compiling asn1-rs-derive v0.6.0
+   Compiling rusticata-macros v4.1.0
+   Compiling asn1-rs-impl v0.2.0
+   Compiling displaydoc v0.2.7
+   Compiling asn1-rs v0.7.2
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling crypto-primes v0.7.2
+   Compiling oid-registry v0.8.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling num-bigint v0.4.8
+   Compiling cmake v0.1.58
+   Compiling dunce v1.0.5
+   Compiling data-encoding v2.11.1
+   Compiling fs_extra v1.3.0
+   Compiling aws-lc-sys v0.45.0
+   Compiling der-parser v10.0.0
+   Compiling lazy_static v1.5.1
+   Compiling once_cell v1.21.4
+   Compiling x509-parser v0.18.1
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling log v0.4.34
+   Compiling crc32fast v1.5.2
+   Compiling rustix v1.1.5
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling aws-lc-rs v1.18.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling ipnet v2.12.2
+   Compiling simd-adler32 v0.3.10
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling pin-project-lite v0.2.17
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.9.1
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling rustls-pki-types v1.15.1
+   Compiling untrusted v0.7.1
+   Compiling strsim v0.11.1
+   Compiling zlib-rs v0.6.8
+   Compiling flate2 v1.1.10
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling socket2 v0.6.5
+   Compiling httparse v1.10.1
+   Compiling iana-time-zone v0.1.65
+   Compiling futures-sink v0.3.34
+   Compiling futures-core v0.3.34
+   Compiling futures-channel v0.3.34
+   Compiling chrono v0.4.45
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling futures-macro v0.3.34
+   Compiling futures-task v0.3.34
+   Compiling slab v0.4.12
+   Compiling vcpkg v0.2.15
+   Compiling utf8parse v0.2.2
+   Compiling futures-io v0.3.34
+   Compiling semver v1.0.28
+   Compiling rustls v0.23.45
+   Compiling rustc_version v0.4.1
+   Compiling futures-util v0.3.34
+   Compiling anstyle-parse v1.0.0
+   Compiling libsqlite3-sys v0.38.2
+   Compiling rustls-webpki v0.103.15
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling http v1.5.0
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tokio-macros v2.7.2
+   Compiling mio v1.2.4
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle-query v1.1.5
+   Compiling colorchoice v1.0.5
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+   Compiling anstyle v1.0.14
+   Compiling anstream v1.0.0
+   Compiling tokio v1.53.2
+   Compiling ureq-proto v0.6.4
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling curve25519-dalek v5.0.0
+   Compiling webpki-roots v1.0.9
+   Compiling xattr v1.6.1
+   Compiling filetime v0.2.29
+   Compiling xxhash-rust v0.8.19
+   Compiling bumpalo v3.20.3
+   Compiling utf8-zero v0.8.1
+   Compiling winnow v1.0.4
+   Compiling percent-encoding v2.3.2
+   Compiling version_check v0.9.5
+   Compiling cfg_aliases v0.2.2
+   Compiling nix v0.31.3
+   Compiling generic-array v0.14.7
+   Compiling ureq v3.4.2
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling zopfli v0.8.3
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tar v0.4.46
+   Compiling terminal_size v0.4.4
+   Compiling ssh-encoding v0.3.0
+   Compiling hashlink v0.12.2
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling wait-timeout v0.2.1
+   Compiling keccak v0.2.2
+   Compiling crossbeam-utils v0.8.23
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling typed-path v0.12.3
+   Compiling parking_lot_core v0.9.12
+   Compiling heck v0.5.0
+   Compiling unicode-width v0.2.2
+   Compiling rustversion v1.0.23
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling ident_case v1.0.1
+   Compiling fallible-iterator v0.3.0
+   Compiling fnv v1.0.7
+   Compiling clap_lex v1.1.1
+   Compiling byteorder v1.5.0
+   Compiling clap_builder v4.6.7
+   Compiling blowfish v0.10.0
+   Compiling papergrid v0.18.0
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling darling_core v0.24.1
+   Compiling clap_derive v4.6.7
+   Compiling zip v8.6.0
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling futures-executor v0.3.34
+   Compiling ed25519 v3.0.0
+   Compiling poly1305 v0.9.1
+   Compiling blake2 v0.11.0
+   Compiling rtoolbox v0.0.6
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling anyhow v1.0.104
+   Compiling scopeguard v1.2.0
+   Compiling ref-cast v1.0.27
+   Compiling rusqlite v0.40.2
+   Compiling lock_api v0.4.14
+   Compiling rpassword v7.5.4
+   Compiling argon2 v0.6.0
+   Compiling ssh-cipher v0.3.0
+   Compiling ed25519-dalek v3.0.0
+   Compiling futures v0.3.34
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling darling_macro v0.24.1
+   Compiling clap v4.6.7
+   Compiling tabled v0.22.0
+   Compiling bcrypt-pbkdf v0.11.0
+   Compiling sha3 v0.11.0
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling tokio-util v0.7.19
+   Compiling p521 v0.14.0
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.30.0
+   Compiling module-lattice v0.2.3
+   Compiling kem v0.3.0
+   Compiling openssl-probe v0.2.1
+   Compiling hex v0.4.3
+   Compiling sponge-cursor v0.1.0
+   Compiling hashbrown v0.14.5
+   Compiling sha3 v0.12.0
+   Compiling ssh-key v0.7.0-rc.11
+   Compiling dashmap v6.2.1
+   Compiling rustls-native-certs v0.8.4
+   Compiling ml-kem v0.3.2
+   Compiling schemars_derive v1.2.2
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling generic-array v1.4.5
+   Compiling clap_complete v4.6.11
+   Compiling darling v0.24.1
+   Compiling russh-cryptovec v0.62.0
+   Compiling tcl-cli v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli)
+   Compiling russh-util v0.52.0
+   Compiling dns-lookup v4.0.2
+   Compiling enum_dispatch v0.3.13
+   Compiling tracing-core v0.1.36
+   Compiling delegate v0.13.5
+   Compiling tracing-attributes v0.1.31
+   Compiling serde_bytes v0.11.19
+   Compiling ripemd v0.2.0
+   Compiling hex-literal v1.1.0
+   Compiling rmcp v3.5.0
+   Compiling dyn-clone v1.0.20
+   Compiling md5 v0.8.1
+   Compiling tcl-bigip-io v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-io)
+   Compiling russh v0.64.1
+   Compiling schemars v1.2.2
+   Compiling tracing v0.1.44
+   Compiling russh-sftp v3.0.1
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling rmcp-macros v3.5.0
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-irule-test v0.1.0 (/workspace/tcl-lsp/rust/tcl-irule-test)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-f5mku v0.1.0 (/workspace/tcl-lsp/rust/tcl-f5mku)
+   Compiling uuid v1.27.0
+   Compiling pastey v0.2.3
+   Compiling f5-cli v0.1.0 (/workspace/tcl-lsp/rust/f5-cli)
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-mcp v0.1.0 (/workspace/tcl-lsp/rust/tcl-mcp)
+    Finished `test` profile [unoptimized] target(s) in 3m 07s

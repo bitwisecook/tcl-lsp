@@ -1,0 +1,25 @@
+{
+  "oracle_execution": false,
+  "offline_exit": 101,
+  "offline_test_execution_count": 0,
+  "online_exit": 101,
+  "online_elapsed_seconds": 134.76786238200293,
+  "compile_errors": 5,
+  "test_execution_count": 0,
+  "selected_test": "tools::dialect_param_tests::command_info_preserves_exact_literal_names",
+  "selected_package": "tcl-mcp",
+  "selected_binary_target": "tcl-mcp",
+  "frozen_file_count": 6244,
+  "source_changes": [],
+  "tools_sha256": "d9abd2dd729e249f37603f3221eb8c19fe2e30abf6b40b2f0f2ffdfd8e0aae6b",
+  "cargo_artifact_records": 360,
+  "observed_local_packages": 38,
+  "executable_for_selected_target": null,
+  "limits": [
+    "No passing literal-name control: compilation failed before test execution.",
+    "Observed artifacts include reused and compiled outputs; full .rs scope is conservative rather than an asserted compiled closure.",
+    "Standalone Runtime is absent from this manifest closure; VM is included.",
+    "No source fixes or assertions changed during the capture.",
+    "Dependency download/build selected only the MCP bin test; no broad Cargo fetch."
+  ]
+}

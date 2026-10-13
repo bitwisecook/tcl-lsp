@@ -1,0 +1,31 @@
+{
+  "completed_utc": "2026-10-13T00:11:10.896115+00:00",
+  "exit_code": 101,
+  "exact_test": "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+  "observed_test_output": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.12s"
+  ],
+  "diagnostic_binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "diagnostic_binary_sha256": "a089edd9c26199889736e76863bd2ae71929f66900df5e79246d2b0e2a7916f5",
+  "binary_currency_after_restore": "noncurrent: compiled with one temporary references.rs instrumentation now restored byte-exact; no production validation claim",
+  "changed_instrumented_scope_inputs": [],
+  "changed_production_scope_inputs_after_restore": [],
+  "restored_source_sha256": {
+    "rust/tcl-lsp-core/src/references.rs": "89ade42c5d03f71bcb961a2bdd2b31b437fb3324bdc9e553350fecf3581afa44"
+  },
+  "assertions_or_original_inputs_changed": false,
+  "logical_or_all_four": "not run",
+  "classification": "Observed two concrete required refusals in original public C86 path; internal reasons for absent wrapper trait and absent after source words remain unmeasured. No KnownBytes, RuleLoader, missing literal, Native capture or writer-count cause inferred.",
+  "tests": {
+    "matched": 1,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered_out": 3002
+  },
+  "actual_case": "First Tcl8.6 original public positive references with declaration included; later public/private/release assertions unreached",
+  "passed_actual_guards": "Set150 original words/roles/schema/no-scope-alias/setter/VarWrite/literal variable; own Written Cmd value157, sole token, no expansion; sole substitution/command; wrapper158 original words/schema; nested writer158/174 original words/roles/schema/no-scope-alias and no VarWrite",
+  "first_false_required_guard": "prefix.wraps=false at namespace code158 after schema present and builds=false; sole value traversal returns zero targets. builds=false only routes to wrapper handling and is not itself a failing premise for a wrapper.",
+  "independent_inventory_refusal": "source_registry_words returns None for after idle $cb at211, so writer scan sets has_scope_alias=true and stored inventory aborts at body140 independently of the zero value-target failure",
+  "unreached": "Inner builder174 prefix extraction through wrapper; wrapper script argument positions; store unique-write/value-target final selection; consumption; all later original assertions"
+}

@@ -1,0 +1,11 @@
+
+running 1 test
+test irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output ... FAILED
+
+failures:
+
+failures:
+    irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 132 filtered out; finished in 8.37s
+

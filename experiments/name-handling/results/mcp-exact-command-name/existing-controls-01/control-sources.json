@@ -1,0 +1,23 @@
+[
+  {
+    "test": "called_helper_static_write_preserves_hot_event_for_multi_tmm",
+    "source_file": "rust/tcl-mcp/src/irule_gen.rs",
+    "start_line": 1346,
+    "test_source_sha256": "fd6ed287111aabab425a80a24f6cc22b6b8e6fc6066d4eac7d503fa7858cda67",
+    "source_file_sha256": "ab48a470e00dbf69e1f4014afee3c836f3f789d2b52f2dcc061b9a11feb20abe"
+  },
+  {
+    "test": "executable_inventory_ignores_comments_and_data_but_keeps_live_substitutions",
+    "source_file": "rust/tcl-mcp/src/irule_gen.rs",
+    "start_line": 1285,
+    "test_source_sha256": "843bccac84f5535c46bb6cf9e4fc4518b1dde5d841c03507d45ff0a9a84086f3",
+    "source_file_sha256": "ab48a470e00dbf69e1f4014afee3c836f3f789d2b52f2dcc061b9a11feb20abe"
+  },
+  {
+    "test": "original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps",
+    "source_file": "rust/tcl-mcp/src/tools.rs",
+    "start_line": 3846,
+    "test_source_sha256": "c2fcf10af020ff817fbdbe823bde5471a9a482143aa295d3418455f4759bfd60",
+    "source_file_sha256": "fd114232db002cc84b1752c4ef96409b634b953206edc4a50dcba1c861e1aad2"
+  }
+]
