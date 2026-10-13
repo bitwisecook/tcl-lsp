@@ -1,0 +1,209 @@
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -956,6 +956,7 @@
+         // scripts. Inert braced text cannot become a lexical child command.
+         // Iteration and exact original body spans keep the walk independent
+         // of diagnostics, reached-parent lookup and entered runtime frames.
++        let trace = std::env::var_os("TCL_LSP_TRACE_BRACED_SOURCE").is_some();
+         let mut pending = vec![(native, None)];
+         let mut visited = std::collections::HashSet::new();
+         while let Some((native, body_origin)) = pending.pop() {
+@@ -977,10 +978,47 @@
+                     .flatten()
+             });
+             self.retain_original_static_source_vector(&native, body_origin.as_ref());
++            if trace {
++                let retained = native
++                    .first()
++                    .and_then(|head| self.result.original_vendor_source_names.get(&head.span()));
++                eprintln!(
++                    "braced-source compiler vector head={:?} words={} body_origin={} retained={:?}",
++                    native.first().map(tcl_lexer::NativeWord::span),
++                    native.len(),
++                    body_origin.is_some(),
++                    retained.map(Option::is_some)
++                );
++            }
+             if let Some(words) =
+                 self.original_readonly_vendor_source_vector(&native, body_origin.as_ref())
+             {
+                 let context = self.analysis_context();
++                if trace {
++                    let input = self
++                        .resolved_input
++                        .as_ref()
++                        .or(self.result.resolved_input.as_ref());
++                    let expressions =
++                        input.and_then(|input| words.source_expression_script_bodies(input));
++                    eprintln!(
++                        "braced-source compiler schema head={:?} roles={:?} retained_input={} expr_issuer={:?}",
++                        native.first().map(tcl_lexer::NativeWord::span),
++                        words.roles(),
++                        input.is_some(),
++                        expressions.as_ref().map(Vec::len)
++                    );
++                    for body in expressions.iter().flatten() {
++                        eprintln!(
++                            "braced-source compiler expr child={:?} container={:?} source={} context={} vendor_origin={} queued=false",
++                            body.content_span(),
++                            body.original_container().span(),
++                            body.matches_source(&image, config),
++                            body.matches_context(&context),
++                            body.vendor_origin().is_some()
++                        );
++                    }
++                }
+                 for body in words.source_script_bodies_for(
+                     &context,
+                     crate::registry_invocation::OriginalSourceScriptPurpose::Syntax,
+@@ -992,6 +1030,12 @@
+                         continue;
+                     }
+                     let Some(origin) = body.vendor_origin() else {
++                        if trace {
++                            eprintln!(
++                                "braced-source compiler syntax child={:?} vendor_origin=false queued=false",
++                                body.content_span()
++                            );
++                        }
+                         continue;
+                     };
+                     if let Ok(plan) = tcl_lexer::native_script_words_in(
+@@ -999,6 +1043,14 @@
+                         body.content_span(),
+                         config,
+                     ) {
++                        if trace {
++                            eprintln!(
++                                "braced-source compiler syntax child={:?} queued={} fatal_tail={}",
++                                body.content_span(),
++                                plan.commands.len(),
++                                plan.fatal_tail.is_some()
++                            );
++                        }
+                         pending.extend(
+                             plan.commands
+                                 .into_iter()
+@@ -1006,6 +1058,11 @@
+                         );
+                     }
+                 }
++            } else if trace {
++                eprintln!(
++                    "braced-source compiler schema head={:?} readonly=false",
++                    native.first().map(tcl_lexer::NativeWord::span)
++                );
+             }
+             for word in &native {
+                 for part in word.executable_parts().all_parts() {
+@@ -1019,6 +1076,14 @@
+                     else {
+                         continue;
+                     };
++                    if trace {
++                        eprintln!(
++                            "braced-source compiler lexical child={:?} queued={} fatal_tail={}",
++                            body,
++                            plan.commands.len(),
++                            plan.fatal_tail.is_some()
++                        );
++                    }
+                     // A malformed tail supplies no complete vector; any
+                     // independently complete prefix is still readonly syntax.
+                     pending.extend(
+--- a/rust/tcl-irules/src/source_context.rs
++++ b/rust/tcl-irules/src/source_context.rs
+@@ -107,6 +107,7 @@
+     config: LexerConfig,
+     context: &ContextRegistry,
+ ) -> Option<Vec<(Span, OriginalRegistryWords)>> {
++    let trace = std::env::var_os("TCL_LSP_TRACE_BRACED_SOURCE").is_some();
+     let mut vectors = Vec::new();
+     for occurrence in analysis.original_vendor_source_names() {
+         let original = occurrence.original_words();
+@@ -114,6 +115,12 @@
+             continue;
+         };
+         if first != occurrence.name_input().original_word() {
++            if trace {
++                eprintln!(
++                    "braced-source context vector head={:?} original_head=false",
++                    first.span()
++                );
++            }
+             continue;
+         }
+         let start = first.span().start();
+@@ -122,16 +129,44 @@
+         let mut segments =
+             tcl_compiler::segmenter::segment_commands_with_offset_and_config(text, start, config);
+         if segments.len() != 1 {
++            if trace {
++                eprintln!(
++                    "braced-source context vector head={:?} segments={} admitted=false",
++                    first.span(),
++                    segments.len()
++                );
++            }
+             continue;
+         }
+         let segment = segments.remove(0);
+         let Some(words) = source_registry_words(source, analysis, &segment) else {
++            if trace {
++                eprintln!(
++                    "braced-source context vector head={:?} source_registry_words=false admitted=false",
++                    first.span()
++                );
++            }
+             continue;
+         };
++        if trace {
++            eprintln!(
++                "braced-source context vector head={:?} source_registry_words=true source={} registry={} context={}",
++                first.span(),
++                words.matches_source(image, config),
++                words.matches_registry(context.commands()),
++                words.context() == Some(context.context())
++            );
++        }
+         if words.matches_source(image, config)
+             && words.matches_registry(context.commands())
+             && words.context() == Some(context.context())
+         {
++            if trace {
++                eprintln!(
++                    "braced-source context vector span={:?} admitted=true",
++                    segment.span
++                );
++            }
+             vectors.push((segment.span, words));
+         }
+     }
+@@ -277,6 +312,7 @@
+     declarations: &[(Vec<u8>, Span)],
+     context: &ContextRegistry,
+ ) -> Vec<OriginalIrulesSourceCommand> {
++    let trace = std::env::var_os("TCL_LSP_TRACE_BRACED_SOURCE").is_some();
+     let mut visited = HashSet::new();
+     let mut commands = Vec::new();
+     while let Some((body, event, through_call)) = pending.pop_front() {
+@@ -288,7 +324,19 @@
+                 .iter()
+                 .any(|excluded| *excluded != body && contains(*excluded, *span))
+             {
++                if trace {
++                    eprintln!(
++                        "braced-source context command span={:?} body={:?} excluded=true",
++                        span, body
++                    );
++                }
+                 continue;
++            }
++            if trace {
++                eprintln!(
++                    "braced-source context command span={:?} body={:?} event={} through_call={} admitted=true",
++                    span, body, event, through_call
++                );
+             }
+             let mut obligations = vec![IrulesSourceObligation::ConditionalApplicability];
+             if through_call {

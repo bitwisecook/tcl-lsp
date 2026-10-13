@@ -1,0 +1,13 @@
+{
+  "selected_root": "tcl-syntax --lib test",
+  "package_dirs": {
+    "tcl-core-types": "rust/tcl-core-types",
+    "tcl-dialect": "rust/tcl-dialect",
+    "tcl-host-c-abi": "rust/tcl-host-c-abi",
+    "tcl-lexer": "rust/tcl-lexer",
+    "tcl-platform": "rust/tcl-platform",
+    "tcl-syntax": "rust/tcl-syntax",
+    "tcl-test-support": "rust/tcl-test-support"
+  },
+  "scope": "Conservative manifest path closure: Syntax normal/build/dev sections; non-root normal/build sections; all target tables and optional path dependencies included. No Cargo metadata or build run. Actual Cargo emitted artifacts will be recorded separately."
+}

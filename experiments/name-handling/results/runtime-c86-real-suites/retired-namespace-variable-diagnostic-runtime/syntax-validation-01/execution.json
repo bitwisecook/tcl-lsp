@@ -1,0 +1,100 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "target_dir": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "steps": [
+    {
+      "label": "syntax-compile",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "-p",
+        "tcl-syntax",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "start_utc": "2026-10-13T01:43:15.201174+00:00",
+      "stdout": "syntax-compile.stdout.gz",
+      "stderr": "syntax-compile.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:43:21.352003+00:00"
+    },
+    {
+      "label": "syntax-list",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_syntax-d16b323745d6e16a",
+        "--list"
+      ],
+      "start_utc": "2026-10-13T01:43:21.366411+00:00",
+      "stdout": "syntax-list.stdout.gz",
+      "stderr": "syntax-list.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:43:21.369158+00:00"
+    },
+    {
+      "label": "syntax-exact-1",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_syntax-d16b323745d6e16a",
+        "--exact",
+        "naming::native::tests::retired_namespace_write_sites_match_retained_original_c_rows",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:43:21.372504+00:00",
+      "stdout": "syntax-exact-1.stdout.gz",
+      "stderr": "syntax-exact-1.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:43:21.374800+00:00",
+      "executed_test_count": 1
+    },
+    {
+      "label": "syntax-exact-2",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_syntax-d16b323745d6e16a",
+        "--exact",
+        "naming::native::tests::indexed_retired_lookup_rejects_missing_or_incompatible_purpose",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:43:21.375574+00:00",
+      "stdout": "syntax-exact-2.stdout.gz",
+      "stderr": "syntax-exact-2.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T01:43:21.377656+00:00",
+      "executed_test_count": 1
+    }
+  ],
+  "expected_names_not_yet_observed": [
+    "naming::native::tests::retired_namespace_write_sites_match_retained_original_c_rows",
+    "naming::native::tests::indexed_retired_lookup_rejects_missing_or_incompatible_purpose"
+  ],
+  "observed_exact_names": [
+    "naming::native::tests::retired_namespace_write_sites_match_retained_original_c_rows",
+    "naming::native::tests::indexed_retired_lookup_rejects_missing_or_incompatible_purpose"
+  ],
+  "status": "two-selected-syntax-controls-passed-cache-released",
+  "started_utc": "2026-10-13T01:43:14.987093+00:00",
+  "conservative_context_count": 2823,
+  "conservative_local_package_count": 7,
+  "reused_syntax_source_image": "experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-runtime/applied-caller-context-repair/rust--tcl-syntax--src--naming--native.rs.gz",
+  "syntax_before_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+  "actual_emitted_artifact_count": 36,
+  "actual_rebuilt_artifact_count": 1,
+  "actual_emitted_local_packages": [
+    "rust/tcl-core-types",
+    "rust/tcl-dialect",
+    "rust/tcl-host-c-abi",
+    "rust/tcl-lexer",
+    "rust/tcl-platform",
+    "rust/tcl-syntax",
+    "rust/tcl-test-support"
+  ],
+  "binary_path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_syntax-d16b323745d6e16a",
+  "binary_before_sha256": "6f9b85e7f79ccaf5987f3dcc985002c3c0af76d7d2df084fb61bcd4de5c72614",
+  "native_listed_test_count": 662,
+  "binary_after_sha256": "6f9b85e7f79ccaf5987f3dcc985002c3c0af76d7d2df084fb61bcd4de5c72614",
+  "syntax_after_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+  "changed_conservative_sources": [],
+  "completed_utc": "2026-10-13T01:43:21.444905+00:00",
+  "cache_released_utc": "2026-10-13T01:43:21.444917+00:00"
+}

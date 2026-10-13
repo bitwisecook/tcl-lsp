@@ -1,0 +1,15 @@
+{
+  "status": "Prepared only; wait Runtime date-worker serial resource release and root GO",
+  "runner_sha256": "9eda5c9150a3c1f5e480627e411b4d96653b656c6425dba3edbb7de23150c52e",
+  "expected_native_names_not_observed": [
+    "naming::native::tests::retired_namespace_write_sites_match_retained_original_c_rows",
+    "naming::native::tests::indexed_retired_lookup_rejects_missing_or_incompatible_purpose"
+  ],
+  "source_ready_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+  "conservative_local_package_count": 7,
+  "oracle_seals_reused_file_counts": [
+    46,
+    20
+  ],
+  "executed_build_or_test_count": 0
+}
