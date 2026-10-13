@@ -1,0 +1,24 @@
+{
+  "preload_source_sha256": "62a7e59fa825ff138a406f52d78217f31b418784da48e3c460d324a85e275e87",
+  "preload_binary_sha256": "b4240b7c23fb8e48af5a654fbb92f4337e19320e4b02873818beeb135cbdaa77",
+  "compile_argv": [
+    "gcc",
+    "-shared",
+    "-fPIC",
+    "-O0",
+    "-g",
+    "-o",
+    "/tmp/name-runtime-realloc-trace.so",
+    "/tmp/name-runtime-realloc-trace.c"
+  ],
+  "diagnostic_only": true,
+  "reduced_body_bytes": 161,
+  "source_provenance": {
+    "original_var_test_sha256": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "original_tcl_execute_sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+    "source_window": "INST_FOREACH_START and INST_FOREACH_STEP; tclExecute.c:7008-7154",
+    "recipe": "C private null-String TclObj headers carry iteration metadata. Runtime plain String internal_rep instead owns resident buffer capacity; payloads must remain separately owned.",
+    "retained_window": "tclExecute-7008-7154.c",
+    "retained_window_sha256": "3fedfd585fb751bbe5d464c29f892f4992ed73e71438ec36582ed9e3ce1e76c6"
+  }
+}

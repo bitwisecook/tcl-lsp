@@ -1,0 +1,18 @@
+{
+  "runtime_source_sha256": "e150ca9c47a75fc132cd086b0b98e5d826623b27d01d42b2655f70c1f851b3e6",
+  "regression_source_sha256": "f9c4fdf7b8d0e6346ce2a2203763a2e683cd8f3f5597b0d5b09877cccf2be78a",
+  "runtime_binary_sha256": "efe5aa3d7e2560b2f971c9d8e110435b595f27b7a9a86a49e378527ff8f49c74",
+  "tests": {
+    "selector": "native_array_search_unset",
+    "passed": 2,
+    "failed": 0
+  },
+  "build_configuration": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_PROFILE_DEV_DEBUG": "1",
+    "CARGO_PROFILE_TEST_DEBUG": "1",
+    "CARGO_INCREMENTAL": "0",
+    "TCL_TOMMATH_DIR": "/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath"
+  }
+}

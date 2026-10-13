@@ -21,7 +21,8 @@ Existing command/variable/namespace vectors live in
 | [results/native-variable-array-modes/README.md](results/native-variable-array-modes/README.md) | Variable arity and array-name controls, VM/runtime matrices and real 8.5 var.test |
 | [results/native-c84-declared-cell/README.md](results/native-c84-declared-cell/README.md) | Existing physical-cell observation and real C 8.4 startup |
 | [results/runtime-c84-real-suites/20261012T151253Z/README.md](results/runtime-c84-real-suites/20261012T151253Z/README.md) | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
-| [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |
+| [results/RESULTS.md](results/RESULTS.md) | Scoped VM/runtime original-suite comparisons and measured gaps |
+| [results/runtime-array-search-var132-current/results.md](results/runtime-array-search-var132-current/results.md) | Original var-13.2 validation dependency: measured iterator ownership repair and exact harness replay |
 | [run_suites.py](run_suites.py) | Original-suite capture with matching source-built interpreter, original-input admission and retained provenance |
 | [upstream-integrity/README.md](upstream-integrity/README.md) | Immutable original library/test inventories selected through the shared reference manifest |
 | [results/shared-name-owner-current-20261013/README.md](results/shared-name-owner-current-20261013/README.md) | Scoped central command/variable/namespace and current Jim name controls |

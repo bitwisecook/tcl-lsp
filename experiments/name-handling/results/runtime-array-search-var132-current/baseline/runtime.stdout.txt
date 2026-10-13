@@ -1,0 +1,14 @@
+NH_INIT
+NH_HARNESS
+NH_ORCHESTRATION_ENTER
+Tests running in interp:  /workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script
+Tests located in:  /workspace/tcl-lsp/tmp/tcl8.6.18/tests
+Tests running in:  /tmp/nh-var132-l5y1svfj
+Temporary files stored in /tmp/nh-var132-l5y1svfj
+Test files sourced into current interpreter
+Running tests that match:  var-13.2
+Skipping test files that match:  l.*.test
+Only running test files that match:  var.test
+Tests began at 2026-10-13 12:41:45 UTC
+var.test
+---- var-13.2 start

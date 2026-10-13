@@ -23,6 +23,7 @@ evidence cannot establish a target.
 | [Current state](current-state.md) | Scoped measured acceptance, failures and exact evidence |
 | [Completion plan](plan.md) | Every consumer group, inventory requirements and acceptance |
 | [Implementation ledger](implementation-ledger.md) | Remaining obligations and next bounded work |
+| [Call-site inventory](consumer-inventory.md) | Bounded inspected consumers, shared APIs, actual validation and unexamined obligations |
 | [Related issues](issues.md) | Open and closed issues; GitHub status is separate from branch acceptance |
 | [Issue action proposals](issue-actions.md) | Existing scoped acceptance requirements |
 | [Name-handling contract](../../design/contracts/name-handling.md) | Durable entry point and representation/context rules |

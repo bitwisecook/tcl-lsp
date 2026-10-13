@@ -1,0 +1,19 @@
+NH_INIT
+NH_HARNESS
+NH_ORCHESTRATION_ENTER
+Tests running in interp:  /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh
+Tests located in:  /workspace/tcl-lsp/tmp/tcl8.6.18/tests
+Tests running in:  /tmp/nh-var132-osjry725
+Temporary files stored in /tmp/nh-var132-osjry725
+Test files sourced into current interpreter
+Running tests that match:  var-13.2
+Skipping test files that match:  l.*.test
+Only running test files that match:  var.test
+Tests began at 2026-10-13 12:42:31 UTC
+var.test
+---- var-13.2 start
+
+Tests ended at 2026-10-13 12:42:31 UTC
+all.tcl:	Total	110	Passed	1	Skipped	109	Failed	0
+Sourced 1 Test Files.
+NH_ORCHESTRATION_RETURN

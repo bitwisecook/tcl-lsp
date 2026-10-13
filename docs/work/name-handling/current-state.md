@@ -13,7 +13,7 @@ Tcl source recognition is conditional advice. Preserve original input, configura
 | Surface | Measured acceptance | Remaining gap |
 | --- | --- | --- |
 | Source/split/trim | Source/split13 focused passes;18 original scripts and8 producer controls; Runtime/VM trim216 windows each. | Nested array-index/subst provenance, surrogate trim fixtures, physical VM split and other-release execution. |
-| Real C86 naming suites | Original init/tcltest/all.tcl reaches67 var.test starts through var-13.2, with18 explicit skips. | Isolated original var-13.2 reproduces SIGABRT in Runtime; C86 passes1/skips109/fails0. Runtime has no final counts. Cause remains unproved; starts are not passes. |
+| Real C86 naming suites | Fresh original var-13.2 selection completes in Runtime and C8.6: 1 passed, 109 skipped, 0 failed. Two fixed pair-count/search regressions pass. | The repaired private array iterator is a validation dependency; it does not certify name-policy migration or full var.test. Wider naming suites still require current scoped acceptance. |
 | Variable diagnostics | Syntax2 policy controls and detached-element Runtime3 controls pass. | Retired-namespace Runtime3 controls still fail: constructed-script and ordinary original-vector metadata propagation. No broader acceptance. |
 | Clock/glob | GetEnv7+host1+registry1; ParseFormatArgs11 rows; GetDateFields Runtime9/Core2/Registry1; active-call/glob batch9 passes. | Four clock workers, full constructor/pool/map lifetime, guest env sync, empty-table localtime and C9 signature. Glob qualifier/parser/platform gaps remain separate. |
 | VM OO | Bootstrap constructor/namespace; reporting-owner/getter4 passes; SamePosition inner/outer cause fixture1 passes. | Earlier17=11/6 and29=18/11 are not fresh results. Two native expression boundaries and two forward/procedure accessor fixtures remain. |
@@ -82,12 +82,12 @@ to execute naming controls; it is not an independent completion programme.
 suites for all five C references. Consumer migration still needs its own
 public positive/negative controls. W210 fresh unchanged baseline remains 8/9
 with original C8.4 control returns 0 instead of 2; later declaration refusal is under
-bounded measurement. CLI exact-name migration and Runtime array-state blocker
-repair are in progress. No fresh full rust-check/prep-pr/proof gate passes.
+bounded measurement. CLI exact-name migration awaits its build/test lease. The Runtime array-state
+blocker repair has two passing regressions and exact original harness replay. No fresh full rust-check/prep-pr/proof gate passes.
 
 ## Current execution priorities
 
-1. Investigate the reproduced original var-13.2 compatibility failure. [Isolated results](../../../experiments/name-handling/results/runtime-c86-real-suites/array-search-isolation/var-13.2/results.md): Runtime SIGABRT after10.609s, C86 passes1/skips109/fails0. All2787 tracked compiled inputs match the original runner; the scrubbed noncompiled fixture remains untouched. No source cause or repair is claimed.
+1. Complete shared lookup-owner and consumer migrations. [Original var-13.2 dependency repair](../../../experiments/name-handling/results/runtime-array-search-var132-current/results.md) removes private array iterator metadata from plain String capacity; Runtime and C8.6 now each pass the one original case. Continue central current/path/root policy extraction, exact CLI metadata lookup, #2286 original body/name correspondence and callback source-catalogue advice. Broad runtime parity is not an independent goal.
 2. Test the [retired caller-context repair proposal](../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-runtime/caller-context-source-review.md): selected EVAL_STK enters generic List dispatch, and ordinary element receiver failures lose NameLookup context. These are source-review findings, not accepted fixes. [Callback catalogue question](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/after-consumer-catalogue-question.md) needs a fresh Core binary and existing bounded trace flags. Keep source advice separate from Native authority.
 3. Continue bounded repository-wide docs/comments cleanup. Four installer/release/gate scripts now have comment-only cleanup with unchanged executable lines/legal headers and passing shell syntax checks. Root owns tracking; agents own disjoint files.
 4. Resume the original-argv codegen repair after the allocator blocker is understood, then complete remaining consumers and current owner/proof checks.

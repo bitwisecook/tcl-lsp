@@ -155,26 +155,26 @@ impl Builder<'_> {
         })))
     }
 }
-struct ArrayIteration {
+struct ArrayIteration<'a> {
     _auxiliary: obj::Owned,
-    counts: obj::Owned,
+    _counts: obj::Owned,
+    _recipe: &'a NativeArrayInstruction,
+    position: Cell<usize>,
 }
-impl ArrayIteration {
-    fn new(recipe: &NativeArrayInstruction) -> Self {
+impl<'a> ArrayIteration<'a> {
+    fn new(recipe: &'a NativeArrayInstruction) -> Self {
         let counts = obj::Owned::fresh(obj::new_obj());
         let auxiliary = obj::Owned::fresh(obj::new_obj());
-        obj::change_type(
-            auxiliary.as_ptr(),
-            core::ptr::null(),
-            core::ptr::from_ref(recipe) as usize as u64,
-        );
+        // Private iterator payloads are separate from plain String capacity.
         Self {
             _auxiliary: auxiliary,
-            counts,
+            _counts: counts,
+            _recipe: recipe,
+            position: Cell::new(0),
         }
     }
     fn advance(&self, iteration: usize) {
-        obj::change_type(self.counts.as_ptr(), core::ptr::null(), iteration as u64);
+        self.position.set(iteration);
     }
 }
 impl Interp {

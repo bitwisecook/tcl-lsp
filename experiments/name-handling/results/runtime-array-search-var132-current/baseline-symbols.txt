@@ -1,0 +1,16 @@
+alloc::alloc::realloc
+/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/alloc.rs:222
+tcl_runtime::obj::shrink_string_to_exact
+/workspace/tcl-lsp/runtime/rust/src/obj.rs:1284
+tcl_runtime::obj::change_type_using::<tcl_syntax::value::ValueError>
+/workspace/tcl-lsp/runtime/rust/src/obj.rs:1147
+tcl_runtime::obj::change_type
+/workspace/tcl-lsp/runtime/rust/src/obj.rs:1097
+<tcl_runtime::interp::native_body_artifact::native_array::ArrayIteration>::advance
+/workspace/tcl-lsp/runtime/rust/src/interp/native_body_artifact/native_array.rs:178
+<tcl_runtime::interp::Interp>::execute_body_array_with_original
+/workspace/tcl-lsp/runtime/rust/src/interp/native_body_artifact/native_array.rs:365
+<tcl_runtime::interp::Interp>::execute_body_array
+/workspace/tcl-lsp/runtime/rust/src/interp/native_body_artifact/native_array.rs:227
+<tcl_runtime::interp::Interp>::execute_body_opcode
+/workspace/tcl-lsp/runtime/rust/src/interp/native_body_artifact.rs:3257

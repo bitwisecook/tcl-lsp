@@ -1,0 +1,27 @@
+{
+  "c86": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/results/runtime-array-search-var132-current/reduced-catch.tcl"
+    ],
+    "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "source_sha256": "0106cdd218be2480889aabaef414fe7400f4f055a0e27a57ac940534f26de139",
+    "exit_code": 0,
+    "stdout_sha256": "5e661b7fa2ab512d41af87c60e051b4b4b70f011317eab35884be52fabc1765e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "runtime": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+      "--quiet",
+      "--tcl-version",
+      "8.6",
+      "/workspace/tcl-lsp/experiments/name-handling/results/runtime-array-search-var132-current/reduced-catch.tcl"
+    ],
+    "executable_sha256": "efe5aa3d7e2560b2f971c9d8e110435b595f27b7a9a86a49e378527ff8f49c74",
+    "source_sha256": "0106cdd218be2480889aabaef414fe7400f4f055a0e27a57ac940534f26de139",
+    "exit_code": 0,
+    "stdout_sha256": "5e661b7fa2ab512d41af87c60e051b4b4b70f011317eab35884be52fabc1765e",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

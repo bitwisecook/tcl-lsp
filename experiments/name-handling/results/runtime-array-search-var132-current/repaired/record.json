@@ -1,0 +1,79 @@
+{
+  "git_commit": "000c431f05b4ef5fc88af538c524cff14e6d3072",
+  "original_inputs": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "wrapper_sha256": "8847023de713dc73d072689ef4f144e55a03e6daef8b43d27b6f0176a82cc509",
+  "runner_sha256": "efe5aa3d7e2560b2f971c9d8e110435b595f27b7a9a86a49e378527ff8f49c74",
+  "oracle_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "compiled_input_count": 2788,
+  "limits": {
+    "timeout_seconds": 60,
+    "kill_after_seconds": 5,
+    "address_space_bytes": 1073741824,
+    "core_bytes": 0
+  },
+  "runs": {
+    "runtime": {
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/array-search-isolation/var-13.2/wrapper.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 13.057,
+      "test_starts": [
+        "var-13.2"
+      ],
+      "suite_count_lines": [
+        "all.tcl:\tTotal\t110\tPassed\t1\tSkipped\t109\tFailed\t0"
+      ],
+      "orchestration_return": true,
+      "failure_banner_count": 0,
+      "stdout_sha256": "0e61807be5beb535bd52378db548ee7d34456aa1b9c322809919d850d1e6edec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "c86": {
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/array-search-isolation/var-13.2/wrapper.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.034,
+      "test_starts": [
+        "var-13.2"
+      ],
+      "suite_count_lines": [
+        "all.tcl:\tTotal\t110\tPassed\t1\tSkipped\t109\tFailed\t0"
+      ],
+      "orchestration_return": true,
+      "failure_banner_count": 0,
+      "stdout_sha256": "edeac6268bd6c21d973fdbf0167872c3688a9bff9bb5f539f32d2d9e9f151b98",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "compiled_inputs_changed_during_runs": [],
+  "original_inputs_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "runner_sha256_after": "efe5aa3d7e2560b2f971c9d8e110435b595f27b7a9a86a49e378527ff8f49c74"
+}

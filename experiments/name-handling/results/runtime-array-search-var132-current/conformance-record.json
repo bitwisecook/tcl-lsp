@@ -1,0 +1,18 @@
+{
+  "8.6.18": {
+    "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "source_sha256": "2ba01fe7616031193a03c33e8ae73671140e05a2429423cfb8f9a1cc30ec6b4a",
+    "exit_code": 0,
+    "stdout_sha256": "1c4aee1a0787684fb249263ff58ccd63a710294aa129a8af18efd2147e57cda8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "observed_patchlevel": "8.6.18"
+  },
+  "9.0.4": {
+    "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+    "source_sha256": "2ba01fe7616031193a03c33e8ae73671140e05a2429423cfb8f9a1cc30ec6b4a",
+    "exit_code": 0,
+    "stdout_sha256": "1c4aee1a0787684fb249263ff58ccd63a710294aa129a8af18efd2147e57cda8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "observed_patchlevel": "9.0.4"
+  }
+}

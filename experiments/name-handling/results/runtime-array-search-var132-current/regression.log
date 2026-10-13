@@ -1,0 +1,281 @@
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+warning: function `read_double` is never used
+   --> src/bignum.rs:311:15
+    |
+311 | pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    |               ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `materialise_selected_array` is never used
+   --> src/frame.rs:648:8
+    |
+587 | impl CellContents {
+    | ----------------- method in this implementation
+...
+648 |     fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+    --> src/frame.rs:1083:19
+     |
+ 748 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1083 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1111 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1116 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1278 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1401 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1483 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1539 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+
+warning: method `remove_dictionary_element` is never used
+   --> src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `remove` is never used
+  --> src/frame/native_element_entry.rs:68:19
+   |
+31 | impl NativeElementEntries {
+   | ------------------------- method in this implementation
+...
+68 |     pub(super) fn remove(&mut self, key: &[u8]) {
+   |                   ^^^^^^
+
+warning: method `new_binding` is never used
+   --> src/frame/native_element_entry.rs:296:19
+    |
+222 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+296 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: method `retain_element_alias` is never used
+   --> src/frame/native_element_entry.rs:452:19
+    |
+440 | impl super::RetainedArrayCell {
+    | ----------------------------- method in this implementation
+...
+452 |     pub(crate) fn retain_element_alias(&self, key: &[u8]) -> Option<Rc<NativeElementAliasEntry>> {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `retire_native_entry` and `retire_jim_key` are never used
+   --> src/frame/native_variable_names.rs:92:19
+    |
+ 14 | impl VarTable {
+    | ------------- methods in this implementation
+...
+ 92 |     pub(super) fn retire_native_entry(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+112 |     pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: method `retain_original_compiled_alias` is never used
+   --> src/frame/native_variable_names.rs:247:19
+    |
+154 | impl FrameStack {
+    | --------------- method in this implementation
+...
+247 |     pub(crate) fn retain_original_compiled_alias(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `attested_identities`, `define_proc_storage`, and `on_command_replaced` are never used
+    --> src/interp.rs:3349:8
+     |
+1883 | impl Interp {
+     | ----------- methods in this implementation
+...
+3349 |     fn attested_identities(
+     |        ^^^^^^^^^^^^^^^^^^^
+...
+4677 |     pub(crate) fn define_proc_storage(
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+5570 |     fn on_command_replaced(&mut self, fqn: &[u8]) {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: field `original` is never read
+  --> src/interp/native_error_variables.rs:22:5
+   |
+21 | struct NativeErrorObjectRetirement {
+   |        --------------------------- field in this struct
+22 |     original: obj::NativeObjectLifetime,
+   |     ^^^^^^^^
+
+warning: methods `retain_native_error_option`, `update_native_error_info`, and `native_private_error_object` are never used
+    --> src/interp/native_error_variables.rs:638:19
+     |
+  71 | impl Interp {
+     | ----------- methods in this implementation
+...
+ 638 |     pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 892 |     pub(crate) fn update_native_error_info(&mut self) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1197 |     pub(crate) fn native_private_error_object(&self, info: bool) -> Option<obj::Owned> {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `enter_engine_evaluation` is never used
+   --> src/interp/native_operation_currency.rs:270:19
+    |
+227 | impl NativeOperationScope {
+    | ------------------------- associated function in this implementation
+...
+270 |     pub(crate) fn enter_engine_evaluation(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `process_original_c_return_options` is never used
+   --> src/interp/native_return_instruction.rs:330:19
+    |
+ 12 | impl Interp {
+    | ----------- method in this implementation
+...
+330 |     pub(crate) fn process_original_c_return_options(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `concatenate_native_lists` is never used
+    --> src/list.rs:1289:15
+     |
+1289 | pub(crate) fn concatenate_native_lists(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `replace_elements_native_checked` is never used
+    --> src/list.rs:1526:15
+     |
+1526 | pub(crate) fn replace_elements_native_checked(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `restore`, `restore_with_original_key`, and `publish_rename_destination` are never used
+    --> src/namespace.rs:2092:19
+     |
+ 525 | impl Namespaces {
+     | --------------- methods in this implementation
+...
+2092 |     pub(crate) fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
+     |                   ^^^^^^^
+...
+2096 |     pub(crate) fn restore_with_original_key(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+2162 |     pub(crate) fn publish_rename_destination(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_native_command_name_cache` is never used
+    --> src/obj.rs:1890:15
+     |
+1890 | pub(crate) fn install_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `prime_native_command_name_cache` is never used
+    --> src/obj.rs:1936:15
+     |
+1936 | pub(crate) fn prime_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_unresolved_native_command_name_cache` is never used
+    --> src/obj.rs:1978:15
+     |
+1978 | pub(crate) fn install_unresolved_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retire` is never used
+   --> src/obj/native_namespace_name.rs:128:15
+    |
+128 | pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
+    |               ^^^^^^
+
+warning: function `dispatch_prebuilt_argv` is never used
+   --> src/state_traits.rs:854:15
+    |
+854 | pub(crate) fn dispatch_prebuilt_argv(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `native_wide_int` is never used
+   --> src/typed_value.rs:743:15
+    |
+743 | pub(crate) fn native_wide_int(
+    |               ^^^^^^^^^^^^^^^
+
+warning: function `native_double` is never used
+   --> src/typed_value.rs:754:15
+    |
+754 | pub(crate) fn native_double(
+    |               ^^^^^^^^^^^^^
+
+warning: function `original_indexed_link_target` is never used
+    --> src/vars.rs:1006:15
+     |
+1006 | pub(crate) fn original_indexed_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `selected_namespace_link_target` is never used
+    --> src/vars.rs:2637:15
+     |
+2637 | pub(crate) fn selected_namespace_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_variable_receiver_at` is never used
+    --> src/vars.rs:2706:15
+     |
+2706 | pub(crate) fn capture_variable_receiver_at(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> src/vars.rs:3370:19
+     |
+3369 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3370 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 30 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.22s
+     Running tests/native_array_search_unset.rs (tmp/name-target-runtime/debug/deps/native_array_search_unset-f0e88b56a5ae331e)
+
+running 2 tests
+test original_var_13_2_retires_the_selected_search ... ok
+test compiled_array_pair_counts_match_original_oracles ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.92s
+
