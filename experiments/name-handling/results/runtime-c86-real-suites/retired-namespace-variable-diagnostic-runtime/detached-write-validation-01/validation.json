@@ -1,0 +1,98 @@
+{
+  "status": "Fresh Runtime14 build PASS; all three exact new independent detached-element write controls executed once from the same binary and PASS. Original earlier three retired-namespace controls were not rerun and remain OPEN/FAIL in their sealed receipt.",
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "started_utc": "2026-10-13 02:09:20 UTC",
+    "initial_free_bytes": 2518147072,
+    "minimum_free_bytes": 2392346624,
+    "disk_abort_threshold_bytes": 201326592,
+    "status": "completed",
+    "exit_code": 0,
+    "finished_utc": "2026-10-13 02:10:01 UTC",
+    "messages_sha256": "0eefabcd7e8f930151df20b24a4a8ab94f91d2922010c427decec1406dc1b686",
+    "stderr_sha256": "2dda399f2ac5f727842378a05be483fe6ccf7cb6334c834c6bb6a892a636a707",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "binary_sha256": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c",
+    "artifact_fresh": false,
+    "cargo_profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    }
+  },
+  "checks": [
+    {
+      "name": "interp::native_variable_names::tests::detached_element_c86_original_var17_write_preserves_late_diagnostic",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::detached_element_c86_original_var17_write_preserves_late_diagnostic",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "01-detached_element_c86_original_var17_write_preserves_late_diagnostic.log",
+      "log_sha256": "f4e6dbe3ec53c4058103f1a0122c16f5b33d2476115379e955ed613e3aaf6c99",
+      "binary_sha256_before": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c",
+      "binary_sha256_after": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c"
+    },
+    {
+      "name": "interp::native_variable_names::tests::detached_element_c86_recreated_root_keeps_old_link_write_detached",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::detached_element_c86_recreated_root_keeps_old_link_write_detached",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "02-detached_element_c86_recreated_root_keeps_old_link_write_detached.log",
+      "log_sha256": "c31718e30c1c876ada599829173a5a19a660b92cf278ac7bc8f2d7f901ef6831",
+      "binary_sha256_before": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c",
+      "binary_sha256_after": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c"
+    },
+    {
+      "name": "interp::native_variable_names::tests::detached_element_c86_recreated_root_admits_new_link_write",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "interp::native_variable_names::tests::detached_element_c86_recreated_root_admits_new_link_write",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "03-detached_element_c86_recreated_root_admits_new_link_write.log",
+      "log_sha256": "f47a941825f9d51b91d6cea6e0511e88b45383d121551e5d25c96ee9eeb8ac85",
+      "binary_sha256_before": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c",
+      "binary_sha256_after": "56cd309d301ceee0ad6948175abfd7354f379bd31c54431e3cd477169600fb2c"
+    }
+  ],
+  "unexecuted_names": [],
+  "metadata_exit_code": 0,
+  "changed_source_during_build": [],
+  "observed_exact_names": [
+    "interp::native_variable_names::tests::detached_element_c86_original_var17_write_preserves_late_diagnostic",
+    "interp::native_variable_names::tests::detached_element_c86_recreated_root_keeps_old_link_write_detached",
+    "interp::native_variable_names::tests::detached_element_c86_recreated_root_admits_new_link_write"
+  ],
+  "source_comparison": {
+    "changed": [],
+    "actual_owner_sha256": {
+      "runtime/rust/src/interp/native_body_artifact.rs": "275a0d76f3ab00f5438a1727d4dbbd059f833bbeaa1828350f916ce1d4fb5760",
+      "runtime/rust/src/interp/native_variable_names.rs": "6bda6d5431990fba947f9d8a027cf23d6a725dd276d2969cf52d2c1e0a5d5c0f"
+    }
+  },
+  "validation_scope": "Actual Native C86 Runtime source controls compare full public original-script projections and retained actual C86 capture lines. Completion/no-refusal/output/allocation-retirement assertions reached. No C-native private slot/link identity equivalence, C5 Runtime parity, Jim Runtime parity or whole-suite acceptance claim."
+}

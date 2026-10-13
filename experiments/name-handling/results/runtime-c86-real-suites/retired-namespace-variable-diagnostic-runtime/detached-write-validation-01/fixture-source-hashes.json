@@ -1,0 +1,9 @@
+{
+  "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.tcl": "3d50410f7208e80b2bb57b82243a4b7b8f48e8db46b962c497d036fb5c12f2e0",
+  "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.txt": "88409f926ceefa9c175f2f467170af4fe1a8e308bdbf596a8f9d404c1f22c219",
+  "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.tcl": "62cbeb3cb0bf444c65e1490f220c5f067942514b264bb486dce99cba9d2434cb",
+  "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.txt": "558e7d6c08eaab9a1407330d9f2cc2e69bfb9c2bd64bf190286faf5f89724c1f",
+  "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl": "55279a0554302cf488a39c1629b92196a74bae0977275474ab396dae6bf668e1",
+  "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.txt": "17c5e040aba6cfdefc02f491a03bef4558c30c364f450e4873c73aec7cc71f90",
+  "runtime/rust/tests/data/native_detached_element_write_sites/provenance.json": "c3262ccb8bb499656f2c5fab8205b2c00eaeb6fbc93c9b64133ad5ffbe6e9291"
+}

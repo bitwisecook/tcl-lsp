@@ -1,0 +1,43 @@
+{
+  "packages": [
+    "tcl-bytecode",
+    "tcl-cmd-core",
+    "tcl-core-types",
+    "tcl-dialect",
+    "tcl-host-c-abi",
+    "tcl-host-native",
+    "tcl-lexer",
+    "tcl-platform",
+    "tcl-regex",
+    "tcl-registry",
+    "tcl-runtime",
+    "tcl-runtime-api",
+    "tcl-syntax",
+    "tcl-test-support"
+  ],
+  "count": 13851,
+  "metadata_argv": [
+    "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+    "metadata",
+    "--offline",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--format-version=1"
+  ],
+  "metadata_sha256": "e28be139edabddf2ed120ab1b862165faa844583e898e1797037f16115a44e8c",
+  "owners": {
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "preimage_sha256": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe",
+      "scratch_sha256": "275a0d76f3ab00f5438a1727d4dbbd059f833bbeaa1828350f916ce1d4fb5760",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/src/interp/native_body_artifact.rs",
+      "applied_sha256": "275a0d76f3ab00f5438a1727d4dbbd059f833bbeaa1828350f916ce1d4fb5760"
+    },
+    "runtime/rust/src/interp/native_variable_names.rs": {
+      "preimage_sha256": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473",
+      "scratch_sha256": "6bda6d5431990fba947f9d8a027cf23d6a725dd276d2969cf52d2c1e0a5d5c0f",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/src/interp/native_variable_names.rs",
+      "applied_sha256": "6bda6d5431990fba947f9d8a027cf23d6a725dd276d2969cf52d2c1e0a5d5c0f"
+    }
+  },
+  "scope": "Actual standalone default-feature Runtime lib-test graph: root all dependency kinds, other packages normal/build; conservative local rs/c/h/tcl/txt/json/manifests, new7 detached-write fixtures and prior exact retained oracle fixtures. Syntax/Registry/Core included; Compiler/VM/LSP/IRules/MCP/xtask excluded. Not all-workspace freshness or every-file compilation."
+}

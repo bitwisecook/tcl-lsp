@@ -1,0 +1,22 @@
+{
+  "01-detached_element_c86_original_var17_write_preserves_late_diagnostic.log": "f4e6dbe3ec53c4058103f1a0122c16f5b33d2476115379e955ed613e3aaf6c99",
+  "02-detached_element_c86_recreated_root_keeps_old_link_write_detached.log": "c31718e30c1c876ada599829173a5a19a660b92cf278ac7bc8f2d7f901ef6831",
+  "03-detached_element_c86_recreated_root_admits_new_link_write.log": "f47a941825f9d51b91d6cea6e0511e88b45383d121551e5d25c96ee9eeb8ac85",
+  "build-messages.jsonl": "0eefabcd7e8f930151df20b24a4a8ab94f91d2922010c427decec1406dc1b686",
+  "build-messages.jsonl.gz": "c98b05a7163612a51afe9420dfb7bf920bb4704e7f10778031b0b894271e9146",
+  "build.stderr.txt": "2dda399f2ac5f727842378a05be483fe6ccf7cb6334c834c6bb6a892a636a707",
+  "capture.py": "d958a779bd00d53bf40109d9bc8598deee7841d3fdf8a83eb01c2cc85c463b25",
+  "fixture-source-hashes.json": "069c4cfa386eaaa382ea864ae17ae53a8a110758dddc3676ba6195795fd49b32",
+  "metadata.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "production-source-after-build.json.gz": "63845c2d250e55b7e2c00a53cbdb93d62ba9c5bfcc8ef541d50d09672608afbd",
+  "production-source-after.json.gz": "bd8d3a0f185b403e8d1c415c435294915db5263ec321fff73b54affaa2208909",
+  "production-source-before.json.gz": "e20df1ff829577c4ce00f81e6f5ae95016cfffdc67080faf51c65f2c7f5c4dfa",
+  "runtime--rust--src--interp--native_body_artifact.rs.gz": "05d5a712f148a98e96c1b6bdf32c1207628391d7dc428c3d13f62df4ea141e38",
+  "runtime--rust--src--interp--native_variable_names.rs.gz": "d01fdb67cfc100393fe9e80ee7d5ac22617bacbf744e275b72c79e282cb74779",
+  "runtime-cargo-metadata.json.gz": "6ad5f7d43a0405f937d509e30f214e90e0ba073027391ca80ba88e171009b2c5",
+  "scope.json": "cd9a239a67d8f2a162ef80c8c7f59b82918f388767c6931d0bf465a93867cab0",
+  "test-binary-rustc-depinfo.d.gz": "88dd3117d5903294647fc144fb86d674ba11689d6323fab7a10ff669679f9851",
+  "test-list.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "test-list.stdout.txt": "ceda9fadac4a8ef99eaa84cb98e2cfbb7a9cc73846cd5430b047985ce3637e9d",
+  "validation.json": "505e8cfe4ec4df969eb4b7ea58e78b142baada43e0b06ca2bde94e9ea96e97d5"
+}

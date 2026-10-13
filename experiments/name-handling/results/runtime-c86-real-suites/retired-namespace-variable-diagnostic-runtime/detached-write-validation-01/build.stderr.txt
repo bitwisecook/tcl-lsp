@@ -1,0 +1,2 @@
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+    Finished `test` profile [unoptimized] target(s) in 40.52s
