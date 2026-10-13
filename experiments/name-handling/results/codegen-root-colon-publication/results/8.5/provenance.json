@@ -1,0 +1,18 @@
+{
+  "provider_selector": "8.5",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.5"
+  ],
+  "executable_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+  "stdin_file": "../../input.tcl",
+  "stdin_sha256": "3d897a6cc1db687252316e00a78013d74813b5c7323c5463f4df192ad24d1a97",
+  "channel": "direct standard input, counted UTF-8 bytes passed by Python subprocess.run",
+  "timeout_seconds": 15,
+  "returncode": 0,
+  "stdout_sha256": "5be929f7d5e0571497aa3f2a32ff2c9001eece205f08f5eef2d40616ece966b5",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "queried_patchlevel": null,
+  "environment": "inherited; values not captured",
+  "capture_timestamp": null,
+  "scope": "Original CLI public completion and string output only; no Rust/WASM execution or physical identity observation"
+}

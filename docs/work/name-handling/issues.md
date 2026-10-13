@@ -40,7 +40,7 @@ Rust receipts retain separate authority.
 
 | Issue | GitHub state | Relationship and acceptance |
 |---|---|---|
-| [#1778](https://github.com/bitwisecook/tcl-lsp/issues/1778) | OPEN | Stable structured namespace/command identity. Distinct a:/p and a/:p render the same FQN even in C Tcl; a rendered FQN cannot identify tokens. Thread identity through compiler, runtimes, sidecars, aliases/imports, traces, LSP indexes. |
+| [#1778](https://github.com/bitwisecook/tcl-lsp/issues/1778) | OPEN | Stable structured namespace/command identity. Distinct a:/p and a/:p render the same FQN even in C Tcl; a rendered FQN cannot identify tokens. Thread identity through compiler, runtimes, sidecars, aliases/imports, traces, LSP indexes. [Codegen publication audit](../../../experiments/name-handling/results/codegen-root-colon-publication/audit.md) finds rendered qualified names sent back as original publication operands; direct C5/Jim controls distinguish :audit from :::transport. Emitted-WASM execution remains untested. |
 | [#1755](https://github.com/bitwisecook/tcl-lsp/issues/1755) | OPEN | Compiled command-reference lifetime during delayed namespace deletion/recreation; cached absolute descendant must retain OLDQ token, yielding {OLDQ OLDQ} NEWQ. |
 | [#1796](https://github.com/bitwisecook/tcl-lsp/issues/1796) | OPEN | One composed registry frame-effect owner with exact eval/uplevel/upvar reach; required variable-cell resolution dependency. |
 | [#2259](https://github.com/bitwisecook/tcl-lsp/issues/2259) | OPEN | upvar/namespace upvar otherVar cell naming lacks a role; all registry-driven consumers must distinguish naming a cell from reading its value. |

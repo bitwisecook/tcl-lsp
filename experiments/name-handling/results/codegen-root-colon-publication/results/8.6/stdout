@@ -1,0 +1,4 @@
+original-colon 0 ORIGINAL
+original-plain 1 {invalid command name "audit"}
+transport-colon 1 {invalid command name ":transport"}
+transport-plain 0 TRANSPORT

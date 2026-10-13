@@ -1,0 +1,53 @@
+{
+  "source": "proc :audit {} {return ORIGINAL}\nputs [list original-colon [catch {:audit} r] $r]\nputs [list original-plain [catch {audit} r] $r]\nproc :::transport {} {return TRANSPORT}\nputs [list transport-colon [catch {:transport} r] $r]\nputs [list transport-plain [catch {transport} r] $r]\n",
+  "rows": [
+    {
+      "provider": "8.4",
+      "executable": "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.4",
+      "sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.5",
+      "executable": "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.5",
+      "sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    },
+    {
+      "provider": "8.6",
+      "executable": "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh8.6",
+      "sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.0",
+      "executable": "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.0",
+      "sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    },
+    {
+      "provider": "9.1",
+      "executable": "/workspace/tcl-lsp/tmp/name-tools/bin/tclsh9.1",
+      "sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    },
+    {
+      "provider": "jim",
+      "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "exit": 0,
+      "stdout": "original-colon 0 ORIGINAL\noriginal-plain 1 {invalid command name \"audit\"}\ntransport-colon 1 {invalid command name \":transport\"}\ntransport-plain 0 TRANSPORT\n",
+      "stderr": ""
+    }
+  ]
+}
