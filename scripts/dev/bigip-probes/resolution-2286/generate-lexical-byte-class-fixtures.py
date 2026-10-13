@@ -47,7 +47,7 @@ parser.add_argument("--out", required=True, type=Path)
 parser.add_argument("--source-commit", required=True)
 parser.add_argument("--vip", default="192.0.2.10")
 parser.add_argument("--vip-port", default=18860, type=int)
-parser.add_argument("--backend", default="192.168.9.80")
+parser.add_argument("--backend", default="192.0.2.201")
 parser.add_argument("--backend-port", default=18760, type=int)
 args = parser.parse_args()
 if args.out.exists():
@@ -114,7 +114,7 @@ lab = ascii_lf(
 }}
 ltm virtual {common}_vs {{
     destination {args.vip}:{args.vip_port}
-    mask 255.255.255.255
+    mask 192.0.2.202
     ip-protocol tcp
     source 0.0.0.0/0
     profiles {{ /Common/tcp {{ }} /Common/http {{ }} }}

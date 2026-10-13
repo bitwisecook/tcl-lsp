@@ -86,7 +86,7 @@ CPU Usage Ratio (%)
   |   Response                                                          0                 0
 
      --------------------------------------------------------------
-     | Ltm::Pool Member: 192.168.9.80:18760   
+     | Ltm::Pool Member: 192.0.2.201:18760   
      --------------------------------------------------------------
      | Status                                 
      |   Availability   : unknown             
@@ -96,7 +96,7 @@ CPU Usage Ratio (%)
      |   Monitor Status : unchecked           
      |   Session Status : enabled             
      |   Pool Name      : __tcl_lsp_2286_r2286lex1_pool
-     |   IP Address     : 192.168.9.80        
+     |   IP Address     : 192.0.2.201        
      |                                        
      | Traffic                                  ServerSide  General
      |   Bits In                                    115.9K        -
@@ -123,7 +123,7 @@ CPU Usage Ratio (%)
      |   Response                                        0        0
 
         --------------------------------------------
-        | Ltm::Node: 192.168.9.80 (192.168.9.80)
+        | Ltm::Node: 192.0.2.201 (192.0.2.201)
         --------------------------------------------
         | Status               
         |   Availability   : unknown

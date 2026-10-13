@@ -15,7 +15,7 @@ These are measured TMM iRule results from the active standalone lab appliance. T
 | Roster proof | `init_identity` logged all four group/unit pairs; CMP-enabled `identity_group` returned exactly 64 responses from each pair; CMP-disabled returned 64/64 from `0:0` |
 | Route domain | Default route domain 0 |
 | VIPs | `192.0.2.10:18086` (canonical), `:18087` (`/Common` procedure/Unicode), and `:18088` (temporary-partition procedure); TCP and HTTP profiles |
-| Client/backend | `dev.bragi0.com`, `192.168.9.80`; backends `192.168.9.80:18080` and `:18084` |
+| Client/backend | `dev.bragi0.com`, `192.0.2.201`; backends `192.0.2.201:18080` and `:18084` |
 | Return path | Every test VIP used SNAT automap. The `r2286i` backend recorded 2,496 correlated requests and every peer was `192.0.2.10`; the client received each correlated response through the VIP. |
 
 The complete inventory is [inventory.txt](evidence/r2286_20261006c/appliance/inventory.txt). The actual roster traffic is in [CMP-enabled identity JSONL](evidence/r2286_20261006c/dev/traffic-identity_group-cmp_yes.jsonl) and [CMP-disabled identity JSONL](evidence/r2286_20261006c/dev/traffic-identity_group-cmp_no.jsonl).
@@ -255,19 +255,19 @@ ssh bigip 'tail -n 0 -F /var/log/ltm > /var/tmp/r2286-ltm-raw.log 2>&1 & echo $!
 ssh bigip 'bash /var/tmp/appliance-rules.sh load /var/tmp/r2286_20261006c-fixtures /var/tmp/journal-minimal minimal'
 
 python3 "$PROBES/render-lab.py" --run "$RUN" --vip 192.0.2.10 \
-  --backend 192.168.9.80 \
+  --backend 192.0.2.201 \
   --rule /Common/__tcl_lsp_probe_2286_r2286_20261006c_minimal \
   --out /tmp/r2286-lab.conf
 
 # Prove the exact pool/VIP/node absent, merge, and retain SNAT automap.
 tmsh list ltm pool /Common/__tcl_lsp_probe_2286_r2286_20261006c_pool
 tmsh list ltm virtual /Common/__tcl_lsp_probe_2286_r2286_20261006c_vs
-tmsh list ltm node /Common/192.168.9.80
+tmsh list ltm node /Common/192.0.2.201
 tmsh load sys config merge file /var/tmp/r2286-lab.conf
 
 # Fresh TCP connections from the real client address.
 python3 "$PROBES/traffic.py" --vip 192.0.2.10 --port 18086 \
-  --run "$RUN" --source-ip 192.168.9.80 --source-port-start 20000 \
+  --run "$RUN" --source-ip 192.0.2.201 --source-port-start 20000 \
   --requests 256 --expect-units 0:0,0:1,0:2,0:3 \
   --out traffic-identity-group.jsonl
 
@@ -279,7 +279,7 @@ python3 "$PROBES/generate-nul-controls.py" --run r2286_20261006e --out /tmp/nul-
 python3 "$PROBES/generate-procedure-scope-controls.py" --run r2286i \
   --out /tmp/r2286i-fixtures
 python3 "$PROBES/render-procedure-scope-labs.py" --run r2286i \
-  --vip 192.0.2.10 --backend 192.168.9.80 --backend-port 18084 \
+  --vip 192.0.2.10 --backend 192.0.2.201 --backend-port 18084 \
   --common-vip-port 18087 --partition-vip-port 18088 \
   --out /tmp/r2286i-lab.conf
 sha256sum /tmp/r2286i-fixtures/manifest.json /tmp/r2286i-fixtures/*.conf \
@@ -288,7 +288,7 @@ sha256sum /tmp/r2286i-fixtures/manifest.json /tmp/r2286i-fixtures/*.conf \
 # backend plus traffic-control endpoints already listening:
 bash run-procedure-scope-matrix.sh r2286i /var/tmp/r2286i-evidence \
   /var/tmp/r2286i-fixtures /var/tmp/r2286i-lab.conf \
-  http://192.168.9.80:18082/run http://192.168.9.80:18083/run
+  http://192.0.2.201:18082/run http://192.0.2.201:18083/run
 
 # Identical byte-controlled sources in TMM, tmsh, iApp, iCall and host tclsh.
 python3 "$PROBES/generate-deep-context.py" --run r2286l \

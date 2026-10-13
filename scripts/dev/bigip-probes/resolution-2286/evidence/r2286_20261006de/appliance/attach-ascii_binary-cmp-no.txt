@@ -22,7 +22,7 @@ ltm virtual __tcl_lsp_probe_2286_r2286_20261006d_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 2026-10-06:05:15:00
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -159,7 +159,7 @@ CPU Usage Ratio (%)
   |   Response                                                          0                 0
 
      --------------------------------------------------------------
-     | Ltm::Pool Member: 192.168.9.80:18080   
+     | Ltm::Pool Member: 192.0.2.201:18080   
      --------------------------------------------------------------
      | Status                                 
      |   Availability   : unknown             
@@ -169,7 +169,7 @@ CPU Usage Ratio (%)
      |   Monitor Status : unchecked           
      |   Session Status : enabled             
      |   Pool Name      : __tcl_lsp_probe_2286_r2286_20261006d_pool
-     |   IP Address     : 192.168.9.80        
+     |   IP Address     : 192.0.2.201        
      |                                        
      | Traffic                                  ServerSide  General
      |   Bits In                                         0        -
@@ -196,7 +196,7 @@ CPU Usage Ratio (%)
      |   Response                                        0        0
 
         --------------------------------------------
-        | Ltm::Node: 192.168.9.80 (192.168.9.80)
+        | Ltm::Node: 192.0.2.201 (192.0.2.201)
         --------------------------------------------
         | Status               
         |   Availability   : unknown

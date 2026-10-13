@@ -18,7 +18,7 @@ substitute for any BIG-IP execution context.
 | Topology | Standalone, active device |
 | TMM process | PID 11604, `tmm.0 -T 4 --tmid 0 --npus 4 --platform Z100` |
 | Actual TMM roster | `0:0`, `0:1`, `0:2`, `0:3` |
-| VIP / backend | Primary `192.0.2.10:18111` / `192.168.9.80:18110`; counted-boundary run `192.0.2.10:18121` / `192.168.9.80:18120` |
+| VIP / backend | Primary `192.0.2.10:18111` / `192.0.2.201:18110`; counted-boundary run `192.0.2.10:18121` / `192.0.2.201:18120` |
 | VIP profiles | TCP and HTTP |
 | CMP | `cmp-enabled yes`, all CPUs |
 | Source translation | SNAT `automap` |
@@ -44,7 +44,7 @@ ordinary phases; the request's exact counted-input rule deliberately returned
 no identity header, so its own 128 direct event markers supplied 32 observations
 per unit. This is direct response/event evidence, not an inference from CMP
 configuration. The primary backend baseline received 128 requests at
-`192.168.9.80:18110`, observed translated peer `192.0.2.10`, and returned all
+`192.0.2.201:18110`, observed translated peer `192.0.2.10`, and returned all
 responses through the VIP. The later counted-boundary baseline independently
 proved the same translated peer at port 18120. The authoritative portable-index
 rerun and every event comparison also reached all four units.
@@ -183,7 +183,7 @@ unbraced source-token consumption is not the same in TMM and scriptd/tmsh Tcl.
 ## Counted-key input boundaries
 
 Run `r2286t` used a fresh VIP on port 18121 and backend port 18120. Its baseline
-forwarded 128 requests to `192.168.9.80`, where the server observed SNAT peer
+forwarded 128 requests to `192.0.2.201`, where the server observed SNAT peer
 `192.0.2.10` 128 times. Response headers proved 32 baseline connections on
 each actual TMM. The exact counted-input source from the request matched the
 Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL, SHA-256
@@ -336,7 +336,7 @@ PROBES=scripts/dev/bigip-probes/resolution-2286
 python3 "$PROBES/generate-context-naming-controls.py" \
   --run r2286x --out /tmp/r2286x-fixtures \
   --vip 192.0.2.10 --vip-port 18111 \
-  --backend 192.168.9.80 --backend-port 18110 \
+  --backend 192.0.2.201 --backend-port 18110 \
   --source-commit 834329e46013c24f8c38b23e740524049c2a1e68
 
 (cd /tmp/r2286x-fixtures && sha256sum -c SHA256SUMS)
@@ -351,11 +351,11 @@ tmsh load sys config merge file /var/tmp/r2286x-fixtures/base/lab.conf
 tmsh load sys config merge file \
   /var/tmp/r2286x-fixtures/additional/lexical_clean.conf
 
-# On dev.bragi0.com, with backend.py listening at 192.168.9.80:18110:
+# On dev.bragi0.com, with backend.py listening at 192.0.2.201:18110:
 python3 "$PROBES/followup-traffic.py" \
   --vip 192.0.2.10 --port 18111 --run r2286x \
   --phase lexical-clean --path /lexical-clean \
-  --source-ip 192.168.9.80 --source-port-start 47000 \
+  --source-ip 192.0.2.201 --source-port-start 47000 \
   --requests 128 --expect-units 0:0,0:1,0:2,0:3 \
   --out /tmp/traffic-lexical-clean.jsonl
 

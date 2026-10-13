@@ -27,11 +27,11 @@
     "appliance_hashes_match": true
   },
   "traffic_topology": {
-    "client_host": "dev.bragi0.com (192.168.9.80)",
-    "server_host": "dev.bragi0.com (192.168.9.80)",
+    "client_host": "dev.bragi0.com (192.0.2.201)",
+    "server_host": "dev.bragi0.com (192.0.2.201)",
     "protocol": "HTTP/1.1 over fresh TCP connections",
     "vip": "192.0.2.10:18086",
-    "pool_endpoint": "192.168.9.80:18080",
+    "pool_endpoint": "192.0.2.201:18080",
     "loopback_forwarding_endpoint": null,
     "snat_required": "automap",
     "snat_observed": true,

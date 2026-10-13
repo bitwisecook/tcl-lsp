@@ -778,7 +778,7 @@ ltm pool {pool} {{
 }}
 ltm virtual {virtual} {{
     destination {vip}:{args.vip_port}
-    mask 255.255.255.255
+    mask 192.0.2.202
     ip-protocol tcp
     source 0.0.0.0/0
     profiles {{ /Common/tcp {{ }} /Common/http {{ }} }}

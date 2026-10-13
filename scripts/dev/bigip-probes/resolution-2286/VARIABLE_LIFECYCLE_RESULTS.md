@@ -16,7 +16,7 @@ were not substituted for TMM execution.
 | Topology | standalone, active |
 | TMM process and roster | PID 16500; `0:0`, `0:1`, `0:2`, `0:3` |
 | Tested source commit | `88198d83d3ef944670d7a1f24a3ada1b11187f69` on `work` |
-| VIP / backend | `192.0.2.10:18861` / `192.168.9.80:18761`; ordinary-global VIP `192.0.2.10:18862` |
+| VIP / backend | `192.0.2.10:18861` / `192.0.2.201:18761`; ordinary-global VIP `192.0.2.10:18862` |
 | Profiles / translation | TCP and HTTP; SNAT automap on both VIPs |
 | CMP | configured yes; observed `all-cpus` for the lifecycle and ordinary-global VIPs |
 
@@ -225,7 +225,7 @@ cleanup in
 
 All owned VIPs, pools, rules, scripts, iApp/iCall objects and the disposable
 data-group control were removed. Both post-cleanup object inventories contain
-zero lines; the shared pre-existing `/Common/192.168.9.80` node remains. Both
+zero lines; the shared pre-existing `/Common/192.0.2.201` node remains. Both
 owned backend processes and both owned tail processes were stopped and verified
 absent. The evidence directories and reusable source harnesses remain by
 design; no unrelated object or process was removed.

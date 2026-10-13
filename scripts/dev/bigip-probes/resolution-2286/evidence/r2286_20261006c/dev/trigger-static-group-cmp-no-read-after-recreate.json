@@ -10,7 +10,7 @@
     "--run",
     "r2286_20261006c-static-group-cmp-no-read-after-recreate",
     "--source-ip",
-    "192.168.9.80",
+    "192.0.2.201",
     "--source-port-start",
     "21051",
     "--requests",

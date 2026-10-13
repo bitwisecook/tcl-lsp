@@ -18,7 +18,7 @@ fixtures=${3:?absolute canonical fixture directory}
 vip="/Common/__tcl_lsp_probe_2286_${run}_vs"
 prefix="/Common/__tcl_lsp_probe_2286_${run}"
 driver="$evidence/appliance-rules.sh"
-trigger_base=http://192.168.9.80:18082/run
+trigger_base=http://192.0.2.201:18082/run
 mkdir -p "$evidence/attachments" "$evidence/triggers"
 port=21000
 

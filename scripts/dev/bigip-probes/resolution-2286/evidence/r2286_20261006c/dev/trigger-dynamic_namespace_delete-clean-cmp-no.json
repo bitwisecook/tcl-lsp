@@ -10,7 +10,7 @@
     "--run",
     "r2286_20261006c-dynamic_namespace_delete-clean-cmp-no",
     "--source-ip",
-    "192.168.9.80",
+    "192.0.2.201",
     "--source-port-start",
     "27907",
     "--requests",

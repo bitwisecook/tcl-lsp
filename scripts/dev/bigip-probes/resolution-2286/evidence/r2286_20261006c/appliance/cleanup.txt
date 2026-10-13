@@ -22,7 +22,7 @@ ltm virtual __tcl_lsp_probe_2286_r2286_20261006c_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 2026-10-06:04:57:00
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -159,7 +159,7 @@ CPU Usage Ratio (%)
   |   Response                                                          0                 0
 
      --------------------------------------------------------------
-     | Ltm::Pool Member: 192.168.9.80:18080   
+     | Ltm::Pool Member: 192.0.2.201:18080   
      --------------------------------------------------------------
      | Status                                 
      |   Availability   : unknown             
@@ -169,7 +169,7 @@ CPU Usage Ratio (%)
      |   Monitor Status : unchecked           
      |   Session Status : enabled             
      |   Pool Name      : __tcl_lsp_probe_2286_r2286_20261006c_pool
-     |   IP Address     : 192.168.9.80        
+     |   IP Address     : 192.0.2.201        
      |                                        
      | Traffic                                  ServerSide  General
      |   Bits In                                    551.6K        -
@@ -196,7 +196,7 @@ CPU Usage Ratio (%)
      |   Response                                        0        0
 
         --------------------------------------------
-        | Ltm::Node: 192.168.9.80 (192.168.9.80)
+        | Ltm::Node: 192.0.2.201 (192.0.2.201)
         --------------------------------------------
         | Status               
         |   Availability   : unknown
@@ -338,8 +338,8 @@ delete_pool_status=0
 01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006c_pool) was not found.
 list_pool_status=1
 ### node after pool
-ltm node 192.168.9.80 {
-    address 192.168.9.80
+ltm node 192.0.2.201 {
+    address 192.0.2.201
     app-service none
     connection-limit 0
     delay-timeout 0
@@ -364,7 +364,7 @@ ltm node 192.168.9.80 {
 }
 node_list_status=0
 delete_node_status=0
-01020036:3: The requested Node (/Common/192.168.9.80) was not found.
+01020036:3: The requested Node (/Common/192.0.2.201) was not found.
 node_absence_status=1
 ### rule cleanup
 journal=/var/tmp/r2286_20261006c/journals/collision_a_bfirst
@@ -565,7 +565,7 @@ remaining_rules_grep_status=1
 vs_status=1
 01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006c_pool) was not found.
 pool_status=1
-01020036:3: The requested Node (/Common/192.168.9.80) was not found.
+01020036:3: The requested Node (/Common/192.0.2.201) was not found.
 node_status=1
 capture_kill_status=0
 capture_wait_status=127

@@ -21,7 +21,7 @@ ltm virtual __tcl_lsp_probe_2286_r2286_20261006d_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 2026-10-06:05:15:05
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -76,8 +76,8 @@ absent_vs=1
 delete_pool=0
 01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006d_pool) was not found.
 absent_pool=1
-ltm node 192.168.9.80 {
-    address 192.168.9.80
+ltm node 192.0.2.201 {
+    address 192.0.2.201
 }
 node_after_pool=0
 delete_node=0
@@ -100,6 +100,6 @@ unicode_precomposed cleanup=0
 final_vs=1
 01020036:3: The requested Pool (/Common/__tcl_lsp_probe_2286_r2286_20261006d_pool) was not found.
 final_pool=1
-01020036:3: The requested Node (/Common/192.168.9.80) was not found.
+01020036:3: The requested Node (/Common/192.0.2.201) was not found.
 final_node=1
 capture_kill=0

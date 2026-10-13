@@ -9,7 +9,7 @@
     "--run",
     "r2286_20261006c-static-group-cmp-yes-read-after-write",
     "--source-ip",
-    "192.168.9.80",
+    "192.0.2.201",
     "--source-port-start",
     "21327",
     "--requests",

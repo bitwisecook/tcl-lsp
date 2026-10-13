@@ -14,7 +14,7 @@ These are measured results from the active standalone BIG-IP lab appliance. TMM 
 | Topology | Standalone, active device |
 | TMM process | PID 28022, `tmm.0 -T 4 --tmid 0 --npus 4 --platform Z100` |
 | Actual reached TMM roster | `0:0`, `0:1`, `0:2`, `0:3` |
-| VIP / backend | `192.0.2.10:18101` / `192.168.9.80:18100` |
+| VIP / backend | `192.0.2.10:18101` / `192.0.2.201:18100` |
 | VIP profiles | TCP and HTTP |
 | CMP | `cmp-enabled yes` |
 | Source translation | `automap` |
@@ -37,7 +37,7 @@ The complete version, failover, TMM process and redacted platform evidence is re
 
 Every one of the 59 HTTP traffic phases completed without a transport error. Every non-backend phase returned one byte-identical response body across all requests and reached each actual TMM pair exactly 32 times in 128 fresh connections. This is direct response-header coverage, not an inference from CMP configuration or request count. The machine-readable counts and decoded response bytes are in [decoded-results.json](evidence/r2286_20261006m/decoded-results.json).
 
-The backend received all 128 initial requests at `192.168.9.80:18100` with peer address `192.0.2.10`, the BIG-IP self address. The client connected to the VIP at `192.0.2.10:18101` and received the backend response through that VIP. This proves the tested path used SNAT automap and had a working return path. See [backend observations](evidence/r2286_20261006m/dev/backend.log) and [raw client responses](evidence/r2286_20261006m/dev/traffic/backend-initial.jsonl).
+The backend received all 128 initial requests at `192.0.2.201:18100` with peer address `192.0.2.10`, the BIG-IP self address. The client connected to the VIP at `192.0.2.10:18101` and received the backend response through that VIP. This proves the tested path used SNAT automap and had a working return path. See [backend observations](evidence/r2286_20261006m/dev/backend.log) and [raw client responses](evidence/r2286_20261006m/dev/traffic/backend-initial.jsonl).
 
 ## Source and byte identity
 
@@ -173,7 +173,7 @@ PROBES=scripts/dev/bigip-probes/resolution-2286
 python3 "$PROBES/generate-followup-controls.py" \
   --run r2286m --out /tmp/r2286m-fixtures \
   --vip 192.0.2.10 --vip-port 18101 \
-  --backend 192.168.9.80 --backend-port 18100 \
+  --backend 192.0.2.201 --backend-port 18100 \
   --source-commit 8ee8ad7c0df9eaab539f9663869ef664f20853e0
 
 # Transfer without text conversion. On BIG-IP, compare every file with the
@@ -186,7 +186,7 @@ tmsh load sys config merge file /var/tmp/r2286m-fixtures/nul_counted_last.conf
 python3 "$PROBES/followup-traffic.py" \
   --vip 192.0.2.10 --port 18101 --run r2286m \
   --phase nul_counted_last --path /probe \
-  --source-ip 192.168.9.80 --source-port-start 19000 \
+  --source-ip 192.0.2.201 --source-port-start 19000 \
   --requests 128 --expect-units 0:0,0:1,0:2,0:3 \
   --out /tmp/nul_counted_last.jsonl
 

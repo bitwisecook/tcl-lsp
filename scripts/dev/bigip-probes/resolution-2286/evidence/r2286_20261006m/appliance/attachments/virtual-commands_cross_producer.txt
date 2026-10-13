@@ -21,7 +21,7 @@ ltm virtual /R2286_r2286m/__tcl_lsp_2286_r2286m_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 2026-10-06:08:19:27
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled

@@ -22,7 +22,7 @@ ltm virtual __tcl_lsp_2286_vl1_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 1969-12-31:16:00:00
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled

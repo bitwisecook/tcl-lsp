@@ -21,7 +21,7 @@ ltm virtual __tcl_lsp_probe_2286_r2286i_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 1969-12-31:16:00:00
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -85,7 +85,7 @@ ltm pool __tcl_lsp_probe_2286_r2286i_pool {
     load-balancing-mode round-robin
     members {
         __tcl_lsp_probe_2286_r2286i_node:18084 {
-            address 192.168.9.80
+            address 192.0.2.201
             app-service none
             connection-limit 0
             delay-timeout 0
@@ -146,7 +146,7 @@ ltm virtual /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 1969-12-31:16:00:00
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -210,7 +210,7 @@ ltm pool /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool {
     load-balancing-mode round-robin
     members {
         __tcl_lsp_probe_2286_r2286i_node:18084 {
-            address 192.168.9.80
+            address 192.0.2.201
             app-service none
             connection-limit 0
             delay-timeout 0

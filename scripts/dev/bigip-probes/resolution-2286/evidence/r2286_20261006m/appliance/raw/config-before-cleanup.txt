@@ -112,7 +112,7 @@ ltm virtual /R2286_r2286m/__tcl_lsp_2286_r2286m_vs {
     ip-protocol tcp
     last-hop-pool none
     last-modified-time 2026-10-06:08:40:01
-    mask 255.255.255.255
+    mask 192.0.2.202
     metadata none
     mirror disabled
     mobile-app-tunnel disabled
@@ -177,7 +177,7 @@ ltm pool /R2286_r2286m/__tcl_lsp_2286_r2286m_pool {
     load-balancing-mode round-robin
     members {
         __tcl_lsp_2286_r2286m_node:18100 {
-            address 192.168.9.80
+            address 192.0.2.201
             app-service none
             connection-limit 0
             delay-timeout 0
@@ -216,7 +216,7 @@ ltm pool /R2286_r2286m/__tcl_lsp_2286_r2286m_pool {
     slow-ramp-time 10
 }
 ltm node __tcl_lsp_2286_r2286m_node {
-    address 192.168.9.80
+    address 192.0.2.201
     app-service none
     connection-limit 0
     delay-timeout 0

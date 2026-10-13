@@ -50,7 +50,7 @@ text = f"""ltm pool {common_pool} {{
 }}
 ltm virtual {common_virtual} {{
     destination {vip}:{args.common_vip_port}
-    mask 255.255.255.255
+    mask 192.0.2.202
     ip-protocol tcp
     source 0.0.0.0/0
     profiles {{ /Common/tcp {{ }} /Common/http {{ }} }}
@@ -64,7 +64,7 @@ ltm pool {partition_pool} {{
 }}
 ltm virtual {partition_virtual} {{
     destination {vip}:{args.partition_vip_port}
-    mask 255.255.255.255
+    mask 192.0.2.202
     ip-protocol tcp
     source 0.0.0.0/0
     profiles {{ /Common/tcp {{ }} /Common/http {{ }} }}
