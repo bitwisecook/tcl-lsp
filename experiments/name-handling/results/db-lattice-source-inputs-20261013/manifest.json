@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": "41b767dedcbfc7a5ac515e9069a70315f77d8933e6c6d89b4f82327e41895d02",
+      "after_sha256": "f74b267fd1b579ad1b38cf2325d5a42396e7088721c476c67d72da1e02f46ad4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "30c05f8fb93511aa0f1132b884985266801e214e0fec7d971a41295538974bf3",
+      "after_sha256": "6eb8e38e4dfe587ed2c55a928060591d2f9f699318c0cdec7da6520c9c29aa6b"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "27befd7e7ae7ddd6f2f1db9277b1839988427a122e4764d24cbbe3eb205d8bdc",
+      "after_sha256": "b7a2b0c04d9927b5d0fa6abdd82077ff0e3d377967040689773baf46c72b19d1"
+    }
+  ],
+  "patch_sha256": "5ac13b591d9ccf75ac2d8023d81788a81a9c1a4574c946415af118dbe3bd5698",
+  "validation": "rustfmt only; uncompiled, no Cargo lease",
+  "contract": "actual Module issuer and original declaration/source/grammar/input validated; exact genuine body+world retained in typed keys; only analytical dependency certificates allow equality; genuine old lattice relocated old-to-canonical-to-current and current source proofs restored; no projected executable input or result precomputation"
+}

@@ -24,12 +24,11 @@
 
 #![allow(dead_code)]
 
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::InlineBodyErrorContext;
 
 use crate::cfg::{Function as CfgFunction, Terminator};
-use crate::ir::Procedure as IrProcedure;
 use crate::ir::Statement;
 
 use super::super::CodegenCtx;
@@ -39,7 +38,6 @@ use super::loop_blocks::{ComplexForeach, ForeachInfo, detect_complex_foreach, de
 use super::ordering::{
     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
 };
-use super::proc_defs::is_static_proc;
 use super::try_blocks::{
     CatchRegionInfo, TryFinallyInfo, detect_catch_regions, detect_try_finally, is_catch_defs_marker,
 };
@@ -66,9 +64,6 @@ const fn inline_body_frame_label(context: InlineBodyErrorContext) -> &'static st
 
 /// Transient state passed between the per-block handlers in `generate`.
 struct GenerateState {
-    /// Pending proc definitions, sorted by source offset. A
-    /// `VecDeque` keeps `pop_front` O(1) during interleaved drain.
-    pending_proc_defs: VecDeque<IrProcedure>,
     /// Block names to skip — consumed by jump tables or try/finally.
     skip_blocks: HashSet<String>,
     /// Detected try/finally chains keyed by `try_body` block.
@@ -100,15 +95,8 @@ struct GenerateState {
 }
 
 impl GenerateState {
-    fn new(proc_defs: &[IrProcedure]) -> Self {
-        let mut sorted: Vec<IrProcedure> = proc_defs
-            .iter()
-            .filter(|p| is_static_proc(p))
-            .cloned()
-            .collect();
-        sorted.sort_by_key(|p| p.span.start());
+    fn new() -> Self {
         Self {
-            pending_proc_defs: VecDeque::from(sorted),
             skip_blocks: HashSet::new(),
             try_finally_info: HashMap::new(),
             catch_region_info: HashMap::new(),
@@ -261,23 +249,6 @@ fn setup_foreach(
         complex_body_blocks,
         collect_bodies,
         collect_ends,
-    }
-}
-
-/// Emit proc defs that appear before the first statement (for cases
-/// where the entry block has no statements).
-fn pre_emit_proc_defs(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
-    if state.pending_proc_defs.is_empty() {
-        return;
-    }
-    let first_stmt_offset: Option<u32> = cfg
-        .blocks
-        .values()
-        .flat_map(|blk| blk.statements.iter())
-        .map(|s| s.span().start())
-        .min();
-    if let Some(off) = first_stmt_offset {
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, off);
     }
 }
 
@@ -536,7 +507,6 @@ fn emit_foreach_header(
 /// foreach body (caller should `return`).
 fn emit_foreach_body(
     ctx: &mut CodegenCtx,
-    state: &mut GenerateState,
     fe: &ForeachData,
     cfg: &CfgFunction,
     bname: &str,
@@ -551,7 +521,6 @@ fn emit_foreach_body(
             .and_then(|id| cfg.statement_sources.get(&(id, index)))
             .cloned()
             .flatten();
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
         ctx.emit_stmt_with_start_cmd(stmt, None, None);
     }
     // foreach_step/foreach_end are synthetic loop machinery with no
@@ -625,7 +594,6 @@ fn emit_block_statements(
         if is_catch_end_block && is_catch_defs_marker(stmt) {
             continue;
         }
-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
         if Some(stmt_idx) == first_command_covered {
             ctx.emit_stmt_under_start_cmd(stmt);
             continue;
@@ -939,7 +907,7 @@ fn emit_block(
     if emit_foreach_header(ctx, cfg, state, fe, bname) {
         return;
     }
-    if emit_foreach_body(ctx, state, fe, cfg, bname, blk) {
+    if emit_foreach_body(ctx, fe, cfg, bname, blk) {
         return;
     }
 
@@ -1006,10 +974,7 @@ fn emit_block(
 }
 
 /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
-fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
-    // Flush any remaining proc defs.
-    ctx.flush_proc_defs(&mut state.pending_proc_defs);
-
+fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
     // Empty proc body: push "" as the implicit return value.
     if ctx.is_proc && ctx.instructions.is_empty() {
         ctx.push_lit("");
@@ -1255,7 +1220,7 @@ fn finalize_function(
 /// instruction is emitted. Build execution graphs with
 /// [`crate::cfg_builder::build_cfg_codegen_with_registry_and_config`]. Analysis
 /// completion summaries cannot replace runtime invocation continuations.
-pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
+pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
     // Completion summaries describe analysis reachability. Execution retains
     // the original invocation and its runtime continuation instead. Check the
     // whole function before emission, so an analysis CFG cannot accidentally
@@ -1295,13 +1260,12 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
     }
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
-    let mut state = GenerateState::new(proc_defs);
+    let mut state = GenerateState::new();
     // Native Tcl compiles an original zero-command script as an empty result,
     // independently of the synthetic return used to terminate an IR graph.
     // The retained source instance also covers procedure bodies whose parent
     // module contains commands; an empty module projection is insufficient.
     if ctx.instructions.is_empty()
-        && proc_defs.is_empty()
         && cfg.native_compilation_failure.is_none()
         && let Some(protocol @ tcl_syntax::native_string::NativeStringProtocol::C(_)) =
             ctx.source_string_protocol
@@ -1344,13 +1308,11 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedur
         state.skip_blocks.insert(info.try_after.clone());
     }
 
-    pre_emit_proc_defs(ctx, cfg, &mut state);
-
     for i in 0..block_order.len() {
         emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
     }
 
-    emit_function_tail(ctx, cfg, &mut state);
+    emit_function_tail(ctx, cfg);
     finalize_function(ctx, cfg, &block_order, &loop_ctx)
 }
 
@@ -1493,7 +1455,7 @@ mod tests {
         let cfg = trivial_cfg();
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         assert_eq!(asm.name, "::top");
         assert_ne!(asm.instructions, [] as [tcl_bytecode::Instruction; 0]);
         // Top-level scripts terminate with RETURN_IMM or DONE
@@ -1524,7 +1486,7 @@ mod tests {
                 for is_proc in [false, true] {
                     let mut ctx = CodegenCtx::new(is_proc, &[], registry);
                     ctx.source_string_protocol = Some(NativeStringProtocol::C(version));
-                    let asm = generate(&mut ctx, &cfg.top_level, &[]);
+                    let asm = generate(&mut ctx, &cfg.top_level);
                     assert_eq!(asm.instructions.len(), 2, "{engine} {source:?}");
                     assert_eq!(asm.instructions[0].op, Op::PUSH1);
                     assert_eq!(asm.instructions[1].op, Op::DONE);
@@ -1553,9 +1515,8 @@ mod tests {
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            generate(&mut ctx, &cfg, &[])
-        }));
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(&mut ctx, &cfg)));
         assert!(result.is_err());
         assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
@@ -1573,7 +1534,7 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.set_source(source);
 
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
 
         let [region] = asm.error_regions.as_slice() else {
             panic!("semantic inline-body context should emit exactly one error region");
@@ -1582,7 +1543,7 @@ mod tests {
         assert_eq!(region.cmd_text, source);
 
         let mut source_less = CodegenCtx::new(false, &[], &registry);
-        let source_less_asm = generate(&mut source_less, &cfg, &[]);
+        let source_less_asm = generate(&mut source_less, &cfg);
         assert!(
             source_less_asm.error_regions.is_empty(),
             "a source-less context retains the previous no-region behaviour",
@@ -1619,7 +1580,7 @@ mod tests {
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
 
         // The store-into-x instruction came from the AssignConst statement.
         let store = asm
@@ -1668,7 +1629,7 @@ mod tests {
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         // Should contain push and store (tail pop is folded away)
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::PUSH1));
@@ -1692,7 +1653,7 @@ mod tests {
             expr: None,
             braced: false,
         });
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         // Proc with empty body should push "" and emit done
         assert_eq!(asm.instructions.last().unwrap().op, Op::DONE);
     }
@@ -1764,7 +1725,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let asm = generate(&mut ctx, &cfg, &[]);
+        let asm = generate(&mut ctx, &cfg);
         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
         // Should include a conditional jump (maybe shrunk to 1-byte)
         assert!(

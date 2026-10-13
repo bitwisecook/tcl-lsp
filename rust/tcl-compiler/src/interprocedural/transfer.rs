@@ -2480,6 +2480,8 @@ fn components(
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
 
@@ -2665,18 +2667,27 @@ mod tests {
         let module = ModuleProcedures::of_unit(&unit, registry);
         let bind = step_of(&[BIND]);
         assert_eq!(
-            module.call_transfer("::bumpd", &[]),
+            module.call_transfer(&fixture_id(&unit.ir_module.procedures, "::bumpd"), &[]),
             Some(CallTransfer::Places(vec![("n".to_owned(), bind)]))
         );
         assert_eq!(
-            module.call_transfer("::bumpd", &[Some("m"), None]),
+            module.call_transfer(
+                &fixture_id(&unit.ir_module.procedures, "::bumpd"),
+                &[Some("m"), None]
+            ),
             Some(CallTransfer::Places(vec![("m".to_owned(), bind)]))
         );
         assert_eq!(
-            module.call_transfer("::bumpd", &[Some("m"), Some("1"), Some("x")]),
+            module.call_transfer(
+                &fixture_id(&unit.ir_module.procedures, "::bumpd"),
+                &[Some("m"), Some("1"), Some("x")]
+            ),
             Some(CallTransfer::Never)
         );
-        assert_eq!(module.call_transfer("::cell", &[]), None);
+        assert_eq!(
+            module.call_transfer(&fixture_id(&unit.ir_module.procedures, "::cell"), &[]),
+            None
+        );
     }
 
     /// A `Name` argument naming a place outside the caller's frame — a
@@ -2708,34 +2719,43 @@ mod tests {
         let g = PlaceRef::scalar("::g".to_owned());
         for caller in ["::c", "::d", "::e"] {
             assert_eq!(
-                unit.transfers.0[caller].globals,
+                unit.transfers.0[&fixture_id(&unit.ir_module.procedures, caller)].globals,
                 vec![(g.clone(), BIND)],
                 "{caller}"
             );
-            assert!(!module.keeps_to_its_frame(caller), "{caller}");
+            assert!(
+                !module.keeps_to_its_frame(&fixture_id(&unit.ir_module.procedures, caller)),
+                "{caller}"
+            );
         }
         assert_eq!(
-            unit.transfers.0["::h"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::h")].globals,
             vec![(g, ExistenceOutcome::MayBind(BindingKind::Either))]
         );
         assert_eq!(
-            unit.transfers.0["::ns::w"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::ns::w")].globals,
             vec![(PlaceRef::scalar("::ns::v".to_owned()), BIND)]
         );
         let q = PlaceRef::scalar("::q".to_owned());
         assert_eq!(
-            unit.transfers.0["::r"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::r")].globals,
             vec![(q.clone(), ExistenceOutcome::Unbind)]
         );
         assert_eq!(
-            unit.transfers.0["::s"].globals,
+            unit.transfers.0[&fixture_id(&unit.ir_module.procedures, "::s")].globals,
             vec![
                 (q.clone(), ExistenceOutcome::Unbind),
                 (q, ExistenceOutcome::MayBind(BindingKind::Either))
             ]
         );
-        assert!(!unit.transfers.0.contains_key("::f"));
-        assert!(unit.transfers.0.contains_key("::bump"));
+        assert!(
+            !fixture_id_if_present(&unit.ir_module.procedures, "::f")
+                .is_some_and(|id| unit.transfers.0.contains_key(&id))
+        );
+        assert!(
+            fixture_id_if_present(&unit.ir_module.procedures, "::bump")
+                .is_some_and(|id| unit.transfers.0.contains_key(&id))
+        );
     }
 
     const CYCLE: &str =
@@ -2837,7 +2857,10 @@ mod tests {
                         .parameter_values("::linked", &[Some(ExactValue::from_literal("caller"))])
                         .is_none()
                 );
-                assert!(!unit.transfers.0.contains_key("::linked"));
+                assert!(
+                    !fixture_id_if_present(&unit.ir_module.procedures, "::linked")
+                        .is_some_and(|id| unit.transfers.0.contains_key(&id))
+                );
             } else {
                 assert_eq!(grammar, tcl_dialect::ParameterGrammar::Tcl);
                 assert!(

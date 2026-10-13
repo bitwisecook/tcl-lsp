@@ -80,6 +80,8 @@ type CfgContext = crate::cfg_builder::CfgContext;
 /// parameter list, the module-wide upvar / proc-param context (so the rebuilt
 /// CFG is identical to the whole-module build's), and the analysis dialect.
 pub struct LatticeRequest<'a> {
+    /// Genuine lowered Module that issued this source body coordinate.
+    pub module: &'a crate::ir::Module,
     /// Exact current body for memo-result joins; neutral cached facts need no ID key.
     pub body_id: crate::ir::ProcedureId,
     /// Qualified procedure name (e.g. `::foo::bar`).
@@ -2900,6 +2902,7 @@ fn build_procedure_units(
                 let mut body = proc.body.clone();
                 crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
                 let mut fu = memo(&LatticeRequest {
+                    module: ctx.ir_module,
                     body_id: *id,
                     qname,
                     body: &body,

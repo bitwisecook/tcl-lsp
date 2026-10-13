@@ -192,7 +192,7 @@ fn collect_registry_dependencies(
         bindings
             .baseline
             .metadata_context
-            .metadata_context(registry),
+            .metadata_context(registry)??,
     )?;
     for child in children {
         calls.push(child.tokens?);
@@ -285,10 +285,7 @@ fn original_registry_dependency(
                 || (callbacks == CallbackKinds::TRACE && trace_free))
                 && schema.semantics.body_execution.is_none()
                 && schema.semantics.frame_effect.is_none()
-                && schema
-                    .state_transitions()
-                    .declared()
-                    .is_none_or(|transitions| transitions.facts().is_empty())
+                && schema.state_transitions().facts().is_empty()
                 && effects.accesses().iter().all(|access| {
                     matches!(
                         access.domain,

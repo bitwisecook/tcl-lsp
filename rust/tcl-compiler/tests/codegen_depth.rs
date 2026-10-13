@@ -20,7 +20,7 @@
 //! existing `tests/codegen.rs` leaves thin:
 //!
 //! - `src/codegen/backend.rs` — the agnostic `Backend` trait + the
-//!   `BytecodeBackend` impl (0% before).
+//!   `BytecodeBackend` impl.
 //! - `src/codegen/control_flow.rs` — catch/try lowering: `emit_catch_*`,
 //!   `emit_try_on_error_inline`, `emit_try_finally_inline`,
 //!   `detect_const_expr_error`.
@@ -69,7 +69,7 @@ use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::codegen::{
     Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
 };
-use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
+use tcl_compiler::ir::{Module as IrModule, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
@@ -180,7 +180,7 @@ fn backend_associated_types_are_function_and_module_asm() {
     let cfg = build_cfg_codegen(&ir, true);
     let mut backend = BytecodeBackend;
     let f: <BytecodeBackend as Backend>::FuncArtifact =
-        backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
+        backend.lower_function(&cfg.top_level, &[], false, &reg);
     let m: <BytecodeBackend as Backend>::ModuleArtifact = backend.lower_module(&cfg, &ir, &reg);
     assert_eq!(f.name, "::top");
     assert_eq!(m.top_level.name, "::top");
@@ -198,7 +198,7 @@ fn backend_lower_function_proc_flavour_uses_lvt() {
         .get(&fixture_id(&cfg.procedures, "::id"))
         .expect("authored fixture body");
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(proc_cfg, &["x"], true, &[], &reg);
+    let fa = backend.lower_function(proc_cfg, &["x"], true, &reg);
     let ops = opcodes(&fa);
     assert!(
         ops.contains(&Op::LOAD_SCALAR1),
@@ -216,7 +216,7 @@ fn backend_lower_function_script_flavour_uses_stack() {
     let ir = lower_to_ir("set x 1", &reg);
     let cfg = build_cfg(&ir, false);
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
+    let fa = backend.lower_function(&cfg.top_level, &[], false, &reg);
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::PUSH1));
     assert!(
@@ -227,34 +227,59 @@ fn backend_lower_function_script_flavour_uses_stack() {
 }
 
 #[test]
-fn backend_lower_function_interleaves_proc_defs() {
-    // The `proc_defs` parameter interleaves pending proc definitions into the
-    // top-level stream (the same job `codegen_module` does). Driving it through
-    // the trait with a populated `proc_defs` slice emits the `proc` definition
-    // command (a `proc <name> <args> <body>` invoke) inline.
+fn backend_lower_module_retains_original_declaration_order_and_body_identity() {
     let reg = registry();
-    let ir = lower_to_ir("proc foo {} { return 1 }\nfoo", &reg);
+    let source =
+        "set before BEFORE\nproc foo {{x {a b}}} { return [list $x] }\nset after AFTER\nfoo";
+    let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg_codegen(&ir, true);
-    let proc_defs: Vec<Procedure> = ir.procedures.values().cloned().collect();
-    assert!(
-        !proc_defs.is_empty(),
-        "expected a pending proc def to interleave"
-    );
+    assert_eq!(ir.procedures.len(), 1);
+    let (body_id, procedure) = ir.procedures.iter().next().unwrap();
     let mut backend = BytecodeBackend;
-    let top = backend.lower_function(&cfg.top_level, &[], false, &proc_defs, &reg);
-    // The interleaved proc definition pushes the literal `proc` + the proc name
-    // and invokes — distinct from the no-proc-defs lowering of the same CFG.
+    let module = backend.lower_module(&cfg, &ir, &reg);
+    let top = &module.top_level;
     let lits = top.literals.entries();
     assert!(
-        lits.iter().any(|l| l == "proc"),
-        "proc-def literal `proc`: {lits:?}"
+        lits.iter().any(|literal| literal == "proc"),
+        "original declaration head: {lits:?}"
     );
     assert!(
-        lits.iter().any(|l| l == "foo"),
-        "proc-def names `foo`: {lits:?}"
+        lits.iter().any(|literal| literal == "foo"),
+        "original declaration name: {lits:?}"
     );
-    assert!(opcodes(&top).contains(&Op::INVOKE_STK1));
+    assert!(
+        lits.iter().any(|literal| literal == " return [list $x] "),
+        "braced body remains literal data: {lits:?}"
+    );
+    assert!(opcodes(top).contains(&Op::INVOKE_STK1));
     assert_eq!(top.instructions.last().unwrap().op, Op::DONE);
+    assert!(module.procedures.contains_key(body_id));
+    assert_eq!(
+        module.procedure_provenance[body_id].body,
+        procedure.body_source.as_deref().unwrap()
+    );
+    let source_commands = top
+        .instructions
+        .iter()
+        .filter(|instruction| instruction.source_command_boundary.is_start())
+        .map(|instruction| instruction.source_cmd_text.bytes())
+        .collect::<Vec<_>>();
+    let before = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"set before"))
+        .unwrap();
+    let declaration = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"proc foo"))
+        .unwrap();
+    let after = source_commands
+        .iter()
+        .position(|command| command.starts_with(b"set after"))
+        .unwrap();
+    assert!(
+        before < declaration && declaration < after,
+        "original declaration order: {source_commands:?}"
+    );
 }
 
 #[test]
@@ -1242,7 +1267,7 @@ fn backend_lower_function_handbuilt_assign_const() {
         value_span: None,
     }]);
     let mut backend = BytecodeBackend;
-    let fa = backend.lower_function(&cfg, &[], false, &[], &reg);
+    let fa = backend.lower_function(&cfg, &[], false, &reg);
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::PUSH1));
     assert!(ops.contains(&Op::STORE_STK));

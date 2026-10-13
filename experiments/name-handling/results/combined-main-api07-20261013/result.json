@@ -1,0 +1,48 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "-p",
+    "tcl-bigip",
+    "-p",
+    "tcl-irules",
+    "-p",
+    "tcl-lsp-server",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:45:22.603117+00:00",
+  "finished_utc": "2026-10-13T23:45:51.273661+00:00",
+  "exit_code": 101,
+  "seconds": 28.670539575003204,
+  "source_paths": 34656,
+  "changed_sources": {},
+  "errors": [
+    "error[E0609]: no field `definition_scope` on type `&ir::Procedure`\n   --> rust/tcl-compiler/src/body_analysis_capsule.rs:334:18\n    |\n334 |     if procedure.definition_scope.is_some()\n    |                  ^^^^^^^^^^^^^^^^ unknown field\n    |\n    = note: available fields are: `name`, `qualified_name`, `publication`, `declaration_site`, `body_kind` ... and 8 others\n\n",
+    "error[E0308]: mismatched types\n   --> rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:192:9\n    |\n188 |       let children = crate::word_subst::checked_original_lifted_calls_with_metadata_context(\n    |                      ---------------------------------------------------------------------- arguments to this function are incorrect\n...\n192 | /         bindings\n193 | |             .baseline\n194 | |             .metadata_context\n195 | |             .metadata_context(registry),\n    | |_______________________________________^ expected `InvocationMetadataContext<'_>`, found `Option<Option<_>>`\n    |\n    = note: expected struct `InvocationMetadataContext<'_>`\n                 found enum `std::option::Option<std::option::Option<InvocationMetadataContext<'_>>>`\nnote: function defined here\n   --> rust/tcl-compiler/src/word_subst.rs:160:15\n    |\n160 | pub(crate) fn checked_original_lifted_calls_with_metadata_context(\n    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n164 |     metadata: crate::registry_invocation::InvocationMetadataContext<'_>,\n    |     -------------------------------------------------------------------\n\n",
+    "error[E0599]: no method named `declared` found for struct `StateTransitions` in the current scope\n   --> rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:290:22\n    |\n288 |                   && schema\n    |  ____________________-\n289 | |                     .state_transitions()\n290 | |                     .declared()\n    | |                     -^^^^^^^^ method not found in `StateTransitions`\n    | |_____________________|\n    |\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

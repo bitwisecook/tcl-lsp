@@ -22,7 +22,6 @@
 //!
 //! - [`ordering`]  — CFG linearisation and loop body detection
 //! - [`terminator`] — CFG terminator emission (goto/branch/return)
-//! - [`proc_defs`] — interleaved proc definition emission
 //! - [`loop_blocks`] — per-block handlers for foreach/while/for
 //! - [`try_blocks`] — try/finally CFG pattern detection
 //! - [`generate`] — top-level dispatcher
@@ -34,7 +33,6 @@ pub mod bytecoded;
 pub mod generate;
 pub mod loop_blocks;
 pub mod ordering;
-pub mod proc_defs;
 pub mod terminator;
 pub mod try_blocks;
 
@@ -43,11 +41,13 @@ use std::collections::HashMap;
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
-use crate::ir::{Module as IrModule, Procedure as IrProcedure};
+use crate::ir::Module as IrModule;
 
 use super::{CodegenCtx, FunctionAsm, ModuleAsm};
 
 /// Generate bytecode assembly for a single CFG function.
+/// Procedure declarations are emitted from retained source statements; module
+/// lowering carries their source, namespace context and body inventory.
 ///
 /// When `is_proc` is true, variables are accessed via the LVT
 /// (`loadScalar1`/`storeScalar1`). When `false` (top-level scripts),
@@ -67,26 +67,8 @@ pub fn codegen_function(
     is_proc: bool,
     registry: &CommandRegistry,
 ) -> FunctionAsm {
-    codegen_function_with_procs(cfg, params, is_proc, &[], registry)
-}
-
-/// Generate bytecode assembly for a CFG function, with pending proc defs.
-///
-/// Used by `codegen_module` to interleave proc definitions at their
-/// source positions within the top-level script.
-///
-/// # Panics
-/// Rejects an analysis CFG containing completion summaries, before emission.
-#[must_use]
-pub fn codegen_function_with_procs(
-    cfg: &CfgFunction,
-    params: &[&str],
-    is_proc: bool,
-    proc_defs: &[IrProcedure],
-    registry: &CommandRegistry,
-) -> FunctionAsm {
     let mut ctx = CodegenCtx::new(is_proc, params, registry);
-    generate::generate(&mut ctx, cfg, proc_defs)
+    generate::generate(&mut ctx, cfg)
 }
 
 /// Emission uses the same body inventory selected before source analysis.
@@ -128,7 +110,7 @@ struct ModuleEmit<'a> {
     references: &'a [crate::ir::ReferenceImport],
 }
 
-/// Like [`codegen_function_with_procs`] but threading the module source text so
+/// Retain original module source so
 /// each instruction carries its command's surface text for `errorInfo`, plus
 /// the proc body's `base_line` (its `proc` definition line) so the
 /// `(procedure … line N)` frame reports a proc-relative line.
@@ -195,13 +177,12 @@ fn codegen_function_src(
     cfg: &CfgFunction,
     params: &[tcl_runtime_api::NameBytes],
     is_proc: bool,
-    proc_defs: &[IrProcedure],
     module: &ModuleEmit<'_>,
     base_line: u32,
     scope: FunctionNamespace<'_>,
 ) -> FunctionAsm {
     let mut ctx = configured_codegen_context(params, is_proc, module, scope.path);
-    let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
+    let mut asm = generate::generate(&mut ctx, cfg);
     if let Some(environment) =
         super::native_compiler_pass::replay_environment(&ctx, scope.selected_procedure)
     {
@@ -210,7 +191,7 @@ fn codegen_function_src(
         replay.compact_compiler_pass = true;
         let first_literals = std::mem::take(&mut asm.literals);
         drop(asm);
-        asm = generate::generate(&mut replay, cfg, proc_defs);
+        asm = generate::generate(&mut replay, cfg);
         asm.literals.retain_discarded_native_pass(first_literals);
         asm.literals.retain_compiler_replay_environment(environment);
     }
@@ -456,7 +437,6 @@ fn codegen_procedures(
             cfg_func,
             &params,
             true,
-            &[],
             module,
             base_line,
             FunctionNamespace {
@@ -464,14 +444,8 @@ fn codegen_procedures(
                 selected_procedure: false,
             },
         );
-        // The body word this assembly was compiled from, so a runtime consumer
-        // keyed by name can tell it apart from another `proc` of the same name
-        // (see `FunctionAsm::proc_body_src`). Recorded as the word *value*, not
-        // as the source text: lowering keeps the written word, but the value a
-        // runtime `proc` is handed has had the one substitution braces permit
-        // applied — a `\<newline>` continuation folded to a space — and the
-        // comparison is against that. Without the fold, every body holding a
-        // continuation missed.
+        // Retain the original body word value for runtime body correspondence.
+        // Braced backslash-newline continuations fold under this module's rules.
         asm.proc_body_src = ir_proc
             .and_then(|p| p.body_source.as_deref())
             .map(|body| module.word_rules.collapse_braced_word(body).into_owned());
@@ -601,7 +575,6 @@ fn codegen_module_with_top_context(
         &cfg_module.top_level,
         target.parameters,
         target.is_procedure,
-        &[],
         &module,
         0,
         FunctionNamespace {
@@ -622,7 +595,6 @@ fn codegen_module_with_top_context(
             &cfg_module.top_level,
             target.parameters,
             true,
-            &[],
             &module,
             0,
             FunctionNamespace {

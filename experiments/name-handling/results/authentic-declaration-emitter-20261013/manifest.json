@@ -1,0 +1,50 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/codegen/backend.rs",
+      "before_sha256": "66e8afc5b540006037adcd8bb773a731c3828b383f39dc0f4d749d8efb845ce7",
+      "after_sha256": "7200cf90cf84bcda123015f861f9e70401d13a25af14d825a9baf543075acaaf",
+      "deleted": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+      "before_sha256": "3d2aa42b90ce1ca79ba67a5276a01dffa1ac55ed0b7b707058d984080bb7279d",
+      "after_sha256": "55ae303ae99a80d552f212b0c19770c42b71b348341785919b8dd35db3527c5e",
+      "deleted": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+      "before_sha256": "4bf0c62fa2073140e9a8221e80fe9c0166fceca102a177b46437a16ec32b2d84",
+      "after_sha256": "4eac5d6a0cc500f49c270a5b4b9380787de26bc9cfa484f4ae3085a5c5d436dc",
+      "deleted": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/proc_defs.rs",
+      "before_sha256": "a876cd7991d178c83289ce08c4f17dc0b14c5cc3f0df20a9da8966ce85cf7051",
+      "after_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "deleted": true
+    },
+    {
+      "path": "rust/tcl-compiler/tests/codegen_depth.rs",
+      "before_sha256": "1e958ee9ce9de5ae2fe137c2193d571685409e6d70a6dd76eafc828c69b59622",
+      "after_sha256": "5c73692eada26f9367162cc888d3ed25e852143158fcc7b3f2e5e771f5421ed3",
+      "deleted": false
+    },
+    {
+      "path": "docs/design/compiler/architecture.md",
+      "before_sha256": "b69839adf1ae47dcfb4fcaa6b5fa7387fa349a13ca47e76d51d1634bbbcc9394",
+      "after_sha256": "9683c955269d67d327013c82700d6009de485617c75605f187456ead6eb83285",
+      "deleted": false
+    },
+    {
+      "path": "docs/work/name-handling/codegen-consumers.md",
+      "before_sha256": "99fa58d319fa4560d2579290ea1103152a78ae2f99537209fbfb5349a5ba4d3d",
+      "after_sha256": "61eefd2236109fe584112d214f9972b4b70df908f8af0483db4833fd50416f63",
+      "deleted": false
+    }
+  ],
+  "status": "formatted/uncompiled",
+  "source": "exact currentMain owners; scratch only",
+  "public_api": "Backend.lower_function accepts a retained CFG function; module lowering retains original declaration source and body identities.",
+  "test": "backend_lower_module_retains_original_declaration_order_and_body_identity: declaration head/name/invoke/DONE, exact braced body, actual module body ID and original source order."
+}

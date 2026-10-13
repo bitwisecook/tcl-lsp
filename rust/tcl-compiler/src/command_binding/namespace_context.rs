@@ -429,3 +429,21 @@ impl<Q: CommandKeyQuery + ?Sized, V> std::ops::Index<&Q> for SourceCommandTable<
         self.get(key).expect("retained command-table key")
     }
 }
+
+impl super::SourceInvocationBinding {
+    /// Original root namespace row, independent of the source entry's current frame.
+    pub(crate) fn original_native_root_namespace_context(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<SourceNamespaceKey> {
+        let advice = self.original_conditional_operand_layout_advice(tokens, registry)?;
+        let metadata = advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()??;
+        metadata.matches_registry(registry).then_some(())?;
+        metadata.source_analysis_input()?;
+        advice.closed_lookup().then_some(())?;
+        advice.snapshot.state.native_root_namespace_key()
+    }
+}

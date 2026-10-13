@@ -2652,7 +2652,7 @@ pub struct CfgContext<'db> {
     #[returns(ref)]
     pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
     #[returns(ref)]
-    pub command_bindings: ModuleCommandBindings,
+    pub command_bindings: tcl_compiler::body_analysis_capsule::BodyLatticeCommandBindings,
 }
 
 /// Exact selected compiler inputs shared by lattice and body memo identities.
@@ -2765,7 +2765,7 @@ pub struct FnLatticeModuleFacts {
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
-    pub body: Script,
+    pub body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
     #[returns(ref)]
     pub qname: String,
     #[returns(ref)]
@@ -2835,14 +2835,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             upvar,
             proc_params,
             global_write_procs,
-            context.command_bindings(db).clone(),
+            context.command_bindings(db).bindings().clone(),
         ),
         registry,
         key.entry(db).source_metadata_input.as_ref(),
     );
     let cfg = build_cfg_function_with_prepared_context(
         key.qname(db),
-        key.body(db),
+        key.body(db).body(),
         true,
         registry,
         key.entry(db).plain_command_dispatch,
@@ -2885,12 +2885,12 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
                     .entry(db)
                     .irules_event_body
                     .as_ref()
-                    .map(|event| (event, key.body(db))),
+                    .map(|event| (event, key.body(db).body())),
             },
         )
         .with_retained_semantic_analysis(
             registry,
-            Some(key.body(db)),
+            Some(key.body(db).body()),
             // A procedure body runs only after arbitrary interposed history,
             // so its dispatch proofs start from an unknown world.
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
@@ -3086,7 +3086,7 @@ fn build_unit_with_keys_and_input<'db>(
                 upvar,
                 proc_params,
                 global_write,
-                req.command_bindings.clone(),
+                req.command_bindings.clone().into(),
             )
         });
         let template = req.body_source.and_then(|body_source| {
@@ -3112,12 +3112,12 @@ fn build_unit_with_keys_and_input<'db>(
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
-                template.command_bindings,
+                template.command_bindings.into(),
             );
             let key = lattice_request_key(
                 db,
                 req,
-                template.body,
+                template.body.into(),
                 template_context,
                 &registry_snapshot,
                 epoch,
@@ -3133,13 +3133,38 @@ fn build_unit_with_keys_and_input<'db>(
                 return unit;
             }
         }
+        if let Some(inputs) =
+            tcl_compiler::body_analysis_capsule::BodyLatticeInputs::retain(req, registry)
+        {
+            if let Some(bindings) = inputs.command_bindings() {
+                let analytical_context = CfgContext::new(
+                    db,
+                    context.upvar_ctx(db).clone(),
+                    context.proc_params(db).clone(),
+                    context.global_write_ctx(db).clone(),
+                    bindings,
+                );
+                let key = lattice_request_key(
+                    db,
+                    req,
+                    inputs.clone(),
+                    analytical_context,
+                    &registry_snapshot,
+                    epoch,
+                );
+                if let Some(unit) = inputs.rebind_cached(key.body(db), &function_lattice(db, key)) {
+                    lattice_keys.insert(req.body_id, key);
+                    return unit;
+                }
+            }
+        }
         // Exact full-world identity is the fallback when template admission or
         // restoration cannot establish equivalence. No partially relocated
         // artifact crosses this boundary.
         let key = lattice_request_key(
             db,
             req,
-            req.body.clone(),
+            req.body.clone().into(),
             context,
             &registry_snapshot,
             epoch,
@@ -3230,7 +3255,7 @@ fn build_unit_with_keys_and_input<'db>(
 fn lattice_request_key<'db>(
     db: &'db dyn TclDb,
     req: &LatticeRequest<'_>,
-    body: Script,
+    body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
     context: CfgContext<'db>,
     registry: &tcl_registry::RegistrySnapshot,
     epoch: u64,
@@ -5746,7 +5771,7 @@ p\uD801 ordinary";
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            ModuleCommandBindings::default(),
+            ModuleCommandBindings::default().into(),
         );
         let snapshot = CompilerMemoSnapshot {
             profile: Some(tcl_dialect::DialectProfile::irules().cache_key()),
@@ -5755,7 +5780,7 @@ p\uD801 ordinary";
         let make_key = |body: Script, config, snapshot, event| {
             FnLatticeKey::new(
                 &db,
-                body,
+                body.into(),
                 qname.to_owned(),
                 Vec::new(),
                 context,
@@ -5886,10 +5911,10 @@ p\uD801 ordinary";
         let (upvars, params, globals, bindings) =
             tcl_compiler::cfg_builder::prepare_cfg_context_with_registry(module, registry);
         assert!(upvars.is_empty() && params.is_empty() && globals.is_empty());
-        let context = CfgContext::new(db, Vec::new(), Vec::new(), Vec::new(), bindings);
+        let context = CfgContext::new(db, Vec::new(), Vec::new(), Vec::new(), bindings.into());
         FnLatticeKey::new(
             db,
-            module.top_level.clone(),
+            module.top_level.clone().into(),
             "::subject".to_owned(),
             Vec::new(),
             context,
@@ -6079,12 +6104,12 @@ p\uD801 ordinary";
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            ModuleCommandBindings::default(),
+            ModuleCommandBindings::default().into(),
         );
         let make_key = |config: tcl_lexer::LexerConfig| {
             FnLatticeKey::new(
                 &db,
-                Script::default(),
+                Script::default().into(),
                 "::subject".to_owned(),
                 Vec::new(),
                 context,

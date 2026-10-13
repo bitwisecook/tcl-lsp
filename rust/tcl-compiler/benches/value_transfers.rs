@@ -217,8 +217,21 @@ fn workload(variant: &Variant, statements: usize, changed: Option<usize>) -> Str
 
 /// The route entries the solver made over the procedure.
 fn tally(unit: &CompilationUnit) -> RouteTally {
+    let mut matching = unit
+        .ir_module
+        .procedures
+        .iter()
+        .filter(|(_, body)| body.qualified_name == "::p");
+    let id = *matching
+        .next()
+        .expect("benchmark source retains its procedure")
+        .0;
+    assert!(
+        matching.next().is_none(),
+        "benchmark source has one authored procedure"
+    );
     unit.procedures
-        .get("::p")
+        .get(&id)
         .map(|procedure| procedure.sccp.route_tally)
         .unwrap_or_default()
 }

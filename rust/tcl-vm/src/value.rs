@@ -1304,7 +1304,8 @@ impl Value {
         Rc::strong_count(&self.0).saturating_sub(self.0.lifetime_pins.get()) > 1
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    /// Native ownership references, excluding lifetime-only bridge pins.
+    #[must_use]
     pub(crate) fn native_object_reference_count(&self) -> usize {
         Rc::strong_count(&self.0).saturating_sub(self.0.lifetime_pins.get())
     }

@@ -769,6 +769,13 @@ flowchart TD
 Takes a pre-SSA `cfg::CfgModule` and emits assembly text matching the format
 produced by `tcl::unsupported::disassemble` in Tcl 9.0.
 
+`codegen_function` and `Backend::lower_function` emit the statements retained in
+one CFG function. Procedure declarations keep their original command words;
+procedure display names and body metadata do not recreate declaration commands.
+Use `codegen_module` or `Backend::lower_module` for a complete source module:
+they carry the original source, namespace context and procedure-body inventory
+into assembly and provenance, keyed by the retained body identities.
+
 ```mermaid
 flowchart LR
     CFG["cfg::CfgModule"] --> CG["codegen_module()"]

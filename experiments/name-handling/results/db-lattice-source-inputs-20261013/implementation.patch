@@ -1,0 +1,430 @@
+diff --git aa/rust/tcl-compiler/src/body_analysis_capsule.rs bb/rust/tcl-compiler/src/body_analysis_capsule.rs
+index e29130c32..7dd7cf9d7 100644
+--- aa/rust/tcl-compiler/src/body_analysis_capsule.rs
++++ bb/rust/tcl-compiler/src/body_analysis_capsule.rs
+@@ -431,6 +431,231 @@ fn analytical_closed_projection(
+     })
+ }
+ 
++/// Genuine source body inputs; the private certificate changes no executable IR.
++#[derive(Debug, Clone)]
++pub struct BodyLatticeInputs {
++    body: crate::ir::Script,
++    bindings: Option<crate::command_binding::ModuleCommandBindings>,
++    certificate: Option<Arc<BodyLatticeCertificate>>,
++}
++
++#[derive(Debug, Clone)]
++struct BodyLatticeCertificate {
++    issuer: tcl_core_types::ProcedureIdIssuer,
++    body: ProcedureId,
++    retained_source: Arc<crate::command_binding::RetainedSourceModuleBindings>,
++    procedure: Procedure,
++    declaration: NeutralDeclaration,
++    correspondence: crate::command_binding::AnalyticalBodyCorrespondence,
++}
++
++impl PartialEq for BodyLatticeCertificate {
++    fn eq(&self, other: &Self) -> bool {
++        self.issuer.owns(self.body)
++            && other.issuer.owns(other.body)
++            && self.declaration == other.declaration
++            && self.correspondence == other.correspondence
++    }
++}
++impl Eq for BodyLatticeCertificate {}
++
++impl Hash for BodyLatticeCertificate {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        self.declaration.hash(state);
++        self.correspondence.body.hash(state);
++    }
++}
++
++impl From<crate::ir::Script> for BodyLatticeInputs {
++    fn from(body: crate::ir::Script) -> Self {
++        Self {
++            body,
++            bindings: None,
++            certificate: None,
++        }
++    }
++}
++
++impl BodyLatticeInputs {
++    /// Authenticate original Module allocation, declaration, body, grammar and lookup dependencies.
++    #[must_use]
++    pub fn retain(
++        request: &crate::compilation_unit::LatticeRequest<'_>,
++        registry: &CommandRegistry,
++    ) -> Option<Self> {
++        let module = request.module;
++        if !module.procedure_ids.owns(request.body_id)
++            || module.source.try_text().ok()? != request.source
++            || request.irules_event_body.is_some()
++        {
++            return None;
++        }
++        let procedure = module.procedures.get(&request.body_id)?;
++        let retained = module.retained_source_bindings.as_ref()?;
++        retained.positioned_for_module(module, registry)?;
++        let mut original = procedure.body.clone();
++        crate::lattice_rebase::rebase_script(&mut original, -i64::from(procedure.span.start()));
++        if !retained.matches_original_procedure(procedure)
++            || procedure.body_kind != crate::ir::ProcedureBodyKind::Named
++            || procedure.qualified_name != request.qname
++            || procedure.params != request.params
++            || procedure.span.start() != request.original_body_offset
++            || procedure.body_offset != request.executable_body_offset
++            || procedure.body_source.as_deref() != request.body_source
++            || &original != request.body
++        {
++            return None;
++        }
++        let declaration = NeutralDeclaration {
++            publication: procedure.publication.clone()?,
++            namespace: procedure.body.namespace_context.as_deref()?.clone(),
++            written_name: procedure.name.clone(),
++            display: procedure.qualified_name.clone(),
++            parameters: procedure.params.clone(),
++            parameters_text: procedure.params_raw.clone(),
++            body_text: procedure.body_source.clone()?,
++            kind: procedure.body_kind,
++        };
++        let correspondence = request
++            .command_bindings
++            .prepare_analytical_body_correspondence(
++                request.body,
++                crate::command_binding::BodyProofScope {
++                    source: request.source,
++                    body_source: &declaration.body_text,
++                    original_body_offset: request.original_body_offset,
++                    executable_body_offset: request.executable_body_offset,
++                    metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
++                        request.source_metadata_input,
++                    ),
++                    config: request.lexer_config,
++                },
++                registry,
++            )?;
++        Some(Self {
++            body: request.body.clone(),
++            bindings: Some(request.command_bindings.clone()),
++            certificate: Some(Arc::new(BodyLatticeCertificate {
++                issuer: module.procedure_ids.clone(),
++                body: request.body_id,
++                retained_source: Arc::clone(retained),
++                procedure: procedure.clone(),
++                declaration,
++                correspondence,
++            })),
++        })
++    }
++
++    /// Original offset-zero IR retained by the genuine request.
++    #[must_use]
++    pub fn body(&self) -> &crate::ir::Script {
++        &self.body
++    }
++
++    /// Retain actual command state under the same checked dependency certificate.
++    #[must_use]
++    pub fn command_bindings(&self) -> Option<BodyLatticeCommandBindings> {
++        Some(BodyLatticeCommandBindings {
++            bindings: self.bindings.clone()?,
++            certificate: self.certificate.clone(),
++        })
++    }
++
++    /// Restore a cached offset-zero lattice to this request's actual source and cells.
++    #[must_use]
++    pub fn rebind_cached(&self, original: &Self, cached: &FunctionUnit) -> Option<FunctionUnit> {
++        let current = self.certificate.as_ref()?;
++        let previous = original.certificate.as_ref()?;
++        if current != previous
++            || !current.issuer.owns(current.body)
++            || !previous.issuer.owns(previous.body)
++            || !current
++                .retained_source
++                .matches_original_procedure(&current.procedure)
++            || !previous
++                .retained_source
++                .matches_original_procedure(&previous.procedure)
++            || cached.name != previous.procedure.qualified_name
++        {
++            return None;
++        }
++        let normalized = cached
++            .relocated_variable_proofs(&previous.correspondence.relocation)?
++            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
++                &previous.correspondence.body,
++            ))?;
++        normalized
++            .relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?
++            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
++                &self.body,
++            ))
++    }
++}
++
++impl PartialEq for BodyLatticeInputs {
++    fn eq(&self, other: &Self) -> bool {
++        match (&self.certificate, &other.certificate) {
++            (Some(left), Some(right)) => left == right,
++            (None, None) => self.body == other.body,
++            _ => false,
++        }
++    }
++}
++impl Eq for BodyLatticeInputs {}
++impl Hash for BodyLatticeInputs {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        self.certificate.is_some().hash(state);
++        if let Some(certificate) = &self.certificate {
++            certificate.hash(state);
++        } else {
++            self.body.hash(state);
++        }
++    }
++}
++
++/// Complete command state retained separately from its checked source correspondence.
++#[derive(Debug, Clone)]
++pub struct BodyLatticeCommandBindings {
++    bindings: crate::command_binding::ModuleCommandBindings,
++    certificate: Option<Arc<BodyLatticeCertificate>>,
++}
++
++impl From<crate::command_binding::ModuleCommandBindings> for BodyLatticeCommandBindings {
++    fn from(bindings: crate::command_binding::ModuleCommandBindings) -> Self {
++        Self {
++            bindings,
++            certificate: None,
++        }
++    }
++}
++impl BodyLatticeCommandBindings {
++    /// Genuine command state used to construct the cached lattice.
++    #[must_use]
++    pub fn bindings(&self) -> &crate::command_binding::ModuleCommandBindings {
++        &self.bindings
++    }
++}
++impl PartialEq for BodyLatticeCommandBindings {
++    fn eq(&self, other: &Self) -> bool {
++        match (&self.certificate, &other.certificate) {
++            (Some(left), Some(right)) => left == right,
++            (None, None) => self.bindings == other.bindings,
++            _ => false,
++        }
++    }
++}
++impl Eq for BodyLatticeCommandBindings {}
++impl Hash for BodyLatticeCommandBindings {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        self.certificate.is_some().hash(state);
++        if let Some(certificate) = &self.certificate {
++            certificate.hash(state);
++        } else {
++            self.bindings.hash(state);
++        }
++    }
++}
++
+ /// Genuine fixpoint inputs with a certified registry-only independence case.
+ #[derive(Debug, Clone)]
+ pub struct BodySummaryInputs {
+diff --git aa/rust/tcl-compiler/src/compilation_unit.rs bb/rust/tcl-compiler/src/compilation_unit.rs
+index 3344312d6..0416b1385 100644
+--- aa/rust/tcl-compiler/src/compilation_unit.rs
++++ bb/rust/tcl-compiler/src/compilation_unit.rs
+@@ -80,6 +80,8 @@ type CfgContext = crate::cfg_builder::CfgContext;
+ /// parameter list, the module-wide upvar / proc-param context (so the rebuilt
+ /// CFG is identical to the whole-module build's), and the analysis dialect.
+ pub struct LatticeRequest<'a> {
++    /// Genuine lowered Module that issued this source body coordinate.
++    pub module: &'a crate::ir::Module,
+     /// Exact current body for memo-result joins; neutral cached facts need no ID key.
+     pub body_id: crate::ir::ProcedureId,
+     /// Qualified procedure name (e.g. `::foo::bar`).
+@@ -2900,6 +2902,7 @@ fn build_procedure_units(
+                 let mut body = proc.body.clone();
+                 crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
+                 let mut fu = memo(&LatticeRequest {
++                    module: ctx.ir_module,
+                     body_id: *id,
+                     qname,
+                     body: &body,
+diff --git aa/rust/tcl-lsp-db/src/lib.rs bb/rust/tcl-lsp-db/src/lib.rs
+index c2fbe9ecc..c2416d53f 100644
+--- aa/rust/tcl-lsp-db/src/lib.rs
++++ bb/rust/tcl-lsp-db/src/lib.rs
+@@ -2652,7 +2652,7 @@ pub struct CfgContext<'db> {
+     #[returns(ref)]
+     pub global_write_ctx: Vec<(String, GlobalWriteInfo)>,
+     #[returns(ref)]
+-    pub command_bindings: ModuleCommandBindings,
++    pub command_bindings: tcl_compiler::body_analysis_capsule::BodyLatticeCommandBindings,
+ }
+ 
+ /// Exact selected compiler inputs shared by lattice and body memo identities.
+@@ -2765,7 +2765,7 @@ pub struct FnLatticeModuleFacts {
+ #[salsa::interned]
+ pub struct FnLatticeKey<'db> {
+     #[returns(ref)]
+-    pub body: Script,
++    pub body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
+     #[returns(ref)]
+     pub qname: String,
+     #[returns(ref)]
+@@ -2835,14 +2835,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
+             upvar,
+             proc_params,
+             global_write_procs,
+-            context.command_bindings(db).clone(),
++            context.command_bindings(db).bindings().clone(),
+         ),
+         registry,
+         key.entry(db).source_metadata_input.as_ref(),
+     );
+     let cfg = build_cfg_function_with_prepared_context(
+         key.qname(db),
+-        key.body(db),
++        key.body(db).body(),
+         true,
+         registry,
+         key.entry(db).plain_command_dispatch,
+@@ -2885,12 +2885,12 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
+                     .entry(db)
+                     .irules_event_body
+                     .as_ref()
+-                    .map(|event| (event, key.body(db))),
++                    .map(|event| (event, key.body(db).body())),
+             },
+         )
+         .with_retained_semantic_analysis(
+             registry,
+-            Some(key.body(db)),
++            Some(key.body(db).body()),
+             // A procedure body runs only after arbitrary interposed history,
+             // so its dispatch proofs start from an unknown world.
+             tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+@@ -3086,7 +3086,7 @@ fn build_unit_with_keys_and_input<'db>(
+                 upvar,
+                 proc_params,
+                 global_write,
+-                req.command_bindings.clone(),
++                req.command_bindings.clone().into(),
+             )
+         });
+         let template = req.body_source.and_then(|body_source| {
+@@ -3112,12 +3112,12 @@ fn build_unit_with_keys_and_input<'db>(
+                 Vec::new(),
+                 Vec::new(),
+                 Vec::new(),
+-                template.command_bindings,
++                template.command_bindings.into(),
+             );
+             let key = lattice_request_key(
+                 db,
+                 req,
+-                template.body,
++                template.body.into(),
+                 template_context,
+                 &registry_snapshot,
+                 epoch,
+@@ -3133,13 +3133,38 @@ fn build_unit_with_keys_and_input<'db>(
+                 return unit;
+             }
+         }
++        if let Some(inputs) =
++            tcl_compiler::body_analysis_capsule::BodyLatticeInputs::retain(req, registry)
++        {
++            if let Some(bindings) = inputs.command_bindings() {
++                let analytical_context = CfgContext::new(
++                    db,
++                    context.upvar_ctx(db).clone(),
++                    context.proc_params(db).clone(),
++                    context.global_write_ctx(db).clone(),
++                    bindings,
++                );
++                let key = lattice_request_key(
++                    db,
++                    req,
++                    inputs.clone(),
++                    analytical_context,
++                    &registry_snapshot,
++                    epoch,
++                );
++                if let Some(unit) = inputs.rebind_cached(key.body(db), &function_lattice(db, key)) {
++                    lattice_keys.insert(req.body_id, key);
++                    return unit;
++                }
++            }
++        }
+         // Exact full-world identity is the fallback when template admission or
+         // restoration cannot establish equivalence. No partially relocated
+         // artifact crosses this boundary.
+         let key = lattice_request_key(
+             db,
+             req,
+-            req.body.clone(),
++            req.body.clone().into(),
+             context,
+             &registry_snapshot,
+             epoch,
+@@ -3230,7 +3255,7 @@ fn build_unit_with_keys_and_input<'db>(
+ fn lattice_request_key<'db>(
+     db: &'db dyn TclDb,
+     req: &LatticeRequest<'_>,
+-    body: Script,
++    body: tcl_compiler::body_analysis_capsule::BodyLatticeInputs,
+     context: CfgContext<'db>,
+     registry: &tcl_registry::RegistrySnapshot,
+     epoch: u64,
+@@ -5746,7 +5771,7 @@ p\uD801 ordinary";
+             Vec::new(),
+             Vec::new(),
+             Vec::new(),
+-            ModuleCommandBindings::default(),
++            ModuleCommandBindings::default().into(),
+         );
+         let snapshot = CompilerMemoSnapshot {
+             profile: Some(tcl_dialect::DialectProfile::irules().cache_key()),
+@@ -5755,7 +5780,7 @@ p\uD801 ordinary";
+         let make_key = |body: Script, config, snapshot, event| {
+             FnLatticeKey::new(
+                 &db,
+-                body,
++                body.into(),
+                 qname.to_owned(),
+                 Vec::new(),
+                 context,
+@@ -5886,10 +5911,10 @@ p\uD801 ordinary";
+         let (upvars, params, globals, bindings) =
+             tcl_compiler::cfg_builder::prepare_cfg_context_with_registry(module, registry);
+         assert!(upvars.is_empty() && params.is_empty() && globals.is_empty());
+-        let context = CfgContext::new(db, Vec::new(), Vec::new(), Vec::new(), bindings);
++        let context = CfgContext::new(db, Vec::new(), Vec::new(), Vec::new(), bindings.into());
+         FnLatticeKey::new(
+             db,
+-            module.top_level.clone(),
++            module.top_level.clone().into(),
+             "::subject".to_owned(),
+             Vec::new(),
+             context,
+@@ -6079,12 +6104,12 @@ p\uD801 ordinary";
+             Vec::new(),
+             Vec::new(),
+             Vec::new(),
+-            ModuleCommandBindings::default(),
++            ModuleCommandBindings::default().into(),
+         );
+         let make_key = |config: tcl_lexer::LexerConfig| {
+             FnLatticeKey::new(
+                 &db,
+-                Script::default(),
++                Script::default().into(),
+                 "::subject".to_owned(),
+                 Vec::new(),
+                 context,

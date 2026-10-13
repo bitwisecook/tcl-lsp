@@ -652,9 +652,7 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
 
 /// One body the scan walks as a *caller*.
 ///
-/// `resolve_as` and `scope` differ for a `TclOO` method: its bare command
-/// words resolve against the global namespace (tclsh-confirmed), while its
-/// local variables live in the method's own frame.
+/// Actual body IDs and independently retained extra occurrences own local facts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum CallerScopeId {
     TopLevel,
@@ -663,8 +661,6 @@ enum CallerScopeId {
 }
 
 struct CallerFrame<'a> {
-    /// Qualified-name context bare command words resolve against.
-    _resolve_as: &'a str,
     metadata_owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
     /// Variable-scope identity — the key into `var_facts`, and the callee
     /// key whose recorded arguments a `$param` dispatch word may take.
@@ -1777,81 +1773,95 @@ const UPFRAME_SCOPE_PREFIX: &str = "@upframe@";
 
 /// One `uplevel ?level? { … }` body the call-site scan visits as a caller.
 struct UpFrameCaller<'a> {
-    /// Qualified-name context the body's bare command words resolve against.
-    resolve_as: String,
+    /// Actual retained frame namespace; unknown callers remain unavailable.
+    execution_namespace: crate::ir::ExecutionNamespace,
     /// Synthetic, occurrence-unique variable-scope identity for its CFG.
     scope: String,
     /// The lowered body.
     body: &'a crate::ir::Script,
 }
 
-/// Every static-body `uplevel` in the module, paired with the namespace
-/// context its body's bare command words resolve against.
-///
-/// `uplevel #0` (`absolute`, shift `0`) is the *absolute* frame form: its
-/// body runs in the global frame, so bare command words resolve against the
-/// global namespace, not the enclosing proc's — tclsh8.6/9.0-confirmed,
-/// `uplevel #0 { helper b }` inside `::foo::runIt` calls `::helper`, never
-/// `::foo::helper`.
-///
-/// Every other level keeps the enclosing unit's own namespace:
-///
-/// * `uplevel 0` is the *relative* current-frame form. Despite sharing the
-///   magnitude `0` with `#0` it is the opposite case — tclsh8.6/9.0 confirm
-///   `uplevel 0 { helper c }` inside `::foo::runIt` calls `::foo::helper`.
-///   Resolving it against the enclosing unit is exact, not an approximation.
-/// * Any other relative level (`uplevel 1`, `uplevel 2`, …) targets a frame
-///   whose namespace depends on the live call stack, which single-file
-///   static analysis cannot decide. Those keep the enclosing unit's
-///   namespace as the documented, permanent approximation this scan has
-///   always used for them.
-/// * An absolute `#N` for `N > 0` names a frame counted down from the
-///   global one, equally undecidable statically, so it takes the same
-///   approximation.
+/// Collect each literal upframe body with its independently retained parent namespace.
 fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     let mut out = Vec::new();
-    collect_upframes("::top", &ir_module.top_level, &mut out);
-    for (qname, proc) in ir_module.procedures.display_entries() {
-        collect_upframes(qname, &proc.body, &mut out);
+    collect_upframes(
+        &ir_module.top_level,
+        ir_module
+            .top_level
+            .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected),
+        ir_module.resolved_registry(),
+        &mut out,
+    );
+    for procedure in ir_module
+        .procedures
+        .values()
+        .chain(ir_module.body_units.values())
+    {
+        collect_upframes(
+            &procedure.body,
+            procedure
+                .body
+                .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected),
+            ir_module.resolved_registry(),
+            &mut out,
+        );
     }
-    // A `TclOO` method body resolves bare words against the global namespace
-    // (see `build_extra_call_site_scan_contexts`), so an `uplevel` inside one
-    // inherits `"::top"` for the relative case too.
     for method in ir_module.methods.values() {
-        collect_upframes("::top", &method.body, &mut out);
-    }
-    for (qname, unit) in ir_module.body_units.display_entries() {
-        collect_upframes(qname, &unit.body, &mut out);
+        collect_upframes(
+            &method.body,
+            method.execution_namespace.clone(),
+            ir_module.resolved_registry(),
+            &mut out,
+        );
     }
     out
 }
 
-/// The [`upframe_scan_bodies`] half that walks one enclosing unit's script.
 fn collect_upframes<'a>(
-    enclosing: &str,
     script: &'a crate::ir::Script,
+    parent_namespace: crate::ir::ExecutionNamespace,
+    registry: &CommandRegistry,
     out: &mut Vec<UpFrameCaller<'a>>,
 ) {
-    walk_script(script, &mut |_, stmt| {
+    for statement in &script.statements {
         if let crate::ir::Statement::UpFrame {
             frame_shift,
             absolute,
             body,
             span,
-            ..
-        } = stmt
+            tokens,
+        } = statement
         {
+            let execution_namespace = if *frame_shift != 0 {
+                crate::ir::ExecutionNamespace::RuntimeSelected
+            } else if *absolute {
+                tokens
+                    .as_ref()
+                    .and_then(|tokens| {
+                        tokens
+                            .source_binding
+                            .as_ref()?
+                            .original_native_root_namespace_context(tokens, registry)
+                    })
+                    .map_or(
+                        crate::ir::ExecutionNamespace::RuntimeSelected,
+                        crate::ir::ExecutionNamespace::SourceContext,
+                    )
+            } else {
+                parent_namespace.clone()
+            };
             out.push(UpFrameCaller {
-                resolve_as: if *absolute && *frame_shift == 0 {
-                    "::top".to_owned()
-                } else {
-                    enclosing.to_owned()
-                },
+                execution_namespace: execution_namespace.clone(),
                 scope: format!("{UPFRAME_SCOPE_PREFIX}{}", span.start()),
                 body,
             });
+            collect_upframes(body, execution_namespace, registry, out);
+        } else {
+            for child in statement.child_scripts() {
+                collect_upframes(child, parent_namespace.clone(), registry, out);
+            }
         }
-    });
+    }
 }
 
 /// One extra executable body walked as a call-site source.
@@ -1859,9 +1869,6 @@ pub(crate) struct ExtraCallSiteScanContext {
     /// Method/body-unit identity when this CFG is also consumed by the full
     /// per-unit lattice build. Upframe-only scan contexts leave this absent.
     analysis_body: Option<crate::ir::ProcedureId>,
-    /// Qualified-name-shaped context used by `resolve_internal_call` for the
-    /// exact fallback calls retained in this CFG.
-    resolve_as: String,
     /// Variable-scope identity carried by the CFG itself.
     cfg: CfgFunction,
     /// The namespace Tcl selects when this body actually executes.  `TclOO`
@@ -1935,16 +1942,6 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 crate::ir::ExecutionNamespace::RuntimeSelected
             )
                 && crate::ir_helpers::requires_runtime_command_namespace(&method.body, registry);
-            let resolve_as = match &execution_namespace {
-                // A qname ending in the method leaf gives
-                // `resolve_internal_call` exactly this defining namespace.
-                crate::ir::ExecutionNamespace::Exact(_)
-                | crate::ir::ExecutionNamespace::SourceContext(_) => mqname.clone(),
-                // Only absolute calls are trustworthy in a runtime-selected
-                // method.  They ignore this fallback; relative calls cause the
-                // whole reachable callee set to be poisoned below.
-                crate::ir::ExecutionNamespace::RuntimeSelected => "::top".to_owned(),
-            };
             let cfg = crate::cfg_builder::build_cfg_method_function_with_prepared_context(
                 &mqname,
                 &method.body,
@@ -1958,7 +1955,6 @@ pub(crate) fn build_extra_call_site_scan_contexts(
             );
             ExtraCallSiteScanContext {
                 analysis_body: Some(*id),
-                resolve_as,
                 cfg,
                 execution_namespace,
                 requires_runtime_command_namespace,
@@ -1970,29 +1966,22 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
             ExtraCallSiteScanContext {
                 analysis_body: Some(*id),
-                resolve_as: unit.qualified_name.clone(),
                 cfg: build(&unit.qualified_name, &unit.body),
                 execution_namespace,
                 requires_runtime_command_namespace: false,
             }
         }))
         .chain(upframes.into_iter().map(|up| {
-            // Same shape as the method case: the caller context bare command
-            // words resolve against is chosen by the frame the body runs in
-            // (see [`upframe_scan_bodies`]), while the CFG keeps a distinct
-            // identity of its own. Here that identity must be *synthetic* —
-            // the CFG's name is this scan's variable-scope key, and reusing
-            // the resolution context would overwrite that scope's real
-            // variable facts in `collect_module_scope_var_facts`.
-            let execution_namespace = crate::ir::ExecutionNamespace::exact(
-                tcl_syntax::naming::key_holder_and_tail(&up.resolve_as).0,
-            );
+            let requires_runtime_command_namespace = matches!(
+                &up.execution_namespace,
+                crate::ir::ExecutionNamespace::RuntimeSelected
+            )
+                && crate::ir_helpers::requires_runtime_command_namespace(up.body, registry);
             ExtraCallSiteScanContext {
                 analysis_body: None,
-                resolve_as: up.resolve_as,
                 cfg: build(&up.scope, up.body),
-                execution_namespace,
-                requires_runtime_command_namespace: false,
+                execution_namespace: up.execution_namespace,
+                requires_runtime_command_namespace,
             }
         }))
         .collect()
@@ -2171,18 +2160,18 @@ fn unenumerable_reach(
 fn call_site_scan_functions<'a>(
     cfg: &'a CfgModule,
     extra: &'a [ExtraCallSiteScanContext],
-) -> impl Iterator<Item = (CallerScopeId, &'a str, &'a CfgFunction)> {
-    std::iter::once((CallerScopeId::TopLevel, "::top", &cfg.top_level))
+) -> impl Iterator<Item = (CallerScopeId, &'a CfgFunction)> {
+    std::iter::once((CallerScopeId::TopLevel, &cfg.top_level))
         .chain(
             cfg.procedures
                 .iter()
-                .map(|(id, body)| (CallerScopeId::Procedure(*id), body.name.as_str(), body)),
+                .map(|(id, body)| (CallerScopeId::Procedure(*id), body)),
         )
         .chain(extra.iter().enumerate().map(|(index, caller)| {
             let scope = caller
                 .analysis_body
                 .map_or(CallerScopeId::Extra(index), CallerScopeId::Procedure);
-            (scope, caller.resolve_as.as_str(), &caller.cfg)
+            (scope, &caller.cfg)
         }))
 }
 
@@ -2196,7 +2185,7 @@ fn collect_module_scope_var_facts(
     identities: &crate::realm::CommandBindingRealm,
 ) -> ModuleVarFacts {
     let mut out = ModuleVarFacts::default();
-    for (scope, _, func) in call_site_scan_functions(cfg_module, extra_callers) {
+    for (scope, func) in call_site_scan_functions(cfg_module, extra_callers) {
         let facts = collect_original_scope_var_facts(func, surface, module, identities);
         out.cross_frame_write |= facts.cross_frame_write;
         out.scopes.insert(scope, facts);
@@ -2362,7 +2351,7 @@ fn record_runtime_selected_extra_callers(
 fn scan_cfg_callers<'a>(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
-    funcs: impl Iterator<Item = (CallerScopeId, &'a str, &'a CfgFunction)>,
+    funcs: impl Iterator<Item = (CallerScopeId, &'a CfgFunction)>,
 ) {
     // The unresolved-command handler's caller set is *never* enumerable, so
     // it is poisoned before a single statement is read.
@@ -2379,10 +2368,8 @@ fn scan_cfg_callers<'a>(
     if let Some(handler) = ctx.unresolved_handler {
         out.record_opaque_caller(handler);
     }
-    for (scope, resolve_as, func) in funcs {
-        // The CFG function's own name is the *variable-scope* identity, which
-        // differs from `resolve_as` for a `TclOO` method (lexical fallback
-        // resolution, own frame).  A body the unit declares as a procedure is
+    for (scope, func) in funcs {
+        // The typed caller coordinate owns variable facts. A retained procedure is
         // one this evidence map attributes calls *to*; a method or `apply`
         // lambda is not, so its parameters may hold values never seen here.
         let declared = match scope {
@@ -2390,7 +2377,6 @@ fn scan_cfg_callers<'a>(
             _ => None,
         };
         let caller = CallerFrame {
-            _resolve_as: resolve_as,
             metadata_owner: &func.metadata_context,
             scope,
             params: declared.map_or(&[][..], |p| p.params.as_slice()),
@@ -4148,6 +4134,49 @@ mod tests {
     /// The `Traits::EVALUATES_IN_SHIFTED_FRAME` skip is what stops it, so
     /// no command name appears in the walker.
     #[test]
+    fn retained_upframe_namespaces_do_not_parse_the_procedure_display_label() {
+        let registry = registry();
+        let module = crate::lowering::lower_to_ir(
+            "namespace eval ::N {}\nproc ::N::run {} {uplevel 1 {uplevel 0 {puts $x}}; uplevel 0 {puts $x}; uplevel #0 {puts $x}}",
+            &registry,
+        );
+        let procedures = module
+            .procedures
+            .values()
+            .filter(|procedure| procedure.qualified_name == "::N::run")
+            .collect::<Vec<_>>();
+        assert_eq!(procedures.len(), 1);
+        let mut procedure = (*procedures[0]).clone();
+        let parent = procedure
+            .body
+            .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
+        assert!(!matches!(
+            parent,
+            crate::ir::ExecutionNamespace::RuntimeSelected
+        ));
+        procedure.qualified_name = "unrelated reporting label".to_owned();
+        let mut callers = Vec::new();
+        collect_upframes(&procedure.body, parent.clone(), &registry, &mut callers);
+        assert_eq!(callers.len(), 4);
+        assert!(matches!(
+            callers[0].execution_namespace,
+            crate::ir::ExecutionNamespace::RuntimeSelected
+        ));
+        assert!(matches!(
+            callers[1].execution_namespace,
+            crate::ir::ExecutionNamespace::RuntimeSelected
+        ));
+        assert_eq!(callers[2].execution_namespace, parent);
+        assert!(
+            matches!(
+                callers[3].execution_namespace,
+                crate::ir::ExecutionNamespace::RuntimeSelected
+            ),
+            "unsupplied root frame cannot borrow the source body's lexical namespace"
+        );
+    }
+
+    #[test]
     fn an_uplevel_body_inside_a_catch_body_is_not_reattributed() {
         let reg = registry();
         let src = "proc ::helper {mode} {return $mode}\nnamespace eval ::foo {\n    proc helper {mode} { return $mode }\n    proc runIt {} { catch { uplevel #0 { helper b } } }\n}\n";
@@ -5356,7 +5385,6 @@ mod tests {
             unresolved_handler: None,
         };
         let caller = CallerFrame {
-            _resolve_as: "::top",
             metadata_owner: &cfg.top_level.metadata_context,
             scope: CallerScopeId::TopLevel,
             params: &[],
@@ -5587,7 +5615,6 @@ mod tests {
             owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
         ) -> CallerFrame<'_> {
             CallerFrame {
-                _resolve_as: "::add",
                 metadata_owner: owner,
                 scope: CallerScopeId::Extra(0),
                 params: &[],

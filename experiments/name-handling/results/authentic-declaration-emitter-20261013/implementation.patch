@@ -1,0 +1,777 @@
+--- a/rust/tcl-compiler/src/codegen/backend.rs
++++ b/rust/tcl-compiler/src/codegen/backend.rs
+@@ -27,9 +27,9 @@
+ use tcl_registry::CommandRegistry;
+ 
+ use crate::cfg::{CfgModule, Function as CfgFunction};
+-use crate::ir::{Module as IrModule, Procedure as IrProcedure};
++use crate::ir::Module as IrModule;
+ 
+-use super::emitter::{codegen_function_with_procs, codegen_module};
++use super::emitter::{codegen_function, codegen_module};
+ use super::{FunctionAsm, ModuleAsm};
+ 
+ /// A code-generation backend: lowers the shared CFG/IR to a backend artifact.
+@@ -46,17 +46,15 @@
+ 
+     /// Lower a single CFG function.
+     ///
+-    /// `is_proc` selects LVT-based vs stack-based variable access; `proc_defs`
+-    /// are pending proc definitions to interleave at their source positions
+-    /// (as `codegen_module` does for the top-level script); `registry` is
+-    /// consulted for codegen-hook resolution — pass the same instance the
+-    /// lowering pass used.
++    /// `is_proc` selects local-table or stack variable access. `registry` must
++    /// match the lowering registry. Procedure declarations are retained source
++    /// statements; whole-module emission uses [`Self::lower_module`] to retain
++    /// their original source, namespace context and body identities.
+     fn lower_function(
+         &mut self,
+         cfg: &CfgFunction,
+         params: &[&str],
+         is_proc: bool,
+-        proc_defs: &[IrProcedure],
+         registry: &CommandRegistry,
+     ) -> Self::FuncArtifact;
+ 
+@@ -85,10 +83,9 @@
+         cfg: &CfgFunction,
+         params: &[&str],
+         is_proc: bool,
+-        proc_defs: &[IrProcedure],
+         registry: &CommandRegistry,
+     ) -> FunctionAsm {
+-        codegen_function_with_procs(cfg, params, is_proc, proc_defs, registry)
++        codegen_function(cfg, params, is_proc, registry)
+     }
+ 
+     fn lower_module(
+--- a/rust/tcl-compiler/src/codegen/emitter/generate.rs
++++ b/rust/tcl-compiler/src/codegen/emitter/generate.rs
+@@ -24,12 +24,11 @@
+ 
+ #![allow(dead_code)]
+ 
+-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
++use std::collections::{BTreeSet, HashMap, HashSet};
+ 
+ use tcl_registry::InlineBodyErrorContext;
+ 
+ use crate::cfg::{Function as CfgFunction, Terminator};
+-use crate::ir::Procedure as IrProcedure;
+ use crate::ir::Statement;
+ 
+ use super::super::CodegenCtx;
+@@ -39,7 +38,6 @@
+ use super::ordering::{
+     self, LOOP_BODY_PREFIXES, LOOP_END_PREFIXES, VALUE_JOIN_PREFIXES, linearise, starts_with_any,
+ };
+-use super::proc_defs::is_static_proc;
+ use super::try_blocks::{
+     CatchRegionInfo, TryFinallyInfo, detect_catch_regions, detect_try_finally, is_catch_defs_marker,
+ };
+@@ -66,9 +64,6 @@
+ 
+ /// Transient state passed between the per-block handlers in `generate`.
+ struct GenerateState {
+-    /// Pending proc definitions, sorted by source offset. A
+-    /// `VecDeque` keeps `pop_front` O(1) during interleaved drain.
+-    pending_proc_defs: VecDeque<IrProcedure>,
+     /// Block names to skip — consumed by jump tables or try/finally.
+     skip_blocks: HashSet<String>,
+     /// Detected try/finally chains keyed by `try_body` block.
+@@ -100,15 +95,8 @@
+ }
+ 
+ impl GenerateState {
+-    fn new(proc_defs: &[IrProcedure]) -> Self {
+-        let mut sorted: Vec<IrProcedure> = proc_defs
+-            .iter()
+-            .filter(|p| is_static_proc(p))
+-            .cloned()
+-            .collect();
+-        sorted.sort_by_key(|p| p.span.start());
++    fn new() -> Self {
+         Self {
+-            pending_proc_defs: VecDeque::from(sorted),
+             skip_blocks: HashSet::new(),
+             try_finally_info: HashMap::new(),
+             catch_region_info: HashMap::new(),
+@@ -261,23 +249,6 @@
+         complex_body_blocks,
+         collect_bodies,
+         collect_ends,
+-    }
+-}
+-
+-/// Emit proc defs that appear before the first statement (for cases
+-/// where the entry block has no statements).
+-fn pre_emit_proc_defs(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
+-    if state.pending_proc_defs.is_empty() {
+-        return;
+-    }
+-    let first_stmt_offset: Option<u32> = cfg
+-        .blocks
+-        .values()
+-        .flat_map(|blk| blk.statements.iter())
+-        .map(|s| s.span().start())
+-        .min();
+-    if let Some(off) = first_stmt_offset {
+-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, off);
+     }
+ }
+ 
+@@ -536,7 +507,6 @@
+ /// foreach body (caller should `return`).
+ fn emit_foreach_body(
+     ctx: &mut CodegenCtx,
+-    state: &mut GenerateState,
+     fe: &ForeachData,
+     cfg: &CfgFunction,
+     bname: &str,
+@@ -551,7 +521,6 @@
+             .and_then(|id| cfg.statement_sources.get(&(id, index)))
+             .cloned()
+             .flatten();
+-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+         ctx.emit_stmt_with_start_cmd(stmt, None, None);
+     }
+     // foreach_step/foreach_end are synthetic loop machinery with no
+@@ -625,7 +594,6 @@
+         if is_catch_end_block && is_catch_defs_marker(stmt) {
+             continue;
+         }
+-        ctx.emit_pending_proc_defs(&mut state.pending_proc_defs, stmt.span().start());
+         if Some(stmt_idx) == first_command_covered {
+             ctx.emit_stmt_under_start_cmd(stmt);
+             continue;
+@@ -939,7 +907,7 @@
+     if emit_foreach_header(ctx, cfg, state, fe, bname) {
+         return;
+     }
+-    if emit_foreach_body(ctx, state, fe, cfg, bname, blk) {
++    if emit_foreach_body(ctx, fe, cfg, bname, blk) {
+         return;
+     }
+ 
+@@ -1006,10 +974,7 @@
+ }
+ 
+ /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
+-fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction, state: &mut GenerateState) {
+-    // Flush any remaining proc defs.
+-    ctx.flush_proc_defs(&mut state.pending_proc_defs);
+-
++fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
+     // Empty proc body: push "" as the implicit return value.
+     if ctx.is_proc && ctx.instructions.is_empty() {
+         ctx.push_lit("");
+@@ -1255,7 +1220,7 @@
+ /// instruction is emitted. Build execution graphs with
+ /// [`crate::cfg_builder::build_cfg_codegen_with_registry_and_config`]. Analysis
+ /// completion summaries cannot replace runtime invocation continuations.
+-pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction, proc_defs: &[IrProcedure]) -> FunctionAsm {
++pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
+     // Completion summaries describe analysis reachability. Execution retains
+     // the original invocation and its runtime continuation instead. Check the
+     // whole function before emission, so an analysis CFG cannot accidentally
+@@ -1295,13 +1260,12 @@
+     }
+     let block_order = linearise(cfg);
+     let mut loop_ctx = ordering::build_loop_context(cfg);
+-    let mut state = GenerateState::new(proc_defs);
++    let mut state = GenerateState::new();
+     // Native Tcl compiles an original zero-command script as an empty result,
+     // independently of the synthetic return used to terminate an IR graph.
+     // The retained source instance also covers procedure bodies whose parent
+     // module contains commands; an empty module projection is insufficient.
+     if ctx.instructions.is_empty()
+-        && proc_defs.is_empty()
+         && cfg.native_compilation_failure.is_none()
+         && let Some(protocol @ tcl_syntax::native_string::NativeStringProtocol::C(_)) =
+             ctx.source_string_protocol
+@@ -1344,13 +1308,11 @@
+         state.skip_blocks.insert(info.try_after.clone());
+     }
+ 
+-    pre_emit_proc_defs(ctx, cfg, &mut state);
+-
+     for i in 0..block_order.len() {
+         emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
+     }
+ 
+-    emit_function_tail(ctx, cfg, &mut state);
++    emit_function_tail(ctx, cfg);
+     finalize_function(ctx, cfg, &block_order, &loop_ctx)
+ }
+ 
+@@ -1493,7 +1455,7 @@
+         let cfg = trivial_cfg();
+         let registry = CommandRegistry::build_default();
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+         assert_eq!(asm.name, "::top");
+         assert_ne!(asm.instructions, [] as [tcl_bytecode::Instruction; 0]);
+         // Top-level scripts terminate with RETURN_IMM or DONE
+@@ -1524,7 +1486,7 @@
+                 for is_proc in [false, true] {
+                     let mut ctx = CodegenCtx::new(is_proc, &[], registry);
+                     ctx.source_string_protocol = Some(NativeStringProtocol::C(version));
+-                    let asm = generate(&mut ctx, &cfg.top_level, &[]);
++                    let asm = generate(&mut ctx, &cfg.top_level);
+                     assert_eq!(asm.instructions.len(), 2, "{engine} {source:?}");
+                     assert_eq!(asm.instructions[0].op, Op::PUSH1);
+                     assert_eq!(asm.instructions[1].op, Op::DONE);
+@@ -1553,9 +1515,8 @@
+         });
+         let registry = CommandRegistry::build_default();
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+-            generate(&mut ctx, &cfg, &[])
+-        }));
++        let result =
++            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| generate(&mut ctx, &cfg)));
+         assert!(result.is_err());
+         assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
+     }
+@@ -1573,7 +1534,7 @@
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+         ctx.set_source(source);
+ 
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+ 
+         let [region] = asm.error_regions.as_slice() else {
+             panic!("semantic inline-body context should emit exactly one error region");
+@@ -1582,7 +1543,7 @@
+         assert_eq!(region.cmd_text, source);
+ 
+         let mut source_less = CodegenCtx::new(false, &[], &registry);
+-        let source_less_asm = generate(&mut source_less, &cfg, &[]);
++        let source_less_asm = generate(&mut source_less, &cfg);
+         assert!(
+             source_less_asm.error_regions.is_empty(),
+             "a source-less context retains the previous no-region behaviour",
+@@ -1619,7 +1580,7 @@
+         });
+         let registry = CommandRegistry::build_default();
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+ 
+         // The store-into-x instruction came from the AssignConst statement.
+         let store = asm
+@@ -1668,7 +1629,7 @@
+         });
+         let registry = CommandRegistry::build_default();
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+         // Should contain push and store (tail pop is folded away)
+         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
+         assert!(ops.contains(&Op::PUSH1));
+@@ -1692,7 +1653,7 @@
+             expr: None,
+             braced: false,
+         });
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+         // Proc with empty body should push "" and emit done
+         assert_eq!(asm.instructions.last().unwrap().op, Op::DONE);
+     }
+@@ -1764,7 +1725,7 @@
+         let registry = CommandRegistry::build_default();
+ 
+         let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let asm = generate(&mut ctx, &cfg, &[]);
++        let asm = generate(&mut ctx, &cfg);
+         let ops: Vec<Op> = asm.instructions.iter().map(|i| i.op).collect();
+         // Should include a conditional jump (maybe shrunk to 1-byte)
+         assert!(
+--- a/rust/tcl-compiler/src/codegen/emitter/mod.rs
++++ b/rust/tcl-compiler/src/codegen/emitter/mod.rs
+@@ -22,7 +22,6 @@
+ //!
+ //! - [`ordering`]  — CFG linearisation and loop body detection
+ //! - [`terminator`] — CFG terminator emission (goto/branch/return)
+-//! - [`proc_defs`] — interleaved proc definition emission
+ //! - [`loop_blocks`] — per-block handlers for foreach/while/for
+ //! - [`try_blocks`] — try/finally CFG pattern detection
+ //! - [`generate`] — top-level dispatcher
+@@ -34,7 +33,6 @@
+ pub mod generate;
+ pub mod loop_blocks;
+ pub mod ordering;
+-pub mod proc_defs;
+ pub mod terminator;
+ pub mod try_blocks;
+ 
+@@ -43,11 +41,13 @@
+ use tcl_registry::CommandRegistry;
+ 
+ use crate::cfg::{CfgModule, Function as CfgFunction};
+-use crate::ir::{Module as IrModule, Procedure as IrProcedure};
++use crate::ir::Module as IrModule;
+ 
+ use super::{CodegenCtx, FunctionAsm, ModuleAsm};
+ 
+ /// Generate bytecode assembly for a single CFG function.
++/// Procedure declarations are emitted from retained source statements; module
++/// lowering carries their source, namespace context and body inventory.
+ ///
+ /// When `is_proc` is true, variables are accessed via the LVT
+ /// (`loadScalar1`/`storeScalar1`). When `false` (top-level scripts),
+@@ -67,26 +67,8 @@
+     is_proc: bool,
+     registry: &CommandRegistry,
+ ) -> FunctionAsm {
+-    codegen_function_with_procs(cfg, params, is_proc, &[], registry)
+-}
+-
+-/// Generate bytecode assembly for a CFG function, with pending proc defs.
+-///
+-/// Used by `codegen_module` to interleave proc definitions at their
+-/// source positions within the top-level script.
+-///
+-/// # Panics
+-/// Rejects an analysis CFG containing completion summaries, before emission.
+-#[must_use]
+-pub fn codegen_function_with_procs(
+-    cfg: &CfgFunction,
+-    params: &[&str],
+-    is_proc: bool,
+-    proc_defs: &[IrProcedure],
+-    registry: &CommandRegistry,
+-) -> FunctionAsm {
+     let mut ctx = CodegenCtx::new(is_proc, params, registry);
+-    generate::generate(&mut ctx, cfg, proc_defs)
++    generate::generate(&mut ctx, cfg)
+ }
+ 
+ /// Emission uses the same body inventory selected before source analysis.
+@@ -128,7 +110,7 @@
+     references: &'a [crate::ir::ReferenceImport],
+ }
+ 
+-/// Like [`codegen_function_with_procs`] but threading the module source text so
++/// Retain original module source so
+ /// each instruction carries its command's surface text for `errorInfo`, plus
+ /// the proc body's `base_line` (its `proc` definition line) so the
+ /// `(procedure … line N)` frame reports a proc-relative line.
+@@ -195,13 +177,12 @@
+     cfg: &CfgFunction,
+     params: &[tcl_runtime_api::NameBytes],
+     is_proc: bool,
+-    proc_defs: &[IrProcedure],
+     module: &ModuleEmit<'_>,
+     base_line: u32,
+     scope: FunctionNamespace<'_>,
+ ) -> FunctionAsm {
+     let mut ctx = configured_codegen_context(params, is_proc, module, scope.path);
+-    let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
++    let mut asm = generate::generate(&mut ctx, cfg);
+     if let Some(environment) =
+         super::native_compiler_pass::replay_environment(&ctx, scope.selected_procedure)
+     {
+@@ -210,7 +191,7 @@
+         replay.compact_compiler_pass = true;
+         let first_literals = std::mem::take(&mut asm.literals);
+         drop(asm);
+-        asm = generate::generate(&mut replay, cfg, proc_defs);
++        asm = generate::generate(&mut replay, cfg);
+         asm.literals.retain_discarded_native_pass(first_literals);
+         asm.literals.retain_compiler_replay_environment(environment);
+     }
+@@ -456,7 +437,6 @@
+             cfg_func,
+             &params,
+             true,
+-            &[],
+             module,
+             base_line,
+             FunctionNamespace {
+@@ -464,14 +444,8 @@
+                 selected_procedure: false,
+             },
+         );
+-        // The body word this assembly was compiled from, so a runtime consumer
+-        // keyed by name can tell it apart from another `proc` of the same name
+-        // (see `FunctionAsm::proc_body_src`). Recorded as the word *value*, not
+-        // as the source text: lowering keeps the written word, but the value a
+-        // runtime `proc` is handed has had the one substitution braces permit
+-        // applied — a `\<newline>` continuation folded to a space — and the
+-        // comparison is against that. Without the fold, every body holding a
+-        // continuation missed.
++        // Retain the original body word value for runtime body correspondence.
++        // Braced backslash-newline continuations fold under this module's rules.
+         asm.proc_body_src = ir_proc
+             .and_then(|p| p.body_source.as_deref())
+             .map(|body| module.word_rules.collapse_braced_word(body).into_owned());
+@@ -601,7 +575,6 @@
+         &cfg_module.top_level,
+         target.parameters,
+         target.is_procedure,
+-        &[],
+         &module,
+         0,
+         FunctionNamespace {
+@@ -622,7 +595,6 @@
+             &cfg_module.top_level,
+             target.parameters,
+             true,
+-            &[],
+             &module,
+             0,
+             FunctionNamespace {
+--- a/rust/tcl-compiler/src/codegen/emitter/proc_defs.rs
++++ /dev/null
+@@ -1,173 +0,0 @@
+-// tcl-lsp — a language server and toolchain for Tcl
+-// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+-//
+-// This program is free software: you can redistribute it and/or modify
+-// it under the terms of the GNU Affero General Public License as published by
+-// the Free Software Foundation, either version 3 of the License, or
+-// (at your option) any later version.
+-//
+-// This program is distributed in the hope that it will be useful,
+-// but WITHOUT ANY WARRANTY; without even the implied warranty of
+-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-// GNU Affero General Public License for more details.
+-//
+-// You should have received a copy of the GNU Affero General Public License
+-// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-//
+-// SPDX-License-Identifier: AGPL-3.0-or-later
+-
+-//! Interleaved proc definition emission.
+-//!
+-//! Top-level `proc` definitions are emitted as a synthetic
+-//! `proc NAME PARAMS BODY` command call, interleaved with other
+-//! statements at their original source line.
+-
+-#![allow(dead_code, clippy::doc_markdown)]
+-
+-use std::collections::VecDeque;
+-
+-use crate::ir::Procedure as IrProcedure;
+-
+-use super::super::{CodegenCtx, Op, Operand};
+-
+-/// Return `true` if the proc definition is purely literal (no `$` or
+-/// `[` substitutions in name, params, or body), so it can be emitted
+-/// at compile time rather than as a runtime command call.
+-#[must_use]
+-pub fn is_static_proc(p: &IrProcedure) -> bool {
+-    let body = p.body_source.as_deref().unwrap_or("");
+-    for s in [p.name.as_str(), p.params_raw.as_str(), body] {
+-        if s.contains('$') || s.contains('[') {
+-            return false;
+-        }
+-    }
+-    true
+-}
+-
+-impl CodegenCtx<'_> {
+-    /// Emit a single proc definition call.
+-    ///
+-    /// tclsh emits each `proc` definition at top level as:
+-    /// ```text
+-    /// push "proc"
+-    /// push <name>
+-    /// push <params>
+-    /// push <body_source>
+-    /// invokeStk1 4
+-    /// pop
+-    /// ```
+-    pub fn emit_one_proc_def(&mut self, proc_def: &IrProcedure) {
+-        self.push_lit("proc");
+-        self.push_lit(&proc_def.name);
+-        // Wrap params and body in braces so the VM's push handler
+-        // strips them without performing variable/command substitution.
+-        let params = &proc_def.params_raw;
+-        let body = proc_def.body_source.as_deref().unwrap_or("");
+-        let wrapped_params = if params.is_empty() {
+-            String::new()
+-        } else {
+-            format!("{{{params}}}")
+-        };
+-        let wrapped_body = if body.is_empty() {
+-            String::new()
+-        } else {
+-            format!("{{{body}}}")
+-        };
+-        self.push_lit(&wrapped_params);
+-        self.push_lit(&wrapped_body);
+-        self.emit(Op::INVOKE_STK1, vec![Operand::Imm(4)]);
+-        self.emit(Op::POP, vec![]);
+-        self.cmd_index += 1;
+-        self.seen_generic_invoke = true;
+-    }
+-
+-    /// Emit pending proc definitions whose source offset is before
+-    /// `before_offset`.
+-    ///
+-    /// `pending` is maintained in source-offset order; procs before
+-    /// the given offset are drained from the front. Using a
+-    /// [`VecDeque`] keeps `pop_front` O(1), so this is linear in the
+-    /// number of procs drained rather than quadratic.
+-    pub fn emit_pending_proc_defs(
+-        &mut self,
+-        pending: &mut VecDeque<IrProcedure>,
+-        before_offset: u32,
+-    ) {
+-        while pending
+-            .front()
+-            .is_some_and(|p| p.span.start() < before_offset)
+-        {
+-            // SAFETY: front() just succeeded, so pop_front() returns Some.
+-            let p = pending.pop_front().expect("front() was Some");
+-            self.emit_one_proc_def(&p);
+-        }
+-    }
+-
+-    /// Flush remaining pending proc definitions in order.
+-    pub fn flush_proc_defs(&mut self, pending: &mut VecDeque<IrProcedure>) {
+-        while let Some(p) = pending.pop_front() {
+-            self.emit_one_proc_def(&p);
+-        }
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-    use crate::codegen::CodegenCtx;
+-    use crate::ir::{Procedure, Script};
+-    use tcl_lexer::Span;
+-    use tcl_registry::CommandRegistry;
+-
+-    fn dummy_proc(name: &str, params: &str, body: &str) -> Procedure {
+-        Procedure {
+-            name: name.into(),
+-            qualified_name: format!("::{name}"),
+-            publication: None,
+-            declaration_site: None,
+-            body_kind: crate::ir::ProcedureBodyKind::Named,
+-            params: Vec::new(),
+-            span: Span::new(0, 0),
+-            body: Script::new(),
+-            params_raw: params.into(),
+-            body_source: Some(body.into()),
+-            body_offset: 0,
+-            namespace_scoped: false,
+-            base_priority: 500,
+-        }
+-    }
+-
+-    #[test]
+-    fn is_static_proc_plain() {
+-        let p = dummy_proc("foo", "x y", "set x 1");
+-        assert!(is_static_proc(&p));
+-    }
+-
+-    #[test]
+-    fn is_static_proc_with_subst() {
+-        let p = dummy_proc("foo", "x", "set x [pwd]");
+-        assert!(!is_static_proc(&p));
+-    }
+-
+-    #[test]
+-    fn emit_one_proc_def_shape() {
+-        let registry = CommandRegistry::build_default();
+-        let mut ctx = CodegenCtx::new(false, &[], &registry);
+-        let p = dummy_proc("foo", "x y", "set x 1");
+-        ctx.emit_one_proc_def(&p);
+-        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+-        // push "proc", push name, push params, push body, invokeStk1, pop
+-        assert_eq!(
+-            ops,
+-            vec![
+-                Op::PUSH1,
+-                Op::PUSH1,
+-                Op::PUSH1,
+-                Op::PUSH1,
+-                Op::INVOKE_STK1,
+-                Op::POP,
+-            ]
+-        );
+-        assert!(ctx.seen_generic_invoke);
+-    }
+-}
+--- a/rust/tcl-compiler/tests/codegen_depth.rs
++++ b/rust/tcl-compiler/tests/codegen_depth.rs
+@@ -20,7 +20,7 @@
+ //! existing `tests/codegen.rs` leaves thin:
+ //!
+ //! - `src/codegen/backend.rs` — the agnostic `Backend` trait + the
+-//!   `BytecodeBackend` impl (0% before).
++//!   `BytecodeBackend` impl.
+ //! - `src/codegen/control_flow.rs` — catch/try lowering: `emit_catch_*`,
+ //!   `emit_try_on_error_inline`, `emit_try_finally_inline`,
+ //!   `detect_const_expr_error`.
+@@ -69,7 +69,7 @@
+ use tcl_compiler::codegen::{
+     Backend, BytecodeBackend, CodegenCtx, FunctionAsm, ModuleAsm, Op, Operand,
+ };
+-use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
++use tcl_compiler::ir::{Module as IrModule, Statement};
+ use tcl_compiler::lowering::lower_to_ir;
+ use tcl_registry::CommandRegistry;
+ 
+@@ -180,7 +180,7 @@
+     let cfg = build_cfg_codegen(&ir, true);
+     let mut backend = BytecodeBackend;
+     let f: <BytecodeBackend as Backend>::FuncArtifact =
+-        backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
++        backend.lower_function(&cfg.top_level, &[], false, &reg);
+     let m: <BytecodeBackend as Backend>::ModuleArtifact = backend.lower_module(&cfg, &ir, &reg);
+     assert_eq!(f.name, "::top");
+     assert_eq!(m.top_level.name, "::top");
+@@ -198,7 +198,7 @@
+         .get(&fixture_id(&cfg.procedures, "::id"))
+         .expect("authored fixture body");
+     let mut backend = BytecodeBackend;
+-    let fa = backend.lower_function(proc_cfg, &["x"], true, &[], &reg);
++    let fa = backend.lower_function(proc_cfg, &["x"], true, &reg);
+     let ops = opcodes(&fa);
+     assert!(
+         ops.contains(&Op::LOAD_SCALAR1),
+@@ -216,7 +216,7 @@
+     let ir = lower_to_ir("set x 1", &reg);
+     let cfg = build_cfg(&ir, false);
+     let mut backend = BytecodeBackend;
+-    let fa = backend.lower_function(&cfg.top_level, &[], false, &[], &reg);
++    let fa = backend.lower_function(&cfg.top_level, &[], false, &reg);
+     let ops = opcodes(&fa);
+     assert!(ops.contains(&Op::PUSH1));
+     assert!(
+@@ -227,34 +227,59 @@
+ }
+ 
+ #[test]
+-fn backend_lower_function_interleaves_proc_defs() {
+-    // The `proc_defs` parameter interleaves pending proc definitions into the
+-    // top-level stream (the same job `codegen_module` does). Driving it through
+-    // the trait with a populated `proc_defs` slice emits the `proc` definition
+-    // command (a `proc <name> <args> <body>` invoke) inline.
+-    let reg = registry();
+-    let ir = lower_to_ir("proc foo {} { return 1 }\nfoo", &reg);
++fn backend_lower_module_retains_original_declaration_order_and_body_identity() {
++    let reg = registry();
++    let source =
++        "set before BEFORE\nproc foo {{x {a b}}} { return [list $x] }\nset after AFTER\nfoo";
++    let ir = lower_to_ir(source, &reg);
+     let cfg = build_cfg_codegen(&ir, true);
+-    let proc_defs: Vec<Procedure> = ir.procedures.values().cloned().collect();
+-    assert!(
+-        !proc_defs.is_empty(),
+-        "expected a pending proc def to interleave"
+-    );
++    assert_eq!(ir.procedures.len(), 1);
++    let (body_id, procedure) = ir.procedures.iter().next().unwrap();
+     let mut backend = BytecodeBackend;
+-    let top = backend.lower_function(&cfg.top_level, &[], false, &proc_defs, &reg);
+-    // The interleaved proc definition pushes the literal `proc` + the proc name
+-    // and invokes — distinct from the no-proc-defs lowering of the same CFG.
++    let module = backend.lower_module(&cfg, &ir, &reg);
++    let top = &module.top_level;
+     let lits = top.literals.entries();
+     assert!(
+-        lits.iter().any(|l| l == "proc"),
+-        "proc-def literal `proc`: {lits:?}"
+-    );
+-    assert!(
+-        lits.iter().any(|l| l == "foo"),
+-        "proc-def names `foo`: {lits:?}"
+-    );
+-    assert!(opcodes(&top).contains(&Op::INVOKE_STK1));
++        lits.iter().any(|literal| literal == "proc"),
++        "original declaration head: {lits:?}"
++    );
++    assert!(
++        lits.iter().any(|literal| literal == "foo"),
++        "original declaration name: {lits:?}"
++    );
++    assert!(
++        lits.iter().any(|literal| literal == " return [list $x] "),
++        "braced body remains literal data: {lits:?}"
++    );
++    assert!(opcodes(top).contains(&Op::INVOKE_STK1));
+     assert_eq!(top.instructions.last().unwrap().op, Op::DONE);
++    assert!(module.procedures.contains_key(body_id));
++    assert_eq!(
++        module.procedure_provenance[body_id].body,
++        procedure.body_source.as_deref().unwrap()
++    );
++    let source_commands = top
++        .instructions
++        .iter()
++        .filter(|instruction| instruction.source_command_boundary.is_start())
++        .map(|instruction| instruction.source_cmd_text.bytes())
++        .collect::<Vec<_>>();
++    let before = source_commands
++        .iter()
++        .position(|command| command.starts_with(b"set before"))
++        .unwrap();
++    let declaration = source_commands
++        .iter()
++        .position(|command| command.starts_with(b"proc foo"))
++        .unwrap();
++    let after = source_commands
++        .iter()
++        .position(|command| command.starts_with(b"set after"))
++        .unwrap();
++    assert!(
++        before < declaration && declaration < after,
++        "original declaration order: {source_commands:?}"
++    );
+ }
+ 
+ #[test]
+@@ -1242,7 +1267,7 @@
+         value_span: None,
+     }]);
+     let mut backend = BytecodeBackend;
+-    let fa = backend.lower_function(&cfg, &[], false, &[], &reg);
++    let fa = backend.lower_function(&cfg, &[], false, &reg);
+     let ops = opcodes(&fa);
+     assert!(ops.contains(&Op::PUSH1));
+     assert!(ops.contains(&Op::STORE_STK));
+--- a/docs/design/compiler/architecture.md
++++ b/docs/design/compiler/architecture.md
+@@ -768,6 +768,13 @@
+ 
+ Takes a pre-SSA `cfg::CfgModule` and emits assembly text matching the format
+ produced by `tcl::unsupported::disassemble` in Tcl 9.0.
++
++`codegen_function` and `Backend::lower_function` emit the statements retained in
++one CFG function. Procedure declarations keep their original command words;
++procedure display names and body metadata do not recreate declaration commands.
++Use `codegen_module` or `Backend::lower_module` for a complete source module:
++they carry the original source, namespace context and procedure-body inventory
++into assembly and provenance, keyed by the retained body identities.
+ 
+ ```mermaid
+ flowchart LR
+--- a/docs/work/name-handling/codegen-consumers.md
++++ b/docs/work/name-handling/codegen-consumers.md
+@@ -13,7 +13,7 @@
+ 
+ | Target / facet | Actual current owner and entry | Naming disposition | Tests / current status |
+ | --- | --- | --- | --- |
+-| Tcl bytecode/TclVM | `codegen/backend.rs::BytecodeBackend::{lower_function,lower_module}` delegates `codegen/emitter/mod.rs::{codegen_function_with_procs,codegen_module}`; `tcl-cli/src/commands/compile.rs::dis` | Real executable emitter, shared frontend. Original variable/command proof adapters exist; primary procedure assembly/provenance maps are still string-keyed. | Bytecode fixtures and native original-geometry tests exist. No entire target green claim from current focused capture. |
++| Tcl bytecode/TclVM | `codegen/backend.rs::BytecodeBackend::{lower_function,lower_module}` delegates `codegen/emitter/mod.rs::{codegen_function,codegen_module}`; `tcl-cli/src/commands/compile.rs::dis` | Function emission consumes retained CFG statements. Module emission carries original source/context and body-ID keyed assembly/provenance; declarations are not reconstructed from detached procedure metadata. | Bytecode fixtures and native original-geometry tests exist. Declaration API retirement is formatted; the updated genuine-module fixture has not been executed. No entire target green claim. |
+ | General WASM, hosted or runtime-linked | `codegen/wasm/pipeline.rs::compile_wasm`, `backend.rs` structured emitter; `leaf_invoke.rs::select_leaf_invocation` | Actual emitter; Registry-resolved semantic plans and prebuilt argv route through shared BackendRegistry. Current proc declaration uses evaluated argv; general semantic procedure maps still FQN-indexed. | Selected plan/refusal and genuine original-argv checks queued/in progress, strict `TCL_REQUIRE_WASM_LINK=1`. |
+ | Native-tier WASM | Same `compile_wasm` `.native_tier()`, `native_lowering/lower.rs`, `native_emit.rs::NativeEmitter`, shared Runtime codegen ABI | A tier of real WASM emitter, not a native CPU emitter. Original argv publication is implemented, entry table/body joins still String keys. All genuine admission/currency guards remain. | Four new original native-lowering controls plus actual real-link positive/negative tests capturing. Software callable controls are separately classified. |
+ | BPF-Tcl eBPF | `bpf-tcl-ir/src/frontend.rs::compile_module`, `source.rs::lower_bpf_source`, `lower.rs::lower_function`; `bpf-tcl-codegen/src/ebpf/emit.rs::{emit_program,emit_program_for_target}` | Real separate restricted kernel compiler: Registry BPF descriptors, typed BpfProgram SlotId/BlockId/map indexes. Device map names are DSL identifiers, not Tcl namespace command slots. Direct canonical String descriptor lookups remain a consumer audit item. | Existing frontend original-dynamic-word/replacement and braced-variable tests; no new BPF execution checks in current capture. |
+@@ -59,7 +59,7 @@
+ | `codegen/mod.rs::command_binding_identity` | Actual original command word and compiled namespace context/guard | strips leading `::` from identity and compares similarly stripped target/binding String; descriptor-name adaptation needs explicit owner purpose. Independent live binding guard remains essential. | Existing guard/identity tests; audit exact intrinsic descriptor normalization, no ad-hoc token identity. |
+ | `codegen/values.rs::{split_array_ref,is_array_ref,is_qualified}` | All delegate shared byte/name element and qualification owners | Facades already centralised; no additional parser required. Var local slot membership is storage identity within actual frame. | Existing native variable tests; new array query owner independently measured by runtime agent. |
+ | `codegen/emitter/mod.rs::codegen_procedures` | Exact native namespace path preferred, source body/formal metadata kept | IR/CFG/assembly/provenance `.get(qname)` maps; legacy key_holder_and_tail namespace fallback; wrong displayed identity can cross-bind body. | Existing bytecode native-namespace geometry transport test; only geometry is claimed, no token/admission witness. |
+-| `codegen/emitter/proc_defs.rs::{is_static_proc,emit_one_proc_def,emit_pending_proc_defs}` | Registry/layout/general emitter used elsewhere | Static textual `$`/`[` gate and replay from Procedure.name/params/body plus source-span pending order. Must replay original retained argv/declaration semantics rather than manufacture from name display. Isolated source tests may not show runtime path is active. | Authored proc defs tests; callsite/use-site audit before migration. |
++| `codegen/emitter/mod.rs::{codegen_function,codegen_module}`, `Backend::{lower_function,lower_module}` | Retained statement argv and genuine module source/body identity | Function emission has no detached declaration queue. Complete modules retain source declaration order, words, execution context and body identities. Display names remain reporting data. | `backend_lower_module_retains_original_declaration_order_and_body_identity` checks the original braced body, ordering and body-ID/provenance correspondence; formatted, not executed. |
+ | `codegen/wasm/backend.rs::{direct_proc_eligible,initial_procedure_bindings,procedure_plan}` | Original body-operation/formal and mutation/admission checks | private unroot+contains guard over qname, direct name map, ProcedurePlan String indices/arity/direct keys. Gate is conservative but cannot identify declarations. | Table-entry/refusal controls capturing; retain conservative declines during typed key migration. |
+ | `codegen/wasm/backend.rs::emit_wasm` and function/native reports | Existing genuine native body/source/current-site bounds | `bound`/`defined`/unit/report joins and Function names qualified_name; reports may duplicate names, semantic maps require IDs. Deterministic label sort alone not identity. | Original compiled colon/native counters capture actual transport; structural map collision still unproved. |
+ | `native_lowering/lower.rs::lower_definition`, `native_lowering/ir.rs::NativeOp::DefineProc` | Existing genuine compilation admission/original argv producer | `entry_key:String` selects existing map; argv retained once. Replace entry key with admitted body ID only in #1778 slice. | Four new positive/substituted/unknown/replaced/invalid-argv controls capturing. |

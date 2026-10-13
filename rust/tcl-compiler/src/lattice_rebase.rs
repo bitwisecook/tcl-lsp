@@ -456,6 +456,8 @@ fn rebase_branching_statement(stmt: &mut Statement, delta: i64) {
 
 #[cfg(test)]
 mod tests {
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use crate::ir::WordExpr;
@@ -593,7 +595,11 @@ mod tests {
         let base = CompilationUnit::build_for(src, reg, false);
         let moved = CompilationUnit::build_for(&shifted, reg, false);
         let template = |cu: &CompilationUnit, source: &str, qname: &str| {
-            let procedure = &cu.ir_module.procedures[qname];
+            let procedure = &cu
+                .ir_module
+                .procedures
+                .get(&fixture_id(&cu.ir_module.procedures, qname))
+                .expect("authored fixture body");
             let mut body = procedure.body.clone();
             rebase_script(&mut body, -i64::from(procedure.span.start()));
             crate::command_binding::ModuleCommandBindings::analyse(&cu.ir_module, reg)
@@ -633,13 +639,31 @@ mod tests {
         let base = CompilationUnit::build_for(src, reg, false);
         let moved = CompilationUnit::build_for(&shifted, reg, false);
         for qname in ["::a", "::b"] {
-            let procedure = &base.ir_module.procedures[qname];
+            let procedure = &base
+                .ir_module
+                .procedures
+                .get(&fixture_id(&base.ir_module.procedures, qname))
+                .expect("authored fixture body");
             let mut body = procedure.body.clone();
             rebase_script(&mut body, -i64::from(procedure.span.start()));
-            let mut other = moved.ir_module.procedures[qname].body.clone();
+            let mut other = moved
+                .ir_module
+                .procedures
+                .get(&fixture_id(&moved.ir_module.procedures, qname))
+                .expect("authored fixture body")
+                .body
+                .clone();
             rebase_script(
                 &mut other,
-                -i64::from(moved.ir_module.procedures[qname].span.start()),
+                -i64::from(
+                    moved
+                        .ir_module
+                        .procedures
+                        .get(&fixture_id(&moved.ir_module.procedures, qname))
+                        .expect("authored fixture body")
+                        .span
+                        .start(),
+                ),
             );
             assert_ne!(
                 body, other,

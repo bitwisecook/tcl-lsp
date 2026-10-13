@@ -331,7 +331,7 @@ fn analytical_closed_projection(
 ) -> Option<ClosedBodyProjection> {
     let module = &unit.ir_module;
     let procedure = module.procedures.get(&body_id)?;
-    if procedure.definition_scope.is_some()
+    if procedure.body_kind != crate::ir::ProcedureBodyKind::Named
         || !unit.methods.is_empty()
         || !unit.body_units.is_empty()
         || unit.connection_scope.is_some()
@@ -431,6 +431,233 @@ fn analytical_closed_projection(
     })
 }
 
+/// Genuine source body inputs; the private certificate changes no executable IR.
+#[derive(Debug, Clone)]
+pub struct BodyLatticeInputs {
+    body: crate::ir::Script,
+    bindings: Option<crate::command_binding::ModuleCommandBindings>,
+    certificate: Option<Arc<BodyLatticeCertificate>>,
+}
+
+#[derive(Debug, Clone)]
+struct BodyLatticeCertificate {
+    issuer: tcl_core_types::ProcedureIdIssuer,
+    body: ProcedureId,
+    retained_source: Arc<crate::command_binding::RetainedSourceModuleBindings>,
+    procedure: Procedure,
+    declaration: NeutralDeclaration,
+    correspondence: crate::command_binding::AnalyticalBodyCorrespondence,
+}
+
+impl PartialEq for BodyLatticeCertificate {
+    fn eq(&self, other: &Self) -> bool {
+        self.issuer.owns(self.body)
+            && other.issuer.owns(other.body)
+            && self.declaration == other.declaration
+            && self.correspondence == other.correspondence
+    }
+}
+impl Eq for BodyLatticeCertificate {}
+
+impl Hash for BodyLatticeCertificate {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.declaration.hash(state);
+        self.correspondence.body.hash(state);
+    }
+}
+
+impl From<crate::ir::Script> for BodyLatticeInputs {
+    fn from(body: crate::ir::Script) -> Self {
+        Self {
+            body,
+            bindings: None,
+            certificate: None,
+        }
+    }
+}
+
+impl BodyLatticeInputs {
+    /// Authenticate original Module allocation, declaration, body, grammar and lookup dependencies.
+    #[must_use]
+    pub fn retain(
+        request: &crate::compilation_unit::LatticeRequest<'_>,
+        registry: &CommandRegistry,
+    ) -> Option<Self> {
+        let module = request.module;
+        if !module.procedure_ids.owns(request.body_id)
+            || module.source.try_text().ok()? != request.source
+            || request.irules_event_body.is_some()
+        {
+            return None;
+        }
+        let procedure = module.procedures.get(&request.body_id)?;
+        let retained = module.retained_source_bindings.as_ref()?;
+        retained.positioned_for_module(module, registry)?;
+        let mut original = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut original, -i64::from(procedure.span.start()));
+        if !retained.matches_original_procedure(procedure)
+            || procedure.body_kind != crate::ir::ProcedureBodyKind::Named
+            || procedure.qualified_name != request.qname
+            || procedure.params != request.params
+            || procedure.span.start() != request.original_body_offset
+            || procedure.body_offset != request.executable_body_offset
+            || procedure.body_source.as_deref() != request.body_source
+            || &original != request.body
+        {
+            return None;
+        }
+        let declaration = NeutralDeclaration {
+            publication: procedure.publication.clone()?,
+            namespace: procedure.body.namespace_context.as_deref()?.clone(),
+            written_name: procedure.name.clone(),
+            display: procedure.qualified_name.clone(),
+            parameters: procedure.params.clone(),
+            parameters_text: procedure.params_raw.clone(),
+            body_text: procedure.body_source.clone()?,
+            kind: procedure.body_kind,
+        };
+        let correspondence = request
+            .command_bindings
+            .prepare_analytical_body_correspondence(
+                request.body,
+                crate::command_binding::BodyProofScope {
+                    source: request.source,
+                    body_source: &declaration.body_text,
+                    original_body_offset: request.original_body_offset,
+                    executable_body_offset: request.executable_body_offset,
+                    metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                        request.source_metadata_input,
+                    ),
+                    config: request.lexer_config,
+                },
+                registry,
+            )?;
+        Some(Self {
+            body: request.body.clone(),
+            bindings: Some(request.command_bindings.clone()),
+            certificate: Some(Arc::new(BodyLatticeCertificate {
+                issuer: module.procedure_ids.clone(),
+                body: request.body_id,
+                retained_source: Arc::clone(retained),
+                procedure: procedure.clone(),
+                declaration,
+                correspondence,
+            })),
+        })
+    }
+
+    /// Original offset-zero IR retained by the genuine request.
+    /// Original source body retained for this lattice input.
+    #[must_use]
+    pub fn body(&self) -> &crate::ir::Script {
+        &self.body
+    }
+
+    /// Retain actual command state under the same checked dependency certificate.
+    #[must_use]
+    pub fn command_bindings(&self) -> Option<BodyLatticeCommandBindings> {
+        Some(BodyLatticeCommandBindings {
+            bindings: self.bindings.clone()?,
+            certificate: self.certificate.clone(),
+        })
+    }
+
+    /// Restore a cached offset-zero lattice to this request's actual source and cells.
+    #[must_use]
+    pub fn rebind_cached(&self, original: &Self, cached: &FunctionUnit) -> Option<FunctionUnit> {
+        let current = self.certificate.as_ref()?;
+        let previous = original.certificate.as_ref()?;
+        if current != previous
+            || !current.issuer.owns(current.body)
+            || !previous.issuer.owns(previous.body)
+            || !current
+                .retained_source
+                .matches_original_procedure(&current.procedure)
+            || !previous
+                .retained_source
+                .matches_original_procedure(&previous.procedure)
+            || cached.name != previous.procedure.qualified_name
+        {
+            return None;
+        }
+        let normalized = cached
+            .relocated_variable_proofs(&previous.correspondence.relocation)?
+            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
+                &previous.correspondence.body,
+            ))?;
+        normalized
+            .relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?
+            .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
+                &self.body,
+            ))
+    }
+}
+
+impl PartialEq for BodyLatticeInputs {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.certificate, &other.certificate) {
+            (Some(left), Some(right)) => left == right,
+            (None, None) => self.body == other.body,
+            _ => false,
+        }
+    }
+}
+impl Eq for BodyLatticeInputs {}
+impl Hash for BodyLatticeInputs {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.certificate.is_some().hash(state);
+        if let Some(certificate) = &self.certificate {
+            certificate.hash(state);
+        } else {
+            self.body.hash(state);
+        }
+    }
+}
+
+/// Complete command state retained separately from its checked source correspondence.
+#[derive(Debug, Clone)]
+pub struct BodyLatticeCommandBindings {
+    bindings: crate::command_binding::ModuleCommandBindings,
+    certificate: Option<Arc<BodyLatticeCertificate>>,
+}
+
+impl From<crate::command_binding::ModuleCommandBindings> for BodyLatticeCommandBindings {
+    fn from(bindings: crate::command_binding::ModuleCommandBindings) -> Self {
+        Self {
+            bindings,
+            certificate: None,
+        }
+    }
+}
+impl BodyLatticeCommandBindings {
+    /// Genuine command state used to construct the cached lattice.
+    /// Original command state retained for this lattice input.
+    #[must_use]
+    pub fn bindings(&self) -> &crate::command_binding::ModuleCommandBindings {
+        &self.bindings
+    }
+}
+impl PartialEq for BodyLatticeCommandBindings {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.certificate, &other.certificate) {
+            (Some(left), Some(right)) => left == right,
+            (None, None) => self.bindings == other.bindings,
+            _ => false,
+        }
+    }
+}
+impl Eq for BodyLatticeCommandBindings {}
+impl Hash for BodyLatticeCommandBindings {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.certificate.is_some().hash(state);
+        if let Some(certificate) = &self.certificate {
+            certificate.hash(state);
+        } else {
+            self.bindings.hash(state);
+        }
+    }
+}
+
 /// Genuine fixpoint inputs with a certified registry-only independence case.
 #[derive(Debug, Clone)]
 pub struct BodySummaryInputs {
@@ -441,6 +668,7 @@ pub struct BodySummaryInputs {
 
 impl BodySummaryInputs {
     #[must_use]
+    /// Retain actual body dependencies, declining a mismatched module inventory.
     pub fn retain(
         capsule: BodyAnalysisCapsule,
         known: &std::collections::HashSet<ProcedureId>,
@@ -478,16 +706,19 @@ impl BodySummaryInputs {
     }
 
     #[must_use]
+    /// The genuine compilation and declaration owner.
     pub fn capsule(&self) -> &BodyAnalysisCapsule {
         &self.capsule
     }
 
     #[must_use]
+    /// Actual retained body IDs used by the current inference.
     pub fn known(&self) -> &[ProcedureId] {
         &self.known
     }
 
     #[must_use]
+    /// Current taint summaries indexed by their actual body IDs.
     pub fn summaries(&self) -> &[(ProcedureId, crate::taint_interproc::ProcTaintSummary)] {
         &self.summaries
     }

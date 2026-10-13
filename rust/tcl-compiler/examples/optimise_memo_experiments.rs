@@ -76,14 +76,18 @@ fn registry(dialect: &str) -> CommandRegistry {
 /// encoded length (bytes) as a coarse proxy for key size.
 fn encode_interproc(cu: &CompilationUnit) -> usize {
     let Some(ia) = &cu.interproc else { return 0 };
-    let mut names: Vec<&String> = ia.procedures.keys().collect();
-    names.sort();
+    let mut ids: Vec<_> = ia.procedures.keys().copied().collect();
+    ids.sort();
     let mut bytes = 0usize;
-    for n in names {
-        let s = &ia.procedures[n];
-        bytes += n.len()
-            + s.params.iter().map(String::len).sum::<usize>()
-            + s.calls.iter().map(String::len).sum::<usize>()
+    for id in ids {
+        let summary = &ia.procedures[&id];
+        bytes += id.reporting_key().len()
+            + summary.params.iter().map(String::len).sum::<usize>()
+            + summary
+                .calls
+                .iter()
+                .map(|callee| callee.reporting_key().len())
+                .sum::<usize>()
             + 8;
     }
     bytes

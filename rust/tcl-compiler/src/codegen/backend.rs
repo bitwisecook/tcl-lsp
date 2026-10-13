@@ -27,9 +27,9 @@
 use tcl_registry::CommandRegistry;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
-use crate::ir::{Module as IrModule, Procedure as IrProcedure};
+use crate::ir::Module as IrModule;
 
-use super::emitter::{codegen_function_with_procs, codegen_module};
+use super::emitter::{codegen_function, codegen_module};
 use super::{FunctionAsm, ModuleAsm};
 
 /// A code-generation backend: lowers the shared CFG/IR to a backend artifact.
@@ -46,17 +46,15 @@ pub trait Backend {
 
     /// Lower a single CFG function.
     ///
-    /// `is_proc` selects LVT-based vs stack-based variable access; `proc_defs`
-    /// are pending proc definitions to interleave at their source positions
-    /// (as `codegen_module` does for the top-level script); `registry` is
-    /// consulted for codegen-hook resolution — pass the same instance the
-    /// lowering pass used.
+    /// `is_proc` selects local-table or stack variable access. `registry` must
+    /// match the lowering registry. Procedure declarations are retained source
+    /// statements; whole-module emission uses [`Self::lower_module`] to retain
+    /// their original source, namespace context and body identities.
     fn lower_function(
         &mut self,
         cfg: &CfgFunction,
         params: &[&str],
         is_proc: bool,
-        proc_defs: &[IrProcedure],
         registry: &CommandRegistry,
     ) -> Self::FuncArtifact;
 
@@ -85,10 +83,9 @@ impl Backend for BytecodeBackend {
         cfg: &CfgFunction,
         params: &[&str],
         is_proc: bool,
-        proc_defs: &[IrProcedure],
         registry: &CommandRegistry,
     ) -> FunctionAsm {
-        codegen_function_with_procs(cfg, params, is_proc, proc_defs, registry)
+        codegen_function(cfg, params, is_proc, registry)
     }
 
     fn lower_module(

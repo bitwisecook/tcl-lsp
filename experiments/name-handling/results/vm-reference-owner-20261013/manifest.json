@@ -1,0 +1,7 @@
+{
+  "owner": "rust/tcl-vm/src/value.rs",
+  "before_sha256": "30538ca05c37ae3ee195cdaea79c0c27b1b75295d27d01714074e41bef16bb25",
+  "after_sha256": "1512722b2833189b157a5d38a0ce96492948215d9c9f9ac5cb756e71932f8861",
+  "status": "production visibility correction; exact native count implementation unchanged; uncompiled",
+  "reason": "interp alias currentness guard must observe original positive native ownership, excluding lifetime-only bridge pins"
+}

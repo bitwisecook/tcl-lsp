@@ -797,6 +797,8 @@ impl CfgBuilder<'_> {
 mod tests {
     use crate::interprocedural::test_body_identity::fixture_id;
 
+    use crate::interprocedural::test_body_identity::fixture_id;
+
     use super::*;
     use crate::execution_region::RegionSelection;
     use crate::ssa::build_ssa;
@@ -816,12 +818,14 @@ mod tests {
             native_compilation: crate::environment_ingress::authoring_native_compilation(),
             ..Default::default()
         });
-        let body =
-            crate::lowering::lower_to_ir_with(lowerer, &format!("proc p {{}} {{{source}}}; p"))
-                .procedures
-                .remove("::p")
-                .expect("real procedure caller frame")
-                .body;
+        let mut module =
+            crate::lowering::lower_to_ir_with(lowerer, &format!("proc p {{}} {{{source}}}; p"));
+        let id = fixture_id(&module.procedures, "::p");
+        let body = module
+            .procedures
+            .remove(&id)
+            .expect("real procedure caller frame")
+            .body;
         entry.retain(body)
     }
 

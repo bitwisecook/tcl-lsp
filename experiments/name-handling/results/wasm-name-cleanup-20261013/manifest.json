@@ -1,0 +1,6 @@
+{
+  "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+  "before_sha256": "a0ec36d391401558cbcc4cc38d94de98419c83f4f2fe1a74325a4c42edbab871",
+  "after_sha256": "deafd78c875aac5b3f03d7031c41fc257bcd721af276ac393f6f9dc1c52a8f38",
+  "status": "Uncompiled/parsed. Retires zero-production-reader direct_calls named selector/map. Retained declaration labels only create Unknown MAY blockers (all rows, duplicate labels preserved), never positive Proc targets. Native actual Set/source/effective-argv/mutation guards unchanged. Original trace-owner controls now assert genuine unobserved-dispatch refusal and actual generic argv availability, no dead-map assertions."
+}

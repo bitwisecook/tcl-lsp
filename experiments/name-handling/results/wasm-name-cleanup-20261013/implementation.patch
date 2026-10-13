@@ -1,0 +1,174 @@
+--- a/rust/tcl-compiler/src/codegen/wasm/backend.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+@@ -265,7 +265,6 @@
+ #[derive(Default)]
+ struct FunctionFacts {
+     direct_assignments: HashMap<(u32, u32), String>,
+-    direct_calls: HashMap<(u32, u32, String), String>,
+     /// Selected prebuilt-argv plans, keyed by leaf-statement span.
+     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
+     /// Typed reasons a leaf statement stayed on the source-span eval fallback.
+@@ -1508,10 +1507,6 @@
+     (span.start(), span.end())
+ }
+ 
+-fn span_command_key(span: Span, command: &str) -> (u32, u32, String) {
+-    (span.start(), span.end(), command.to_string())
+-}
+-
+ fn direct_expr_supported(
+     expr: &ExprNode,
+     params: &HashSet<&str>,
+@@ -1597,19 +1592,20 @@
+     direct_expr_supported(expr, &params, unit.source_lexer_config())
+ }
+ 
+-fn initial_procedure_bindings(module: &Module, is_top: bool) -> Vec<(String, Binding)> {
++/// Retained declarations can withdraw a builtin proof, never supply an implementation.
++fn procedure_shadow_obligations(module: &Module, is_top: bool) -> Vec<(String, Binding)> {
+     if is_top {
+         return Vec::new();
+     }
+     module
+         .procedures
+-        .unique_displays()
+-        .map(|name| {
++        .values()
++        .map(|procedure| {
+             (
+-                name.clone(),
++                procedure.qualified_name.clone(),
+                 Binding {
+-                    kind: BindingKind::Proc,
+-                    target: Some(name.clone()),
++                    kind: BindingKind::Unknown,
++                    target: None,
+                 },
+             )
+         })
+@@ -1623,7 +1619,7 @@
+     mutations: &ModuleCommandMutations,
+     is_top: bool,
+ ) -> FunctionFacts {
+-    let initial = initial_procedure_bindings(module, is_top);
++    let initial = procedure_shadow_obligations(module, is_top);
+     let context = unit.invocation_metadata_context_for_module(registry, module);
+     let bindings = analyse_command_binding(&unit.cfg, registry, &initial);
+     let mut facts = FunctionFacts::default();
+@@ -1687,19 +1683,6 @@
+                     tokens.as_ref(),
+                 );
+             }
+-            if is_top {
+-                record_direct_calls(
+-                    &mut facts,
+-                    module,
+-                    registry,
+-                    context,
+-                    mutations,
+-                    &bindings,
+-                    unit,
+-                    (block, stmt_idx),
+-                    statement,
+-                );
+-            }
+         }
+     }
+     facts
+@@ -1779,50 +1762,6 @@
+         })
+         && bindings.is_original_builtin_at(site.0, site.1, written_head)
+         && mutations.trusts(invocation.descriptor_key().label())
+-}
+-
+-/// Record every procedure this call site provably binds to, so the emitter may
+-/// call the generated function instead of dispatching through the runtime.
+-fn record_direct_calls(
+-    facts: &mut FunctionFacts,
+-    module: &Module,
+-    registry: &CommandRegistry,
+-    context: Option<InvocationMetadataContext<'_>>,
+-    mutations: &ModuleCommandMutations,
+-    bindings: &CommandBinding<'_>,
+-    unit: &FunctionUnit,
+-    site: (crate::cfg::BlockId, usize),
+-    statement: &Statement,
+-) {
+-    let (block, stmt_idx) = site;
+-    for proc in module.procedures.values() {
+-        if proc.span.start() >= statement.span().start() {
+-            continue;
+-        }
+-        for written in [proc.name.as_str(), proc.qualified_name.as_str()] {
+-            let binding = bindings.binding_at(block, stmt_idx, written);
+-            if binding.kind == BindingKind::Proc
+-                && binding.target.as_deref() == Some(proc.qualified_name.as_str())
+-                && mutations.trusts_proc_binding(&proc.qualified_name)
+-                && !module.has_dynamic_trace
+-                && !crate::registry_invocation::original_procedure_has_execution_trace(
+-                    registry,
+-                    context,
+-                    crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+-                        unit.cfg.command_binding_sites.iter(),
+-                        statement,
+-                    ),
+-                    &proc.qualified_name,
+-                    &module.traced_commands,
+-                )
+-            {
+-                facts.direct_calls.insert(
+-                    span_command_key(statement.span(), written),
+-                    proc.qualified_name.clone(),
+-                );
+-            }
+-        }
+-    }
+ }
+ 
+ /// Select and record the prebuilt-argv plan for one leaf `Statement::Call`.
+@@ -2945,7 +2884,7 @@
+         registry: &CommandRegistry,
+     ) -> String {
+         let metadata = function.invocation_metadata_context_for_module(registry, &unit.ir_module);
+-        let initial = initial_procedure_bindings(&unit.ir_module, true);
++        let initial = procedure_shadow_obligations(&unit.ir_module, true);
+         let bindings = analyse_command_binding(&function.cfg, registry, &initial);
+         let mut rows = vec![format!("metadata available: {}", metadata.is_some())];
+         for (&block, body) in &function.cfg.blocks {
+@@ -3477,7 +3416,9 @@
+             &plain.command_mutations,
+             true,
+         );
+-        assert!(current.direct_calls.is_empty());
++        assert!(current.leaf_invocations.values().any(|plan| {
++            matches!(plan.root.words.first(), Some(WasmWordPlan::Literal { text, .. }) if text == "p")
++        }));
+         let tokens = plain
+             .ir_module
+             .top_level
+@@ -3513,7 +3454,24 @@
+             &traced.command_mutations,
+             true,
+         );
+-        assert!(refused.direct_calls.is_empty());
++        assert!(refused.leaf_invocations.values().any(|plan| {
++            matches!(plan.root.words.first(), Some(WasmWordPlan::Literal { text, .. }) if text == "p")
++        }));
++        let original = traced
++            .ir_module
++            .top_level
++            .statements
++            .iter()
++            .rev()
++            .find_map(crate::ir::Statement::tokens)
++            .expect("actual final source call");
++        assert!(
++            !original
++                .source_binding
++                .as_ref()
++                .expect("original source binding")
++                .unobserved_native_dispatch()
++        );
+     }
+ }
+ 
