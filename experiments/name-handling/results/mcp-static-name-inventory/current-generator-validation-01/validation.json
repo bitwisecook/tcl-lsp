@@ -1,0 +1,67 @@
+{
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "-p",
+      "tcl-mcp",
+      "--bin",
+      "tcl-mcp",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "start_utc": "2026-10-13T01:33:43.622555+00:00",
+    "end_utc": "2026-10-13T01:35:25.059026+00:00",
+    "elapsed_seconds": 101.43648188600491,
+    "exit_code": 0,
+    "abort": null,
+    "disk_minimum_free_bytes": 2499817472
+  },
+  "abort": null,
+  "generator": {
+    "argv": [
+      "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+      "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+      "--exact",
+      "--nocapture"
+    ],
+    "start_utc": "2026-10-13T01:35:26.418133+00:00",
+    "end_utc": "2026-10-13T01:35:35.177773+00:00",
+    "elapsed_seconds": 8.759647367005527,
+    "exit_code": 0,
+    "abort": null,
+    "disk_minimum_free_bytes": 2686382080,
+    "test": "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+    "test_result": {
+      "status": "ok",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 132
+    },
+    "source_unchanged_after": true,
+    "binary_sha256_after": "2e99d5ba39907dd62b83d2c75c567020109e9179c8cee1dae2312d5820a32ebd"
+  },
+  "test_execution_count": 1,
+  "passed": 1,
+  "failed": 0,
+  "source_changes": [],
+  "conservative_local_packages": 39,
+  "frozen_files": 12059,
+  "artifact_records": 361,
+  "observed_owned_packages": 39,
+  "prior_failed_generator_binary_sha256": "f0b613dfaa3f2567c11cdeb6c60421bd486bfcb19ffaa7c0ba4b87ecef31c3a2",
+  "selected_current_binary_sha256": "2e99d5ba39907dd62b83d2c75c567020109e9179c8cee1dae2312d5820a32ebd",
+  "selected_binary_sha256_after": "2e99d5ba39907dd62b83d2c75c567020109e9179c8cee1dae2312d5820a32ebd",
+  "actual_selected_target_kind": "bin",
+  "explicit_default_target": "/workspace/tcl-lsp/target",
+  "original_fixture_assertions_unchanged": true,
+  "source_or_fixture_updates_during_run": false,
+  "literal_inventory_helper_event_or_braced_controls_repeated": false,
+  "oracle_execution": false,
+  "full_suite_run": false,
+  "cache_released": true
+}

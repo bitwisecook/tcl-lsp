@@ -1,0 +1,37 @@
+{
+  "artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-mcp#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-mcp/Cargo.toml",
+    "target": {
+      "kind": [
+        "bin"
+      ],
+      "crate_types": [
+        "bin"
+      ],
+      "name": "tcl-mcp",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-mcp/src/main.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": false,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c"
+    ],
+    "executable": "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+    "fresh": false
+  },
+  "executable": "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+  "sha256": "2e99d5ba39907dd62b83d2c75c567020109e9179c8cee1dae2312d5820a32ebd",
+  "size": 213386264
+}

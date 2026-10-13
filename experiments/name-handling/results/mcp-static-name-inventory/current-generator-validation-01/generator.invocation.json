@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c",
+    "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T01:35:26.418133+00:00",
+  "end_utc": "2026-10-13T01:35:35.177773+00:00",
+  "elapsed_seconds": 8.759647367005527,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2686382080,
+  "test": "irule_gen::tests::generator_builds_one_request_closure_for_every_execution_sensitive_output",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 132
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "2e99d5ba39907dd62b83d2c75c567020109e9179c8cee1dae2312d5820a32ebd"
+}
