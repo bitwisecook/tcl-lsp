@@ -1,0 +1,120 @@
+{
+  "status": "original wrapper completed process once",
+  "acceptance_scope": "Independent original operational orchestration study; prior Runtime3FAIL and Syntax2PASS remain separate. No acceptance/full-suite claim.",
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script",
+      "--message-format=json"
+    ],
+    "initial_free_bytes": 2459832320,
+    "minimum_free_bytes": 2391121920,
+    "disk_abort_threshold_bytes": 201326592,
+    "exit_code": 0,
+    "messages_sha256": "16f8fa413bf38671e9738eef93fdd3ff45703c67503f2e839b5b01ba4dfaafe9",
+    "stderr_sha256": "3976b30fe8f3dc8744cd3c0e37d81dc3bf14accb8a827dd57adfc6364a0ae105",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "binary_sha256": "f4995593e17bd085334800ffcdd836c5c8158aada52a5d34d9e163ae5f4b0c4c",
+    "artifact_fresh": false,
+    "cargo_profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": false
+    }
+  },
+  "original_inputs_before": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "changed_source_during_build": [],
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+  ],
+  "exit_code": 2,
+  "seconds": 6.794,
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "kill_after_seconds": 5,
+    "core_bytes": 0
+  },
+  "environment": "Exact prior named synthetic NH_CLOCK_GETENV controls and TCL_LIBRARY. Same five removed test/overlay selectors. Inherited host data not dumped; no TZ override/environment_sync.",
+  "runner_sha256_after": "f4995593e17bd085334800ffcdd836c5c8158aada52a5d34d9e163ae5f4b0c4c",
+  "stdout_sha256": "8887d9a6e7a9b28f2730292988cfe9ec06f3da097b99b79b6a98e24ed8f5bd83",
+  "stderr_sha256": "e28416806f3b477b0328ca3b23d9c92fc8476dab0377155c66d306365f69c676",
+  "actual_progress": {
+    "init_marker": true,
+    "tcltest_marker": true,
+    "all_tcl_enter_marker": true,
+    "all_tcl_return_marker": false,
+    "actual_selected_file": "var.test",
+    "test_starts": [
+      "var-1.1",
+      "var-1.2",
+      "var-1.3",
+      "var-1.4",
+      "var-1.5",
+      "var-1.6",
+      "var-1.7",
+      "var-1.8",
+      "var-1.9",
+      "var-1.10",
+      "var-1.11",
+      "var-1.12",
+      "var-1.13",
+      "var-1.14",
+      "var-1.15",
+      "var-1.16",
+      "var-1.17"
+    ],
+    "last_reached_test_start": "var-1.17",
+    "final_suite_count_lines": [],
+    "scope": "Actual var.test was sourced and seventeen starts through var-1.17 reached; no final suite counts or orchestration return. Starts are progress, not individual pass receipts."
+  },
+  "first_stderr": "run_script: execution refused: original variable lookup diagnostic native handler policy is not selected\n",
+  "source_comparison": {
+    "changed": [],
+    "actual_owner_sha256": {
+      "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb",
+      "runtime/rust/src/interp/native_body_artifact.rs": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe",
+      "runtime/rust/src/interp/native_variable_names.rs": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473"
+    }
+  },
+  "original_inputs_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "first_current_gap": {
+    "kind": "Typed original variable lookup diagnostic policy refusal",
+    "stderr": "run_script: execution refused: original variable lookup diagnostic native handler policy is not selected",
+    "last_reached_original_test": "var-1.17",
+    "source_extent": "tmp/tcl8.6.18/tests/var.test:172-185",
+    "source_trigger": "Original procedure p links foo to array element x(1), reads foo, unsets x, then catches set foo 3. No passive inner-site instrumentation occurred in this run; exact rejecting inner getter/site is not asserted."
+  },
+  "classification": "Previous var-1.15 operational blocker advanced. Var-1.16 start followed, then var-1.17 start and typed refusal. No final counts, suite completion or individual pass counts. Independent operational study; Runtime diagnostic controls remain3FAIL with Syntax2PASS.",
+  "axes": "Current Rust Native C86 runner and unchanged original actual C86 library/tests/wrapper. No fresh C-native, other-release, Jim or F5 orchestration."
+}
