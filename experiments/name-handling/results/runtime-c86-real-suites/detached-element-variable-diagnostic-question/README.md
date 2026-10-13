@@ -1,0 +1,11 @@
+# Detached array-element diagnostic question
+
+The actual original C86 all.tcl/var.test orchestration now stops at var-1.17 after linking foo to x(1), removing x, and catching set foo 3. This bounded question asks which completion, message and errorCode are observed for scalar alias writes, reads and increments after whole-array removal, compared with element-only removal and genuine new links.
+
+The first capture executes five unchanged new original-provider scripts: an actual var-1.17 reduction with public code/marker observations, variable-head ordinary write, element-only unset write, recreated-array write through the old link, and write through a newly acquired link. The separately retained second input adds two read/increment controls after whole-array removal. No original source or capture was rewritten when this supplement was added.
+
+All five C releases and pinned Jim executed both inputs once: each process exits 0, with five rows/five before-write markers and two rows/two read/increment markers respectively. C86, C9.0 and C9.1 give identical rows: dead whole-array old-link writes and increment fail with the deleted-element message and three-word TCL WRITE VARNAME; alias read fails with no-such-variable and TCL READ VARNAME. Element-only removal and new-link writes succeed and preserve the seeded NH UNSET. C84/C85 use NONE for failed diagnostic tuples; their successful seeded-code behavior is retained verbatim in comparison.json.
+
+Jim differs: ordinary whole-root writes and recreated old-link writes succeed; alias read fails/NONE and increment succeeds 1/NONE. The exact var-1.17 reduction reaches its before-write marker, then its outer namespace-teardown result read fails with no-such-variable/NONE; the nested write completion/code is not exposed in that row. It is not reported as a completed C-equivalent inner diagnostic. F5 TMM/MCPD are not run; no Runtime, Syntax or Cargo execution occurs here.
+
+The earlier original-element-alias-recreation proof distinguishes recreated entry read/value behavior, but does not supply these complete diagnostic rows. source-observation.md keeps static cause inference separate from current actual oracle measurements. Source and executable hashes, exact invocations, streams and reached markers are retained per provider; no device nodes or host/security/environment dump is involved.

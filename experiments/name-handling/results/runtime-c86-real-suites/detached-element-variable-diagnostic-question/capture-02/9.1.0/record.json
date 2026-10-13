@@ -1,0 +1,23 @@
+{
+  "provider": "9.1.0",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 0.006,
+  "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+  "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+  "source_sha256": {
+    "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+    "tmp/tcl9.1.0/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+  },
+  "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+  "stdout_sha256": "85e91a70e3a5ff0b704d8e2e620097985c9c582d7fff4dad344395cc70fe3287",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 2,
+  "marks": [
+    "MARK root-unset-read before-read",
+    "MARK root-unset-incr before-incr"
+  ]
+}

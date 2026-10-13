@@ -1,0 +1,80 @@
+{
+  "8.4.20": {
+    "capture-01": [
+      "ROW original-var17 0 {{0 2 1 {can't set \"foo\": upvar refers to element in deleted array}} NONE} NONE",
+      "ROW root-unset-head 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NONE} NONE",
+      "ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}",
+      "ROW root-recreated-old-link 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NEW NONE} NONE",
+      "ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} NONE} NONE",
+      "ROW root-unset-incr 0 {2 1 {can't read \"foo\": no such variable} NONE} NONE"
+    ]
+  },
+  "8.5.19": {
+    "capture-01": [
+      "ROW original-var17 0 {{0 2 1 {can't set \"foo\": upvar refers to element in deleted array}} NONE} NONE",
+      "ROW root-unset-head 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NONE} NONE",
+      "ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}",
+      "ROW root-recreated-old-link 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NEW NONE} NONE",
+      "ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} NONE} NONE",
+      "ROW root-unset-incr 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NONE} NONE"
+    ]
+  },
+  "8.6.18": {
+    "capture-01": [
+      "ROW original-var17 0 {{0 2 1 {can't set \"foo\": upvar refers to element in deleted array}} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-unset-head 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}",
+      "ROW root-recreated-old-link 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NEW {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} {TCL READ VARNAME}} {TCL READ VARNAME}",
+      "ROW root-unset-incr 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}"
+    ]
+  },
+  "9.0.4": {
+    "capture-01": [
+      "ROW original-var17 0 {{0 2 1 {can't set \"foo\": upvar refers to element in deleted array}} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-unset-head 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}",
+      "ROW root-recreated-old-link 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NEW {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} {TCL READ VARNAME}} {TCL READ VARNAME}",
+      "ROW root-unset-incr 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}"
+    ]
+  },
+  "9.1.0": {
+    "capture-01": [
+      "ROW original-var17 0 {{0 2 1 {can't set \"foo\": upvar refers to element in deleted array}} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-unset-head 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}",
+      "ROW root-recreated-old-link 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} NEW {TCL WRITE VARNAME}} {TCL WRITE VARNAME}",
+      "ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} {TCL READ VARNAME}} {TCL READ VARNAME}",
+      "ROW root-unset-incr 0 {2 1 {can't set \"foo\": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}"
+    ]
+  },
+  "jim-pinned": {
+    "capture-01": [
+      "ROW original-var17 1 {can't read \"result\": no such variable} NONE",
+      "ROW root-unset-head 0 {2 0 3 NONE} NONE",
+      "ROW element-unset 0 {2 0 3 3 NONE} NONE",
+      "ROW root-recreated-old-link 0 {2 0 3 3 NONE} NONE",
+      "ROW root-recreated-current-link 0 {2 0 3 3 NONE} NONE"
+    ],
+    "capture-02": [
+      "ROW root-unset-read 0 {2 1 {can't read \"foo\": no such variable} NONE} NONE",
+      "ROW root-unset-incr 0 {2 0 1 NONE} NONE"
+    ]
+  }
+}

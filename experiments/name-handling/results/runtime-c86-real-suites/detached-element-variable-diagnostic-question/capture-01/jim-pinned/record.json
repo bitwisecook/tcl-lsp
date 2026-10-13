@@ -1,0 +1,26 @@
+{
+  "provider": "jim-pinned",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/input.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 0.004,
+  "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "source_sha256": {
+    "tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+  },
+  "input_sha256": "156baf9e3a019c04aea72f89552568d94402e8cda607c5c1201d28493e59fb5d",
+  "stdout_sha256": "0705ba2803294d1c60194d20550d75b02e255f642ed684120f27a40f5b8d62a9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 5,
+  "marks": [
+    "MARK original-var17 before-write",
+    "MARK root-unset-head before-write",
+    "MARK element-unset before-write",
+    "MARK root-recreated-old-link before-write",
+    "MARK root-recreated-current-link before-write"
+  ]
+}

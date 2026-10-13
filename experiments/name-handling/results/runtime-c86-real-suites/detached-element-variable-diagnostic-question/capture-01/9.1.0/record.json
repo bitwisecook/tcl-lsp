@@ -1,0 +1,26 @@
+{
+  "provider": "9.1.0",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/input.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 0.006,
+  "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+  "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+  "source_sha256": {
+    "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+    "tmp/tcl9.1.0/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+  },
+  "input_sha256": "156baf9e3a019c04aea72f89552568d94402e8cda607c5c1201d28493e59fb5d",
+  "stdout_sha256": "1fa525d0b2671073c4d410ad8efbd1f3e7e8004786969d8fe7155126c422ff9c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "row_count": 5,
+  "marks": [
+    "MARK original-var17 before-write",
+    "MARK root-unset-head before-write",
+    "MARK element-unset before-write",
+    "MARK root-recreated-old-link before-write",
+    "MARK root-recreated-current-link before-write"
+  ]
+}

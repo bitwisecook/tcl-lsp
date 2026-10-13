@@ -1,0 +1,13 @@
+{
+  "sources": {
+    "tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a",
+    "tmp/tcl8.6.18/generic/tclVar.c": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+    "runtime/rust/src/vars.rs": "0cfd848404a3e1627af38f534380fd5a1e838b689932b872bdb9407a0174cd8d",
+    "runtime/rust/src/interp/native_body_artifact.rs": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe",
+    "runtime/rust/src/interp/native_variable_names.rs": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473",
+    "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb"
+  },
+  "retained_prior_evidence": "docs/design/analysis/name-resolution-proofs/variable-original-element-alias-recreation.md",
+  "retained_limit": "Earlier proof distinguishes entry recreation and read values; not a captured full write/read/increment diagnostic tuple matrix. New original probe does not observe private binding/entry/opcode identity.",
+  "linkage": "retired-namespace-variable-diagnostic-runtime/orchestration-03/record.json: actual original var.test reaches var-1.17 then typed handler-policy refusal; no inner site instrumentation in that run."
+}

@@ -1,0 +1,11 @@
+PROVIDER 8.4.20
+MARK original-var17 before-write
+ROW original-var17 0 {{0 2 1 {can't set "foo": upvar refers to element in deleted array}} NONE} NONE
+MARK root-unset-head before-write
+ROW root-unset-head 0 {2 1 {can't set "foo": upvar refers to element in deleted array} NONE} NONE
+MARK element-unset before-write
+ROW element-unset 0 {2 0 3 3 {NH UNSET}} {NH UNSET}
+MARK root-recreated-old-link before-write
+ROW root-recreated-old-link 0 {2 1 {can't set "foo": upvar refers to element in deleted array} NEW NONE} NONE
+MARK root-recreated-current-link before-write
+ROW root-recreated-current-link 0 {2 0 3 3 {NH UNSET}} {NH UNSET}

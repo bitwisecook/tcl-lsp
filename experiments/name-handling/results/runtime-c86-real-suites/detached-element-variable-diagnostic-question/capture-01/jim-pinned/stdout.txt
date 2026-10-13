@@ -1,0 +1,11 @@
+PROVIDER 0.84-9-g5bac7c9
+MARK original-var17 before-write
+ROW original-var17 1 {can't read "result": no such variable} NONE
+MARK root-unset-head before-write
+ROW root-unset-head 0 {2 0 3 NONE} NONE
+MARK element-unset before-write
+ROW element-unset 0 {2 0 3 3 NONE} NONE
+MARK root-recreated-old-link before-write
+ROW root-recreated-old-link 0 {2 0 3 3 NONE} NONE
+MARK root-recreated-current-link before-write
+ROW root-recreated-current-link 0 {2 0 3 3 NONE} NONE

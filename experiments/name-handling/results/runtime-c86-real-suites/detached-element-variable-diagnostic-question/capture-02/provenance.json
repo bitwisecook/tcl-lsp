@@ -1,0 +1,145 @@
+{
+  "records": [
+    {
+      "provider": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.002,
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_sha256": {
+        "tmp/tcl8.4.20/generic/tclVar.c": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+        "tmp/tcl8.4.20/tests/var.test": "b53c4291c4dbaacb325cecc00553b685fc91e563dade3c7ff16c671fac2712e6"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "9449b29ac102ef83f9c47d915cd26dfabbf4cfaa6838299958887a435976a0e9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    },
+    {
+      "provider": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.002,
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_sha256": {
+        "tmp/tcl8.5.19/generic/tclVar.c": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+        "tmp/tcl8.5.19/tests/var.test": "666fcd0d9e58b7db80719dc38828f0535cea8fb848f4cd88426903f1827244b2"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "82c05c535fc83620ea86d31324e9ccc350384243a25441ab973979d5fa8ffb50",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    },
+    {
+      "provider": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003,
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_sha256": {
+        "tmp/tcl8.6.18/generic/tclVar.c": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+        "tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "85a2f8c0083378f13675991ec4f730ace2e42befcf75916e1db6bdbe5d57f441",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    },
+    {
+      "provider": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.006,
+      "binary_sha256_before": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "binary_sha256_after": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "source_sha256": {
+        "tmp/tcl9.0.4/generic/tclVar.c": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+        "tmp/tcl9.0.4/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "fc402a727af69a9a8720c34200a4811e46d050c2a45c5b7cdeae668412368d54",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    },
+    {
+      "provider": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.006,
+      "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "source_sha256": {
+        "tmp/tcl9.1.0/generic/tclVar.c": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+        "tmp/tcl9.1.0/tests/var.test": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "85e91a70e3a5ff0b704d8e2e620097985c9c582d7fff4dad344395cc70fe3287",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    },
+    {
+      "provider": "jim-pinned",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/detached-element-variable-diagnostic-question/read-incr-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 0.004,
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "source_sha256": {
+        "tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "tmp/jimtcl-oracle/jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3"
+      },
+      "input_sha256": "8b67c4c56019ddd367ab439155baed2f3e5d231c1e6100564a4bf2ca7e614965",
+      "stdout_sha256": "8ca72028d5dd41e7b0a39e4c30b28b8e709393c5fc140efb29e13c9c239f8f1a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "row_count": 2,
+      "marks": [
+        "MARK root-unset-read before-read",
+        "MARK root-unset-incr before-incr"
+      ]
+    }
+  ],
+  "scope": "Two separate fixed read/increment controls supplement the sealed first five write/recreation rows. Actual local upvar to x(1), live read and whole-root removal precede caught scalar alias read or increment. No first-source adaptation, Runtime execution or private identity claim.",
+  "axes": "Fresh five C releases and pinned Jim; Runtime/Syntax execution and builds not performed; F5 not run.",
+  "environment": "Inherited environment not logged or dumped. Only named Tcl library/test/overlay selectors removed; no host/device/security information requested."
+}

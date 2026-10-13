@@ -1,0 +1,5 @@
+PROVIDER 9.1.0
+MARK root-unset-read before-read
+ROW root-unset-read 0 {2 1 {can't read "foo": no such variable} {TCL READ VARNAME}} {TCL READ VARNAME}
+MARK root-unset-incr before-incr
+ROW root-unset-incr 0 {2 1 {can't set "foo": upvar refers to element in deleted array} {TCL WRITE VARNAME}} {TCL WRITE VARNAME}
