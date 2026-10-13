@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9573 filtered out; finished in 12.44s
+

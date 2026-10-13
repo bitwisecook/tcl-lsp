@@ -1,0 +1,6 @@
+
+running 1 test
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3003 filtered out; finished in 9.15s
+

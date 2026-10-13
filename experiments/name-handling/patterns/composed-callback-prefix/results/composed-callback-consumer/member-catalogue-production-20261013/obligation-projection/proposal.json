@@ -1,0 +1,6 @@
+{
+  "path": "/workspace/tcl-lsp/rust/tcl-lsp-core/src/diagnostic_subject.rs",
+  "before_sha256": "6a049fb96949fffa7cb125b769d50f51c279ed005ba1bf08c6cfa8c2254ae852",
+  "proposed_sha256": "9da501c10fc5dc8967300a44945fa0cfb11c046c244cd3177147410d837f4308",
+  "status": "prepared only; awaiting coordinated frozen-source correction window"
+}

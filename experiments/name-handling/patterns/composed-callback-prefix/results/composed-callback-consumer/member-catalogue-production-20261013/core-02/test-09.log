@@ -1,0 +1,6 @@
+
+running 1 test
+test workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3003 filtered out; finished in 0.58s
+

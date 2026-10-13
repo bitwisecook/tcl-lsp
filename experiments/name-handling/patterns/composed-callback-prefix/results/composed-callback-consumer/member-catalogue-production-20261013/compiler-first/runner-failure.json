@@ -1,0 +1,8 @@
+{
+  "timestamp_utc": "2026-10-13T16:05:10.058105+00:00",
+  "stage": "inventory before source snapshot and test invocation",
+  "exit_code": 1,
+  "test_invocations": 0,
+  "cause": "capture runner included absent root data directory in rg; corrected to include only existing declared roots",
+  "source_changes": false
+}

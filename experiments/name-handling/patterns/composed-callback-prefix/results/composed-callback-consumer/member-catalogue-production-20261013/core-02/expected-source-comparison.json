@@ -1,0 +1,5 @@
+{
+  "expected_source": "/tmp/name-consumer-production-20261013/core/source-after.json.gz",
+  "expected_paths": 34625,
+  "mismatches": {}
+}

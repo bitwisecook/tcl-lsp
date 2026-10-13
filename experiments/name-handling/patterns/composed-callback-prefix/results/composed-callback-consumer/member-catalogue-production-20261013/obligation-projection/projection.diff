@@ -1,0 +1,20 @@
+--- a/rust/tcl-lsp-core/src/diagnostic_subject.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+@@ -336,6 +336,7 @@
+     ConditionalDeclarationApplicability,
+     DeferredLogicalBodyApplicability,
+     ConditionalLogicalBodyApplicability,
++    ConditionalMemberBodyCatalogueApplicability,
+     ConditionalCNamespaceApplicability,
+     ConditionalCBodyApplicability,
+     UnretainedCSourcePathProviderApplicability,
+@@ -378,6 +379,9 @@
+             Obligation::DeferredLogicalBodyApplicability => Self::DeferredLogicalBodyApplicability,
+             Obligation::ConditionalLogicalBodyApplicability => {
+                 Self::ConditionalLogicalBodyApplicability
++            }
++            Obligation::ConditionalMemberBodyCatalogueApplicability => {
++                Self::ConditionalMemberBodyCatalogueApplicability
+             }
+             Obligation::ConditionalCNamespaceApplicability => {
+                 Self::ConditionalCNamespaceApplicability

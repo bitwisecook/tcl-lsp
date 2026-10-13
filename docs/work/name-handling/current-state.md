@@ -29,7 +29,7 @@ and store currency; refuse missing, foreign, stale or dynamic evidence.
 | Command lookup ordering | [Shared current/path/root capture](../../../experiments/name-handling/results/shared-command-lookup-bases-20261013/results.md):133 Syntax naming controls, C command3, Jim5 and115 actual Runtime slot comparisons pass. Shared primitive serves logical helpers, source metadata, compiler adapters, Runtime API snapshots, Runtime and VM. | The retained-descendant refusal now passes after routing Native contexts through the checked adapter; three other occupied-current/path controls pass. VM live209-slot comparisons plus7 publication/retained-namespace controls pass; CLI/other compiler tests remain pending. The two VM variable-geometry adapters compiled here, without separate variable-winner acceptance. |
 | Original braced-source correspondence | Real C5/Jim LF/CRLF programs are retained under [braced correspondence](../../../experiments/name-handling/braced-source-correspondence/).25 Syntax escape/source mapping controls and6 Registry word controls pass. | Compiler mapped-read and original occurrence controls pass, and all four real W210 headers obtain read advice. The declaration-flow consumer still refuses; preserve separate execution/frame authority. |
 | #2286/W210 | Original nine cleanup controls still include C8.4 result0 versus expected2. Four original factory programs pass earlier guards. First measured refusal was continuation-folded body origin; source correspondence addresses that geometry but has not fixed the public result. [Compiler capture](../../../experiments/name-handling/results/braced-source-correspondence-2026-10-13/compiler.log) retains current failures. | Actual next refusal is missing declaration-flow advice under dynamic writes: physical missing reads are0. Refreshed20 controls pass17/fail3 (original W210 and two Native-formal metadata controls). Trace the exact source-purpose producer and complete-input metadata, retaining all assertions. |
-| Callback source catalogue | Conditional receiver-source preview implementation is prepared; ordinary execution layouts retain strict frame evidence. Existing composed callback acceptance is incomplete. | Two Compiler catalogue controls pass, including source-only execution refusal, shadow/deletion/channel/source/config barriers. Core2/4 pass; private builder schema and original stored selector are missing. The isolated selector control also fails. Supporting lookup groups remain pending. |
+| Callback source catalogue | Shared conditional receiver/member-body source catalogue is integrated; ordinary execution layouts retain strict frame evidence. [Frozen consumer capture](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/member-catalogue-production-20261013/README.md) passes4 Compiler and12 Core controls, including all4 unchanged original callback assertions and hosted/export/colon controls. | DB8/server baseline acceptance is running on the unchanged main source. Shared source-frame selection and remaining LSP adapters are being migrated in an isolated checkout. No Native execution authority follows from source catalogue acceptance. |
 | CLI and registry metadata | CLI uses exact `ResolvedContext::resolve_spec`; literal case/whitespace/empty-name C5/Jim observations retained in [CLI results](../../../experiments/name-handling/results/cli-command-name-literal/). MCP exact-name and static-source results remain separately scoped. Initial Registry129 scoped controls pass. [Broader descriptor/cache capture](../../../experiments/name-handling/results/registry-descriptor-root-cache/README.md) passes83 distinct Registry/store controls with unchanged frozen inputs, including exact original cache labels and over-root negatives. | Execute CLI exact-name and actual pack-discovery controls. Mixed original-head/constructed-label operand selection still needs explicit selected-registration layout; measured private-worker probes remain separate from compiler acceptance. Written names and metadata labels stay distinct. |
 | WASM/codegen | Original evaluated-argv transport is implemented. Runtime6 and API18 controls pass. [Compiler/API/CLI/strict-WASM capture](../../../experiments/name-handling/results/codegen-root-colon-publication/compiler-wasm-validation-01/README.md) records49 effective Rust controls:34pass/15fail, including CLI11 exact-name cases passing. | [Writable-cache real-WASM capture](../../../experiments/name-handling/results/codegen-root-colon-publication/wasm-cache-validation-02/README.md) passes6/8 actual Runtime-linked controls: once-only name/body, inert body, unknown-name abort and general/native-tier replaced-definer fallback. Two compiled publication/table positives still fail before linking. Four selected Compiler positives/refusals, tail positive and two table-plan positives need exact producer repairs; #1778 map identity remains. No compiled-entry acceptance follows from generic execution. |
 | Variables, aliases and lifetimes | Existing source/split/trim, detached-cell and namespace-forget receipts remain indexed in [results](../../../experiments/name-handling/results/RESULTS.md). #2287 and #2300 are closed only for their recorded scopes. New query-specific geometry/bases and typed empty-namespace handling pass16 owner/C5/Jim conformance controls. [Actual Runtime query capture](../../../experiments/name-handling/results/variable-namespace-query-bases-20261013/runtime/README.md) passes48 C5/Jim rows, with unchanged source/binary and complete compiled-input coverage. | [VM namespace/query capture](../../../experiments/name-handling/results/vm-namespace-query-20261013/README.md) executes13 selectors:6 pass/7 fail.12 C84 namespace rows and24 C84/C85/Jim query rows pass; four namespace tests incorrectly require global errorCode after direct object entry, and three C86+ query fixtures refuse compiler preflight. Correct the observation to actual completion metadata, investigate the genuine admission producer, then rerun. Core adapter tests, Runtime empty namespace-address migration, retained contexts, roles, links, generations and publication collisions remain. |
@@ -47,12 +47,12 @@ Rust stable1.99.0 and repository-pinned Ruff0.16.10 are available. Source
 `/tmp/name-env.sh` and select an explicitly leased target. Only one Cargo build
 uses a cache at a time; source mutations must not invalidate another capture.
 WASM tools are provisioned from verified upstream assets, separately from
-the retained historical Wasmtime notice. Genuine linked execution remains pending.
+the retained historical Wasmtime notice. Six scoped genuine Runtime-linked WASM controls pass; two compiled-entry/table positives still fail before linking.
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is17:07 BST; the next tracking
-checkpoint is17:20 BST and the next hourly report18:05 BST. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is17:32 BST; the next tracking
+checkpoint is17:35 BST and the next hourly report18:05 BST. The17:20 checkpoint was delayed while recovering sparse checkout provisioning; subsequent checkpoints retain the original cadence. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -93,15 +93,27 @@ measurement; #2286 remains unaccepted.
 
 The follow-up four exact Compiler catalogue controls pass under that same
 unchanged production binary: two new member-body source/authority/currency
-controls and two existing conditional receiver catalogue controls. Core
-callback/hosted/export tests are building. No completed Core result is claimed.
+controls and two existing conditional receiver catalogue controls. The fresh Core
+callback/hosted/export capture passes12 exact controls, including all4 original
+callback assertions. An initial incorrect roster selection executed zero tests
+and is retained separately. Both accepted binaries were sealed before the
+checkout provisioning disk exhaustion; DB/server builds had not started then.
 
-Implementation priority is adoption by every audited consumer. Agents move
-to isolated source checkouts with exclusive build targets so Runtime variables,
+Implementation priority is adoption by every audited consumer. Agents use
+five isolated sparse source checkouts with exclusive build targets so Runtime variables,
 Registry/VM, source-frame/LSP and compiler/codegen migrations can proceed in
 parallel. A dedicated audit agent reconciles the remaining package/callsite
 roster and routes concrete gaps to the implementation owners. The primary
 checkout owns reviewed integration, tracking, regular commits/pushes and gates.
+
+Runtime variables, Registry/VM and compiler descriptor adapters, codegen, original
+source-read flow, and LSP source-frame selection each have separate implementation
+owners and targets. The dedicated read-only audit feeds remaining callsites to
+those owners; root owns tooling/AI integration. Sparse checkout omissions are
+restored byte-exact from the shared baseline before fresh captures; failed builds
+remain explicit. No concurrent worktrees share Cargo targets. Full checkout
+provisioning exhausted disk and was stopped; unused copies were removed and
+replaced with154 MiB sparse checkouts. Build/cache budgets remain bounded.
 
 [Runtime namespace geometry](../../../experiments/name-handling/results/runtime-namespace-geometry-20261013/README.md)
 passes five exact selectors:60 actual original-object namespace rows across C5,

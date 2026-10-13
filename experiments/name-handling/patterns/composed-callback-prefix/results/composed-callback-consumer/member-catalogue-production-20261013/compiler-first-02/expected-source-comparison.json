@@ -1,0 +1,5 @@
+{
+  "expected_source": "/tmp/name-w210-source-flow/production-03/source-after.json.gz",
+  "expected_paths": 34624,
+  "mismatches": {}
+}

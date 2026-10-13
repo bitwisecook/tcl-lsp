@@ -1,0 +1,7 @@
+{
+  "filters": [
+    "registry_invocation::source_structure::member_source_catalogue_tests",
+    "command_binding::source_catalogue_advice::tests"
+  ],
+  "exact": []
+}
