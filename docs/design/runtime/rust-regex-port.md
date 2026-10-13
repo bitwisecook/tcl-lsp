@@ -95,14 +95,13 @@ With the `cmd-core` feature the crate implements
 `tcl_cmd_core::regex::RegexEngine` (`AreEngine`), so the shared `regexp` /
 `regsub` / `lsearch -regexp` / `switch -regexp` command plumbing can drive it.
 
-The **bytecode VM** (`rust/tcl-vm`) now uses it, replacing the approximate
-`regex`-crate path: the VM gains full ARE syntax (`\m`/`\M`/`[[:<:]]` word
-edges, POSIX longest-match submatches, the complete escape and class set) and
-matches tclsh 9.0. The command-level behaviour is covered by
+The **bytecode VM** (`rust/tcl-vm`) uses `AreEngine` for ARE syntax, including
+`\m`/`\M`/`[[:<:]]` word edges and POSIX longest-match submatches.
+Command-level behaviour is covered by
 `rust/tcl-vm/tests/regexp_e2e.rs` (cases ported from `regexp.test`, expected
 values captured from real tclsh).
 
-The Rust runtime (`runtime/rust`) also uses it: its `cmd_regex` adapter drives
+The Rust runtime (`runtime/rust`) uses it: its `cmd_regex` adapter drives
 `AreEngine` directly. No C regex engine is compiled, vendored, or linked
 anywhere, and because the engine is safe Rust with no FFI, `regexp`/`regsub`
 work on **wasm32** as well as natively.
@@ -114,8 +113,8 @@ extensions into one module), so it carries a thin C-ABI shim,
 `src/regex_capi.rs`, that re-exports the engine under the Tcl regex C symbols
 (`TclReComp` / `TclReExec` / `TclReFree` / `TclReError`) with the `regex.h`
 `regex_t` / `regmatch_t` layout and `REG_*` codes (header:
-`runtime/rust/include/tcl_regex_capi.h`). A C Tcl build or extension that used
-to link the C engine links this instead, unchanged. What a C build fixes at
+`runtime/rust/include/tcl_regex_capi.h`). C consumers link these exported
+symbols. What a C build fixes at
 compile time the shim takes from the interpreter's pinned release: `TclReComp`
 adds `REG_ZANCHOR` under 9.1, so `\z` compiles there as it does in 9.1.0's
 `regc_lex.c`.

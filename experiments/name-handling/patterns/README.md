@@ -342,3 +342,13 @@ retain actual C8.6 registration and compiler-epoch observations. Separate
 and [procedure/foreach](../clock-bootstrap-epoch/registration-repair/compiled-foreach/README.md)
 questions retain original inputs and provider-specific outcomes; stock-shell
 completion supplies no native iterator lifetime or F5 answer.
+
+The [private clock-worker evidence](../results/runtime-c86-real-suites/README.md)
+separates original release-selected C/Jim observations from nine exact Runtime
+controls, two pure calendar controls and one Registry control. Native C8.6
+implements `ParseFormatArgs`, `getenv` and `GetDateFields` with genuine shared
+three-worker ownership; original getter order, reached table access and
+timezone-name/Dict child identity remain explicit. Empty-table native localtime
+refuses. Four original workers and full seven-worker lifetime remain unsupported.
+Original all.tcl reaches orchestration but selects zero test files; no complete
+upstream-suite or F5 worker conformance is established.

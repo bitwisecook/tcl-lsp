@@ -1,6 +1,7 @@
 # Related issues and prior work
 
 GitHub metadata refreshed on 2026-10-12 across all 1,050 returned issues.
+The #2300 closure was read back on 2026-10-13 at 00:32:48 UTC.
 Issue metadata is a search snapshot; actual current state and narrow executed
 acceptance are recorded below and in current-state.md. An open issue supplies an
 acceptance target; its state alone does not establish current source behaviour.
@@ -62,7 +63,7 @@ Rust receipts retain separate authority.
 | [#2193](https://github.com/bitwisecook/tcl-lsp/issues/2193), [#2269](https://github.com/bitwisecook/tcl-lsp/issues/2269) | OPEN | Shared qualified alias destination registration: create missing parents, namespace which, invoke, describe. Discussion adds token retention across rename, duplicate alias-token prefixes, global bare-alias creation and context-sensitive qualified names. Do not prematurely mark duplicates. |
 | [#2275](https://github.com/bitwisecook/tcl-lsp/issues/2275) | OPEN | Child interpreter alias/aliases entry points must reuse same interpreter-arena alias/token/lifecycle owners. |
 | [#2292](https://github.com/bitwisecook/tcl-lsp/issues/2292) | OPEN | Namespace/UnknownHandling guard invalidation ABI and engine event parity; do not base future lookup shortcuts on stale guards. |
-| [#2300](https://github.com/bitwisecook/tcl-lsp/issues/2300) | OPEN | Namespace forget global-origin pattern joins ::::name; replace consumer's ad hoc assembly with owner. |
+| [#2300](https://github.com/bitwisecook/tcl-lsp/issues/2300) | CLOSED | Published `cac588499` uses shared pattern parts, direct live namespace tokens and authentic import-generation slots. Three genuine NativeC86 witness/adverse/chain controls pass; [accepted closure](https://github.com/bitwisecook/tcl-lsp/issues/2300#issuecomment-6135298423) verified 2026-10-13 00:32:48 UTC. Other-release Rust, native F5 and #1778 replacement/teardown remain unproved. |
 | [#2311](https://github.com/bitwisecook/tcl-lsp/issues/2311) | OPEN | Runtime upvar 1 must resolve target through caller namespace-eval frame, not nonexistent frame slot. |
 | [#2210](https://github.com/bitwisecook/tcl-lsp/issues/2210) | OPEN | EXIST_STK must consume resolved name exactly once; audit sibling LOAD/STORE/ARRAY stack forms. The refreshed Original ingress and downstream lookup owners must be tested with the exact resolved-name witness before stating fixed. |
 | [#2342](https://github.com/bitwisecook/tcl-lsp/issues/2342), [#2343](https://github.com/bitwisecook/tcl-lsp/issues/2343) | OPEN | Adjacent lookup-result conformance: VM variable and runtime command errorCode fields. Name owner/resolution result must allow exact failures; not proof whole runtime error taxonomy is in scope. |

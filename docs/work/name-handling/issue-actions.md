@@ -47,9 +47,11 @@ centralisation obligations remain independent.
 removes obsolete W210 prose. GitHub closure was confirmed; repository-wide
 comment/document cleanup remains a separate unfinished obligation.
 
-## #2300 — keep open
+## #2300 — accepted and closed
 
-The [published oracle/source receipt](https://github.com/bitwisecook/tcl-lsp/issues/2300#issuecomment-6134812782) identifies `1a23813c2`. Original witness/adverse controls pass on real C8.4–9.1; Jim setup succeeds but forget is unavailable. Runtime source still constructs `::::g` through its display join; no fresh Runtime witness or repair acceptance follows. The correction must use shared pattern parts and actual namespace/import-generation origins, preserving unqualified own-name matching and unavailable-owner refusal. Broader #1778 lifetime remains separate. GitHub was read back OPEN before this update.
+[Published acceptance and closure](https://github.com/bitwisecook/tcl-lsp/issues/2300#issuecomment-6135298423) identifies `cac588499`. GitHub readback confirmed CLOSED at 2026-10-13 00:32:48 UTC. The Runtime fix uses shared pattern parts, direct live namespace tokens and actual ultimate/immediate imported generations. [Three genuine NativeC86 controls](../../../experiments/name-handling/results/namespace-forget-global-origin/runtime-validation-01/README.md) pass against unchanged witness/adverse/import-chain answers; [C5 chain controls](../../../experiments/name-handling/results/namespace-forget-import-chain/README.md) agree. Jim forget remains unavailable.
+
+Closure is scoped to these receipts. Other-release Rust execution, native F5 and #1778 replacement/teardown lifetimes remain unproved; retained source-envelope/dependency timing limits apply. Other open targets stay open.
 
 ## Other targets
 

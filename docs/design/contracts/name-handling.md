@@ -198,14 +198,40 @@ paths are distinct concepts. Preserve their registry/context rules. Appliance
 `tclsh`, TMM iRules, tmsh CLI scripts and iApps are separate oracle contexts.
 See [namespace-model.md](namespace-model.md).
 
-The C8.6 private `tcl::clock::ParseFormatArgs` worker has release-selected
-registry admission and a shared original-object parser in `tcl-cmd-core::clock`.
-Its runtime adapter owns retained literals and the object-command destructor.
-The C8.6 `tcl::clock::getenv` adapter reads an optional current-host byte
-environment capability, preserving raw Unix keys/values and operational
-refusal on unsupported adapters. Both implemented workers share actual literal
-ownership. Guest `env` write synchronisation, the other five C clock workers
-and full seven-worker pool lifetime remain unsupported; see the [exact controls and limits](../../../experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/README.md).
+The private `tcl::clock::ParseFormatArgs`, `tcl::clock::getenv` and
+`tcl::clock::GetDateFields` workers have selected native C8.6 registry admission,
+shipped runtime backing and absent native compiler hooks. The parser and date
+worker consume original objects through `tcl-cmd-core::clock`; the environment
+getter reads an optional current-host byte capability, preserving raw Unix
+keys/values and operational refusal on unsupported adapters.
+
+`GetDateFields` requires the actual native C8.6 protocol and inherited operation
+currency. It converts original seconds with the central Wide getter, then
+changeover with the Int getter, rejects an actual bignum seconds primary, and
+converts the timezone table. It reads the first transition before the binary
+search, selects the last transition at or before seconds (row zero before the
+first transition), then reads only the selected offset and timezone-name child.
+DST and extra cells supply no inputs. Reached List conversions retain original
+storage and backing receipts; allocation leases do not make retired or replaced
+objects current. Checks around getters and Dict publication preserve the first
+typed host refusal across context effects and cleanup.
+
+The result is a genuine fresh Dict with the original fourteen field keys in
+worker order, shared CE/BCE literals, fresh native numeric fields and the same
+timezone-name child. Each of the three genuine object-command registrations
+owns one shared literal-pool reference, released by its once-only delete
+callback; an active date-worker call retains the pool across worker deletion.
+Returned containers retain their own child references. Empty timezone data
+explicitly refuses unavailable native C localtime conversion; the ordinary
+clock offset capability supplies no substitute timezone-name or conversion
+evidence. Unsafe unmeasured numeric and cell extents also refuse.
+
+`Oldscan`, `ConvertLocalToUTC`, `GetJulianDayFromEraYearMonthDay` and
+`GetJulianDayFromEraYearWeekDay`, guest `env` write synchronisation and the full
+seven-worker pool remain unsupported. The
+[clock evidence index](../../../experiments/name-handling/results/runtime-c86-real-suites/README.md)
+separates original C observations, exact Runtime controls, pure calendar checks
+and Registry checks; none establishes complete upstream-suite conformance.
 
 ## Evidence and enforcement
 
