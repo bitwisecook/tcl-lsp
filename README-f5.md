@@ -70,6 +70,14 @@ authenticates to a device or makes a network request, and no password, hash,
 salt, or other secret value ever appears in a finding. See
 [kcs-feature-bigip-report-security-tab.md](docs/kcs/features/kcs-feature-bigip-report-security-tab.md).
 
+The repository stores certificate generation and verification procedures,
+configuration placeholders, and vendor trust membership metadata. It stores
+no certificate bodies or private keys. Certificate tests generate temporary
+material locally and verify it with OpenSSL. SslicTcl chain completion needs
+caller-supplied certificate material. See
+[verification without stored certificates](docs/kcs/kcs-how-to-verify-certificates-without-storing-them.md).
+
+
 ```
 # BIG-IP config file (bigip.conf)
 ltm virtual /Common/my_vs {

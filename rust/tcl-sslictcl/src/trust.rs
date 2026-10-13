@@ -148,9 +148,8 @@ pub struct Anchor {
     pub fingerprint_sha256: String,
     /// Human-readable distinguished name.
     pub subject: String,
-    /// Complete root certificate DER as base64, when the source publishes it.
-    /// This lets the path builder complete and cryptographically verify a
-    /// chain without external files.
+    /// Complete root certificate DER as base64, when supplied by the caller.
+    /// Embedded vendor membership metadata intentionally omits this material.
     pub der_base64: Option<String>,
     /// SHA-256 of `SubjectPublicKeyInfo`, when available from source data.
     pub spki_sha256: Option<String>,
@@ -443,60 +442,9 @@ static EMBEDDED: LazyLock<EmbeddedDataset> = LazyLock::new(|| {
         .trust
         .validate()
         .expect("committed SslicTcl trust data must satisfy schema invariants");
-    hydrate_anchor_der(&mut dataset.trust)
-        .expect("committed SslicTcl PEM bundles must match trust-anchor fingerprints");
     dataset.trust.build_index();
     dataset
 });
-
-// Full root material stays in auditable, updater-owned PEM bundles rather than
-// duplicating base64 into the compact membership JSON. `include_bytes!` keeps
-// it available to native, WASM, and single-file report builds with no runtime
-// filesystem or network dependency.
-const EMBEDDED_PEM_BUNDLES: &[&[u8]] = &[
-    include_bytes!("../data/raw/pem/apple.pem"),
-    include_bytes!("../data/raw/pem/google_aosp.pem"),
-    include_bytes!("../data/raw/pem/microsoft_windows.pem"),
-    include_bytes!("../data/raw/pem/mozilla_nss.pem"),
-    include_bytes!("../data/raw/pem/openjdk.pem"),
-    include_bytes!("../data/raw/pem/oracle_java.pem"),
-];
-
-fn hydrate_anchor_der(store: &mut TrustStore) -> Result<(), String> {
-    let indices: BTreeMap<String, usize> = store
-        .anchors
-        .iter()
-        .enumerate()
-        .map(|(index, anchor)| (normalise_fingerprint(&anchor.fingerprint_sha256), index))
-        .collect();
-    for bundle in EMBEDDED_PEM_BUNDLES {
-        let certificates = parse_certificates(bundle)
-            .map_err(|error| format!("cannot parse embedded root bundle: {error}"))?;
-        for certificate in certificates {
-            let Some(index) = indices.get(&certificate.fingerprint_sha256) else {
-                continue;
-            };
-            let anchor = &mut store.anchors[*index];
-            let encoded = base64::engine::general_purpose::STANDARD.encode(&certificate.raw_der);
-            if anchor
-                .der_base64
-                .as_ref()
-                .is_some_and(|existing| existing != &encoded)
-            {
-                return Err(format!(
-                    "conflicting DER for anchor {}",
-                    anchor.fingerprint_sha256
-                ));
-            }
-            anchor.der_base64 = Some(encoded);
-            anchor.spki_sha256 = Some(certificate.spki_sha256);
-            anchor.subject_key_id = certificate.subject_key_id;
-            anchor.not_before = Some(certificate.not_before);
-            anchor.not_after = Some(certificate.not_after);
-        }
-    }
-    Ok(())
-}
 
 /// Access the compiled-in, network-free dataset.
 #[must_use]
@@ -551,7 +499,12 @@ mod tests {
         assert!(dataset.trust.validate().is_ok());
         assert!(dataset.trust.anchors.len() >= 5);
         let (complete, total) = dataset.trust.der_coverage();
-        assert!(complete > total / 2, "DER coverage is {complete}/{total}");
+        assert_eq!(
+            complete, 0,
+            "embedded membership has no certificate material"
+        );
+        assert!(total >= 5);
+        assert_eq!(dataset.trust.anchor_certificates().unwrap().len(), complete);
         assert!(dataset
             .trust
             .anchor("96:BC:EC:06:26:49:76:F3:74:60:77:9A:CF:28:C5:A7:CF:E8:A3:C0:AA:E1:1A:8F:FC:EE:05:C0:BD:DF:08:C6")

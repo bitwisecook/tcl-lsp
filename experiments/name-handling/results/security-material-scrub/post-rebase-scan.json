@@ -1,0 +1,266 @@
+{
+  "base": "db9950eb391e39b6b3f12231f13dcdbb8852f94a",
+  "incoming_base": "05499cc75",
+  "files": 4191,
+  "source_bytes": 243400942,
+  "errors": [],
+  "category_counts": {
+    "credential-assignment": 22,
+    "password-hash": 2,
+    "authorization": 4,
+    "credential-cli": 1,
+    "certificate": 1
+  },
+  "locations": [
+    {
+      "path": "README-f5.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 64,
+      "offset": 3165,
+      "length": 4
+    },
+    {
+      "path": "docs/kcs/README.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 332,
+      "offset": 22357,
+      "length": 3
+    },
+    {
+      "path": "experiments/name-handling/results/mcp-exact-command-name/validation-01/online.stderr",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 214,
+      "offset": 7124,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/mcp-static-name-inventory/validation-01/offline-build.stderr",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 254,
+      "offset": 8819,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/namespace-revision-owner-entry/20261012T211750Z/internal-owner.log",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 112,
+      "offset": 4431,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "password-hash",
+      "line": 13852,
+      "offset": 6168222,
+      "length": 34,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "password-hash",
+      "line": 13852,
+      "offset": 6168275,
+      "length": 34,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "authorization",
+      "line": 12263,
+      "offset": 5236496,
+      "length": 14,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "authorization",
+      "line": 38508,
+      "offset": 7824139,
+      "length": 14,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "authorization",
+      "line": 38627,
+      "offset": 7834884,
+      "length": 14,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-implementation/shared-validation-02/tcl-registry-native-test-binary.gz!gzip",
+      "encoding": "binary",
+      "category": "authorization",
+      "line": 70957,
+      "offset": 9572837,
+      "length": 14,
+      "disposition": "Same synthetic hash fixture or authorisation-format example as the earlier whole-tree review."
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 36,
+      "offset": 2334,
+      "length": 10
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2388,
+      "length": 7
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2431,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2657,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 62,
+      "offset": 3873,
+      "length": 7
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/test_certs.py",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 98,
+      "offset": 3316,
+      "length": 24
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/test_certs.py",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 109,
+      "offset": 3692,
+      "length": 10
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 112,
+      "offset": 3796,
+      "length": 9
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 126,
+      "offset": 4331,
+      "length": 10
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 150,
+      "offset": 5043,
+      "length": 5
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 162,
+      "offset": 5416,
+      "length": 8
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 189,
+      "offset": 6133,
+      "length": 6
+    },
+    {
+      "path": "rust/f5-cli/src/commands/query.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 872,
+      "offset": 33674,
+      "length": 10
+    },
+    {
+      "path": "rust/f5-cli/src/commands/query.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 876,
+      "offset": 33904,
+      "length": 11
+    },
+    {
+      "path": "rust/tcl-registry/src/spec.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 1278,
+      "offset": 55392,
+      "length": 9
+    },
+    {
+      "path": "rust/tcl-registry/src/spec.rs",
+      "encoding": "plain",
+      "category": "credential-cli",
+      "line": 1278,
+      "offset": 55391,
+      "length": 10,
+      "disposition": "Command option/argument role definition in Registry spec source, not a resolved credential."
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/examples/fields_behaviour.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 276,
+      "offset": 9032,
+      "length": 16
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/examples/fields_behaviour.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 1562,
+      "offset": 50255,
+      "length": 12
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/README.md",
+      "encoding": "plain",
+      "category": "certificate",
+      "line": 29,
+      "offset": 2072,
+      "length": 27
+    }
+  ],
+  "der_candidates": [],
+  "notice": "Post-rebase delta, including 72 incoming commits. No values, snippets or credential hashes recorded. Regex candidates require contextual review.",
+  "reviewed_repeated_binary_candidates": 6
+}

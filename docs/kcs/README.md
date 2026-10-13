@@ -195,6 +195,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## How-Tos
 
+- [kcs-how-to-verify-certificates-without-storing-them.md](kcs-how-to-verify-certificates-without-storing-them.md)
+  — generate and verify local certificates, obtain pinned vendor roots, and
+  retain reproducible evidence without certificate bodies or credentials.
+
 - [kcs-howto-build-and-install-on-an-unsupported-platform.md](kcs-howto-build-and-install-on-an-unsupported-platform.md)
   — build only the native programs or editor integrations needed on a platform
   for which the release installer has no prebuilt binaries.

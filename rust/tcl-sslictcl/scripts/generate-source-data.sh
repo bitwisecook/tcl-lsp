@@ -18,47 +18,6 @@ elif [[ $# -ne 0 ]]; then
     exit 2
 fi
 
-sha256_digest() {
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$@" | awk '{print $1}'
-    elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 "$@" | awk '{print $1}'
-    else
-        echo "generate-source-data requires sha256sum or shasum" >&2
-        return 1
-    fi
-}
-
-base64_file() {
-    base64 < "$1" | tr -d '\n'
-}
-
-date_to_epoch() {
-    local timestamp="$1"
-    if date -u -d "$timestamp" +%s >/dev/null 2>&1; then
-        date -u -d "$timestamp" +%s
-    else
-        date -u -j -f '%b %e %T %Y %Z' "$timestamp" +%s
-    fi
-}
-
-# Split a PEM bundle into one certificate per file.  Do this with awk rather
-# than csplit: BSD csplit (macOS, FreeBSD, NetBSD, OpenBSD) does not implement
-# GNU's `-b` suffix-format option, while awk's basic record handling is
-# available on all of those hosts and produces the same deterministic input
-# files for the generator.
-split_pem_certificates() {
-    local input="$1" prefix="$2"
-    awk -v prefix="$prefix" '
-        /-----BEGIN CERTIFICATE-----/ {
-            if (out != "") close(out)
-            n++
-            out = sprintf("%s%04d.pem", prefix, n)
-        }
-        out != "" { print > out }
-    ' "$input"
-}
-
 REVISION_FILE="$RAW/observatory-revision.txt"
 if [[ ! -s "$REVISION_FILE" ]]; then
     echo "missing pinned Observatory revision: $REVISION_FILE" >&2
@@ -96,48 +55,9 @@ for spec in apple:apple: google_aosp:android: microsoft_windows:microsoft: mozil
     PARTS+=("$part")
 done
 
-# Parse every certificate in the pinned PEM archive and index by DER SHA-256.
-MATERIAL_TSV="$TMP/material.tsv"
-: > "$MATERIAL_TSV"
-for pem in "$RAW"/pem/*.pem; do
-    base="$(basename "$pem" .pem)"
-    split_pem_certificates "$pem" "$TMP/$base-"
-    for cert in "$TMP/$base-"*.pem; do
-        grep -q -- '-----BEGIN CERTIFICATE-----' "$cert" || continue
-        der="$TMP/der"
-        openssl x509 -in "$cert" -outform DER -out "$der"
-        fingerprint="$(sha256_digest "$der")"
-        der_base64="$(base64_file "$der")"
-        spki_sha256="$(openssl x509 -in "$cert" -pubkey -noout | openssl pkey -pubin -outform DER 2>/dev/null | sha256_digest)"
-        # Fetch the textual fields in one OpenSSL invocation.  These values
-        # are independent of the DER output above, and parsing them together
-        # avoids four process launches for every certificate while retaining
-        # the same fail-closed handling for malformed certificates.
-        metadata="$TMP/metadata"
-        metadata_errors="$TMP/metadata-errors"
-        if ! openssl x509 -in "$cert" -noout -subject -nameopt RFC2253 \
-            -startdate -enddate -ext subjectKeyIdentifier > "$metadata" 2> "$metadata_errors"; then
-            cat "$metadata_errors" >&2
-            exit 1
-        fi
-        IFS=$'\t' read -r subject not_before_text not_after_text subject_key_id <<< "$(awk '
-            /^subject=/ {subject = $0; sub(/^subject=/, "", subject)}
-            /^notBefore=/ {not_before = $0; sub(/^notBefore=/, "", not_before)}
-            /^notAfter=/ {not_after = $0; sub(/^notAfter=/, "", not_after)}
-            /Subject Key Identifier:/ {
-                getline
-                gsub(/[^0-9A-Fa-f]/, "")
-                subject_key_id = tolower($0)
-            }
-            END {printf "%s\t%s\t%s\t%s\n", subject, not_before, not_after, subject_key_id}
-        ' "$metadata")"
-        not_before="$(date_to_epoch "$not_before_text")"
-        not_after="$(date_to_epoch "$not_after_text")"
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fingerprint" "$der_base64" "$spki_sha256" "$subject_key_id" "$not_before" "$not_after" "$subject" >> "$MATERIAL_TSV"
-    done
-done
+# Certificate bytes are local inputs only; committed data retains membership.
 MATERIAL="$TMP/material.json"
-jq -R -s 'split("\n") | map(select(length > 0) | split("\t") | {key: .[0], value: {der_base64: .[1], spki_sha256: .[2], subject_key_id: (if .[3] == "" then null else .[3] end), not_before: (.[4] | tonumber), not_after: (.[5] | tonumber), subject: .[6]}}) | from_entries' "$MATERIAL_TSV" > "$MATERIAL"
+printf '{}\n' > "$MATERIAL"
 
 CHROME_VERSION="$(awk -F': ' '$1 == "version_major" {print $2; exit}' "$RAW/chrome_root_store/root_store.textproto")"
 [[ "$CHROME_VERSION" =~ ^[0-9]+$ ]] || { echo "missing Chrome Root Store version" >&2; exit 1; }
@@ -154,8 +74,6 @@ awk -F'"' '
            subject: ($material[0][$fingerprint].subject // ""), fingerprint: $fingerprint})
     ' > "$CHROME_PART"
 PARTS+=("$CHROME_PART")
-CHROME_MISSING="$(jq --slurpfile material "$MATERIAL" '[.[] | select($material[0][.fingerprint] == null)] | length' "$CHROME_PART")"
-[[ "$CHROME_MISSING" == 0 ]] || { echo "Chrome Root Store has $CHROME_MISSING anchors without matching PEM DER" >&2; exit 1; }
 
 ANCHORS="$TMP/anchors.json"
 jq -s --slurpfile material "$MATERIAL" '
@@ -198,8 +116,8 @@ awk '
 MATERIAL_EXCEPTIONS="$TMP/material-exceptions.json"
 jq -n --slurpfile anchors "$ANCHORS" --slurpfile material "$MATERIAL" '
     {schema: 1,
-     notice: "The Observatory YAML lists this root, but the pinned PEM archive does not contain matching complete DER. Trust membership is retained for audit; chain completion and certificate metadata remain Unknown.",
-     exceptions: [$anchors[0][] as $anchor | select(($material[0][$anchor.fingerprint_sha256] // null) == null) | {fingerprint_sha256: $anchor.fingerprint_sha256, subject: $anchor.subject, reason: "no matching certificate in the pinned PEM archive"}]}
+     notice: "Certificate material is omitted from the repository. Trust membership is retained; callers supply local certificate material for chain completion.",
+     exceptions: [$anchors[0][] as $anchor | select(($material[0][$anchor.fingerprint_sha256] // null) == null) | {fingerprint_sha256: $anchor.fingerprint_sha256, subject: $anchor.subject, reason: "certificate material omitted; see data/README.md"}]}
 ' > "$MATERIAL_EXCEPTIONS"
 
 LATEST_DATE="$(awk -F': ' '/^date_fetched:/ {print $2}' "$RAW"/trust_stores/*.yaml | sort | tail -n 1)"
@@ -211,7 +129,7 @@ TEMP_OUTPUT="$TMP/trust-seed.json"
 jq -n --arg revision "$REVISION" --arg chromium_revision "$CHROMIUM_REVISION" --arg generated_at "$LATEST_DATE" --slurpfile anchors "$ANCHORS" '
     {trust: {provenance: {
         schema: 1, generated_at: ($generated_at + "T00:00:00Z"), bootstrap_seed: false,
-        notice: "Generated from a pinned Trust Stores Observatory snapshot. Membership is presence in the represented root-program snapshot; absence is Unknown, not proof of distrust. Certificate material gaps are explicit in trust-material-exceptions.json.",
+        notice: "Generated from a pinned Trust Stores Observatory snapshot. Membership is presence in the represented root-program snapshot; absence is Unknown, not proof of distrust. Certificate material is omitted; all material gaps are explicit in trust-material-exceptions.json.",
         sources: [
           {name: "Trust Stores Observatory / Apple", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/trust_stores/apple.yaml", revision: $revision, license: "MIT"},
           {name: "Trust Stores Observatory / Android AOSP", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/trust_stores/google_aosp.yaml", revision: $revision, license: "MIT"},

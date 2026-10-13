@@ -16,16 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Golden differential test for the deterministic probe surface.
+//! OpenSSL differential tests for the certificate and gated probe surface.
 //!
-//! Two byte-for-byte guarantees are asserted against `tests/fixtures/probes.json`:
-//!
-//! 1. `x509_parse(<pem>)` — the rich x509 dict (subject /
-//!    issuer / serial / validity / SANs / fingerprint / key-alg / key-size /
-//!    sig-alg / version / public-key PEM) must match the golden exactly.
-//! 2. The `--enable-probes` gating error for every gated network builtin
-//!    (`ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
-//!    `url_*` family) must reproduce the expected wording verbatim.
+//! Certificate tests generate local material and compare stable metadata and
+//! OpenSSL-derived fingerprints and public keys. Network-gating errors retain
+//! their exact golden wording. Certificate material is never checked in.
 //!
 //! The live network probes themselves (faithful-but-not-golden) are exercised
 //! through the gating path only — they never touch the network here.
@@ -35,7 +30,8 @@ use tcl_bigip_query::eval::{EvalContext, Root, evaluate};
 use tcl_bigip_query::parser::parse_query;
 use tcl_bigip_query::value::Value;
 
-const PEM: &str = include_str!("../fixtures/x509_example.pem");
+#[path = "../common/mod.rs"]
+mod common;
 
 /// Run a query against an empty root, with probes disabled (the default).
 fn run_disabled(query: &str) -> Result<Vec<Value>, String> {
@@ -79,7 +75,7 @@ fn fixture() -> Vec<J> {
 }
 
 #[test]
-fn x509_parse_byte_for_byte() {
+fn x509_parse_matches_generated_certificate() {
     let cases = fixture();
     let case = cases
         .iter()
@@ -89,7 +85,10 @@ fn x509_parse_byte_for_byte() {
 
     // Bind the PEM into `$pem` and parse it through the engine, exactly as a
     // `x509_parse($pem)` query would resolve.
-    let escaped = PEM
+    let certificate = common::certificate();
+    let pem =
+        std::fs::read_to_string(&certificate.path).expect("generated certificate is readable");
+    let escaped = pem
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n");
@@ -97,7 +96,20 @@ fn x509_parse_byte_for_byte() {
     let values = run_disabled(&query).expect("x509_parse succeeds");
     assert_eq!(values.len(), 1, "x509_parse yields a single dict");
     let got = value_to_json(&values[0]);
-    assert_eq!(&got, golden, "x509_parse output diverged from the golden");
+    for (field, expected) in golden.as_object().expect("stable certificate metadata") {
+        assert_eq!(
+            &got[field], expected,
+            "x509_parse metadata differs: {field}"
+        );
+    }
+    assert!(
+        got["fingerprint_sha256"] == certificate.fingerprint,
+        "parsed fingerprint must match OpenSSL"
+    );
+    assert!(
+        got["public_key_pem"] == certificate.public_key,
+        "parsed public key must match OpenSSL"
+    );
 }
 
 #[test]

@@ -17,15 +17,28 @@ rust/tcl-sslictcl/data/
 
 The trust snapshot comes from Trust Stores Observatory, covering Apple,
 Android AOSP, Microsoft Windows, Mozilla NSS, OpenJDK, and Oracle Java. The
-browser coverage additionally pins the Chromium Chrome Root Store and parses
-its `root_store.certs` and `root_store.textproto` (including SCT constraints).
-`provenance.json` records the exact pinned revision of each. The raw PEM
-bundles are parsed during generation; available roots carry complete DER, SPKI
-digest, SKI, and validity metadata in `trust-seed.json`. Roots that
-the YAML lists but the pinned PEM archive does not contain remain visible as
-memberships and are listed, with a reason, in
-`generated/trust-material-exceptions.json`. They must not be treated as
-cryptographically complete chain inputs.
+browser coverage additionally pins Chromium's Chrome Root Store policy metadata
+from `root_store.textproto`, including SCT constraints. `provenance.json`
+records each exact revision. All certificate bodies, including public vendor
+roots, are omitted from the repository. Former PEM bundles, `root_store.certs`
+and the certificate archive contain explicit omission notices.
+
+`trust-seed.json` retains membership, fingerprints, subjects and purpose
+provenance. It has no DER, SPKI, SKI or certificate validity material. Every
+anchor is listed in `generated/trust-material-exceptions.json` with this
+reason. These records cannot complete a cryptographic chain. The runtime uses
+caller-supplied certificates from its certificate pool or `TrustStore` input
+for that purpose. Reports must preserve the missing-material boundary.
+
+The updater fetches membership and policy metadata only, and the generator
+never imports certificate bodies. The [local verification recipe](../../../rust/tcl-sslictcl/data/README.md)
+retrieves exact pinned public roots into a private temporary directory,
+compares their DER fingerprints with retained metadata, and runs OpenSSL
+verification. Authentic vendor roots must be obtained from their issuer;
+self-signing a new local certificate does not recreate them. Test certificates
+are generated locally using the [fixture recipe](../../../rust/tcl-bigip-query/tests/fixtures/certificate-generation.md),
+verified against the generated key and certificate, and removed afterwards.
+No certificates, private keys or resolved credentials are retained in evidence.
 
 The source snapshots publish root membership and retrieval dates, but do not
 publish a uniform EKU/purpose classification. Generated anchors therefore do

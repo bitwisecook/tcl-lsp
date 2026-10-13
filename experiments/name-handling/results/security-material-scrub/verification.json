@@ -1,0 +1,165 @@
+{
+  "scope": "Current retained tree; no Git history rewrite",
+  "scan_report": "scan-review.json",
+  "der_scan": {
+    "files": 84188,
+    "certificate_candidates": 0,
+    "private_key_candidates": 0,
+    "public_key_candidates": 6,
+    "scan_errors": 0,
+    "remaining_public_candidates": "Six overlapping ML-DSA DER format candidates in two OpenSSL library inputs; inferred serialization prefixes plus adjacent data, exact upstream constant provenance unestablished. No certificate/private-key objects."
+  },
+  "checks": [
+    {
+      "command": "cargo test -p tcl-sslictcl --lib",
+      "result": "pass",
+      "passed": 74,
+      "log": "/tmp/security-scrub-sslictcl-work.log"
+    },
+    {
+      "command": "cargo test -p tcl-bigip-query --no-default-features --features x509 --test x509_only",
+      "result": "pass",
+      "passed": 4,
+      "log": "/tmp/security-scrub-x509-work.log"
+    },
+    {
+      "command": "cargo test -p tcl-bigip-query --test integration probes::",
+      "result": "pass",
+      "passed": 5,
+      "log": "/tmp/security-scrub-probes-work.log"
+    },
+    {
+      "command": "cargo test -p xtask sslictcl_data::tests",
+      "result": "pass",
+      "passed": 4,
+      "log": "/tmp/security-scrub-source-data-work.log"
+    },
+    {
+      "command": "cargo test -p f5-cli ucs_cert_tests",
+      "result": "pass",
+      "passed": 4,
+      "log": "/tmp/security-scrub-ucs-cli-work.log"
+    },
+    {
+      "command": "cargo test -p bigip-report-gen-rust --test certs",
+      "result": "15 passed; 2 failed",
+      "passed": 15,
+      "failed": [
+        "constrained_pattern_filters_orphans_by_name",
+        "orphan_reachability_is_partition_aware"
+      ],
+      "changed_certificate_tests": "both passed",
+      "baseline_status": "These unchanged orphan-reachability assertions were not compared with a pre-scrub build; no global green result is claimed.",
+      "log": "/tmp/security-scrub-ucs-report-work.log"
+    },
+    {
+      "command": "standalone generate-certificate-ucs.py for chain and single templates",
+      "result": "pass",
+      "checks": [
+        "RSA key validation",
+        "certificate/key public-key correspondence",
+        "single certificate verification",
+        "chain signatures with time ignored",
+        "expected expired leaf rejection"
+      ],
+      "private_material_retained": false
+    },
+    {
+      "command": "generate-source-data.sh --check, full provenance file inventory and SHA-256 verification",
+      "result": "pass",
+      "files": 23,
+      "anchors": 629,
+      "anchors_with_certificate_material": 0
+    },
+    {
+      "command": "ruff check and format for the two scanner scripts, UCS generator and Python certificate tests",
+      "result": "pass"
+    },
+    {
+      "command": "PYTHONPATH=rust/bigip-report-gen/python/python python3 -m pytest rust/bigip-report-gen/python/tests/test_certs.py -q",
+      "result": "blocked at collection",
+      "reason": "compiled PyO3 f5report._engine module is absent"
+    },
+    {
+      "command": "cargo run -p xtask -- sslictcl-data check",
+      "result": "failed before check",
+      "reason": "ENOSPC at link; manual full offline generator/inventory/hash checks passed separately"
+    },
+    {
+      "command": "make rust-check; make prep-pr",
+      "result": "not run in full",
+      "reason": "required before PR; development push exception explicitly authorised on work; disk pressure and existing naming-proof digest obligations remain"
+    },
+    {
+      "command": "cargo clippy -p tcl-bigip-query -p tcl-sslictcl -p f5-cli -p bigip-report-gen-rust --tests --no-deps -- -D warnings",
+      "result": "failed on unchanged assert_is_empty assertions",
+      "log": "/tmp/security-scrub-clippy-work.log",
+      "new_lints_fixed": [
+        "trust material absence assertion",
+        "explicit iter loop in generated certificate integration test"
+      ],
+      "full_gate_green": false
+    },
+    {
+      "command": "final changed/untracked scan and descriptor/source-result comparison",
+      "result": "pass",
+      "files": 56,
+      "candidate_values_or_hashes_retained": false,
+      "details": [
+        "focused-scan.json",
+        "descriptor-verification.json"
+      ]
+    },
+    {
+      "command": "cargo test -p tcl-sslictcl --lib trust::tests",
+      "result": "pass",
+      "passed": 3,
+      "log": "/tmp/security-scrub-trust-final-work.log"
+    }
+  ],
+  "historical_execution_hashes_preserved": true,
+  "credential_values_or_candidate_hashes_in_report": false,
+  "pre_rebase_tree_basis": "db9950eb391e39b6b3f12231f13dcdbb8852f94a plus the scrub",
+  "post_rebase_incoming_basis": "05499cc75 plus the scrub",
+  "post_rebase_checks": [
+    {
+      "command": "cargo test -p tcl-bigip-query --no-default-features --features x509 --test x509_only",
+      "passed": 4,
+      "log": "/tmp/security-scrub-post-rebase-x509-work.log"
+    },
+    {
+      "command": "cargo test -p tcl-bigip-query --test integration probes::",
+      "passed": 5,
+      "log": "/tmp/security-scrub-post-rebase-probes-work.log"
+    },
+    {
+      "command": "cargo test -p tcl-sslictcl --lib trust::tests",
+      "passed": 3,
+      "log": "/tmp/security-scrub-post-rebase-trust-work.log"
+    },
+    {
+      "command": "incoming/scrub delta plain, encoded, archive, DER scan",
+      "files": 4191,
+      "scan_errors": 0,
+      "der_candidates": 0,
+      "report": "post-rebase-scan.json"
+    },
+    {
+      "command": "canonical comparison with incoming work",
+      "records": 2606,
+      "retention_scope_records_changed": 2,
+      "results_changed": 0,
+      "report": "descriptor-verification.json"
+    },
+    {
+      "command": "cargo test -p f5-cli --lib ucs_cert_tests",
+      "passed": 4,
+      "log": "/tmp/security-scrub-post-rebase-ucs-cli-work.log"
+    },
+    {
+      "command": "cargo test -p bigip-report-gen-rust --test certs ucs",
+      "passed": 2,
+      "log": "/tmp/security-scrub-post-rebase-ucs-report-work.log"
+    }
+  ]
+}

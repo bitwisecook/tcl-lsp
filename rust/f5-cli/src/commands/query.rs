@@ -1060,22 +1060,31 @@ pub fn help_renderers_text() -> String {
 }
 
 #[cfg(test)]
+#[path = "../../../tcl-bigip-query/tests/common/ucs.rs"]
+mod certificate_test_fixture;
+
+#[cfg(test)]
 mod ucs_cert_tests {
     use super::{make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
     use tcl_bigip_query::value::Value;
 
-    // The committed UCS holds a metadata-free `sys file ssl-cert` stanza plus
-    // the real PEM in the filestore; `ucs_cert` must recover the cert's identity
-    // from the PEM, not the stanza.
+    // Generate the filestore certificate locally; recover its identity from
+    // the certificate rather than the metadata-free configuration stanza.
     const CACHE_PATH: &str = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1";
-    const EXPECTED_FP: &str = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD";
+    fn fixture() -> (super::certificate_test_fixture::UcsFixture, String) {
+        super::certificate_test_fixture::ucs(
+            std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/ucs-cert-sample.ucs"
+            )),
+            false,
+        )
+    }
 
     #[test]
     fn reader_reads_and_parses_real_cert() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
+        let (archive, expected_fp) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
         let reader = make_ucs_cert_reader();
         let value = reader(&format!("file://{fixture}"), CACHE_PATH)
             .expect("reader reads + parses the cert");
@@ -1087,7 +1096,7 @@ mod ucs_cert_tests {
             _ => panic!("x509 dict has no fingerprint_sha256 string"),
         };
         assert_eq!(
-            fp, EXPECTED_FP,
+            fp, expected_fp,
             "ucs_cert must parse the real PEM from the filestore",
         );
     }
@@ -1098,10 +1107,8 @@ mod ucs_cert_tests {
     /// breaks the reachable path even though both unit tests above pass.
     #[test]
     fn ucs_cert_reaches_cert_through_the_dsl() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
+        let (archive, expected_fp) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
         let pass = crate::cli::PassphraseArgs::default().to_options();
         let (uri, src) =
             tcl_bigip_io::read_path(fixture, false, &pass).expect("UCS reads as an SCF");
@@ -1128,15 +1135,13 @@ mod ucs_cert_tests {
         let Value::Str(fp) = values[0] else {
             panic!("fingerprint_sha256 must be a string, got {:?}", values[0]);
         };
-        assert_eq!(fp, EXPECTED_FP);
+        assert_eq!(fp, &expected_fp);
     }
 
     #[test]
     fn reader_errors_on_missing_member() {
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ucs-cert-sample.ucs"
-        );
+        let (archive, _) = fixture();
+        let fixture = archive.path.to_str().expect("temporary UCS path");
         let reader = make_ucs_cert_reader();
         let err = reader(&format!("file://{fixture}"), "/config/filestore/nope_1").unwrap_err();
         assert!(format!("{err}").contains("ucs_cert"), "got: {err}");

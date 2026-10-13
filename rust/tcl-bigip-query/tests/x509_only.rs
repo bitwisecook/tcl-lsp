@@ -18,6 +18,8 @@
 
 //! Contract tests for the report's socket-free x509 feature graph.
 
+mod common;
+
 use tcl_bigip_query::Value;
 use tcl_bigip_query::builtins::lookup;
 use tcl_bigip_query::eval::{EvalContext, Root, evaluate};
@@ -64,13 +66,10 @@ fn pure_x509_builtins_are_registered_without_network_probes() {
 
 #[test]
 fn cert_load_dispatches_to_the_real_x509_implementation() {
-    let fixture = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/x509_example.pem"
-    );
+    let fixture = common::certificate();
     let query = format!(
         "cert_load({})",
-        serde_json::to_string(fixture).expect("fixture path is JSON-encodable")
+        serde_json::to_string(&fixture.path).expect("fixture path is JSON-encodable")
     );
     let values = evaluate_query(&query).expect("valid PEM must load with x509 only");
     let Some(Value::Object(certificate)) = values.first() else {
@@ -81,11 +80,18 @@ fn cert_load_dispatches_to_the_real_x509_implementation() {
     };
     assert_eq!(subject, "CN=example.test,O=Example Corp,C=US");
     let Some(Value::Str(fingerprint)) = certificate.get("fingerprint_sha256") else {
-        panic!("cert_load fingerprint is missing or not a string: {certificate:?}");
+        panic!("cert_load fingerprint is missing or not a string");
     };
-    assert_eq!(
-        fingerprint,
-        "051B08743FE24044500609876DC3F008773FD0B91EDADD94A63DB5482D1FD8FE"
+    assert!(
+        fingerprint == &fixture.fingerprint,
+        "parsed fingerprint must match OpenSSL"
+    );
+    let Some(Value::Str(public_key)) = certificate.get("public_key_pem") else {
+        panic!("cert_load public key is missing or not a string");
+    };
+    assert!(
+        public_key == &fixture.public_key,
+        "parsed public key must match OpenSSL"
     );
 }
 

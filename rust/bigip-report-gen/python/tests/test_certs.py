@@ -25,6 +25,10 @@ The lab UCS fixtures terminate no TLS, so an inline config with a
 from __future__ import annotations
 
 import os
+import subprocess
+from pathlib import Path
+
+import pytest
 
 from f5report import QueryError, load_paths
 from f5report.report import build_report, collect_model
@@ -149,9 +153,23 @@ def test_wrong_master_key_raises():
 _FIXTURE = os.path.join(os.path.dirname(__file__), "data", "certs-chain.ucs")
 
 
-def test_cert_fields_parsed_from_ucs_filestore():
+@pytest.fixture
+def certificate_ucs(tmp_path):
+    generator = (
+        Path(__file__).resolve().parents[4] / "scripts/dev/generate-certificate-ucs.py"
+    )
+    archive = tmp_path / "certificates.ucs"
+    subprocess.run(
+        ["python3", str(generator), _FIXTURE, str(archive), "--chain"],
+        check=True,
+        capture_output=True,
+    )
+    return str(archive)
+
+
+def test_cert_fields_parsed_from_ucs_filestore(certificate_ucs):
     """A metadata-free stanza is filled from the real PEM in the filestore."""
-    sources = load_paths([_FIXTURE])
+    sources = load_paths([certificate_ucs])
     d = collect_model(sources, title="Chain")["devices"][0]
     leaf = next(c for c in d["certificates"] if c["name"] == "www.acme.example.crt")
     # None of this is in the config stanza — it came from the cert file.
@@ -161,14 +179,14 @@ def test_cert_fields_parsed_from_ucs_filestore():
     assert leaf["notBefore"]  # the issue date is only recoverable from the file
     assert leaf["expirationDate"].isdigit()  # epoch → live countdown works
     assert "api.acme.example" in leaf["subjectAlternativeName"]
-    assert "10.0.0.5" in leaf["subjectAlternativeName"]
+    assert "192.0.2.5" in leaf["subjectAlternativeName"]
     assert leaf["sigAlg"]
     assert leaf["keyType"] == "rsa"
     assert leaf["usedByVirtuals"] == ["acme_https_vs"]
 
 
-def test_cert_chain_walks_to_self_signed_root():
-    sources = load_paths([_FIXTURE])
+def test_cert_chain_walks_to_self_signed_root(certificate_ucs):
+    sources = load_paths([certificate_ucs])
     d = collect_model(sources, title="Chain")["devices"][0]
     leaf = next(c for c in d["certificates"] if c["name"] == "www.acme.example.crt")
     roles = [link["role"] for link in leaf["chain"]]
@@ -177,8 +195,8 @@ def test_cert_chain_walks_to_self_signed_root():
     assert "Root CA" in leaf["chain"][-1]["cn"]
 
 
-def test_report_html_shows_issue_date_and_chain():
-    sources = load_paths([_FIXTURE])
+def test_report_html_shows_issue_date_and_chain(certificate_ucs):
+    sources = load_paths([certificate_ucs])
     html = build_report(sources, title="Chain")
     assert "parsed from cert file" in html
     assert "chain-list" in html

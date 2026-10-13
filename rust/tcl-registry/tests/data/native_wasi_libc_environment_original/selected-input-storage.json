@@ -1,5 +1,5 @@
 {
-  "scope": "Complete selected original SDK/tool/header/library input bytes only. No unrecorded compiler/runner dynamic dependency, full SDK sysroot, Cargo Runtime libc or Tcl ABI is certified.",
+  "scope": "Selected original SDK/tool/header/library identities, with retained bytes where explicitly present. The Wasmtime executable is replaced by a redaction notice. No unrecorded dependency, full SDK sysroot, Cargo Runtime libc or Tcl ABI is certified.",
   "inputs": [
     {
       "original_path": "/workspace/.tools/wasi-sdk-34.0/VERSION",
@@ -216,10 +216,11 @@
       "original_bytes": 71537472,
       "original_sha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635",
       "retained_path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasmtime-49.0.2/wasmtime.gz",
-      "retained_bytes": 16128857,
-      "retained_sha256": "b4542bbc89b7cdeb5ec2561424c9c74f38126eb9719355153a218e20c3aa9c9a",
+      "retained_bytes": 227,
+      "retained_sha256": "17e1908875b27586e59632bc4e5fe54a33242930ecd2ff0f7be069ff0dfe95b4",
       "compression": "gzip",
-      "original_mode": 448
+      "original_mode": 448,
+      "redaction_note": "Stored executable and embedded public trust-anchor keys replaced by a notice; original executable identity is historical only. See selected-inputs/wasmtime-49.0.2/REDACTION.md."
     }
   ]
 }

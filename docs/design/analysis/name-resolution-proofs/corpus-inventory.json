@@ -182311,8 +182311,8 @@
     },
     {
       "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-input-storage.json",
-      "sha256": "812a4b7c9f35a71716864e25d6df99a7399efc5ca1055f49969e752e493e4ab7",
-      "bytes": 13569,
+      "sha256": "50774059f0153cb80dd247019b93b9c6d5a58a5134c990f760e0820b93c8ca3b",
+      "bytes": 13834,
       "candidate": true,
       "classification": "input-fixture",
       "proof_ids": [
@@ -182436,8 +182436,8 @@
     },
     {
       "path": "rust/tcl-registry/tests/data/native_wasi_libc_environment_original/selected-inputs/wasmtime-49.0.2/wasmtime.gz",
-      "sha256": "b4542bbc89b7cdeb5ec2561424c9c74f38126eb9719355153a218e20c3aa9c9a",
-      "bytes": 16128857,
+      "sha256": "17e1908875b27586e59632bc4e5fe54a33242930ecd2ff0f7be069ff0dfe95b4",
+      "bytes": 227,
       "candidate": false
     },
     {

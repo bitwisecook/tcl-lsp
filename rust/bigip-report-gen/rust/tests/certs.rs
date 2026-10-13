@@ -566,6 +566,9 @@ fn irule_flowchart_is_graph_json() {
 
 // --- real certificate parsed out of a UCS filestore (parity with Python) -----
 
+#[path = "../../../tcl-bigip-query/tests/common/ucs.rs"]
+mod certificate_test_fixture;
+
 const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/data");
 
 /// Load the chain fixture as a `(source, cert_pems)` pair the way the wasm /
@@ -576,7 +579,15 @@ fn chain_fixture() -> (Source, std::collections::HashMap<String, String>) {
     use tcl_bigip::parser::driver::parse_bigip_conf;
     use tcl_bigip_io::{read_ucs_member, ucs_to_scf};
 
-    let path = format!("{DATA}/certs-chain.ucs");
+    let (fixture, _) = certificate_test_fixture::ucs(
+        std::path::Path::new(&format!("{DATA}/certs-chain.ucs")),
+        true,
+    );
+    let path = fixture
+        .path
+        .to_str()
+        .expect("temporary UCS path")
+        .to_owned();
     let raw = std::fs::read(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
     let scf = ucs_to_scf(&raw, false).expect("extract");
     let mut pems = std::collections::HashMap::new();
@@ -635,7 +646,7 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
             .is_ok()
     );
     let san = leaf["subjectAlternativeName"].as_str().unwrap();
-    assert!(san.contains("api.acme.example") && san.contains("10.0.0.5"));
+    assert!(san.contains("api.acme.example") && san.contains("192.0.2.5"));
     assert!(!leaf["sigAlg"].as_str().unwrap().is_empty());
 
     let chain = leaf["chain"].as_array().unwrap();
@@ -644,7 +655,7 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     assert_eq!(chain.last().unwrap()["selfSigned"], J::Bool(true));
     assert_eq!(
         leaf["chainStatus"], "invalid",
-        "the supplied signatures form a complete path, but the fixture leaf expired on 2026-08-13"
+        "the supplied signatures form a complete path, but the generated fixture leaf expired on 2020-01-02"
     );
     assert!(leaf["chainFindings"].as_array().is_some_and(|findings| {
         findings
@@ -656,11 +667,7 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
             findings.iter().any(|finding| finding["kind"] == "expired")
         })
     );
-    assert!(
-        m["devices"][0]["tls"]["trustDerCoverage"]["complete"]
-            .as_u64()
-            .is_some_and(|complete| complete > 100)
-    );
+    assert_eq!(m["devices"][0]["tls"]["trustDerCoverage"]["complete"], 0);
 }
 
 // Two devices whose filestores use the SAME `cache-path` for DIFFERENT certs

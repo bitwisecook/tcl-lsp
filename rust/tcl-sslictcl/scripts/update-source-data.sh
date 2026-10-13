@@ -12,7 +12,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 RAW="$ROOT/rust/tcl-sslictcl/data/raw"
 STORE_DIR="$RAW/trust_stores"
-PEM_DIR="$RAW/pem"
 OBSERVATORY="https://github.com/nabla-c0d3/trust_stores_observatory.git"
 OBSERVATORY_RAW="https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory"
 REVISION="${SSLICTCL_OBSERVATORY_REVISION:-}"
@@ -52,10 +51,10 @@ if [[ ! "$REVISION" =~ ^[0-9a-f]{40}$ ]]; then
     exit 1
 fi
 
-mkdir -p "$STORE_DIR" "$PEM_DIR"
+mkdir -p "$STORE_DIR"
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/sslictcl-update.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
-mkdir -p "$STAGE/trust_stores" "$STAGE/pem" "$STAGE/chrome_root_store" "$STAGE/licenses"
+mkdir -p "$STAGE/trust_stores" "$STAGE/chrome_root_store" "$STAGE/licenses"
 declare -a STORE_NAMES=(apple google_aosp microsoft_windows mozilla_nss openjdk oracle_java)
 for name in "${STORE_NAMES[@]}"; do
     url="$OBSERVATORY_RAW/$REVISION/trust_stores/$name.yaml"
@@ -67,15 +66,6 @@ printf '%s\n' "$REVISION" > "$STAGE/observatory-revision.txt"
 curl --fail --location --retry 3 --silent --show-error \
     "$OBSERVATORY_RAW/$REVISION/LICENSE" -o "$STAGE/licenses/trust-stores-observatory-LICENSE"
 
-# Keep the upstream PEM bundles as auditable raw inputs too.  The generated
-# report data uses fingerprints and subjects, while these bundles permit later
-# chain/certificate tooling to reproduce the exact source snapshot offline.
-ARCHIVE="$STAGE/trust_stores_as_pem.tar.gz"
-curl --fail --location --retry 3 --silent --show-error \
-    "$OBSERVATORY_RAW/$REVISION/docs/trust_stores_as_pem.tar.gz" -o "$ARCHIVE"
-tar -xzf "$ARCHIVE" -C "$STAGE/pem" \
-    apple.pem google_aosp.pem microsoft_windows.pem mozilla_nss.pem openjdk.pem oracle_java.pem
-
 if [[ -z "$CHROMIUM_REVISION" ]]; then
     CHROMIUM_REVISION="$(git ls-remote "$CHROMIUM" refs/heads/main | awk 'NR == 1 {print $1}')"
 fi
@@ -86,31 +76,19 @@ fi
 CHROME_DIR="$STAGE/chrome_root_store"
 echo "fetching Chromium Chrome Root Store at $CHROMIUM_REVISION"
 curl --fail --location --retry 3 --silent --show-error \
-    "$CHROMIUM_RAW/$CHROMIUM_REVISION/net/data/ssl/chrome_root_store/root_store.certs?format=TEXT" \
-    | decode_base64 > "$CHROME_DIR/root_store.certs"
-curl --fail --location --retry 3 --silent --show-error \
     "$CHROMIUM_RAW/$CHROMIUM_REVISION/net/data/ssl/chrome_root_store/root_store.textproto?format=TEXT" \
     | decode_base64 > "$CHROME_DIR/root_store.textproto"
 printf '%s\n' "$CHROMIUM_REVISION" > "$CHROME_DIR/revision.txt"
-cp "$CHROME_DIR/root_store.certs" "$STAGE/pem/chrome.pem"
 
 curl --fail --location --retry 3 --silent --show-error \
     "$CHROMIUM_RAW/$CHROMIUM_REVISION/LICENSE?format=TEXT" \
     | decode_base64 > "$STAGE/licenses/chromium-LICENSE"
 
-# Validate every staged certificate before replacing the committed snapshot.
-for pem in "$STAGE"/pem/*.pem "$CHROME_DIR/root_store.certs"; do
-    grep -q -- '-----BEGIN CERTIFICATE-----' "$pem" || { echo "no certificates in $pem" >&2; exit 1; }
-done
-
 # All network and structural checks succeeded. Install the complete snapshot
 # only now, so an interrupted fetch cannot leave mixed upstream revisions.
 mkdir -p "$RAW/licenses" "$RAW/chrome_root_store"
 for name in "${STORE_NAMES[@]}"; do install -m 0644 "$STAGE/trust_stores/$name.yaml" "$STORE_DIR/$name.yaml"; done
-for pem in "$STAGE"/pem/*.pem; do install -m 0644 "$pem" "$PEM_DIR/$(basename "$pem")"; done
-install -m 0644 "$ARCHIVE" "$RAW/trust_stores_as_pem.tar.gz"
 install -m 0644 "$STAGE/observatory-revision.txt" "$RAW/observatory-revision.txt"
-install -m 0644 "$CHROME_DIR/root_store.certs" "$RAW/chrome_root_store/root_store.certs"
 install -m 0644 "$CHROME_DIR/root_store.textproto" "$RAW/chrome_root_store/root_store.textproto"
 install -m 0644 "$CHROME_DIR/revision.txt" "$RAW/chrome_root_store/revision.txt"
 install -m 0644 "$STAGE/licenses/trust-stores-observatory-LICENSE" "$RAW/licenses/trust-stores-observatory-LICENSE"
@@ -151,10 +129,9 @@ jq -n \
         {id: "trust-stores-observatory/mozilla-nss", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/trust_stores/mozilla_nss.yaml", revision: $revision, retrieved_at: $retrieved_at, license: "MIT"},
         {id: "trust-stores-observatory/openjdk", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/trust_stores/openjdk.yaml", revision: $revision, retrieved_at: $retrieved_at, license: "MIT"},
         {id: "trust-stores-observatory/oracle-java", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/trust_stores/oracle_java.yaml", revision: $revision, retrieved_at: $retrieved_at, license: "MIT"},
-        {id: "trust-stores-observatory/pem-bundle", url: "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/\($revision)/docs/trust_stores_as_pem.tar.gz", revision: $revision, retrieved_at: $retrieved_at, license: "MIT"},
-        {id: "chromium/chrome-root-store-certs", url: "https://chromium.googlesource.com/chromium/src/+/\($chromium_revision)/net/data/ssl/chrome_root_store/root_store.certs", revision: $chromium_revision, retrieved_at: $retrieved_at, license: "BSD-3-Clause"},
         {id: "chromium/chrome-root-store-textproto", url: "https://chromium.googlesource.com/chromium/src/+/\($chromium_revision)/net/data/ssl/chrome_root_store/root_store.textproto", revision: $chromium_revision, retrieved_at: $retrieved_at, license: "BSD-3-Clause"}
       ],
+      certificate_material: "omitted; local reproduction and verification in data/README.md",
       files: $files[0]
     }
     ' > "$PROVENANCE"

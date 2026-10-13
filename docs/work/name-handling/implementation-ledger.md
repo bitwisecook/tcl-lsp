@@ -26,3 +26,17 @@ The [detached-element question](../../../experiments/name-handling/results/runti
 Current narrow refinements: whole-expression source guard uses existing EXPR_CONCATENATES_ARGS and exact tail cardinality; all five changed-purpose controls pass after a fresh selected build. Measured var1.17 Write/NameLookup/DeletedArray on a genuine element alias has a two-line late-store-site repair plus three retained-oracle controls now pass on actual Runtime entry. Codegen original-argv proposal/lifecycle/strict ABI controls are fully documented and unapplied.
 
 Immediate current priority: the unchanged real C86 init/tcltest/all.tcl orchestration04 reaches 67 test starts through var-13.2, then aborts signal6 with realloc(): invalid pointer. Final suite counts and return marker are absent. Isolate original var13.2 array search/element unset using real harness selection and investigate actual storage/lifetime ownership before applying the larger WASM ABI repair. Prior scoped passes and three dynamic/ordinary metadata failures remain unchanged. Latest pushed checkpoint53b205593; crash receipt packaging pending.
+
+## Current security scrub obligation
+
+Root owns certificate/credential scrubbing and adjacent evidence on `work`.
+See [scrub evidence](../../../experiments/name-handling/results/security-material-scrub/README.md)
+for exact scans, redaction paths, generation procedures, validation and limits.
+All vendor certificate bodies were explicitly requested to be removed.
+Keep metadata-only trust behaviour and temporary generated query/UCS fixtures.
+The retained Wasmtime executable is a redaction notice, so original replay
+requires independently obtained and verified tool bytes. Preserve historical
+executed-input identities separately from current retained artifact hashes.
+Complete focused fixture checks, current scan review, descriptor verification
+and a reviewed development push. Full Rust/PR gates and existing naming-proof
+implementation-digest repairs are still required before PR approval.

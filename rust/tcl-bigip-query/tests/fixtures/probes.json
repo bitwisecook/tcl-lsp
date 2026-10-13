@@ -2,25 +2,21 @@
   {
     "name": "x509_parse_rsa",
     "kind": "x509_parse",
-    "pem_fixture": "x509_example.pem",
+    "pem_fixture": "generated locally; see certificate-generation.md",
     "output": {
       "subject": "CN=example.test,O=Example Corp,C=US",
       "issuer": "CN=example.test,O=Example Corp,C=US",
-      "not_before": "2026-06-15T18:28:56+00:00",
-      "not_after": "2036-06-12T18:28:56+00:00",
-      "serial": "2EEBD6256C81BFEF9C2B015A434A3C8540C0E15E",
-      "fingerprint_sha256": "051B08743FE24044500609876DC3F008773FD0B91EDADD94A63DB5482D1FD8FE",
       "sans": [
         "example.test",
         "www.example.test",
-        "10.0.0.1"
+        "192.0.2.10"
       ],
       "key_alg": "RSAPublicKey",
       "key_size": 2048,
       "sig_alg": "sha256WithRSAEncryption",
-      "version": "v3",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuiBEfDi4FQ06DP209zan\nuwtR8JhtrP+b2J2qaxgc4xAroW5TDKIH4ZIJ64Qnxau404NMsJ5ErNeA5E7FaT9i\nHah4jH2Kfx1gSwwUZRp/7L/jhv7lJdcB1FS7mumgg18+uq/bzCXZnEmvzx/vo+6i\npLPLoeVp6BOfiI22RaG0tXSkfvsLwxRvOraPX21x/BaJpO1gZZ0TeSGSHoYyV8bi\ncZbk8/WnLNSlx38UaVewmMU7VGToKtom3Lsx9k5isRWYEgKwSeCsXThNaBamqbyV\nUOLYzu11wx1Kcu/JL1CpxL5tjfRjPyzOSEe9eEi1+5t9my4DWDVsZw83hHUARs+H\npQIDAQAB\n-----END PUBLIC KEY-----\n"
-    }
+      "version": "v3"
+    },
+    "redaction_note": "Stored certificate and public-key material removed; dynamic fields are verified against the locally generated certificate using OpenSSL."
   },
   {
     "name": "gating_ping",

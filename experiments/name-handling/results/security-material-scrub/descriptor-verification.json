@@ -1,0 +1,24 @@
+{
+  "proof_count": 2606,
+  "changed_records": [
+    {
+      "id": "naming.numeric.rust-wasi-libc-environment",
+      "changed_fields": [
+        "evidence",
+        "scope"
+      ]
+    },
+    {
+      "id": "naming.numeric.wasi-libc-environment",
+      "changed_fields": [
+        "evidence",
+        "scope"
+      ]
+    }
+  ],
+  "unchanged_records": 2604,
+  "observed_results_altered": false,
+  "retained_descriptor_hashes_verified": 3,
+  "historical_original_tool_hashes_preserved": true,
+  "comparison_base": "05499cc75"
+}

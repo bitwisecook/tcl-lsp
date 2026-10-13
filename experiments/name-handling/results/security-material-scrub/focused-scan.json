@@ -1,0 +1,147 @@
+{
+  "files": 56,
+  "errors": [],
+  "category_counts": {
+    "credential-assignment": 16,
+    "certificate": 1
+  },
+  "locations": [
+    {
+      "path": "README-f5.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 64,
+      "offset": 3165,
+      "length": 4
+    },
+    {
+      "path": "docs/kcs/README.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 332,
+      "offset": 22357,
+      "length": 3
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 36,
+      "offset": 2334,
+      "length": 10
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2388,
+      "length": 7
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2431,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 40,
+      "offset": 2657,
+      "length": 6
+    },
+    {
+      "path": "experiments/name-handling/results/security-material-scrub/material-generation.md",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 62,
+      "offset": 3873,
+      "length": 7
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/test_certs.py",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 98,
+      "offset": 3316,
+      "length": 24
+    },
+    {
+      "path": "rust/bigip-report-gen/python/tests/test_certs.py",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 109,
+      "offset": 3692,
+      "length": 10
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 112,
+      "offset": 3796,
+      "length": 9
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 126,
+      "offset": 4331,
+      "length": 10
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 150,
+      "offset": 5043,
+      "length": 5
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 162,
+      "offset": 5416,
+      "length": 8
+    },
+    {
+      "path": "rust/bigip-report-gen/rust/tests/certs.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 189,
+      "offset": 6133,
+      "length": 6
+    },
+    {
+      "path": "rust/f5-cli/src/commands/query.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 872,
+      "offset": 33674,
+      "length": 10
+    },
+    {
+      "path": "rust/f5-cli/src/commands/query.rs",
+      "encoding": "plain",
+      "category": "credential-assignment",
+      "line": 876,
+      "offset": 33904,
+      "length": 11
+    },
+    {
+      "path": "rust/tcl-sslictcl/data/README.md",
+      "encoding": "plain",
+      "category": "certificate",
+      "line": 29,
+      "offset": 2072,
+      "length": 27
+    }
+  ],
+  "scope": "All changed and nonignored untracked files after final edits; remaining candidates are recipe identifiers and PEM marker syntax. No candidate values or credential hashes retained."
+}

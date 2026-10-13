@@ -1945,3 +1945,14 @@ have separate query contracts.
 
 See also: [Resolved semantic queries](design/contracts/resolved-semantic-queries.md)
 and [Implementer guide](design/compiler/name-resolution-implementer-guide.md).
+
+## TLS configuration
+
+### Trust anchor
+
+A certificate authority accepted as the starting point for a certificate
+chain's trust decision. Its membership in a browser or operating-system trust
+store is separate from the certificate bytes needed to verify a chain.
+SslicTcl embeds membership metadata; callers supply certificate material.
+See the [source-data contract](design/contracts/sslictcl-source-data.md) and
+[local verification procedure](../rust/tcl-sslictcl/data/README.md).

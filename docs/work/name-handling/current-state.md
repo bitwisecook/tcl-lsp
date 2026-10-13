@@ -60,3 +60,34 @@ Expression repair validation builds and passes4/fails1: original braced positive
 The narrow detached-write-site repair is applied in two Runtime owners with seven oracle-derived fixture/provenance files. Its fresh selected Runtime build and three exact oracle-based controls pass; the previous dynamic/ordinary metadata failures remain open. It maps only actual indexed creates/Write + typed DeletedArray to existing ValueWrite, preserving namespace and ordinary paths. Expression source repair and whole-input guard now pass all five exact controls; their sealed receipt remains scoped, with no all-consumer promotion.
 
 Immediate current priority: the unchanged real C86 init/tcltest/all.tcl orchestration04 reaches 67 test starts through var-13.2, then aborts signal6 with realloc(): invalid pointer. Final suite counts and return marker are absent. Isolate original var13.2 array search/element unset using real harness selection and investigate actual storage/lifetime ownership before applying the larger WASM ABI repair. Prior scoped passes and three dynamic/ordinary metadata failures remain unchanged. Latest pushed checkpoint53b205593; crash receipt packaging pending.
+
+## Security material removal
+
+The current [scrub evidence](../../../experiments/name-handling/results/security-material-scrub/README.md)
+records the repository-wide plain, encoded, compressed and binary scan,
+redaction locations, generation recipes and measured validation. The user
+explicitly requested removal of public vendor certificates too. Vendor trust
+membership remains metadata only; callers supply local certificate material.
+Temporary query/UCS test certificates are generated and verified with OpenSSL.
+The stored Wasmtime executable with embedded public trust-anchor keys is now
+a redaction notice; its historical identity does not supply executable replay.
+Full Rust/PR gates and the existing implementation-digest repairs remain
+required before a PR. Development pushes on `work` are explicitly authorised
+while those gates remain outstanding.
+
+Current scrub checks: trust 3/3, socket-free query certificate 4/4,
+probe integration 5/5, CLI UCS reader 4/4, source-data unit checks 4/4;
+the earlier SslicTcl library run passed 74/74. Standalone UCS generation,
+OpenSSL verification and the full offline provenance inventory pass.
+Report certificate tests pass; the complete file is 15/17, with two unchanged
+orphan-reachability failures and no measured pre-scrub baseline. Clippy is
+blocked by unchanged `assert_is_empty` assertions; full Rust/PR gates are not
+green. Python report collection is blocked by the absent PyO3 `_engine`.
+See the verification JSON for exact commands and log paths.
+
+The security scrub is integrated on incoming `05499cc75`. Post-rebase scans
+cover all4,191 changed files with zero expansion errors/DER objects; source-data
+23hashes verify. All18 focused checks pass: query4+5, trust3, CLI UCS4 and report
+UCS2. Only two canonical retention records change from the incoming base;
+original F5 observations and all other incoming work are preserved. See the
+scrub verification for source scope, exact receipts and remaining full gates.

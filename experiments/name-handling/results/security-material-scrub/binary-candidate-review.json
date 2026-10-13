@@ -1,0 +1,45 @@
+{
+  "objects": [
+    {
+      "path": "runtime/rust/tests/data/native_original_list_group_cli656/new-input-bytes.tar.gz!gzip!sha256/8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+      "category": "overlapping DER public-key candidates in OpenSSL library",
+      "offsets": [
+        5311296,
+        5311328,
+        5311360
+      ],
+      "candidate_lengths": [
+        2614,
+        1974,
+        1334
+      ],
+      "offset_stride_bytes": [
+        32,
+        32
+      ],
+      "ranges_overlap": true,
+      "interpretation": "These appear to be serialization prefixes plus adjacent library data, rather than independently stored keys. Exact upstream constant provenance was not established. No certificate or private key is present."
+    },
+    {
+      "path": "rust/tcl-registry/tests/data/native_capi_scalar_publication_original/original-inputs/usr--lib--x86_64-linux-gnu--libcrypto.so.3",
+      "category": "overlapping DER public-key candidates in OpenSSL library",
+      "offsets": [
+        5311296,
+        5311328,
+        5311360
+      ],
+      "candidate_lengths": [
+        2614,
+        1974,
+        1334
+      ],
+      "offset_stride_bytes": [
+        32,
+        32
+      ],
+      "ranges_overlap": true,
+      "interpretation": "These appear to be serialization prefixes plus adjacent library data, rather than independently stored keys. Exact upstream constant provenance was not established. No certificate or private key is present."
+    }
+  ],
+  "candidate_values_or_hashes_retained": false
+}
