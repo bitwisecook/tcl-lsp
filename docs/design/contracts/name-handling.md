@@ -109,6 +109,25 @@ labels without applying a second rooted lookup; extra root markers are not a
 request to canonicalise written Tcl syntax. Selected registration and operand
 layout remain independent of this metadata result.
 
+Registry binding rosters preserve exact descriptor bytes when adding an optional
+root marker. Namespace normalisation cannot fold descriptor separator runs or
+discard an empty final command component. Jim stock registration metadata uses
+the same exact descriptor projection against its measured roster; this supplies
+no written lookup or live registration authority.
+
+Original procedure-read flow validates the declaration header, complete current
+input, original body/formal correspondence and unanimous source alternatives.
+Its immutable source graph uses registry roles and successor-layout barriers;
+whole read spans must round-trip through the original correspondence map.
+The source graph supplies conditional diagnostics. Executable body entry,
+physical variable absence, publication and editing retain separate owners.
+
+Conditional member-body catalogue advice retains its actual definition-body
+issuer, source/configuration and applicability. Its absolute command-prefix
+projection can expose source metadata for an alias without representing an
+executed transition or native frame. Core, DB and server consume the same source
+channel and retain its explicit obligation.
+
 Variable lookup needs the frame kind, selected release, lookup operation,
 namespace, array syntax and alias links. `n::x` is qualified even without a
 leading `::`; an unqualified variable in a proc is ordinarily frame-local.

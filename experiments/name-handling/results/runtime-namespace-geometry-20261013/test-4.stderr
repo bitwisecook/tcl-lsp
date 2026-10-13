@@ -1,0 +1,6 @@
+tcl8.4: guest PATCHLEVEL 8.4.20; oracle PATCHLEVEL 8.4.20
+tcl8.5: guest PATCHLEVEL 8.5.19; oracle PATCHLEVEL 8.5.19
+tcl8.6: guest PATCHLEVEL 8.6.18; oracle PATCHLEVEL 8.6.18
+tcl9.0: guest PATCHLEVEL 9.0.4; oracle PATCHLEVEL 9.0.4
+tcl9.1: guest PATCHLEVEL 9.1.0; oracle PATCHLEVEL 9.1.0
+jim: guest PATCHLEVEL 0.84; oracle PATCHLEVEL 0.84-9-g5bac7c9

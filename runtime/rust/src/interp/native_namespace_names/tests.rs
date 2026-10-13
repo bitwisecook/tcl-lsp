@@ -503,3 +503,139 @@ fn namespace_delete_validates_every_original_before_retirement_and_relooks_after
         }
     }
 }
+
+fn compare_empty_namespace_address_rows(environment: &str, observation: &str) {
+    let rows = tcl_syntax::list::split_list(observation).unwrap();
+    assert_eq!(rows.len(), 90);
+    let mut active_identity = String::new();
+    let mut interpreter = None;
+    let mut compared = 0;
+    let mut outside_ascii_scope = Vec::new();
+    for row in rows.chunks_exact(5) {
+        let id = tcl_syntax::list::split_list(&row[0]).unwrap();
+        let identity = tcl_syntax::list::split_list(&id[0]).unwrap();
+        if identity[1] == "nul-suffix" {
+            outside_ascii_scope.push(row[0].to_string());
+            continue;
+        }
+        if active_identity != id[0] {
+            let mut actual = Interp::with_native_core(
+                std::rc::Rc::new(tcl_host_native::NativeHost::new()),
+                crate::environment::profile_for_dialect(environment),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let target = actual.ensure_namespace(identity[0].as_bytes());
+            push_namespace(&mut actual, target);
+            interpreter = Some(actual);
+            active_identity = id[0].to_string();
+        }
+        let interp = interpreter.as_mut().unwrap();
+        let name: &[u8] = match identity[1].as_ref() {
+            "empty" => b"",
+            "absolute-root" => b"::",
+            other => panic!("unrecognised oracle variant {other}"),
+        };
+        let member = if id[1] == "eval" {
+            b"eval".as_slice()
+        } else {
+            assert!(matches!(id[1].as_ref(), "exists-before" | "exists-after"));
+            b"exists".as_slice()
+        };
+        let mut owners = vec![
+            obj::Owned::fresh(obj::new_string_bytes(b"namespace")),
+            obj::Owned::fresh(obj::new_string_bytes(member)),
+            obj::Owned::fresh(obj::new_string_bytes(name)),
+        ];
+        if member == b"eval" {
+            owners.push(obj::Owned::fresh(obj::new_string_bytes(
+                b"namespace current",
+            )));
+        }
+        let arguments: Vec<_> = owners.iter().map(obj::Owned::as_ptr).collect();
+        let code = interp.dispatch(&arguments);
+        let completion = crate::completion::capture_bytes(interp, code).unwrap();
+        assert_eq!(
+            completion.code.as_int().to_string(),
+            row[1],
+            "{environment}: {}",
+            row[0]
+        );
+        assert_eq!(
+            completion.result,
+            row[2].as_bytes(),
+            "{environment}: {}",
+            row[0]
+        );
+        if code != Code::Ok {
+            let options =
+                tcl_syntax::list::split_list(std::str::from_utf8(&completion.options).unwrap())
+                    .unwrap();
+            let error_code = options
+                .chunks_exact(2)
+                .find(|pair| pair[0] == "-errorcode")
+                .unwrap();
+            assert_eq!(error_code[1], row[3], "{environment}: {}", row[0]);
+        }
+        assert!(interp.native_access_refusal().is_none());
+        compared += 1;
+    }
+    assert_eq!(compared, 12);
+    assert_eq!(outside_ascii_scope.len(), 6);
+    eprintln!("{environment}: 12 original ASCII namespace getter/creation rows; six Unicode-NUL STRING rows outside this direct ASCII receiver scope: {outside_ascii_scope:?}; errorInfo formatting untested");
+}
+
+#[test]
+fn original_empty_namespace_address_controls_match_five_c_oracles() {
+    for (environment, observation) in [
+        ("tcl8.4", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin")),
+        ("tcl8.5", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin")),
+        ("tcl8.6", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin")),
+        ("tcl9.0", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin")),
+        ("tcl9.1", include_str!("../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin")),
+    ] {
+        compare_empty_namespace_address_rows(environment, observation);
+    }
+}
+
+#[test]
+fn logical_namespace_creation_keeps_its_explicit_simulation_and_internal_owner() {
+    use tcl_syntax::naming::{NamePolicyAuthority, NamePolicyProtocol};
+    let mut interp = Interp::new();
+    interp.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+    assert!(interp.name_policy_protocol().is_none());
+    let internal = interp.ensure_namespace(b"::logical_internal");
+    assert_eq!(
+        interp
+            .namespaces()
+            .find_namespace(GLOBAL, b"::logical_internal"),
+        Some(internal)
+    );
+    assert!(interp.name_policy_protocol().is_none());
+    assert!(
+        interp.set_logical_name_provider(NamePolicyProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V8_4
+        ))
+    );
+    let policy = interp.name_policy_protocol().unwrap();
+    assert_eq!(policy.authority(), NamePolicyAuthority::AuthoredSimulation);
+    assert!(interp
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .is_none());
+    assert!(interp.set_logical_source_word_provider(
+        tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        crate::environment::profile_for_dialect("tcl8.6"),
+    ));
+    let created = interp.ns_eval_framed(b"::logical_created", b"", None, false, None, None);
+    assert_eq!(created, Code::Ok);
+    assert_eq!(interp.name_policy_protocol(), Some(policy));
+    assert!(interp
+        .namespaces()
+        .find_namespace(GLOBAL, b"::logical_created")
+        .is_some());
+    assert!(interp
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .is_none());
+}

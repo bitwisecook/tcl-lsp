@@ -7338,10 +7338,61 @@ impl Interp {
                 };
             self.namespaces_mut().retain_jim_namespace(canonical, bytes)
         } else {
+            let Some(policy) = self.name_policy_protocol() else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "namespace creation issuer",
+                    )
+                    .into(),
+                );
+            };
+            let current = self.current_ns.get();
+            let Some(path) = self.namespaces().native_context_path(current) else {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "namespace creation context",
+                    )
+                    .into(),
+                );
+            };
+            let context = tcl_syntax::naming::NativeNameContext::new(&path);
+            let selected = match policy.recipe().namespace_address_input(context, name) {
+                Ok(selected) => selected,
+                Err(_) => {
+                    return self.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "namespace creation name purpose",
+                        )
+                        .into(),
+                    )
+                }
+            };
+            let geometry = match policy.recipe().namespace_address_path(context, name) {
+                Ok(geometry) => geometry,
+                Err(reason @ tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot) => {
+                    let report = match tcl_syntax::naming::report_native_namespace_creation_error(policy.recipe(), reason) {
+                        Ok(report) => report,
+                        Err(_) => return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "namespace creation diagnostic purpose",
+                        ).into()),
+                    };
+                    return crate::cmd_namespace::publish_namespace_error_using(self, report, None);
+                }
+                Err(_) => return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "namespace creation geometry",
+                ).into()),
+            };
+            let (anchor, components) = if selected.qualification()
+                == tcl_syntax::naming::NativeNameQualification::Absolute
+            {
+                (GLOBAL, geometry.as_segments())
+            } else {
+                (current, &geometry.as_segments()[path.as_segments().len()..])
+            };
             let dying_name = {
                 let namespaces = self.namespaces.borrow();
                 namespaces
-                    .dying_namespace(self.current_ns.get(), name)
+                    .dying_namespace_at_components(anchor, components)
                     .map(|id| namespaces.qualified_name(id))
             };
             if let Some(dying_name) = dying_name {
@@ -7352,7 +7403,7 @@ impl Interp {
             }
             self.namespaces
                 .borrow_mut()
-                .ensure_namespace(self.current_ns.get(), name)
+                .ensure_namespace_at_components(anchor, components)
         };
         self.ns_eval_in_token(
             target,

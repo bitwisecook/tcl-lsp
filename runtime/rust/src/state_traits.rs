@@ -32,7 +32,7 @@ use tcl_runtime_api::{
     Namespaces, NsId, ProcInfo, Procs, Traces, VarStore, VarUnsetError,
 };
 
-use crate::interp::{Interp, new_string};
+use crate::interp::{new_string, Interp};
 use crate::obj::{self, TclObj};
 
 /// The Family-B variable store, honouring `FrameId` (the absolute frame level,
@@ -1348,9 +1348,32 @@ impl Namespaces for Interp {
         if let Some(refusal) = self.native_access_refusal() {
             return Err(refusal.into());
         }
+        let geometry = match policy
+            .recipe()
+            .namespace_address_path(NativeNameContext::new(&path), original)
+        {
+            Ok(geometry) => geometry,
+            Err(tcl_syntax::naming::NameProjectionUnavailable::EmptyNamespaceOutsideRoot) => {
+                return Ok(None);
+            }
+            Err(_) => {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "namespace address geometry",
+                ))
+            }
+        };
+        let (anchor, components) =
+            if selected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
+                (crate::namespace::GLOBAL, geometry.as_segments())
+            } else {
+                (
+                    cxt.0 as usize,
+                    &geometry.as_segments()[path.as_segments().len()..],
+                )
+            };
         Ok(self
             .namespaces()
-            .find_namespace(cxt.0 as usize, selected.selected())
+            .namespace_at_components(anchor, components)
             .map(|id| NsId(id as u32)))
     }
 
@@ -1767,11 +1790,9 @@ mod tests {
             // A read trace whose callback succeeds → the access proceeds (Ok).
             // (`;#` comments out the appended `name elem op` words.)
             let _ = i.eval_str(b"trace add variable x read {list ok;#}");
-            assert!(
-                Traces::fire(i, "x", "read")
-                    .expect("actual Guest trace has no Host refusal")
-                    .is_ok()
-            );
+            assert!(Traces::fire(i, "x", "read")
+                .expect("actual Guest trace has no Host refusal")
+                .is_ok());
 
             // A read trace whose callback errors → the access aborts, with the
             // error wrapped to the user-facing `can't read "var"` form. The error
@@ -1785,11 +1806,9 @@ mod tests {
 
             // An `unset` trace error does *not* abort (matches C / the VM): Ok.
             let _ = i.eval_str(b"trace add variable z unset {error nope;#}");
-            assert!(
-                Traces::fire(i, "z", "unset")
-                    .expect("actual Guest trace has no Host refusal")
-                    .is_ok()
-            );
+            assert!(Traces::fire(i, "z", "unset")
+                .expect("actual Guest trace has no Host refusal")
+                .is_ok());
         });
     }
 
@@ -2304,15 +2323,13 @@ mod original_completion_capture_tests {
             )
             .unwrap();
             assert_eq!(obj::bytes_of(before), b"ORIGINAL");
-            assert!(
-                crate::vars::get(
-                    &interpreter.frames.borrow(),
-                    &interpreter.namespaces(),
-                    interpreter.current_ns(),
-                    b"::after",
-                )
-                .is_none()
-            );
+            assert!(crate::vars::get(
+                &interpreter.frames.borrow(),
+                &interpreter.namespaces(),
+                interpreter.current_ns(),
+                b"::after",
+            )
+            .is_none());
             assert_eq!(interpreter.entered_native_operation_count(), 0);
         }
     }

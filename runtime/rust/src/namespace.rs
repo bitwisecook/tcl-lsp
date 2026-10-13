@@ -2695,8 +2695,26 @@ impl Namespaces {
         &self,
         path: &tcl_core_types::ByteNamespacePath,
     ) -> Option<NsId> {
-        let mut namespace = GLOBAL;
-        for part in path.as_segments() {
+        self.namespace_at_components(GLOBAL, path.as_segments())
+    }
+
+    pub(crate) fn namespace_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        let namespace = self.namespace_token_at_components(current, components)?;
+        self.namespace_is_live(namespace).then_some(namespace)
+    }
+
+    fn namespace_token_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        self.arena.get(current)?;
+        let mut namespace = current;
+        for part in components {
             namespace = self
                 .arena
                 .get(namespace)?
@@ -2709,7 +2727,29 @@ impl Namespaces {
                         .copied()
                 })?;
         }
-        self.namespace_is_live(namespace).then_some(namespace)
+        Some(namespace)
+    }
+
+    pub(crate) fn dying_namespace_at_components(
+        &self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> Option<NsId> {
+        let namespace = self.namespace_token_at_components(current, components)?;
+        self.dying.contains(&namespace).then_some(namespace)
+    }
+
+    pub(crate) fn ensure_namespace_at_components(
+        &mut self,
+        current: NsId,
+        components: &[tcl_core_types::NameBytes],
+    ) -> NsId {
+        if let Some(existing) = self.namespace_at_components(current, components) {
+            return existing;
+        }
+        components.iter().fold(current, |parent, part| {
+            self.ensure_child(parent, part.as_bytes())
+        })
     }
 
     /// Whether `ns` still denotes a public namespace token. A dying arena node
@@ -2794,52 +2834,32 @@ impl Namespaces {
 
     // per-namespace variable tables (the variable resolver's storage)
 
-    /// For a **qualified** variable name, the `(namespace, simple tail)` it
-    /// addresses, or `None` if that namespace doesn't exist. Absolute when
-    /// `::`-led, else relative to `current` (`tclVar.c` /
-    /// `namespace-tree.md` §5.3). Callers guard with `is_qualified` first,
-    /// so `None` means *namespace missing*.
-    ///
-    /// Deliberately **not** the command rule ([`Self::home_of`]): variable
-    /// resolution has no existence-checked fall-through — a qualified write
-    /// creates the variable in the first namespace the qualifier resolves
-    /// to — so this commits at namespace level.
+    /// Selected variable components under the exact supplied namespace token.
+    /// Table presence and read/write fallback are independently caller-owned.
     #[must_use]
     pub(crate) fn var_home(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let protocol = self.variable_name_protocol?;
         let input = protocol.variable_root_input(name);
-        let name = input.selected();
         if protocol.is_jim084() {
             let namespace = self.jim_namespace_bytes(current)?;
             let mut prefix = b"::".to_vec();
             prefix.extend_from_slice(namespace);
             return Some((
                 GLOBAL,
-                tcl_syntax::naming::jim_global_variable_key_bytes(&prefix, name),
+                tcl_syntax::naming::jim_global_variable_key_bytes(&prefix, input.selected()),
             ));
         }
-        // Qualification is selected from the CString prefix; an ignored
-        // separator after zero cannot reclassify the full counted simple key.
-        if input.qualification() == tcl_syntax::naming::NativeNameQualification::Unqualified {
-            return Some((current, name.to_vec()));
-        }
-        let absolute = name.starts_with(b"::");
-        let segments = split_qualifier(name);
-        // C: a trailing `::` names the `{}` (empty) variable in the qualified
-        // namespace — every segment is then a namespace component (the simple
-        // name being `""`), unlike the usual "last segment is the var" split.
-        let (simple, ns_parts): (Vec<u8>, &[&[u8]]) =
-            if tcl_syntax::naming::ends_with_separator(name) {
-                (Vec::new(), &segments[..])
+        let projected = input.variable_namespace_projection().ok()?;
+        let mut namespace =
+            if projected.qualification() == tcl_syntax::naming::NativeNameQualification::Absolute {
+                GLOBAL
             } else {
-                let (s, parts) = segments.split_last()?;
-                ((*s).to_vec(), parts)
+                current
             };
-        let mut ns = if absolute { GLOBAL } else { current };
-        for part in ns_parts {
-            ns = *self.arena[ns].children.get(*part)?;
+        for part in projected.qualifiers() {
+            namespace = *self.arena[namespace].children.get(part.as_bytes())?;
         }
-        Some((ns, simple))
+        Some((namespace, projected.simple().as_bytes().to_vec()))
     }
 
     /// Sorted variable names in namespace `ns` (`info vars`/`globals`).

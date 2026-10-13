@@ -20,6 +20,14 @@ direct object entry; their full results are not accepted. Three C86+ query
 fixtures refuse compiler preflight before producing a result. None establishes
 Core, F5, ordinary scalar/element behavior or complete naming conformance.
 
+The [Runtime namespace geometry capture](runtime-namespace-geometry-20261013/README.md)
+passes60 actual original-object ASCII getter/creation comparisons across C5,
+the previous48 C5/Jim namespace query comparisons, explicit Logical simulation
+authority and existing variable geometry/cell-fallback controls. All five
+selectors execute one passing test. The source and artifact seals are stable;
+all4,907 compiled inputs are covered. Unicode/NUL namespace rows, VM and full
+suite conformance are not established by these ASCII observations.
+
 ## Original declaration and callback source consumers
 
 The [braced-source compiler capture](braced-source-correspondence-2026-10-13/README.md)

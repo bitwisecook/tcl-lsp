@@ -52,7 +52,8 @@ the retained historical Wasmtime notice. Genuine linked execution remains pendin
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
 16:05 BST on13 October2026. This checkpoint is16:21 BST; the next tracking
-checkpoint is16:35 BST and the next hourly report17:05 BST. Root checks the clock between bounded operations;
+checkpoint is17:05 BST and the next hourly report17:05 BST. The current
+checkpoint is16:49 BST. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -80,6 +81,21 @@ package/value/server issues are dependencies only for their naming subset.
 [open search results](open-issue-search.json) retain the compact observations.
 The [surface roster](surface-roster.json) enumerates52 workspace and11 excluded
 packages plus editor/script/AI surfaces; unexamined rows remain unfinished.
+
+The current source-read flow, private member catalogue, descriptor-roster and
+namespace.which hook adapters are applied and formatted, awaiting production
+acceptance. Compiler production captures01/02 execute zero tests after a slice
+iterator error and an omitted Core obligation conversion respectively; both
+errors are corrected and production03 is running under a new source freeze.
+The exact failed captures remain separate from all later test outcomes.
+
+[Runtime namespace geometry](../../../experiments/name-handling/results/runtime-namespace-geometry-20261013/README.md)
+passes five exact selectors:60 actual original-object namespace rows across C5,
+independent Logical simulation/ownerless internal-creation authority, existing
+variable-root geometry and cell-sensitive fallback, and the previous48 query
+rows across C5/Jim.31,697 inputs and artifacts are unchanged;4,907 actual compiled
+inputs are covered with no omission. Namespace Unicode/NUL rows remain outside
+the60 ASCII observations. Other consumer captures are queued, not accepted.
 
 ## F5
 

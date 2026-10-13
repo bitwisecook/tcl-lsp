@@ -1338,6 +1338,15 @@ pub(crate) fn ns_operation_not_found_using(
             );
         }
     };
+    publish_namespace_error_using(interp, error, stage)
+}
+
+/// Publish the selected namespace diagnostic through the actual String/error owner.
+pub(crate) fn publish_namespace_error_using(
+    interp: &mut Interp,
+    error: tcl_syntax::naming::NativeNamespaceOperationError,
+    stage: Option<&dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+) -> Code {
     let materialization = match interp
         .native_invocation_dialect()
         .native_string_materialization(Some(
