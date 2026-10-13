@@ -2693,7 +2693,9 @@ impl Interp {
             self.check_body_variable_stage(stage)?;
             let captured = captured
                 .map_err(|error| {
-                    let site = if creates && error == crate::frame::VarError::DeletedNamespace {
+                    let site = if creates && error == crate::frame::VarError::DeletedArray {
+                        Site::ValueWrite
+                    } else if creates && error == crate::frame::VarError::DeletedNamespace {
                         if element.is_some() {
                             Site::IndexedNameLookup
                         } else {

@@ -1,0 +1,9 @@
+# Indexed detached-element write diagnostic
+
+Status: scratch-only, unapplied and unexecuted. Two Runtime source owners and seven small fixture/provenance files are proposed. Only the body owner changes production behavior; the names owner gains three controls.
+
+The actual passive original var-1.17 route admits an indexed slot with creates=true (its local purpose is explicitly Write), returns typed DeletedArray, and selects NameLookup before central refusal. Its scalar operand has no evaluated element, but the actual retained link denotes an original array element. The new branch selects existing ValueWrite only for this created indexed-capture DeletedArray failure. The original receiver error and first-cause checks remain in place. Existing DeletedNamespace scalar/element handling is unchanged; no read, ordinary object-name or Syntax policy branch changes.
+
+The three meaningful controls evaluate unchanged original source block projections for var-1.17, recreated array with the original old link, and recreated array with a genuine new link. Their expected full public output lines are copied exactly from the retained original C86 capture, with source and output hashes in fixture-provenance.json. Existing trace_source_observation evaluates genuine Runtime objects/source and checks completion, refusal, full output and retirement. Tests remain unexecuted until separately authorised; no expectation was adjusted to match Runtime. The newly acquired link is a positive control against wrongly refusing every same-spelled recreated target.
+
+The original C5/Jim read/increment rows remain independent operation evidence and are not included in these three write controls. The previous three Runtime ordinary/dynamic/vector failures remain unchanged and are not repaired by this scoped change. No new enum, getter, local parser, name-geometry inference, metadata publication change or additional Rust owner is proposed.

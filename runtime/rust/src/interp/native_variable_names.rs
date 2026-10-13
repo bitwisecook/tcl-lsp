@@ -5143,6 +5143,41 @@ mod tests {
     }
 
     #[test]
+    fn detached_element_c86_original_var17_write_preserves_late_diagnostic() {
+        trace_source_observation(
+            "tcl8.6",
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/original-var17.tcl"
+            ),
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/original-var17.txt"
+            ),
+        );
+    }
+
+    #[test]
+    fn detached_element_c86_recreated_root_keeps_old_link_write_detached() {
+        trace_source_observation(
+            "tcl8.6",
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/root-recreated-old-link.tcl"
+            ),
+            include_bytes!(
+                "../../tests/data/native_detached_element_write_sites/root-recreated-old-link.txt"
+            ),
+        );
+    }
+
+    #[test]
+    fn detached_element_c86_recreated_root_admits_new_link_write() {
+        trace_source_observation(
+            "tcl8.6",
+            include_bytes!("../../tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl"),
+            include_bytes!("../../tests/data/native_detached_element_write_sites/root-recreated-current-link.txt"),
+        );
+    }
+
+    #[test]
     fn array_root_write_diagnostics_match_five_original_source_controls() {
         // Native proof: naming.variable.original-array-root-write-diagnostic
         // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md

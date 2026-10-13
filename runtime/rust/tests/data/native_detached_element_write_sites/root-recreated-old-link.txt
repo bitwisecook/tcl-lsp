@@ -1,0 +1,3 @@
+PROVIDER 8.6.18
+MARK root-recreated-old-link before-write
+ROW root-recreated-old-link 0 {2 1 {can't set "foo": upvar refers to element in deleted array} NEW {TCL WRITE VARNAME}} {TCL WRITE VARNAME}

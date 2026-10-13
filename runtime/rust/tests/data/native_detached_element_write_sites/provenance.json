@@ -1,0 +1,42 @@
+{
+  "original_question_input_sha256": "156baf9e3a019c04aea72f89552568d94402e8cda607c5c1201d28493e59fb5d",
+  "original_question_c86_stdout_sha256": "e8cbdbc1ef2f4cc917b6b948c559e95714c952be0c63003f24952479f0e92b71",
+  "cases": [
+    "original-var17",
+    "root-recreated-old-link",
+    "root-recreated-current-link"
+  ],
+  "fixtures": {
+    "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.tcl": {
+      "sha256": "3d50410f7208e80b2bb57b82243a4b7b8f48e8db46b962c497d036fb5c12f2e0",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/original-var17.tcl",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    },
+    "runtime/rust/tests/data/native_detached_element_write_sites/original-var17.txt": {
+      "sha256": "88409f926ceefa9c175f2f467170af4fe1a8e308bdbf596a8f9d404c1f22c219",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/original-var17.txt",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    },
+    "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.tcl": {
+      "sha256": "62cbeb3cb0bf444c65e1490f220c5f067942514b264bb486dce99cba9d2434cb",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.tcl",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    },
+    "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.txt": {
+      "sha256": "558e7d6c08eaab9a1407330d9f2cc2e69bfb9c2bd64bf190286faf5f89724c1f",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-old-link.txt",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    },
+    "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl": {
+      "sha256": "55279a0554302cf488a39c1629b92196a74bae0977275474ab396dae6bf668e1",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.tcl",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    },
+    "runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.txt": {
+      "sha256": "17c5e040aba6cfdefc02f491a03bef4558c30c364f450e4873c73aec7cc71f90",
+      "scratch_path": "/tmp/name-detached-repair-scratch/runtime/rust/tests/data/native_detached_element_write_sites/root-recreated-current-link.txt",
+      "provenance": "Exact common original emit prefix and unchanged selected source block / actual retained original C86 provider+mark+row lines; separate software input projection, not a fresh oracle execution."
+    }
+  },
+  "scope": "Three bounded unchanged original source block projections and retained original output lines. Source provider header/common emit setup preserved. No source expectation was changed; original question seal remains byteexact. Runtime controls UNEXECUTED."
+}
