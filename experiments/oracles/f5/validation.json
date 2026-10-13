@@ -75,7 +75,7 @@
   },
   "broader_gates": {
     "rust_check": "not run; no Rust implementation changes",
-    "prep_pr": "not run; no push or PR from this isolated evidence branch"
+    "prep_pr": "not run; development push explicitly requested under the recorded name-handling exception; required before PR. The isolated checkout shares unchanged file inodes with the active checkout and only 629 MiB disk space remains, so broad formatting and builds require a safely separated checkout and sufficient space."
   },
   "f5_version": "f5-query 2.1.19+g54229c4f",
   "footprint": {
