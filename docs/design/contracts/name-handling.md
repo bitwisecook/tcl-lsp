@@ -103,6 +103,12 @@ source diagnostics use shared written component extents and registry package
 exclusions, and decline Jim's absent C implementation namespace. The dialect
 scanner uses shared written-name geometry only to produce a bounded source hint.
 
+Native registration metadata caches retain the exact descriptor query label and
+selected dialect. A permitted one-marker fallback compares exact descriptor
+labels without applying a second rooted lookup; extra root markers are not a
+request to canonicalise written Tcl syntax. Selected registration and operand
+layout remain independent of this metadata result.
+
 Variable lookup needs the frame kind, selected release, lookup operation,
 namespace, array syntax and alias links. `n::x` is qualified even without a
 leading `::`; an unqualified variable in a proc is ordinarily frame-local.

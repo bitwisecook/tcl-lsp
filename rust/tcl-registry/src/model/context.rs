@@ -1115,8 +1115,10 @@ impl ResolvedContext {
                 continue;
             }
             command_count += 1;
-            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
-            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
+            let (holder, _) = tcl_syntax::naming::key_holder_and_tail(name);
+            let namespaces = tcl_syntax::naming::key_segments(holder);
+            let namespace = namespaces.first().map_or("", String::as_str);
+            *by_ns.entry(namespace.to_owned()).or_insert(0) += 1;
         }
         if command_count == 0 {
             return None;
@@ -2707,6 +2709,29 @@ mod tests {
     /// the generated AI prompt has always read it from. At least one
     /// profile must actually have a surface, or the sweep would pass
     /// vacuously on a pair of `None`s.
+    #[test]
+    fn vendor_surface_groups_constructed_rooted_descriptors() {
+        use crate::profile_queries::LegacyProfileOracle;
+        let mut registry = crate::CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "::VENDOR_ADAPTER::nested::command",
+            surface: Some(SpecSurface::IRULES),
+            ..CommandSpec::DEFAULT
+        });
+        let summary = context("f5-irules")
+            .vendor_command_surface(&registry)
+            .unwrap();
+        assert_eq!(
+            summary
+                .namespaces
+                .iter()
+                .find(|(namespace, _)| namespace == "VENDOR_ADAPTER"),
+            Some(&("VENDOR_ADAPTER".to_owned(), 1))
+        );
+        let profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
+        assert_eq!(Some(summary), profile.vendor_surface(&registry));
+    }
+
     #[test]
     fn vendor_surface_matches_the_profile_query() {
         use crate::profile_queries::LegacyProfileOracle;

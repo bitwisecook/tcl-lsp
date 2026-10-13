@@ -16,53 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `expr` math functions as a **registry query** — the bare-name ⇄ qualified
-//! `::tcl::mathfunc::NAME` mapping, plus the two availability axes a consumer
-//! has to keep apart.
+//! Registry math-function metadata and selected native dispatch.
 //!
-//! Inside an `expr` expression a function-call word `NAME(` is *not* an
-//! ordinary command lookup: C Tcl compiles it to a dispatch on
-//! `tcl::mathfunc::NAME` resolved **relative to the calling namespace, then
-//! globally** (`tclCompExpr.c`'s `CompileMathFuncCall` / `tclExecute.c`'s
-//! `INST_INVOKE` path; TIP 232). Verified against tclsh 8.6.16 and 9.0.4:
+//! Expression grammar and command-wrapper availability are separate: C8.4
+//! and Jim use their own fixed function tables; modern C dispatches through
+//! namespace commands. The selected native recipe and original binding remain
+//! prerequisites, independent of metadata availability.
 //!
-//! ```tcl
-//! namespace eval ::tcl::mathfunc { proc g {x} { expr {$x + 1000} } }
-//! namespace eval ::foo {
-//!     namespace eval tcl::mathfunc { proc f {x} { expr {$x * 100} } }
-//!     proc use  {} { expr {f(2)} }   ;# 200  — ::foo::tcl::mathfunc::f
-//!     proc useg {} { expr {g(2)} }   ;# 1002 — ::tcl::mathfunc::g (global)
-//! }
-//! proc f {x} { return GLOBAL-PROC-f }
-//! ```
-//!
-//! A plain global `proc f` never enters that resolution, and conversely a
-//! `proc` living in a `tcl::mathfunc` namespace is *not* reachable as a bare
-//! command (`li {10 20 30} 1` → `invalid command name "li"` on both oracles) —
-//! [`is_in_mathfunc_namespace`] is what lets a consumer keep the two apart
-//! without naming a namespace itself.
-//!
-//! # The two availability axes
-//!
-//! | axis | question | helper |
-//! |---|---|---|
-//! | `expr` grammar | is `NAME(…)` a built-in function here? | [`available_in_expr`] |
-//! | command table | does the command `::tcl::mathfunc::NAME` exist here? | [`command_wrappers_available`] + the spec's own `dialects` |
-//!
-//! They genuinely differ: `expr {abs(1)}` works in 8.4, but the *command*
-//! `::tcl::mathfunc::abs` only exists from 8.5 (TIP 232 created the table).
-//! So the [`CommandSpec`](crate::spec::CommandSpec) gate that
-//! `mathfunc_generated.rs` writes (never looser than
-//! [`SpecSurface::TCL85_PLUS`]) is the right gate
-//! for the *qualified command* spelling and the **wrong** one for the bare
-//! in-`expr` spelling — [`CommandRegistry::math_function_spec`] exists so a
-//! consumer rendering the in-`expr` spelling gets the registry's hover data
-//! under the `expr`-grammar gate instead of the command-table gate.
-//!
-//! [`tcl_syntax::expr::mathfunc`] stays the layer-1 fact table (which names
-//! exist, and since when); this module is the single place the *registry*
-//! answers mathfunc questions, so no consumer re-derives the
-//! `tcl::mathfunc` prefix or the version ceiling for itself.
+//! Constructed reporting keys use the shared name owner. Their rendered text
+//! cannot recover a unique native namespace or command allocation.
 
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_syntax::expr::mathfunc::MathFuncSince;
@@ -238,11 +200,8 @@ pub fn qualified_name(bare: &str) -> String {
     format!("{MATHFUNC_NAMESPACE}::{bare}")
 }
 
-/// The bare function name when `qualified` addresses a direct command in the
-/// global [`MATHFUNC_NAMESPACE`], or `None` for every other command spelling.
-///
-/// This keeps the global command-table shape owned by the registry, so runtime
-/// enumerators never need to reconstruct the namespace prefix themselves.
+/// Extract a direct global function from the shared constructed reporting-key
+/// geometry. This does not invert a native command's noninjective display.
 #[must_use]
 pub fn global_command_bare_name(qualified: &str) -> Option<&str> {
     let (holder, bare) = tcl_syntax::naming::key_holder_and_tail(qualified);
@@ -272,8 +231,8 @@ pub fn restricted_expression_command_identity(identity: &str) -> bool {
 #[must_use]
 pub fn is_in_mathfunc_namespace(qualified: &str) -> bool {
     let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qualified);
-    let segments = tcl_syntax::naming::key_segments(namespace);
-    segments.ends_with(&["tcl".to_owned(), "mathfunc".to_owned()])
+    let (prefix, member) = tcl_syntax::naming::key_holder_and_tail(namespace);
+    member == "mathfunc" && tcl_syntax::naming::key_holder_and_tail(prefix).1 == "tcl"
 }
 
 /// The newest math-function release `profile`'s `expr` grammar exposes, or

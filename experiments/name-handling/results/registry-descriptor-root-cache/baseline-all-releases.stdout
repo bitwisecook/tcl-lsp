@@ -1,0 +1,50 @@
+environment tcl8.4
+"set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"tcl::info::exists" None
+"::tcl::info::exists" None
+"::::tcl::info::exists" None
+"oo::define::method" None
+"::oo::define::method" None
+"::::oo::define::method" None
+environment tcl8.5
+"set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"oo::define::method" None
+"::oo::define::method" None
+"::::oo::define::method" None
+environment tcl8.6
+"set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+environment tcl9.0
+"set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+environment tcl9.1
+"set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"::::set" Some(NativeCompilationSpec { grammar: VariableLoadStore, operation: StructuredLowering(Set), body: Inherit })
+"tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"::::tcl::info::exists" Some(NativeCompilationSpec { grammar: InfoExists, operation: Intrinsic(InfoExists), body: Inherit })
+"oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })
+"::::oo::define::method" Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit })

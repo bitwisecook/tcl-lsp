@@ -1,0 +1,8 @@
+original canonicalPrivateZero 0 :: 0
+original canonicalPrivateExtra 1 {wrong # args: should be "::tcl::namespace::current"} 1
+original widePrivateZero 0 :: 0
+original widePrivateExtra 1 {wrong # args: should be "::::tcl:::namespace:::current"} 1
+original publicExtra 1 {wrong # args: should be "namespace current"} 1
+rename-admission 0 {}
+renamed renamedPrivateZero 0 :: 0
+renamed renamedPrivateExtra 1 {wrong # args: should be "::renamedNamespaceWorker"} 1

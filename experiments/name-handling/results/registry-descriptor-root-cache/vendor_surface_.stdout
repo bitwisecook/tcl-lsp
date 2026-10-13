@@ -1,0 +1,7 @@
+
+running 2 tests
+test model::context::tests::vendor_surface_groups_constructed_rooted_descriptors ... ok
+test model::context::tests::vendor_surface_matches_the_profile_query ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1764 filtered out; finished in 1.42s
+

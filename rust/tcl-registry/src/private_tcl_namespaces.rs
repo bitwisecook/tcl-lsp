@@ -136,13 +136,9 @@ pub struct PrivateTclNamespaceCall {
     /// The tail written after the namespace (`create` for
     /// `::tcl::dict::create`, `a::b` for `::tcl::dict::a::b`).
     pub tail: String,
-    /// The concrete replacement call — the public command followed by the
-    /// same tail (`"dict create"`) — **only** when that tail is a genuine
-    /// subcommand of the public ensemble under the active dialect, i.e.
-    /// when the rewrite is a legal edit. `None` for a tail that is private
-    /// machinery with no public spelling (`::tcl::clock::GetSystemTimeZone`,
-    /// `::tcl::dict::mycustom`): the call is still flagged, but suggesting
-    /// `clock GetSystemTimeZone` would corrupt the code.
+    /// Public ensemble spelling for a recognised subcommand, requiring review.
+    /// Source classification alone proves neither the binding nor equivalent
+    /// private/public behaviour.
     pub suggestion: Option<String>,
 }
 

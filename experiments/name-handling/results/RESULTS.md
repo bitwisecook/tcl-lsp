@@ -42,6 +42,17 @@ finds an authentic source producer with an unrepresented execution-purpose
 transition. Source catalogue admission must preserve its member-body issuer
 without granting execution, frame, read, edit or optimisation authority.
 
+## Registry descriptor and cache consumers
+
+The [descriptor/cache capture](registry-descriptor-root-cache/README.md) records
+83 distinct passing Registry/store controls:6 native registration,2 vendor
+surface,18 Tcllib package,5 dict,14 math function,26 taint and12 assembly.
+Exact descriptor bytes survive cache lookup; only one optional root marker is
+removed. Actual Native binding, original operand layouts and emitted compiler
+instructions are not established by these metadata controls. The separate
+[private-worker operand experiment](../registry-operand-layout/README.md)
+retains C5/Jim observations and unavailable workers without a compiler claim.
+
 ## Actual C8.6 constructor and startup
 
 The [constructor controls](native-c86-mathfunc-bootstrap/README.md) compare actual

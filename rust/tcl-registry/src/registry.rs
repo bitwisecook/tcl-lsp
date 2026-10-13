@@ -1115,7 +1115,7 @@ impl AllDialectCommandNames {
         // already-bare query — the caller strips a literal `::` head
         // from the source text before calling in, so the set must be
         // bare-normalised too or the two never agree.
-        let name = spec.name.strip_prefix("::").unwrap_or(spec.name);
+        let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
         self.known.insert(name);
         if name.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT) {
             self.rootable.insert(name);
@@ -1204,7 +1204,7 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
 /// bare but do not exist as `::my`, `::self`, and so on. A namespaced spelling
 /// such as `::oo::Helpers::self` remains an ordinary qualified fallback.
 fn rooted_fallback_allowed(rooted: &str, spec: &CommandSpec) -> bool {
-    rooted.strip_prefix("::").is_none_or(|unrooted| {
+    tcl_syntax::naming::unroot_rooted_key(rooted).is_none_or(|unrooted| {
         unrooted.contains("::") || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT)
     })
 }
@@ -1677,7 +1677,7 @@ fn spec_packs_by_name() -> &'static FxHashMap<&'static str, Vec<&'static str>> {
                 // The same bare-normalisation `all_dialect_command_names`
                 // applies, for the same reason: a caller strips a literal
                 // `::` head before asking.
-                let name = spec.name.strip_prefix("::").unwrap_or(spec.name);
+                let name = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
                 let packs = index.entry(name).or_default();
                 if !packs.contains(&pack) {
                     packs.push(pack);
@@ -1732,7 +1732,7 @@ pub fn spec_pack_of(spec: &'static CommandSpec) -> Option<&'static str> {
 #[must_use]
 pub fn spec_packs_of(name: &str) -> &'static [&'static str] {
     spec_packs_by_name()
-        .get(name.strip_prefix("::").unwrap_or(name))
+        .get(tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name))
         .map_or(&[][..], |packs| packs.as_slice())
 }
 
@@ -2476,7 +2476,7 @@ impl CommandRegistry {
     #[must_use]
     pub fn known_in_any_dialect(&self, name: &str) -> bool {
         let names = all_dialect_command_names();
-        match name.strip_prefix("::") {
+        match tcl_syntax::naming::unroot_rooted_key(name) {
             Some(unrooted) => names.rootable.contains(unrooted),
             None => names.known.contains(name),
         }
@@ -2503,7 +2503,7 @@ impl CommandRegistry {
                     })
                     .map(|spec| spec.name),
             )
-            .map(|name| name.strip_prefix("::").unwrap_or(name))
+            .map(|name| tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name))
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
     }
@@ -2514,7 +2514,7 @@ impl CommandRegistry {
     pub fn source_availability_providers(&self, command: &str) -> Option<NameProviders> {
         // naming.diagnostic.original-command-source-unavailability
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-command-source-unavailability.md
-        let name = command.strip_prefix("::").unwrap_or(command);
+        let name = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
         if !all_dialect_command_names().rootable.contains(name)
             && !self
                 .by_name
@@ -2522,7 +2522,7 @@ impl CommandRegistry {
                 .flatten()
                 .chain(self.overlay_specs.iter())
                 .any(|spec| {
-                    spec.name.strip_prefix("::").unwrap_or(spec.name) == name
+                    tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == name
                         && (name.contains("::")
                             || !spec.traits.contains(Traits::TCLOO_METHOD_CONTEXT))
                 })
@@ -2536,7 +2536,7 @@ impl CommandRegistry {
             .flatten()
             .chain(self.overlay_specs.iter())
         {
-            if spec.name.strip_prefix("::").unwrap_or(spec.name) == name {
+            if tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == name {
                 providers
                     .get_or_insert_with(NameProviders::default)
                     .add_spec(spec);
@@ -2562,7 +2562,7 @@ impl CommandRegistry {
         if !self.known_in_any_dialect(name) {
             return None;
         }
-        let unrooted = name.strip_prefix("::").unwrap_or(name);
+        let unrooted = tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name);
         all_dialect_command_names().providers.get(unrooted)
     }
 
@@ -2584,7 +2584,7 @@ impl CommandRegistry {
         if let Some(spec) = self.by_name.get(name).and_then(|v| v.last().copied()) {
             return Some(spec);
         }
-        let unrooted = name.strip_prefix("::")?;
+        let unrooted = tcl_syntax::naming::unroot_rooted_key(name)?;
         let spec = self.by_name.get(unrooted)?.last().copied()?;
         rooted_fallback_allowed(name, spec).then_some(spec)
     }
@@ -2699,7 +2699,7 @@ impl CommandRegistry {
         if let Some(specs) = self.by_name.get(name) {
             return self.best_visible(specs, dialect);
         }
-        let unrooted = name.strip_prefix("::")?;
+        let unrooted = tcl_syntax::naming::unroot_rooted_key(name)?;
         let spec = self.best_visible(self.by_name.get(unrooted)?, dialect)?;
         rooted_fallback_allowed(name, spec).then_some(spec)
     }
@@ -3698,10 +3698,7 @@ impl CommandRegistry {
         identity: &str,
         dialect: crate::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
-        let key = (
-            dialect,
-            identity.strip_prefix("::").unwrap_or(identity).to_owned(),
-        );
+        let key = (dialect, identity.to_owned());
         if let Some(cached) = self
             .native_registrations
             .read()
@@ -3728,15 +3725,21 @@ impl CommandRegistry {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
         let rooted = tcl_syntax::naming::root_unrooted_key(key);
-        if let Some(spec) = self
-            .get_for_surface(key, Some(query))
-            .or_else(|| self.get_for_surface(&rooted, Some(query)))
-        {
+        let exact_spec = |label: &str| {
+            self.by_name
+                .get(label)
+                .and_then(|specs| self.best_visible(specs, Some(query)))
+                .filter(|spec| {
+                    tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == key
+                })
+        };
+        if let Some(spec) = exact_spec(key).or_else(|| exact_spec(&rooted)) {
             return spec
                 .native_compilation
-                .or_else(|| crate::native_tcloo_registration::compilation(key, dialect));
+                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
         }
-        if let Some(compilation) = crate::native_tcloo_registration::compilation(key, dialect) {
+        if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
+        {
             return Some(compilation);
         }
         let mut mapping = None;
@@ -3765,7 +3768,9 @@ impl CommandRegistry {
                     continue;
                 };
                 for lookup in &path {
-                    if lookup.slot.strip_prefix("::").unwrap_or(lookup.slot) != key {
+                    if tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot)
+                        != key
+                    {
                         continue;
                     }
                     if mapping.is_some_and(|previous| previous != *lookup) {
@@ -4122,10 +4127,7 @@ impl CommandRegistry {
         identity: &str,
         dialect: crate::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
-        let key = (
-            dialect,
-            identity.strip_prefix("::").unwrap_or(identity).to_owned(),
-        );
+        let key = (dialect, identity.to_owned());
         if let Some(cached) = self
             .native_registrations
             .read()
@@ -4149,7 +4151,7 @@ impl CommandRegistry {
         identity: &str,
         dialect: crate::InvocationDialect,
     ) -> Option<crate::native_compilation::NativeCompilerImplementationLookup> {
-        let key = identity.strip_prefix("::").unwrap_or(identity);
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
         let mut selected = None;
         for specs in self.by_name.values() {
@@ -4179,7 +4181,8 @@ impl CommandRegistry {
             let normal = successful_handler_contracts(spec)
                 .flat_map(|contract| contract.stock_native_workers(dialect));
             for lookup in compiled.chain(normal) {
-                if lookup.slot.strip_prefix("::").unwrap_or(lookup.slot) != key {
+                if tcl_syntax::naming::unroot_rooted_key(lookup.slot).unwrap_or(lookup.slot) != key
+                {
                     continue;
                 }
                 if selected.is_some_and(|previous| previous != lookup) {
@@ -6538,7 +6541,7 @@ impl CommandRegistry {
                     .any(|s| s.traits.contains(Traits::DIAGRAM_ACTION))
             })
         };
-        has(name) || name.strip_prefix("::").is_some_and(has)
+        has(name) || tcl_syntax::naming::unroot_rooted_key(name).is_some_and(has)
     }
 
     /// Whether `name` is explicitly marked **never** translatable to F5
@@ -9015,6 +9018,48 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    #[test]
+    fn native_registration_descriptor_queries_remove_one_root_marker() {
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            for label in [
+                "::::set",
+                ":::::set",
+                "::::tcl::info::exists",
+                "::::oo::define::method",
+            ] {
+                assert_eq!(
+                    registry.native_compilation_for_registration(label, dialect),
+                    None,
+                    "{version:?}/{label}"
+                );
+                assert_eq!(
+                    registry.native_registration_lookup(label, dialect),
+                    None,
+                    "{version:?}/{label}"
+                );
+            }
+            let normal = registry.native_compilation_for_registration("set", dialect);
+            assert!(normal.is_some());
+            assert_eq!(
+                registry.native_compilation_for_registration("::set", dialect),
+                normal
+            );
+            assert_eq!(
+                registry.native_compilation_for_registration("set", dialect),
+                normal
+            );
+            let private =
+                registry.native_compilation_for_registration("tcl::info::exists", dialect);
+            assert_eq!(private.is_some(), version >= tcl_dialect::TclVersion::V8_5);
+            assert_eq!(
+                registry.native_compilation_for_registration("::tcl::info::exists", dialect),
+                private
+            );
+        }
+    }
 
     #[test]
     fn native_registration_cache_preserves_every_dialect_and_frozen_generation() {

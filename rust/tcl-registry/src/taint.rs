@@ -465,7 +465,7 @@ pub fn taints_var_write(
                         || (option.value_variable_scope()
                             == Some(crate::hover::VariableScope::Global)
                             && !candidate.starts_with("::")
-                            && variable.strip_prefix("::") == Some(*candidate))
+                            && tcl_syntax::naming::unroot_rooted_key(variable) == Some(*candidate))
                 })
         {
             return true;

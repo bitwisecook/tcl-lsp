@@ -1,0 +1,13 @@
+{
+  "channel": "actual public Registry metadata API, not native binding admission",
+  "compiler": "rustc 1.99.0",
+  "linked_rlib": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/libtcl_registry-2399959063f6b955.rlib",
+  "linked_rlib_sha256": "3d90937b11cad1257183e33f836d70bc80f90445345b371e6c3f3829e7e54f8d",
+  "source_seal": "../../registry-name-adapters/source-current.json",
+  "input_hashes": {
+    "probe.rs": "88333723c7eb37c3b09dec58b60edb681422c5c315484e274cb52d56a50f003b",
+    "baseline.stdout": "d82f2b34ba6c9f876754b07da8ef3171552da33dad405db58fee024100535869"
+  },
+  "exit_code": 0,
+  "cargo_build": "existing Registry dependency closure from scoped captured source; standalone rustc build only writes /tmp"
+}

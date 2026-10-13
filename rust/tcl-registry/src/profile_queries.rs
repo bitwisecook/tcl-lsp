@@ -341,8 +341,10 @@ impl LegacyProfileOracle for DialectProfile {
                 continue;
             }
             command_count += 1;
-            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
-            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
+            let (holder, _) = tcl_syntax::naming::key_holder_and_tail(name);
+            let namespaces = tcl_syntax::naming::key_segments(holder);
+            let namespace = namespaces.first().map_or("", String::as_str);
+            *by_ns.entry(namespace.to_owned()).or_insert(0) += 1;
         }
         if command_count == 0 {
             return None;

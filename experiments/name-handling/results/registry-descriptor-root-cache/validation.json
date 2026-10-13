@@ -1,0 +1,60 @@
+{
+  "binary": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_registry-8e0ff7c95496b68a",
+  "binary_sha256": "b5c6766370a065a738711b33488c14f289739223e43400a0022428a3dfd14c1f",
+  "source_manifest": "source-current.json",
+  "source_differences": [],
+  "required_oracle_environment": "TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1; TCL_LSP_REQUIRE_JIM_ORACLE=1",
+  "first_cargo_control": "descriptor-root-current.log:1 passed",
+  "filters": [
+    {
+      "selector": "native_registration",
+      "exit_code": 0,
+      "stdout": "native_registration.stdout",
+      "stderr": "native_registration.stderr",
+      "summary": "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1760 filtered out; finished in 1.52s"
+    },
+    {
+      "selector": "vendor_surface_",
+      "exit_code": 0,
+      "stdout": "vendor_surface_.stdout",
+      "stderr": "vendor_surface_.stderr",
+      "summary": "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1764 filtered out; finished in 1.42s"
+    },
+    {
+      "selector": "commands::tcllib::tests::",
+      "exit_code": 0,
+      "stdout": "commands-tcllib-tests.stdout",
+      "stderr": "commands-tcllib-tests.stderr",
+      "summary": "ok. 18 passed; 0 failed; 0 ignored; 0 measured; 1748 filtered out; finished in 0.02s"
+    },
+    {
+      "selector": "commands::tcl::dict::tests::",
+      "exit_code": 0,
+      "stdout": "commands-tcl-dict-tests.stdout",
+      "stderr": "commands-tcl-dict-tests.stderr",
+      "summary": "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 1761 filtered out; finished in 0.00s"
+    },
+    {
+      "selector": "mathfunc::",
+      "exit_code": 0,
+      "stdout": "mathfunc.stdout",
+      "stderr": "mathfunc.stderr",
+      "summary": "ok. 14 passed; 0 failed; 0 ignored; 0 measured; 1752 filtered out; finished in 0.12s"
+    },
+    {
+      "selector": "taint::",
+      "exit_code": 0,
+      "stdout": "taint.stdout",
+      "stderr": "taint.stderr",
+      "summary": "ok. 26 passed; 0 failed; 0 ignored; 0 measured; 1740 filtered out; finished in 0.04s"
+    },
+    {
+      "selector": "model::assembly::tests::",
+      "exit_code": 0,
+      "stdout": "model-assembly-tests.stdout",
+      "stderr": "model-assembly-tests.stderr",
+      "summary": "ok. 12 passed; 0 failed; 0 ignored; 0 measured; 1754 filtered out; finished in 28.08s"
+    }
+  ],
+  "scope": "actual Registry/store metadata controls; no full workspace gate or Original Native entry claim"
+}

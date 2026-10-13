@@ -259,8 +259,7 @@ impl ContextRegistry {
     #[must_use]
     pub fn resolve_command(&self, name: &str) -> Option<&'static CommandSpec> {
         let candidates = self.entries.get(name).or_else(|| {
-            name.strip_prefix("::")
-                .and_then(|bare| self.entries.get(bare))
+            tcl_syntax::naming::unroot_rooted_key(name).and_then(|bare| self.entries.get(bare))
         })?;
         // A name with one candidate has nothing to rank. A query with one core
         // point ranks every admitted spec alike; with several, a spec from a

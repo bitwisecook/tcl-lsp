@@ -1,0 +1,23 @@
+
+running 18 tests
+test commands::tcllib::tests::cipher_mode_and_dir_options_are_enumerated ... ok
+test commands::tcllib::tests::control_do_recurses_body_expr_and_keyword ... ok
+test commands::tcllib::tests::control_assert_recurses_expr ... ok
+test commands::tcllib::tests::control_do_option_roles_only_apply_to_full_form ... ok
+test commands::tcllib::tests::default_registry_carries_tcllib_required_package ... ok
+test commands::tcllib::tests::control_package_maps_to_control ... ok
+test commands::tcllib::tests::lambda_body_and_param_roles_recurse ... ok
+test commands::tcllib::tests::crypto_encoding_packages_are_registered_with_their_package ... ok
+test commands::tcllib::tests::required_package_uses_constructed_descriptor_components ... ok
+test commands::tcllib::tests::generator_ensemble_has_subcommands ... ok
+test commands::tcllib::tests::every_tcllib_spec_has_required_package ... ok
+test commands::tcllib::tests::struct_list_foreachperm_recurses_body ... ok
+test commands::tcllib::tests::required_package_matches_namespace ... ok
+test commands::tcllib::tests::struct_list_mapfor_is_body_filterfor_is_expr ... ok
+test commands::tcllib::tests::unicode_normalize_form_is_a_closed_enum ... ok
+test commands::tcllib::tests::the_identity_census_is_closed ... ok
+test commands::tcllib::tests::the_module_table_carries_no_unused_rows ... ok
+test commands::tcllib::tests::tcl85_plus_packages_are_gated_out_of_tcl84 ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 1748 filtered out; finished in 0.02s
+

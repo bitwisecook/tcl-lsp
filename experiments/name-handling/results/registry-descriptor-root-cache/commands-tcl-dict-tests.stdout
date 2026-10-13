@@ -1,0 +1,10 @@
+
+running 5 tests
+test commands::tcl::dict::tests::qualified_specs_hover_matches_subcommands ... ok
+test commands::tcl::dict::tests::qualified_specs_excludes_getd ... ok
+test commands::tcl::dict::tests::qualified_specs_carry_the_subcommand_analysis_contract ... ok
+test commands::tcl::dict::tests::qualified_specs_covers_every_real_subcommand ... ok
+test commands::tcl::dict::tests::qualified_specs_inherit_dict_dialect_gate ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 1761 filtered out; finished in 0.00s
+

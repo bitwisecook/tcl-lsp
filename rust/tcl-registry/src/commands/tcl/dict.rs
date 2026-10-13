@@ -1260,7 +1260,7 @@ mod tests {
         // never `None`.
         let dict_dialects = spec().surface;
         for s in qualified_specs() {
-            let bare = s.name.rsplit("::").next().unwrap();
+            let bare = tcl_syntax::naming::key_tail(s.name);
             let sub = SUBCOMMANDS.iter().find(|sc| sc.name == bare).unwrap();
             assert_eq!(
                 s.surface,

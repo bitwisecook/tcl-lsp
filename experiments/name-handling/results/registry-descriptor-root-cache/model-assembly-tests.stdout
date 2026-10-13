@@ -1,0 +1,17 @@
+
+running 12 tests
+test model::assembly::tests::every_store_key_is_a_profile_a_host_can_install ... ok
+test model::assembly::tests::generations_cache_by_identity_and_keyed_hash ... ok
+test model::assembly::tests::an_assembled_generation_selects_the_nearest_core_point_before_breadth ... ok
+test model::assembly::tests::pack_overlays_thread_through_the_generation_door ... ok
+test model::assembly::tests::generations_share_the_old_caches_command_store ... ok
+test model::assembly::tests::resolution_applies_the_rooted_name_fallback ... ok
+test model::assembly::tests::selection_requires_binding_proof_under_a_context ... ok
+test model::assembly::tests::c7_hint_walk_counterexamples ... ok
+test model::assembly::tests::the_tk_environment_hosts_tk_without_a_vendor_bit ... ok
+test model::assembly::tests::per_environment_visibility_reproduces_the_old_registries ... ok
+test model::assembly::tests::per_spec_visibility_matches_the_old_model_for_every_profile ... ok
+test model::assembly::tests::side_effect_hint_selection_matches_the_hand_rolled_rule ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 1754 filtered out; finished in 28.08s
+

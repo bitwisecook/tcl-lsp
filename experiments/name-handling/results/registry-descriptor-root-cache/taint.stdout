@@ -1,0 +1,31 @@
+
+running 26 tests
+test taint::tests::colour_atoms_cover_the_canonical_bitflags_domain ... ok
+test taint::tests::chan_configure_is_not_a_taint_source ... ok
+test taint::tests::classify_unknown_command_is_clear ... ok
+test taint::tests::default_spec_has_no_taint_metadata ... ok
+test taint::tests::encoding_convertfrom_is_a_taint_source ... ok
+test taint::tests::cookie_output_sink_is_subcommand_qualified ... ok
+test taint::tests::cookie_output_sink_matches_prefix_abbreviation ... ok
+test taint::tests::chan_gets_is_a_taint_source ... ok
+test taint::tests::gets_is_a_taint_source ... ok
+test taint::tests::encoding_system_is_not_a_taint_source ... ok
+test taint::tests::http_path_source_colour_is_path_prefixed ... ok
+test taint::tests::http_uri_is_a_source_in_every_dialect ... ok
+test taint::tests::ip_and_port_source_colours_are_augmented ... ok
+test taint::tests::non_source_has_no_source_colour ... ok
+test taint::tests::per_form_results_that_carry_text_are_not_sanitisers ... ok
+test taint::tests::plain_irules_source_is_bare_tainted ... ok
+test taint::tests::sink_classification_is_populated ... ok
+test taint::tests::http_uri_is_an_irules_source ... ok
+test taint::tests::setter_constraints_are_populated ... ok
+test taint::tests::subcommand_default_traits_are_empty ... ok
+test taint::tests::sink_safe_colours_are_populated ... ok
+test taint::tests::string_length_is_a_sanitiser ... ok
+test taint::tests::string_map_claims_crlf_free_only_for_a_crlf_deleting_mapping ... ok
+test taint::tests::transforms_are_populated ... ok
+test taint::tests::switch_integer_coerces_the_subject_and_inline_patterns_on_tcl91 ... ok
+test taint::tests::switch_without_a_live_integer_option_coerces_nothing ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 1740 filtered out; finished in 0.04s
+

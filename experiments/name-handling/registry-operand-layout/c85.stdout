@@ -1,0 +1,6 @@
+original canonicalPrivateZero 1 {invalid command name "::tcl::namespace::current"} 0
+original canonicalPrivateExtra 1 {invalid command name "::tcl::namespace::current"} 1
+original widePrivateZero 1 {invalid command name "::::tcl:::namespace:::current"} 0
+original widePrivateExtra 1 {invalid command name "::::tcl:::namespace:::current"} 1
+original publicExtra 1 {wrong # args: should be "namespace current"} 1
+rename-admission 1 {can't rename "::tcl::namespace::current": command doesn't exist}
