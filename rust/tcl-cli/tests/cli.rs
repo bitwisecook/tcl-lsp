@@ -83,6 +83,33 @@ fn run_tcl_in(current_dir: &std::path::Path, args: &[&str]) -> Output {
 }
 
 #[test]
+fn command_info_preserves_exact_command_names() {
+    for (name, found) in [
+        ("puts", true),
+        ("::puts", true),
+        ("", false),
+        ("Puts", false),
+        ("PUTS", false),
+        (" puts", false),
+        ("puts ", false),
+        (" puts ", false),
+        ("\tputs", false),
+        ("puts\n", false),
+        (" ", false),
+    ] {
+        let output = tcl()
+            .args(["command-info", name, "--dialect", "tcl8.6", "--json"])
+            .output()
+            .expect("failed to spawn tcl binary");
+        assert_eq!(output.status.code(), Some(i32::from(!found)), "{name:?}");
+        let payload: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("command-info JSON");
+        assert_eq!(payload["command"], name, "{name:?}");
+        assert_eq!(payload["found"], found, "{name:?}");
+    }
+}
+
+#[test]
 fn command_info_discovers_the_current_projects_spec_pack() {
     let project = spec_pack_project();
     let with_pack = tcl()

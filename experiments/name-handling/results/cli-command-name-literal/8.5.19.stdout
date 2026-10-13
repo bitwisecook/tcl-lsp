@@ -1,0 +1,30 @@
+provider 8.5.19
+before 0 ::puts
+before 1 ::puts
+before 2 {}
+before 3 {}
+before 4 {}
+before 5 {}
+before 6 {}
+before 7 {}
+before 8 {}
+before 9 {}
+after 0 ::puts
+after 1 ::puts
+after 2 ::Puts
+invoke 2 0 2
+after 3 ::PUTS
+invoke 3 0 3
+after 4 {:: puts}
+invoke 4 0 4
+after 5 {::puts }
+invoke 5 0 5
+after 6 {:: puts }
+invoke 6 0 6
+after 7 {::	puts}
+invoke 7 0 7
+after 8 {::puts
+}
+invoke 8 0 8
+after 9 {:: }
+invoke 9 0 9
