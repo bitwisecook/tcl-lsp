@@ -33,3 +33,4 @@ experiments/name-handling/namespace-address-purpose/**/*.bin -text -whitespace
 experiments/name-handling/variable-namespace-query-bases/**/*.bin -text -whitespace
 experiments/name-handling/namespace-command-query/**/*.bin -text -whitespace
 experiments/name-handling/namespace-which-compiler/**/*.bin -text -whitespace
+experiments/name-handling/namespace-which-compiler/**/*.c.txt -whitespace
