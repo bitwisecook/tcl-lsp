@@ -1,0 +1,177 @@
+{
+  "status": "First fresh Runtime standalone lib build failed; no test discovery/run and no implementation PASS claim. No source fixes or retry.",
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "target_dir": "/workspace/tcl-lsp/tmp/name-target-issues",
+    "exit_code": 101,
+    "messages_sha256": "4e561db88abf9d815d8ed611e71982141e3294d40058e2a56a88860119e3ee56",
+    "stderr_sha256": "4b4190b7993f3fe23d8f7a224e10e593aa256e7280c1ee8e4c4795c78a320f2d",
+    "binary": null
+  },
+  "errors": [
+    {
+      "message": "`obj::TclObjType` doesn't implement `Debug`",
+      "spans": [
+        {
+          "byte_end": 1894,
+          "byte_start": 1884,
+          "column_end": 83,
+          "column_start": 73,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 1343,
+              "byte_start": 1321,
+              "column_end": 23,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert_eq!",
+            "span": {
+              "byte_end": 36131,
+              "byte_start": 36011,
+              "column_end": 14,
+              "column_start": 13,
+              "expansion": null,
+              "file_name": "src/cmd_clock.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 911,
+              "line_start": 908,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 24,
+                  "highlight_start": 13,
+                  "text": "            assert_eq!("
+                },
+                {
+                  "highlight_end": 51,
+                  "highlight_start": 1,
+                  "text": "                obj::obj_type_ptr(first.as_ptr()),"
+                },
+                {
+                  "highlight_end": 44,
+                  "highlight_start": 1,
+                  "text": "                &crate::dict::TCL_DICT_TYPE"
+                },
+                {
+                  "highlight_end": 14,
+                  "highlight_start": 1,
+                  "text": "            );"
+                }
+              ]
+            }
+          },
+          "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+          "is_primary": true,
+          "label": "the trait `Debug` is not implemented for `obj::TclObjType`",
+          "line_end": 52,
+          "line_start": 52,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": []
+        }
+      ]
+    },
+    {
+      "message": "`obj::TclObjType` doesn't implement `Debug`",
+      "spans": [
+        {
+          "byte_end": 1894,
+          "byte_start": 1884,
+          "column_end": 83,
+          "column_start": 73,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 1343,
+              "byte_start": 1321,
+              "column_end": 23,
+              "column_start": 1,
+              "expansion": null,
+              "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 43,
+              "line_start": 43,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert_eq!",
+            "span": {
+              "byte_end": 46937,
+              "byte_start": 46820,
+              "column_end": 10,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "src/cmd_clock.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 1185,
+              "line_start": 1182,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 20,
+                  "highlight_start": 9,
+                  "text": "        assert_eq!("
+                },
+                {
+                  "highlight_end": 56,
+                  "highlight_start": 1,
+                  "text": "            obj::obj_type_ptr(interp.get_obj_result()),"
+                },
+                {
+                  "highlight_end": 40,
+                  "highlight_start": 1,
+                  "text": "            &crate::dict::TCL_DICT_TYPE"
+                },
+                {
+                  "highlight_end": 10,
+                  "highlight_start": 1,
+                  "text": "        );"
+                }
+              ]
+            }
+          },
+          "file_name": "/rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/macros/mod.rs",
+          "is_primary": true,
+          "label": "the trait `Debug` is not implemented for `obj::TclObjType`",
+          "line_end": 52,
+          "line_start": 52,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": []
+        }
+      ]
+    }
+  ],
+  "tests_executed": [],
+  "actual_oracle_rows_executed": 0,
+  "software_controls_executed": 0,
+  "source_ready": "source-ready.json",
+  "scope": "scope.json",
+  "source_comparison": "source-comparison.json",
+  "first_failure_fix_proposed": "cmd_clock.rs test-only two assertions use std::ptr::eq inside assert!, requiring only existing owned file; no Debug change or extra source owner",
+  "standalone_helper_status": "Previous16 numeric rows and2 overflow refusals are separate from this failed integrated Runtime build."
+}

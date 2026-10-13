@@ -1,0 +1,10 @@
+{
+  "changed_dependency_sources": [],
+  "actual_five_ready_sha256": {
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+    "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+    "rust/tcl-cmd-core/src/clock.rs": "6caabdbdcd57b4e6d58c5aab98f3e141d48ec6fd646c2aeca8810887ddb0419f",
+    "runtime/rust/src/cmd_clock.rs": "6d8ab5c116bf2c35851bb61482d5add36487bc4fadd531325835b36ef8cb1788",
+    "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+  }
+}

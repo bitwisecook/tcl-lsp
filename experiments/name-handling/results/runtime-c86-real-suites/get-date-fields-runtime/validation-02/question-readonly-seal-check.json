@@ -1,0 +1,8 @@
+{
+  "original_question_seal_sha256": "599c41f621434573d030828945015fef0df37e938a02edf75e2a3c6973265801",
+  "original_sealed_count": 56,
+  "changed": [],
+  "actual_c86_source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+  "operation_contract_sha256": "e8456e198e035d35e20e7b69e19aae31fafb4699a2c7cea13f2e43980acd3b50",
+  "classification": "Original question evidence unchanged. One Rust software control compares retained32C86 rows; other eight verify typed refusal/lifecycle/currency/registration. No Clocaltime capability or CNative parity generalisation."
+}

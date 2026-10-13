@@ -1,0 +1,1462 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "target_dir": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "started_utc": "2026-10-13T00:31:02.877715+00:00",
+  "steps": [
+    {
+      "label": "tcl-cmd-core-compile",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "start_utc": "2026-10-13T00:31:03.939445+00:00",
+      "stdout": "tcl-cmd-core-compile.stdout.gz",
+      "stderr": "tcl-cmd-core-compile.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T00:31:08.450074+00:00"
+    },
+    {
+      "label": "tcl-cmd-core-list",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+        "--list"
+      ],
+      "start_utc": "2026-10-13T00:31:08.464050+00:00",
+      "stdout": "tcl-cmd-core-list.stdout.gz",
+      "stderr": "tcl-cmd-core-list.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T00:31:08.466911+00:00"
+    },
+    {
+      "label": "tcl-cmd-core-exact-1",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+        "--exact",
+        "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:31:08.469823+00:00",
+      "stdout": "tcl-cmd-core-exact-1.stdout.gz",
+      "stderr": "tcl-cmd-core-exact-1.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T00:31:08.473253+00:00",
+      "executed_test_count": 1
+    },
+    {
+      "label": "tcl-cmd-core-exact-2",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+        "--exact",
+        "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T00:31:08.475417+00:00",
+      "stdout": "tcl-cmd-core-exact-2.stdout.gz",
+      "stderr": "tcl-cmd-core-exact-2.stderr.gz",
+      "exit_code": 0,
+      "end_utc": "2026-10-13T00:31:08.477908+00:00",
+      "executed_test_count": 1
+    }
+  ],
+  "binaries": {
+    "tcl-cmd-core": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+      "before_sha256": "6471da2e6ba97b0243879d89ae4e0371d35820e6f20e5c04a12d6eab96780322",
+      "artifacts": [
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/build.rs",
+            "edition": "2021",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "proc-macro"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/proc-macro2-346fa1be638f98f3/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#typenum@1.20.1",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/typenum-1.20.1/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "typenum",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/typenum-1.20.1/src/lib.rs",
+            "edition": "2018",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "const-generics"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtypenum-ae975a31f28ad839.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtypenum-ae975a31f28ad839.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#hybrid-array@0.4.15",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hybrid-array-0.4.15/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "hybrid_array",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hybrid-array-0.4.15/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libhybrid_array-5d18b8ad07c77ea3.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libhybrid_array-5d18b8ad07c77ea3.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quote-1.0.47/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quote-1.0.47/build.rs",
+            "edition": "2021",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "proc-macro"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/quote-281b1bc39d16de7f/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.26",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unicode-ident-1.0.26/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "unicode_ident",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unicode-ident-1.0.26/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libunicode_ident-1c3ab445d59154f4.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libunicode_ident-1c3ab445d59154f4.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "proc_macro2",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "proc-macro"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libproc_macro2-2bd597a9082108c9.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libproc_macro2-2bd597a9082108c9.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quote-1.0.47/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "quote",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quote-1.0.47/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "proc-macro"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libquote-bd68107b2947e119.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libquote-bd68107b2947e119.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#block-buffer@0.12.1",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.12.1/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "block_buffer",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block-buffer-0.12.1/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libblock_buffer-8e8faee3f2fd7af6.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libblock_buffer-8e8faee3f2fd7af6.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#crypto-common@0.2.2",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.2.2/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "crypto_common",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.2.2/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrypto_common-66cd52a614979156.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcrypto_common-66cd52a614979156.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#const-oid@0.10.2",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "const_oid",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libconst_oid-8e3e75693f11d4a0.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libconst_oid-8e3e75693f11d4a0.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-dialect/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/build.rs",
+            "edition": "2024",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-dialect-742d6a766cc248c3/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#digest@0.11.3",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/digest-0.11.3/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "digest",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/digest-0.11.3/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "alloc",
+            "block-api",
+            "default",
+            "oid"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libdigest-fe703c4c07bb0dd5.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libdigest-fe703c4c07bb0dd5.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#syn@3.0.6",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-3.0.6/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "syn",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-3.0.6/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "clone-impls",
+            "default",
+            "derive",
+            "parsing",
+            "printing",
+            "proc-macro"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsyn-686cda178807088c.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsyn-686cda178807088c.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#find-msvc-tools@0.1.14",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.14/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "find_msvc_tools",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.14/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libfind_msvc_tools-1612a9a7a6991e05.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libfind_msvc_tools-1612a9a7a6991e05.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.5",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cfg-if-1.0.5/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "cfg_if",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cfg-if-1.0.5/src/lib.rs",
+            "edition": "2018",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcfg_if-c5749788b74aba21.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcfg_if-c5749788b74aba21.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#shlex@2.0.1",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shlex-2.0.1/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "shlex",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shlex-2.0.1/src/lib.rs",
+            "edition": "2018",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "std"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libshlex-38c44e2d30f69498.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libshlex-38c44e2d30f69498.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-core-types/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_core_types",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-core-types/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_core_types-3b88cd716df01577.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_core_types-3b88cd716df01577.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#bitflags@2.13.2",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.13.2/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "bitflags",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.13.2/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbitflags-5a4e44694db2c296.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbitflags-5a4e44694db2c296.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.21/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.21/build.rs",
+            "edition": "2021",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "std"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/thiserror-3d503c6da2b6cad1/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-dialect/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_dialect",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_dialect-bebb47f56e4eaab5.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_dialect-bebb47f56e4eaab5.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#cc@1.6.0",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cc-1.6.0/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "cc",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cc-1.6.0/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcc-5329085d5c801afb.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcc-5329085d5c801afb.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.21",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-impl-2.0.21/Cargo.toml",
+          "target": {
+            "kind": [
+              "proc-macro"
+            ],
+            "crate_types": [
+              "proc-macro"
+            ],
+            "name": "thiserror_impl",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-impl-2.0.21/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror_impl-dcfc6fd80e6ee9f9.so"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.190",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/build.rs",
+            "edition": "2021",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "std"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/libc-0078c6ac5bd6e9b4/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#cpufeatures@0.3.1",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.1/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "cpufeatures",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.1/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcpufeatures-ca644647bc9d1c77.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libcpufeatures-ca644647bc9d1c77.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#libm@0.2.16",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libm-0.2.16/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libm-0.2.16/build.rs",
+            "edition": "2021",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "arch",
+            "default"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/libm-a009a2d4d99b9cf2/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml",
+          "target": {
+            "kind": [
+              "custom-build"
+            ],
+            "crate_types": [
+              "bin"
+            ],
+            "name": "build-script-build",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/build.rs",
+            "edition": "2024",
+            "doc": false,
+            "doctest": false,
+            "test": false
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-host-c-abi-3ba4d2dea0de5370/build-script-build"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.21/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "thiserror",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.21/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "std"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror-5d7c22bfd47e388b.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libthiserror-5d7c22bfd47e388b.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#bytecount@0.6.9",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "bytecount",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytecount-0.6.9/src/lib.rs",
+            "edition": "2018",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbytecount-bbc1d87e30a1f37f.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libbytecount-bbc1d87e30a1f37f.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-lexer/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_lexer",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-lexer/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_lexer-14f96023fa581477.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_lexer-14f96023fa581477.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#libm@0.2.16",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libm-0.2.16/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "libm",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libm-0.2.16/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "arch",
+            "default"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibm-9deb250b51280dcd.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibm-9deb250b51280dcd.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.190",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "libc",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.190/src/lib.rs",
+            "edition": "2021",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "default",
+            "std"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibc-e3683aa881c1e51c.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/liblibc-e3683aa881c1e51c.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha2@0.11.0",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sha2-0.11.0/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "sha2",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sha2-0.11.0/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "3",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "alloc",
+            "default",
+            "oid"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha2-0b4e942d2065744a.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha2-0b4e942d2065744a.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-platform/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_platform",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-platform/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_platform-9f1bea2db479f347.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_platform-9f1bea2db479f347.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_host_c_abi",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_c_abi-7fcf85ce6f385290.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_host_c_abi-7fcf85ce6f385290.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-syntax/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_syntax",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-syntax/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_syntax-718fb03cbb380846.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_syntax-718fb03cbb380846.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-test-support/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_test_support",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-test-support/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_test_support-08ee807c02f6f5de.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_test_support-08ee807c02f6f5de.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_runtime_api",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_runtime_api-eccc5778e41d0eca.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libtcl_runtime_api-eccc5778e41d0eca.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#sha1@0.11.0",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sha1-0.11.0/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "sha1",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sha1-0.11.0/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "alloc",
+            "default",
+            "oid"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha1-6b8004a7c98c31db.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libsha1-6b8004a7c98c31db.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "registry+https://github.com/rust-lang/crates.io-index#md-5@0.11.0",
+          "manifest_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/md-5-0.11.0/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "md5",
+            "src_path": "/workspace/tcl-lsp/tmp/name-tools/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/md-5-0.11.0/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": false
+          },
+          "features": [
+            "alloc",
+            "default",
+            "oid"
+          ],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libmd5-ae33f56743de9a87.rlib",
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/libmd5-ae33f56743de9a87.rmeta"
+          ],
+          "executable": null,
+          "fresh": true
+        },
+        {
+          "reason": "compiler-artifact",
+          "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+          "manifest_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/Cargo.toml",
+          "target": {
+            "kind": [
+              "lib"
+            ],
+            "crate_types": [
+              "lib"
+            ],
+            "name": "tcl_cmd_core",
+            "src_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/src/lib.rs",
+            "edition": "2024",
+            "doc": true,
+            "doctest": true,
+            "test": true
+          },
+          "profile": {
+            "opt_level": "0",
+            "debuginfo": 0,
+            "debug_assertions": true,
+            "overflow_checks": true,
+            "test": true
+          },
+          "features": [],
+          "filenames": [
+            "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b"
+          ],
+          "executable": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+          "fresh": false
+        }
+      ],
+      "observed_exact_names": [
+        "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+        "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses"
+      ],
+      "listed_test_count": 218,
+      "after_sha256": "6471da2e6ba97b0243879d89ae4e0371d35820e6f20e5c04a12d6eab96780322"
+    }
+  },
+  "status": "two-core-exact-controls-passed-cache-released",
+  "selected_tests": {
+    "tcl-cmd-core": [
+      "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+      "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses"
+    ]
+  },
+  "context_count": 6251,
+  "completed_utc": "2026-10-13T00:31:09.553097+00:00",
+  "cache_released_utc": "2026-10-13T00:31:09.553112+00:00"
+}

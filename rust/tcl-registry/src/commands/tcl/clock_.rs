@@ -41,6 +41,14 @@ const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
 };
 
 impl crate::InvocationDialect {
+    /// Measured C8.6 transition-table worker, independent of its effects.
+    #[must_use]
+    pub fn clock_get_date_fields_registration(self) -> Option<&'static str> {
+        (self.family() == Some(tcl_dialect::model::Family::Tcl)
+            && self.tcl_version == Some(TclVersion::V8_6))
+        .then_some("::tcl::clock::GetDateFields")
+    }
+
     /// Measured C8.6 process-environment worker constructor.
     #[must_use]
     pub fn clock_getenv_registration(self) -> Option<&'static str> {
@@ -635,6 +643,22 @@ pub fn parse_format_args_spec() -> CommandSpec {
     }
 }
 
+pub fn get_date_fields_spec() -> CommandSpec {
+    CommandSpec {
+        name: "tcl::clock::GetDateFields",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        runtime_backing: RuntimeBacking::shipped("tcl::clock::GetDateFields"),
+        surface: Some(SpecSurface::TCL86),
+        arity: Arity::exact(3),
+        return_type: Some(TclType::Dict),
+        ..CommandSpec::DEFAULT
+    }
+}
+
 pub fn getenv_spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::clock::getenv",
@@ -654,6 +678,33 @@ pub fn getenv_spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::{TclVersion, Traits};
+    #[test]
+    fn private_date_worker_is_c86_only_shipped_dict_and_null_hook() {
+        let registry = crate::CommandRegistry::build_default();
+        for version in TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let selected = version == TclVersion::V8_6;
+            assert_eq!(
+                dialect.clock_get_date_fields_registration().is_some(),
+                selected
+            );
+            let spec =
+                registry.get_for_surface("tcl::clock::GetDateFields", dialect.authoring_query());
+            assert_eq!(spec.is_some(), selected);
+            let compilation =
+                registry.native_compilation_for_registration("tcl::clock::GetDateFields", dialect);
+            assert_eq!(
+                compilation.map(|recipe| recipe.compiler_hook_presence(dialect)),
+                selected.then_some(Some(false))
+            );
+        }
+        assert!(!super::get_date_fields_spec().traits.contains(Traits::PURE));
+        assert_eq!(
+            super::get_date_fields_spec().return_type,
+            Some(super::TclType::Dict)
+        );
+    }
+
     #[test]
     fn private_environment_worker_has_only_the_measured_c86_surface_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();

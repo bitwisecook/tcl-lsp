@@ -1,0 +1,88 @@
+{
+  "name": "native-original-all-tcl",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 4.607,
+  "input_sha256": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "stdout_sha256": "41c1a5fcf316d2b39d1cad0e6999bbad197099fb66162e01c2d3069f31e0279b",
+  "stderr_sha256": "cf46641d89f4069defc1f64c497ac521dcbda8ab18cf620eb094a58f3b029d9b",
+  "runner_sha256_before": "d4b932e93df0807f6472b9c3887a65c71e8265673cf6d8d09a8ca91a31c873c8",
+  "runner_sha256_after": "d4b932e93df0807f6472b9c3887a65c71e8265673cf6d8d09a8ca91a31c873c8",
+  "build": {
+    "argv": [
+      "cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "messages_sha256": "8d3a6eb53db07371880d4340ea932152aa9ebc4edfd2e0634b5c1faf794c8a05",
+    "stderr_sha256": "4fa6e3c6601c03670ecfbe4db11f2d709f74515a286380573046f501626186ed"
+  },
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "core_bytes": 0
+  },
+  "environment": "Inherited host data not logged or dumped. Exact prior named benign NH_CLOCK_GETENV synthetic controls and TCL_LIBRARY; prior overlay/test environment switches removed. No environment_sync/TZ override.",
+  "actual_progress": {
+    "init_marker": true,
+    "tcltest_marker": true,
+    "all_tcl_enter_marker": true,
+    "all_tcl_return_marker": true,
+    "test_file_suite_entered": false,
+    "test_files_sourced": 0,
+    "actual_emitted_counts": {
+      "total": 0,
+      "passed": 0,
+      "skipped": 0,
+      "failed": 0
+    },
+    "file_selection_diagnostic": "Error:  No test files remain after applying your match and skip patterns!",
+    "scope": "Original orchestration and Tcltest selection reached; no var.test/testbody source or suite PASS. Exit0 and emitted zero counts do not imply tests passed."
+  },
+  "first_current_gap": {
+    "kind": "Native glob file type filtering",
+    "source_observation": "Original tcltest::GetMatchingFiles2765-2807 requests glob -types {b c f p s}; current Runtime entry_matches_types1399-1423 requires every selector and rejects b/c/p/s. No new isolated probe or C-native rerun.",
+    "runtime_source": "runtime/rust/src/cmd_fs.rs",
+    "runtime_source_sha256": "914f36b6c5fa89961c3b9afdb5281c63e4e4147e42ab0e369d2e9f635c93de75",
+    "original_tcltest_source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+  },
+  "classification": "GetDateFields startup lookup blocker cleared; original orchestration returns after zero-file selection. No next missing worker/typed host refusal reached; localtime capability remains unavailable outside this reached route.",
+  "source_comparison": {
+    "changed_dependency_sources": [],
+    "actual_five_ready_sha256": {
+      "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+      "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+      "rust/tcl-cmd-core/src/clock.rs": "6caabdbdcd57b4e6d58c5aab98f3e141d48ec6fd646c2aeca8810887ddb0419f",
+      "runtime/rust/src/cmd_clock.rs": "6d8ab5c116bf2c35851bb61482d5add36487bc4fadd531325835b36ef8cb1788",
+      "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+    }
+  },
+  "original_getdate_question_sealed_count": 56,
+  "original_getdate_question_seal_sha256": "599c41f621434573d030828945015fef0df37e938a02edf75e2a3c6973265801",
+  "original_question_seal_changed": [],
+  "axes": "Current Rust Native C86 runner and unchanged actual C86 source/library/provider tree; previous C5/Jim captures retained independently, no fresh C-native invocation in this run.",
+  "linked_build_script_archive_sha256": {
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-host-c-abi-d4ba4e41a1d71084/out/libtcl_native_list_sort.a": "b63bb196cebeb3b44f650e6435152b77ad6cf358734d708a9db39644dacf9062",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-runtime-163fdf196f37158f/out/libruntime_pkga.a": "60534de4fc6ffaff8ba3f3a3937b66c19fc88ef6f796d9e9f978f1e4c15b303c",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/build/tcl-runtime-163fdf196f37158f/out/libtommath.a": "58070ba0740664b452bd161cfabc8eeed0b4a940914e7d14561cf376b949809c"
+  },
+  "c_backend_scope": "Default fetched libtommath C/header tree conservatively snapshotted; current linked archives hashed. Build may reuse these archives; no claim of fresh C source compilation or C oracle execution.",
+  "runner_rustc_depinfo_sha256": "22998ad8d16dc11ce0db62198dd8d70664a1d29fdede239e99e018dcf2c57bdc"
+}

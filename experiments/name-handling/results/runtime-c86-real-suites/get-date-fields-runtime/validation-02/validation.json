@@ -1,0 +1,178 @@
+{
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "target_dir": "/workspace/tcl-lsp/tmp/name-target-issues",
+    "messages_sha256": "38b483a28bbd4d06fe5821fe73f9f7dc1ccac9891cc994b96d7aca0411c77cf4",
+    "stderr_sha256": "714661f1e665943694875a75322e046c5214d715d16a4a85b55d78607b673f75",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+    "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2",
+    "rustc_depinfo_sha256": "4e2ca06b4b727353f4e8423baa3813599c6f4b6a875d85e0c803a4b5bb14731a"
+  },
+  "discovered_exact_names": [
+    "cmd_clock::get_date_fields_tests::get_date_fields_matches_original_c86_rows_except_unavailable_localtime",
+    "cmd_clock::get_date_fields_tests::empty_localtime_refuses_before_guest_catch_continues",
+    "cmd_clock::get_date_fields_tests::original_name_dict_keys_and_three_worker_retirement_preserve_native_roles",
+    "cmd_clock::get_date_fields_tests::aliased_worker_arity_uses_original_invocation_spelling",
+    "cmd_clock::get_date_fields_tests::reached_real_getter_context_table_or_row_effect_retains_first_host_cause",
+    "cmd_clock::get_date_fields_tests::active_call_pool_lease_survives_all_three_real_worker_deletions",
+    "cmd_clock::bootstrap_tests::private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks",
+    "cmd_clock::bootstrap_tests::parse_format_args_retains_supplied_objects_and_pool_members_after_retirement",
+    "cmd_clock::bootstrap_tests::deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement"
+  ],
+  "checks": [
+    {
+      "name": "cmd_clock::get_date_fields_tests::get_date_fields_matches_original_c86_rows_except_unavailable_localtime",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::get_date_fields_matches_original_c86_rows_except_unavailable_localtime",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "01-get_date_fields_matches_original_c86_rows_except_unavailable_localtime.log",
+      "log_sha256": "3218e99da6f69a91d3084c7adee5e79cc9b4d4ed4059d82924e56d3ffaba00c6",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::get_date_fields_tests::empty_localtime_refuses_before_guest_catch_continues",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::empty_localtime_refuses_before_guest_catch_continues",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "02-empty_localtime_refuses_before_guest_catch_continues.log",
+      "log_sha256": "b83341e197e987546cd0fabc8ca65c0577e360ff1d06cd97885cb2a95094f771",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::get_date_fields_tests::original_name_dict_keys_and_three_worker_retirement_preserve_native_roles",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::original_name_dict_keys_and_three_worker_retirement_preserve_native_roles",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "03-original_name_dict_keys_and_three_worker_retirement_preserve_native_roles.log",
+      "log_sha256": "56ce707378f283de774bd55545b1788168cc5aada56ad951f67daca626e36dfc",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::get_date_fields_tests::aliased_worker_arity_uses_original_invocation_spelling",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::aliased_worker_arity_uses_original_invocation_spelling",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "04-aliased_worker_arity_uses_original_invocation_spelling.log",
+      "log_sha256": "40d16074839e16a9963c76e2264322f60e27c8756de1b951db674733f106b729",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::get_date_fields_tests::reached_real_getter_context_table_or_row_effect_retains_first_host_cause",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::reached_real_getter_context_table_or_row_effect_retains_first_host_cause",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "05-reached_real_getter_context_table_or_row_effect_retains_first_host_cause.log",
+      "log_sha256": "1bc63cc5e0eecf5d84390362511eea88737ab8827eb00465654e8d7af8e22501",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::get_date_fields_tests::active_call_pool_lease_survives_all_three_real_worker_deletions",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::get_date_fields_tests::active_call_pool_lease_survives_all_three_real_worker_deletions",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "06-active_call_pool_lease_survives_all_three_real_worker_deletions.log",
+      "log_sha256": "fa99087971ade4ec9180d794e9468e6d8c5f9083e855295d82276a683ad78296",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::bootstrap_tests::private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::bootstrap_tests::private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "07-private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks.log",
+      "log_sha256": "e4616bbbaed4e95220271fcdc9a2b5f58c3c52ae9bd983edbe292f35180ecae1",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::bootstrap_tests::parse_format_args_retains_supplied_objects_and_pool_members_after_retirement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::bootstrap_tests::parse_format_args_retains_supplied_objects_and_pool_members_after_retirement",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "08-parse_format_args_retains_supplied_objects_and_pool_members_after_retirement.log",
+      "log_sha256": "5606f527abcdb443a56c295bc3ae6ec3bbe8d61afe3095689031b9c6f336eb59",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    },
+    {
+      "name": "cmd_clock::bootstrap_tests::deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_runtime-05b21be85cf383d9",
+        "cmd_clock::bootstrap_tests::deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "09-deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement.log",
+      "log_sha256": "6b6175a48338e1b35df7e989a9dbba56285421a378a1d8d362695d2968505767",
+      "binary_sha256": "c1ac3b865acec79dc7eeaccadaede235a9b08a31d38ac373d141b885a5e4f5c2"
+    }
+  ],
+  "unexecuted_names": [],
+  "comparison_scope": "The first selected test compares32 originalC86 worker rows; emptytable actualC-localtime remains typed unavailable. Other selected tests are software identity/currency/lifecycle controls, distinct from CNative oracle evidence.",
+  "status": "Fresh standalone Runtime build PASS; nine exact controls each passed once in separate processes from same binary.",
+  "actual_oracle_worker_rows_compared": 32,
+  "actual_oracle_worker_row_scope": "Original C86 retained33 rows minus emptytzdata/nativeClocaltime; no independent C-native invocation rerun.",
+  "typed_unavailable_empty_localtime_control_passed": true,
+  "software_control_count": 8,
+  "source_comparison": {
+    "changed_dependency_sources": [],
+    "actual_five_ready_sha256": {
+      "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+      "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+      "rust/tcl-cmd-core/src/clock.rs": "5bc0068813dcb7315e9ad2ccbf1448fd4ff027bfd0a3922a7462aad85f6e6083",
+      "runtime/rust/src/cmd_clock.rs": "6d8ab5c116bf2c35851bb61482d5add36487bc4fadd531325835b36ef8cb1788",
+      "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+    }
+  }
+}

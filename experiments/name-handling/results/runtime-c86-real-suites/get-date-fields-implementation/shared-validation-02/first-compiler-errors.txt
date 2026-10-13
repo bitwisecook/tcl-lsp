@@ -1,0 +1,22 @@
+error[E0277]: can't compare `Vec<u8>` with `Cow<'_, [u8]>`
+    --> rust/tcl-cmd-core/src/clock.rs:1610:13
+     |
+1610 |             assert_eq!(actual, expected, "{}", row);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no implementation for `Vec<u8> == Cow<'_, [u8]>`
+     |
+     = help: the trait `PartialEq<Cow<'_, [u8]>>` is not implemented for `Vec<u8>`
+help: `Vec<u8>` implements trait `PartialEq<Rhs>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/bstr/traits.rs:56:8
+     |
+     = note: `PartialEq<ByteStr>`
+     |
+     = note: `PartialEq<ByteString>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/bstr.rs:537:0
+     |
+     = note: in this macro invocation
+    ::: /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/bstr.rs:681:0
+     |
+     = note: in this macro invocation
+     = note: required for `Vec<Vec<u8>>` to implement `PartialEq<Vec<Cow<'_, [u8]>>>`
+     = note: this error originates in the macro `assert_eq` which comes from the expansion of the macro `impl_partial_eq` (in Nightly builds, run with -Z macro-backtrace for more info)
+

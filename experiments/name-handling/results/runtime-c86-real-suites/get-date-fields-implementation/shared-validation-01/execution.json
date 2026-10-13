@@ -1,0 +1,41 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "target_dir": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "started_utc": "2026-10-13T00:21:56.394350+00:00",
+  "steps": [
+    {
+      "label": "tcl-cmd-core-compile",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "start_utc": "2026-10-13T00:21:57.444556+00:00",
+      "stdout": "tcl-cmd-core-compile.stdout.gz",
+      "stderr": "tcl-cmd-core-compile.stderr.gz",
+      "exit_code": 101,
+      "end_utc": "2026-10-13T00:22:03.295684+00:00"
+    }
+  ],
+  "binaries": {},
+  "status": "first-failure-preserved-cache-released",
+  "selected_tests": {
+    "tcl-cmd-core": [
+      "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+      "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses"
+    ],
+    "tcl-registry": [
+      "commands::tcl::clock_::tests::private_date_worker_is_c86_only_shipped_dict_and_null_hook"
+    ]
+  },
+  "context_count": 6251,
+  "error": "First unsuccessful actual step preserved: tcl-cmd-core-compile",
+  "completed_utc": "2026-10-13T00:22:03.300211+00:00",
+  "cache_released_utc": "2026-10-13T00:22:03.300220+00:00"
+}

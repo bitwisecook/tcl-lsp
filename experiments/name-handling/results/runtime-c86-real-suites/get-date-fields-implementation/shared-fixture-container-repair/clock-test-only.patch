@@ -1,0 +1,13 @@
+--- rust/tcl-cmd-core/src/clock.rs (second attempt)
++++ rust/tcl-cmd-core/src/clock.rs (authorised fixture container normalisation)
+@@ -1587,8 +1587,8 @@
+             if !row.starts_with("ROW ") { continue; }
+             let words = tcl_syntax::list::split_native_list_bytes(row.as_bytes(), protocol).unwrap();
+             if words[3].as_ref() != b"0" || words[1].as_ref() == b"empty-tzdata" { continue; }
+-            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap();
+-            let value = |key: &[u8]| expected.chunks_exact(2).find(|pair| pair[0] == key).unwrap()[1].clone().into_owned();
++            let expected = tcl_syntax::list::split_native_list_bytes(&words[5], protocol).unwrap().into_iter().map(|word| word.into_owned()).collect::<Vec<_>>();
++            let value = |key: &[u8]| expected.chunks_exact(2).find(|pair| pair[0] == key).unwrap()[1].clone();
+             let integer = |key: &[u8]| std::str::from_utf8(&value(key)).unwrap().parse::<i64>().unwrap();
+             let changeover = match words[1].as_ref() {
+                 b"julian-calendar" => i32::MAX,

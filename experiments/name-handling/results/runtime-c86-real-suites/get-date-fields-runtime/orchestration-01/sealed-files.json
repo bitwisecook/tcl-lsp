@@ -1,0 +1,23 @@
+{
+  "capture-source-scope.py": "d8b30770de82d577069212427e9eb3db3c5391c1c51c1eadb634c06ae47ab2e5",
+  "capture.py": "8039ff962f9e8017ddf0405ad51d336f70c5b40b15ad9f0b60aa8fa09a3600ae",
+  "orchestration-inputs.json": "d0fb04f723da6229d67ba5c2dfe2642d2ee69b5651393efb215f143c0c9da174",
+  "record.json": "773573151244f7c015d7e46d9fedab694f4a1433e57b2fa5142e269115f50bc3",
+  "runner-build-messages.jsonl": "8d3a6eb53db07371880d4340ea932152aa9ebc4edfd2e0634b5c1faf794c8a05",
+  "runner-build-messages.jsonl.gz": "48bf42a40d0ee1043eaf45bef10b68ef1213e46fb1589bdff339c799227d5a68",
+  "runner-build.stderr.txt": "4fa6e3c6601c03670ecfbe4db11f2d709f74515a286380573046f501626186ed",
+  "runner-rustc-depinfo.d.gz": "3e05039ea758c6b934f53fdf82590c0473ba15e4733c5d85b2b4756e0474e020",
+  "runtime-cargo-metadata.json.gz": "43da8901e7bb72dc04c56063b608eb9e8366e7749d23759f91fb6d369f4fa97c",
+  "runtime-dependency-source-after.json.gz": "e971e98503cfda90af6beed0e6d58d0b651cc92057a9084cfe8e89df183f1867",
+  "runtime-dependency-source-before.json.gz": "8be4b64d9dd6eb904d4d633c2f3ab010eb5db11a8619faa846601153031ab132",
+  "runtime_rust_src_cmd_clock.rs.gz": "a049e76b753e2c76f46c999e7cd3e5a7cfb9e440d13c2bd049a2682ded2a43cd",
+  "runtime_rust_src_value_ops.rs.gz": "2b61f720ef1535adad31e600de24bcca57588894be2d9bb411afbf2b7ee3582a",
+  "rust_tcl-cmd-core_src_clock.rs.gz": "aed581e04a545c72176cf45aac65335cfc40c5878dabc76f3dc90a90fcef5d2a",
+  "rust_tcl-registry_src_commands_tcl_clock_.rs.gz": "1b2a6c6a3201ddabd82d14070febf4d53cbb330f10e6a1ed25a4be597c5d9f60",
+  "rust_tcl-registry_src_commands_tcl_mod.rs.gz": "014c371d38748abedd17bca6c1d98d384a66820d847315cb8f320289620d4d44",
+  "scope.json": "80ec187468aa311b9aba09a2e53de6d686595c83c4d8ee064aaea81de682d21d",
+  "source-comparison.json": "dfeb34e7edfe75606655c79a6243cc4f53dc78b49eb2cd0948b875bac3823988",
+  "source-ready.json": "c4f04a4fb9846863714de5c2766f7abf75f0d260091a820aac0c0eea4170ccd0",
+  "stderr.txt": "cf46641d89f4069defc1f64c497ac521dcbda8ab18cf620eb094a58f3b029d9b",
+  "stdout.txt": "41c1a5fcf316d2b39d1cad0e6999bbad197099fb66162e01c2d3069f31e0279b"
+}

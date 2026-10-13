@@ -1,0 +1,7 @@
+{
+  "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+  "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+  "rust/tcl-cmd-core/src/clock.rs": "54afaadef7f65e09413bdd543f75e333020b0c544821dc27e5e8ffce7989abd5",
+  "runtime/rust/src/cmd_clock.rs": "3f820d7b2597a38f7e49f65af2a09ebc0ee749ce2c3cafce3f149c0b6c9b2533",
+  "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+}

@@ -1,0 +1,17 @@
+{
+  "original_question_seal_sha256": "599c41f621434573d030828945015fef0df37e938a02edf75e2a3c6973265801",
+  "original_sealed_count": 56,
+  "original_sealed_changed": [],
+  "actual_c86_source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+  "implementation_applied_source_sha256": {
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+    "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+    "rust/tcl-cmd-core/src/clock.rs": "54afaadef7f65e09413bdd543f75e333020b0c544821dc27e5e8ffce7989abd5",
+    "runtime/rust/src/cmd_clock.rs": "3f820d7b2597a38f7e49f65af2a09ebc0ee749ce2c3cafce3f149c0b6c9b2533",
+    "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+  },
+  "original_object_inputs_sha256": "2d205220a1176bf6ff1f04184cf23d59de717623ef77bad676399a55837a0c55",
+  "original_c86_values_stdout_sha256": "ea212f99db535e7d4b5536c15d12e428e884c02af01a12ffb51d5a09e51d3691",
+  "operation_contract_sha256": "e8456e198e035d35e20e7b69e19aae31fafb4699a2c7cea13f2e43980acd3b50",
+  "classification": "Original56-file question seal unchanged; integrated implementation compilation failed before execution, no new oracle/conformance proof."
+}

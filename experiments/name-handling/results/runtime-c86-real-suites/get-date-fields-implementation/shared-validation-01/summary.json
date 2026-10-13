@@ -1,0 +1,44 @@
+{
+  "classification": "first actual cmd-core lib-test compile failure preserved; no native tests reached",
+  "build_commands_executed": 1,
+  "build_exit_code": 101,
+  "exact_test_commands_executed": 0,
+  "exact_names_observed": false,
+  "first_failure_diagnostics": {
+    "E0277": {
+      "clock.rs:1589": 2
+    },
+    "E0658": {
+      "clock.rs:1593": 1
+    },
+    "E0308": {
+      "clock.rs:1601": 1,
+      "clock.rs:1606": 1
+    }
+  },
+  "registry_build_status": "unexecuted after first compile failure; do not claim a registry pass or failure",
+  "planned_tests": [
+    "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+    "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses",
+    "commands::tcl::clock_::tests::private_date_worker_is_c86_only_shipped_dict_and_null_hook"
+  ],
+  "test_count": {
+    "pass": 0,
+    "fail": 0,
+    "unexecuted": 3
+  },
+  "no_fix_no_rerun": true,
+  "five_source_hashes_unchanged": true,
+  "question_seal_unchanged": true,
+  "conservative_context": {
+    "files": 6251,
+    "changed": {},
+    "scope": "Tracked Rust/workspace source and build context, including test fixtures. This is a conservative superset, not an exact compiled module graph."
+  },
+  "binary_hashes": "not applicable: no completed native test binary emitted",
+  "source_image_scope": "Five accepted frozen files copied gzip; original question fixtures retain their existing seal.",
+  "driver_image": "executed-driver.py.gz is the exact executed driver; run.py has only a subsequent licence-header addition and has not been rerun",
+  "numeric_control_scope": "Authored control compares 16 retained successful original C86 scalar calendar rows via the pure helper. Neither it nor the two overflow refusal guards reached execution here. Earlier standalone helper checks are separate evidence, not Runtime conformance.",
+  "registry_control_scope": "Authored C86-only surface, shipped worker Dict return, non-pure trait and native null hook guard unexecuted here.",
+  "runtime_conformance": "No claim: Runtime tests are a separate target and evidence owner."
+}

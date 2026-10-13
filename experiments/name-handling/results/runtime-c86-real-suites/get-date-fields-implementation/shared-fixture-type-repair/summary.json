@@ -1,0 +1,12 @@
+{
+  "source": "rust/tcl-cmd-core/src/clock.rs",
+  "before_sha256": "54afaadef7f65e09413bdd543f75e333020b0c544821dc27e5e8ffce7989abd5",
+  "after_sha256": "5bc0068813dcb7315e9ad2ccbf1448fd4ff027bfd0a3922a7462aad85f6e6083",
+  "scope": "Three lines in new calendar test only: Cow byte views for comparisons/match; owned Vec from cloned fixture field at constructor boundary",
+  "production_prefix_unchanged": true,
+  "overflow_guard_unchanged": true,
+  "original_oracle": "get-date-fields-question/capture-01/8.6.18/values/stdout.txt",
+  "original_oracle_sha256": "ea212f99db535e7d4b5536c15d12e428e884c02af01a12ffb51d5a09e51d3691",
+  "assertions_and_expected_row_count_unchanged": true,
+  "cargo_or_test_commands_since_repair": 0
+}

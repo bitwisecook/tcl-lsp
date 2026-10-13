@@ -285,6 +285,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         clock_::spec(),
         clock_::parse_format_args_spec(),
         clock_::getenv_spec(),
+        clock_::get_date_fields_spec(),
         close_::spec(),
         concat_::spec(),
         concat_::jim_spec(),

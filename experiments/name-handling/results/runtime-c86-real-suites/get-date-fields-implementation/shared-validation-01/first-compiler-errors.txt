@@ -1,0 +1,76 @@
+error[E0277]: can't compare `Cow<'_, [u8]>` with `&[u8; 1]`
+    --> rust/tcl-cmd-core/src/clock.rs:1589:25
+     |
+1589 |             if words[3] != b"0" || words[1] == b"empty-tzdata" { continue; }
+     |                         ^^ no implementation for `Cow<'_, [u8]> == &[u8; 1]`
+     |
+     = help: the trait `PartialEq<&[u8; 1]>` is not implemented for `Cow<'_, [u8]>`
+help: consider dereferencing both sides of the expression
+     |
+1589 |             if *words[3] != *b"0" || words[1] == b"empty-tzdata" { continue; }
+     |                +            +
+
+
+error[E0277]: can't compare `Cow<'_, [u8]>` with `&[u8; 12]`
+    --> rust/tcl-cmd-core/src/clock.rs:1589:45
+     |
+1589 |             if words[3] != b"0" || words[1] == b"empty-tzdata" { continue; }
+     |                                             ^^ no implementation for `Cow<'_, [u8]> == &[u8; 12]`
+     |
+     = help: the trait `PartialEq<&[u8; 12]>` is not implemented for `Cow<'_, [u8]>`
+help: consider dereferencing both sides of the expression
+     |
+1589 |             if words[3] != b"0" || *words[1] == *b"empty-tzdata" { continue; }
+     |                                    +            +
+
+
+error[E0658]: use of unstable library feature `str_as_str`
+    --> rust/tcl-cmd-core/src/clock.rs:1593:45
+     |
+1593 |             let changeover = match words[1].as_slice() {
+     |                                             ^^^^^^^^
+     |
+     = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-cmd-core/src/clock.rs:1601:104
+     |
+1601 |             let actual = C86_DATE_FIELD_KEYS.into_iter().zip(c86_date_values(&fields,&value(b"tzName"),&literals))
+     |                                                              ---------------                           ^^^^^^^^^ expected `&DateFieldLiterals<Cow<'_, [u8]>>`, found `&DateFieldLiterals<Vec<u8>>`
+     |                                                              |
+     |                                                              arguments to this function are incorrect
+     |
+     = note: expected reference `&DateFieldLiterals<Cow<'_, [u8]>>`
+                found reference `&DateFieldLiterals<Vec<u8>>`
+note: function defined here
+    --> rust/tcl-cmd-core/src/clock.rs:1407:8
+     |
+1407 | pub fn c86_date_values<V: Clone>(
+     |        ^^^^^^^^^^^^^^^
+...
+1410 |     literals: &DateFieldLiterals<V>,
+     |     -------------------------------
+
+
+error[E0308]: `match` arms have incompatible types
+    --> rust/tcl-cmd-core/src/clock.rs:1606:58
+     |
+1603 |                       let bytes = match role {
+     |  _________________________________-
+1604 | |                         C86DateValue::Wide(number) => number.to_string().into_bytes(),
+     | |                                                       ------------------------------- this is found to be of type `Vec<u8>`
+1605 | |                         C86DateValue::Int(number) => number.to_string().into_bytes(),
+     | |                                                      ------------------------------- this is found to be of type `Vec<u8>`
+1606 | |                         C86DateValue::Original(bytes) => bytes,
+     | |                                                          ^^^^^ expected `Vec<u8>`, found `Cow<'_, [u8]>`
+1607 | |                     };
+     | |_____________________- `match` arms have incompatible types
+     |
+     = note: expected struct `Vec<u8>`
+                  found enum `Cow<'_, [u8]>`
+help: try using a conversion method
+     |
+1606 |                         C86DateValue::Original(bytes) => bytes.to_vec(),
+     |                                                               +++++++++
+

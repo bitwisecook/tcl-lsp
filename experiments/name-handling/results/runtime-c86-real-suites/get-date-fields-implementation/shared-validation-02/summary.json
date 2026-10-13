@@ -1,0 +1,52 @@
+{
+  "classification": "Core second library-test build compile failure preserved; independent first Registry build/list/exact control passed",
+  "first_attempt": "../shared-validation-01/sealed-files.json remains unchanged",
+  "build_commands_executed": 2,
+  "exact_test_commands_executed": 1,
+  "exact_names_observed": {
+    "core": false,
+    "registry": [
+      "commands::tcl::clock_::tests::private_date_worker_is_c86_only_shipped_dict_and_null_hook"
+    ]
+  },
+  "first_failure_diagnostics": [
+    {
+      "code": "E0277",
+      "site": "rust/tcl-cmd-core/src/clock.rs:1610",
+      "detail": "Vec<Vec<u8>> actual does not implement comparison with Vec<Cow<[u8]>> expected"
+    }
+  ],
+  "registry_build_status": "first independent build completed; native exact name observed; exactly one control executed and passed",
+  "test_count": {
+    "pass": 1,
+    "fail": 0,
+    "unexecuted": 2
+  },
+  "no_fix_no_rerun_within_this_attempt": true,
+  "five_source_hashes_unchanged": true,
+  "question_seal_unchanged": true,
+  "conservative_context": {
+    "files": 6251,
+    "changed": {},
+    "scope": "Tracked Rust/workspace source/build context is a conservative superset; actual Cargo package-artifact graph recorded separately.",
+    "after_capture_scope": "after Core compile failure and before independent Registry build; Registry source snapshots cover frozen five before and after its successful exact control"
+  },
+  "binary_hashes": "Registry before/after hashes recorded and verified against saved gzip binary; no Core binary emitted.",
+  "numeric_control_scope": "Authored pure numeric helper control16 original C86 successful calendar rows plus2 overflow refusal inputs. None ran in this attempt. Previous standalone helper results are separate evidence, not Runtime acceptance.",
+  "registry_control_scope": "Executed guard checks C86-only registration and authoring surface for all TclVersion values, native compiler hook absence, non-pure trait and Dict result type. The shipped backing is declared by the frozen source spec; the guard has no direct runtime_backing assertion. It is not physical Runtime acceptance.",
+  "runtime_conformance": "No claim; physical Runtime controls belong to separate target/evidence owner.",
+  "first_attempt_seal_verified_unchanged": true,
+  "build_exit_codes": {
+    "core": 101,
+    "registry": 0
+  },
+  "registry_binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_registry-30152f1b62ed4924",
+    "before_sha256": "0c0a415d4f1cb622f5b16245c65e15fc77f4fcfb39cb48e635cab557d1e12de0",
+    "after_sha256": "0c0a415d4f1cb622f5b16245c65e15fc77f4fcfb39cb48e635cab557d1e12de0",
+    "gzip_payload_verified": true,
+    "listed_test_count": 1757
+  },
+  "registry_independent_authorisation": "Root separately authorised first Registry build after the Core compile failure because the failed Core cfg(test) target is independent of Registry normal-library dependency.",
+  "release_utc": "2026-10-13T00:29:21.981831+00:00"
+}

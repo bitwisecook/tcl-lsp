@@ -1,0 +1,10 @@
+{
+  "source": "rust/tcl-cmd-core/src/clock.rs",
+  "before_sha256": "5bc0068813dcb7315e9ad2ccbf1448fd4ff027bfd0a3922a7462aad85f6e6083",
+  "after_sha256": "6caabdbdcd57b4e6d58c5aab98f3e141d48ec6fd646c2aeca8810887ddb0419f",
+  "scope": "New test expected fixture container only: move unchanged Cow byte ownership conversion into parsed expected fields, clone owned values directly",
+  "production_prefix_unchanged": true,
+  "overflow_guard_unchanged": true,
+  "assertions_and_rowcount16_unchanged": true,
+  "cargo_commands_since_repair": 0
+}

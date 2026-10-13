@@ -1,0 +1,55 @@
+{
+  "classification": "Final actual Core library-test build and two native exact controls passed once; Registry not repeated",
+  "build_commands_executed": 1,
+  "build_exit_code": 0,
+  "native_list_exit_code": 0,
+  "observed_exact_names": [
+    "clock::c86_calendar_tests::retained_c86_numeric_calendar_rows",
+    "clock::c86_calendar_tests::unmeasured_native_calendar_overflow_refuses"
+  ],
+  "executed_test_commands": 2,
+  "test_count": {
+    "pass": 2,
+    "fail": 0,
+    "unexecuted": 0
+  },
+  "core_calendar_control": {
+    "actual_asserted_compared_successful_original_c86_rows": 16,
+    "scope": "Pure c86_calendar_fields/c86_date_values helper output bytes compared with retained original C86 worker fixture, excluding empty-table unavailable localtime; no physical Runtime claim"
+  },
+  "core_overflow_control": {
+    "actual_fixed_inputs": [
+      [
+        "i64::MAX",
+        1
+      ],
+      [
+        "i64::MAX",
+        0
+      ]
+    ],
+    "scope": "Two unmeasured native numeric/calendar extent cases both return CommandProtocolUnavailable; operational refusal, not oracle-equivalence evidence"
+  },
+  "prior_failures_seals_unchanged": {
+    "shared-validation-01": true,
+    "shared-validation-02": true
+  },
+  "registry_result": "First independent Registry exact guard passed in shared-validation-02; no Registry build/list/test repeated here",
+  "five_sources_frozen_unchanged": true,
+  "oracle_question_seal_unchanged": true,
+  "core_binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b",
+    "before_sha256": "6471da2e6ba97b0243879d89ae4e0371d35820e6f20e5c04a12d6eab96780322",
+    "after_sha256": "6471da2e6ba97b0243879d89ae4e0371d35820e6f20e5c04a12d6eab96780322",
+    "gzip_payload_verified": true,
+    "native_listed_test_count": 218
+  },
+  "conservative_context": {
+    "count": 6251,
+    "changed": {},
+    "scope": "Tracked Rust/workspace source/build superset is separate from actual emitted package artifact graph; no claim each context file compiled"
+  },
+  "cache_released_utc": "2026-10-13T00:31:09.553112+00:00",
+  "no_production_api_profile_fixture_assertion_changes": true,
+  "runtime_conformance": "Physical Runtime controls are separate evidence owned by Runtime validation"
+}

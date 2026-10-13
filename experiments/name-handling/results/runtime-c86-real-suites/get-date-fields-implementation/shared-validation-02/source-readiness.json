@@ -1,0 +1,54 @@
+{
+  "scope": "Root-authorised test-fixture-only type repairs applied; shared validation 02 frozen source set",
+  "source_ready_sha256": {
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": "74e84fb092f20efeed9885c83130352f99d1aa3c8ae3539f72fe3e57a200d9de",
+    "rust/tcl-registry/src/commands/tcl/mod.rs": "40dba448b0678f09147abafa24e73c8c29b9cc1357df5b4b511415dbb447c93f",
+    "rust/tcl-cmd-core/src/clock.rs": "5bc0068813dcb7315e9ad2ccbf1448fd4ff027bfd0a3922a7462aad85f6e6083",
+    "runtime/rust/src/cmd_clock.rs": "6d8ab5c116bf2c35851bb61482d5add36487bc4fadd531325835b36ef8cb1788",
+    "runtime/rust/src/value_ops.rs": "a45b84728615a9602acc4c2c9988ea6ae4d920730e7fce0309bdf79a8e1e1e40"
+  },
+  "changes": {
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": {
+      "added": 51,
+      "removed": 0
+    },
+    "rust/tcl-registry/src/commands/tcl/mod.rs": {
+      "added": 1,
+      "removed": 0
+    },
+    "rust/tcl-cmd-core/src/clock.rs": {
+      "added": 529,
+      "removed": 0
+    },
+    "runtime/rust/src/cmd_clock.rs": {
+      "added": 505,
+      "removed": 2
+    },
+    "runtime/rust/src/value_ops.rs": {
+      "added": 327,
+      "removed": 0
+    }
+  },
+  "tests": {
+    "rust/tcl-registry/src/commands/tcl/clock_.rs": [
+      "private_date_worker_is_c86_only_shipped_dict_and_null_hook"
+    ],
+    "rust/tcl-cmd-core/src/clock.rs": [
+      "retained_c86_numeric_calendar_rows",
+      "unmeasured_native_calendar_overflow_refuses"
+    ],
+    "runtime/rust/src/cmd_clock.rs": [
+      "get_date_fields_matches_original_c86_rows_except_unavailable_localtime",
+      "empty_localtime_refuses_before_guest_catch_continues",
+      "original_name_dict_keys_and_three_worker_retirement_preserve_native_roles",
+      "aliased_worker_arity_uses_original_invocation_spelling",
+      "reached_real_getter_context_table_or_row_effect_retains_first_host_cause",
+      "active_call_pool_lease_survives_all_three_real_worker_deletions"
+    ]
+  },
+  "source_provenance": "tmp/tcl8.6.18/generic/tclClock.c: worker428-519, ConvertUTCToLocal958-1036, LookupLastTransition1137-1197, calendar1208-1621",
+  "fixture_provenance": [
+    "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl",
+    "experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "metadata_sha256": "e28be139edabddf2ed120ab1b862165faa844583e898e1797037f16115a44e8c",
+  "packages": [
+    "tcl-bytecode",
+    "tcl-cmd-core",
+    "tcl-core-types",
+    "tcl-dialect",
+    "tcl-host-c-abi",
+    "tcl-host-native",
+    "tcl-lexer",
+    "tcl-platform",
+    "tcl-regex",
+    "tcl-registry",
+    "tcl-runtime",
+    "tcl-runtime-api",
+    "tcl-syntax",
+    "tcl-test-support"
+  ],
+  "scope": "Actual standalone Cargo metadata graph: root all dependency kinds; non-root normal/build edges. Local package rs/c/h/tcl/txt/json and manifests/locks conservatively captured, plus exact original oracle fixtures. Not whole-workspace source claim.",
+  "count": 14189,
+  "excluded_concurrent_source": "rust/tcl-lsp-core/src/irule_gen.rs"
+}

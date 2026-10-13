@@ -40,6 +40,10 @@ struct ClockLiteralPool {
     timezone: crate::obj::Owned,
     gmt: crate::obj::Owned,
     conflict: crate::obj::Owned,
+    date_keys: [crate::obj::Owned; 14],
+    ce: crate::obj::Owned,
+    bce: crate::obj::Owned,
+    integer_too_large: crate::obj::Owned,
 }
 
 impl ClockLiteralPool {
@@ -54,6 +58,21 @@ impl ClockLiteralPool {
             conflict: crate::obj::Owned::fresh(crate::obj::new_string_bytes(
                 b"cannot use -gmt and -timezone in same call",
             )),
+            date_keys: core_clock::C86_DATE_FIELD_KEYS
+                .map(|key| crate::obj::Owned::fresh(crate::obj::new_string_bytes(key))),
+            ce: crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"CE")),
+            bce: crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"BCE")),
+            integer_too_large: crate::obj::Owned::fresh(crate::obj::new_string_bytes(
+                b"integer value too large to represent",
+            )),
+        }
+    }
+
+    fn date_literals(&self) -> core_clock::DateFieldLiterals<*mut TclObj> {
+        core_clock::DateFieldLiterals {
+            keys: std::array::from_fn(|index| self.date_keys[index].as_ptr()),
+            ce: self.ce.as_ptr(),
+            bce: self.bce.as_ptr(),
         }
     }
 
@@ -102,6 +121,73 @@ unsafe extern "C" fn parse_format_arguments(
                 .as_ptr();
             interp.set_result(conflict);
             interp.set_c_error_code(b"CLOCK gmtWithTimezone");
+            1
+        }
+    }
+}
+
+unsafe extern "C" fn get_date_fields(
+    data: *mut std::ffi::c_void,
+    interp: *mut Interp,
+    count: std::ffi::c_int,
+    words: *const *mut TclObj,
+) -> std::ffi::c_int {
+    // The real registration owns data; the call lease survives callback deletion.
+    let pointer = data.cast::<ClockLiteralPool>();
+    unsafe { Rc::increment_strong_count(pointer) };
+    let pool = unsafe { Rc::from_raw(pointer) };
+    let interp = unsafe { &mut *interp };
+    let Ok(count) = usize::try_from(count) else {
+        interp.report_obj_cmd_error(tcl_cmd_core::CmdError::new("invalid argument count"));
+        return 1;
+    };
+    let words = unsafe { std::slice::from_raw_parts(words, count) };
+    let mut operations =
+        match crate::value_ops::RuntimeClockDateOps::new(interp, pool.date_literals()) {
+            Ok(operations) => operations,
+            Err(error) => {
+                interp.report_obj_cmd_error(error.into());
+                return 1;
+            }
+        };
+    if words.len() != 4 {
+        let code = interp.wrong_args_for_invocation(words, b"seconds tzdata changeover");
+        if !interp.host_refusal_pending() {
+            interp.note_c_api_error();
+        }
+        if let Err(error) = operations.check_value() {
+            interp.report_obj_cmd_error(error.into());
+        }
+        return if code == Code::Ok { 0 } else { 1 };
+    }
+    match core_clock::get_date_fields(&mut operations, &words[1..]) {
+        Ok(result) => {
+            let result = crate::obj::Owned::fresh(result);
+            if let Err(error) = operations.check_value() {
+                interp.report_obj_cmd_error(error.into());
+                return 1;
+            }
+            interp.set_result(result.as_ptr());
+            if let Err(error) = operations.check_value() {
+                interp.report_obj_cmd_error(error.into());
+                return 1;
+            }
+            0
+        }
+        Err(core_clock::DateFieldError::Command(error)) => {
+            interp.report_obj_cmd_error(error);
+            1
+        }
+        Err(core_clock::DateFieldError::BignumSeconds) => {
+            if let Err(error) = operations.check_value() {
+                interp.report_obj_cmd_error(error.into());
+                return 1;
+            }
+            interp.set_result(pool.integer_too_large.as_ptr());
+            interp.set_c_error_code(b"NONE");
+            if let Err(error) = operations.check_value() {
+                interp.report_obj_cmd_error(error.into());
+            }
             1
         }
     }
@@ -163,6 +249,19 @@ pub fn install(interp: &mut Interp) {
         .clock_parse_format_args_registration()
     {
         let pool = Rc::new(ClockLiteralPool::new());
+        if let Some(worker) = interp
+            .native_invocation_dialect()
+            .clock_get_date_fields_registration()
+        {
+            interp.register_stock_obj_command(
+                worker.as_bytes(),
+                crate::interp::ObjCommand::new_owned_runtime_shim(
+                    get_date_fields,
+                    Rc::into_raw(Rc::clone(&pool)).cast_mut().cast(),
+                    Some(delete_clock_pool),
+                ),
+            );
+        }
         if let Some(getenv) = interp
             .native_invocation_dialect()
             .clock_getenv_registration()
@@ -299,7 +398,11 @@ mod bootstrap_tests {
             )
             .unwrap();
             let report = interp.backing_report();
-            for identity in ["tcl::clock::ParseFormatArgs", "tcl::clock::getenv"] {
+            for identity in [
+                "tcl::clock::ParseFormatArgs",
+                "tcl::clock::getenv",
+                "tcl::clock::GetDateFields",
+            ] {
                 let selected = version == tcl_dialect::TclVersion::V8_6;
                 let declared = registry
                     .get_for_surface(identity, dialect.authoring_query())
@@ -517,6 +620,11 @@ mod bootstrap_tests {
         assert_eq!(unsafe { (*members[0]).ref_count }, 3);
         assert_eq!(interp.eval_str(b"rename ::tcl::clock::getenv {}"), Code::Ok);
         assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
+        assert_eq!(unsafe { (*members[0]).ref_count }, 3);
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::GetDateFields {}"),
+            Code::Ok
+        );
         assert_eq!(unsafe { (*members[0]).ref_count }, 2);
         assert_eq!(crate::obj::bytes_of(members[0]), b"%a %b %d %H:%M:%S %Z %Y");
         assert_eq!(crate::obj::bytes_of(originals[0]), b"supplied");
@@ -547,6 +655,11 @@ mod bootstrap_tests {
             interp.eval_str(b"rename ::tcl::clock::ParseFormatArgs {}"),
             Code::Ok
         );
+        assert_eq!(unsafe { (*members[0]).ref_count }, 3);
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::GetDateFields {}"),
+            Code::Ok
+        );
         assert_eq!(unsafe { (*members[0]).ref_count }, 2);
         assert_eq!(crate::obj::bytes_of(again[2]), b":GMT");
         assert_eq!(interp.native_compiler_cache_epochs(GLOBAL), Some(before));
@@ -574,7 +687,6 @@ mod bootstrap_tests {
             "scan",
             "Oldscan",
             "ConvertLocalToUTC",
-            "GetDateFields",
             "GetJulianDayFromEraYearMonthDay",
             "GetJulianDayFromEraYearWeekDay",
         ] {
@@ -693,5 +805,396 @@ mod tests {
                 b"free-form clock scan is not yet supported"
             );
         });
+    }
+}
+
+#[cfg(test)]
+mod get_date_fields_tests {
+    use super::*;
+    use crate::obj;
+    use tcl_syntax::value::ValueOps;
+
+    fn original() -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn get_date_fields_matches_original_c86_rows_except_unavailable_localtime() {
+        let mut interp = original();
+        let input = include_str!(
+            "../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl"
+        );
+        let source = format!(
+            "set ::rows {{}}\n{}\njoin $::rows \\n",
+            input
+                .lines()
+                .filter(|line| !line.starts_with("emit empty-tzdata "))
+                .collect::<Vec<_>>()
+                .join("\n")
+                .replace("puts [list ROW", "lappend ::rows [list ROW")
+        );
+        assert_eq!(
+            interp.eval_str(source.as_bytes()),
+            Code::Ok,
+            "{:?}",
+            interp.native_execution_refusal()
+        );
+        let expected = include_str!("../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt")
+            .lines().filter(|line| line.starts_with("ROW ") && !line.starts_with("ROW empty-tzdata "))
+            .collect::<Vec<_>>().join("\n");
+        assert_eq!(interp.result_bytes(), expected.as_bytes());
+        assert_eq!(expected.lines().count(), 32);
+    }
+
+    #[test]
+    fn empty_localtime_refuses_before_guest_catch_continues() {
+        let mut interp = original();
+        assert_eq!(
+            interp.eval_str(
+                b"catch {::tcl::clock::GetDateFields 0 {} 2361222} result; set after forbidden"
+            ),
+            Code::Error
+        );
+        assert!(matches!(
+            interp.native_execution_refusal(),
+            Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native C86 localtime conversion"
+                )
+            ))
+        ));
+        let first = interp.native_execution_refusal();
+        assert!(interp.var_get(b"after").is_none());
+        assert_eq!(interp.native_execution_refusal(), first);
+    }
+
+    #[test]
+    fn original_name_dict_keys_and_three_worker_retirement_preserve_native_roles() {
+        crate::counters::reset();
+        {
+            let mut interp = original();
+            let name = obj::Owned::fresh(obj::new_string_bytes(b"N\0\xff"));
+            let start = obj::Owned::fresh(obj::new_string_bytes(b"-9223372036854775808"));
+            let offset = obj::Owned::fresh(obj::new_string_bytes(b"0"));
+            let ignored = obj::Owned::fresh(obj::new_string_bytes(b"ignored"));
+            let row = obj::Owned::fresh(interp.new_list(vec![
+                start.as_ptr(),
+                offset.as_ptr(),
+                ignored.as_ptr(),
+                name.as_ptr(),
+            ]));
+            let table = obj::Owned::fresh(interp.new_list(vec![row.as_ptr()]));
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"::tcl::clock::GetDateFields"));
+            let seconds = obj::Owned::fresh(obj::new_string_bytes(b"0"));
+            let change = obj::Owned::fresh(obj::new_string_bytes(b"2361222"));
+            let args = [
+                head.as_ptr(),
+                seconds.as_ptr(),
+                table.as_ptr(),
+                change.as_ptr(),
+            ];
+            assert_eq!(
+                interp.eval_original_object_vector(&args),
+                Code::Ok,
+                "{:?}",
+                interp.native_execution_refusal()
+            );
+            let first = obj::Owned::retain(interp.get_obj_result());
+            assert!(std::ptr::eq(
+                obj::obj_type_ptr(first.as_ptr()),
+                &crate::dict::TCL_DICT_TYPE
+            ));
+            assert!(!obj::has_string_rep(first.as_ptr()));
+            assert_eq!(
+                crate::dict::dict_get(first.as_ptr(), b"tzName").unwrap(),
+                Some(name.as_ptr())
+            );
+            assert_eq!(unsafe { (*name.as_ptr()).ref_count }, 3);
+            let keys = interp
+                .dict_pairs(&first.as_ptr())
+                .unwrap()
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>();
+            assert_eq!(interp.eval_original_object_vector(&args), Code::Ok);
+            let second = obj::Owned::retain(interp.get_obj_result());
+            assert_ne!(first.as_ptr(), second.as_ptr());
+            assert_eq!(
+                interp
+                    .dict_pairs(&second.as_ptr())
+                    .unwrap()
+                    .into_iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<_>>(),
+                keys
+            );
+            assert_eq!(unsafe { (*keys[0]).ref_count }, 3);
+            for worker in ["GetDateFields", "ParseFormatArgs"] {
+                assert_eq!(
+                    interp.eval_str(format!("rename ::tcl::clock::{worker} {{}}").as_bytes()),
+                    Code::Ok
+                );
+                assert_eq!(unsafe { (*keys[0]).ref_count }, 3);
+            }
+            assert_eq!(interp.eval_str(b"rename ::tcl::clock::getenv {}"), Code::Ok);
+            assert_eq!(unsafe { (*keys[0]).ref_count }, 2);
+            drop(second);
+            drop(first);
+            drop(table);
+            drop(row);
+            assert_eq!(unsafe { (*name.as_ptr()).ref_count }, 1);
+            assert_eq!(obj::bytes_of(name.as_ptr()), b"N\0\xff");
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn aliased_worker_arity_uses_original_invocation_spelling() {
+        let mut interp = original();
+        assert_eq!(
+            interp.eval_str(b"rename ::tcl::clock::GetDateFields ::renamedDate; ::renamedDate 0"),
+            Code::Error
+        );
+        assert_eq!(
+            interp.result_bytes(),
+            b"wrong # args: should be \"::renamedDate seconds tzdata changeover\""
+        );
+        assert_eq!(interp.error_code(), b"TCL WRONGARGS");
+    }
+    struct EffectHost {
+        actual: Rc<dyn tcl_platform::Host>,
+        effect: std::cell::RefCell<Option<Box<dyn Fn() -> bool>>>,
+        abi_calls: std::cell::Cell<usize>,
+    }
+    impl tcl_platform::Host for EffectHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.actual.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.actual.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self.actual.stdio()
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.actual.env()
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+            self.actual.native_integer_formatter()
+        }
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            Some(self)
+        }
+    }
+    impl EffectHost {
+        fn actual(&self) -> &dyn tcl_platform::NumericEnvironment {
+            self.actual
+                .numeric_environment()
+                .expect("actual native numeric environment")
+        }
+    }
+    impl tcl_platform::NumericEnvironment for EffectHost {
+        fn c_integer_abi(
+            &self,
+        ) -> Result<tcl_platform::NativeCIntegerAbi, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            let result = self.actual().c_integer_abi();
+            self.abi_calls.set(self.abi_calls.get() + 1);
+            let effect = self.effect.borrow_mut().take();
+            if let Some(effect) = effect {
+                if !effect() {
+                    self.effect.borrow_mut().replace(effect);
+                }
+            }
+            result
+        }
+        fn state(
+            &self,
+        ) -> Result<tcl_platform::NumericErrorState, tcl_platform::NumericEnvironmentUnavailable>
+        {
+            self.actual().state()
+        }
+        fn reset(&self) -> Result<(), tcl_platform::NumericEnvironmentUnavailable> {
+            self.actual().reset()
+        }
+        fn unsigned_c84(
+            &self,
+            input: &[u8],
+            offset: usize,
+            long: bool,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned_c84(input, offset, long)
+        }
+        fn unsigned(
+            &self,
+            input: &[u8],
+            offset: usize,
+            base: u32,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned(input, offset, base)
+        }
+        fn unsigned_long(
+            &self,
+            input: &[u8],
+            offset: usize,
+            base: u32,
+        ) -> Result<
+            tcl_platform::UnsignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().unsigned_long(input, offset, base)
+        }
+        fn signed_long(
+            &self,
+            input: &[u8],
+            base: u32,
+        ) -> Result<
+            tcl_platform::SignedNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().signed_long(input, base)
+        }
+        fn double(
+            &self,
+            input: &[u8],
+            reset: bool,
+        ) -> Result<
+            tcl_platform::DoubleNumericConversion,
+            tcl_platform::NumericEnvironmentUnavailable,
+        > {
+            self.actual().double(input, reset)
+        }
+    }
+
+    #[test]
+    fn reached_real_getter_context_table_or_row_effect_retains_first_host_cause() {
+        use core_clock::NativeClockDateOps;
+        for effect_kind in 0..3 {
+            let mut interp = original();
+            let host = Rc::new(EffectHost {
+                actual: interp.host(),
+                effect: Default::default(),
+                abi_calls: Default::default(),
+            });
+            interp.set_host(host.clone());
+            let table = obj::Owned::fresh(obj::new_string_bytes(b"{-9223372036854775808 0 0 GMT}"));
+            let lease = obj::NativeObjectLifetime::retain(table.as_ptr());
+            let owner = interp.downgrade();
+            host.effect.borrow_mut().replace(Box::new(move || {
+                if obj::obj_type_ptr(lease.as_ptr()) != &crate::list::TCL_LIST_TYPE {
+                    return false;
+                }
+                if effect_kind != 0 {
+                    let replaced = if effect_kind == 1 {
+                        lease.as_ptr()
+                    } else {
+                        let backing = crate::list::native_list_backing(lease.as_ptr()).unwrap();
+                        let row = backing.elements().unwrap()[0];
+                        if obj::obj_type_ptr(row) != &crate::list::TCL_LIST_TYPE {
+                            return false;
+                        }
+                        row
+                    };
+                    unsafe {
+                        obj::set_string_rep(replaced, b"{}");
+                    }
+                    obj::discard_native_internal_representation(replaced).unwrap();
+                } else {
+                    let mut interp = owner.upgrade().unwrap();
+                    let profile = interp.dialect_profile();
+                    interp.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.5"));
+                    interp.set_dialect_profile(profile);
+                }
+                true
+            }));
+            let pool = ClockLiteralPool::new();
+            let mut operations =
+                crate::value_ops::RuntimeClockDateOps::new(&interp, pool.date_literals()).unwrap();
+            let seconds = obj::Owned::fresh(obj::new_string_bytes(b"0"));
+            let change = obj::Owned::fresh(obj::new_string_bytes(b"2361222"));
+            interp.set_result_bytes(b"PRIOR");
+            let context = interp.runtime_context();
+            assert!(core_clock::get_date_fields(
+                &mut operations,
+                &[seconds.as_ptr(), table.as_ptr(), change.as_ptr()]
+            )
+            .is_err());
+            assert!(
+                host.effect.borrow().is_none(),
+                "reached actual primitive effect"
+            );
+            let first = interp.native_execution_refusal();
+            assert!(first.is_some());
+            assert_eq!(interp.runtime_context(), context);
+            assert_eq!(interp.result_bytes(), b"PRIOR");
+            let reached = host.abi_calls.get();
+            assert!(operations.date_wide(&seconds.as_ptr()).is_err());
+            assert_eq!(host.abi_calls.get(), reached);
+            assert_eq!(interp.native_execution_refusal(), first);
+        }
+    }
+
+    #[test]
+    fn active_call_pool_lease_survives_all_three_real_worker_deletions() {
+        let mut interp = original();
+        let host = Rc::new(EffectHost {
+            actual: interp.host(),
+            effect: Default::default(),
+            abi_calls: Default::default(),
+        });
+        interp.set_host(host.clone());
+        let table = obj::Owned::fresh(obj::new_string_bytes(b"{-9223372036854775808 0 0 GMT}"));
+        let lease = obj::NativeObjectLifetime::retain(table.as_ptr());
+        let owner = interp.downgrade();
+        host.effect.borrow_mut().replace(Box::new(move || {
+            if obj::obj_type_ptr(lease.as_ptr()) != &crate::list::TCL_LIST_TYPE { return false; }
+            let mut interp = owner.upgrade().unwrap();
+            assert_eq!(interp.eval_str(b"rename ::tcl::clock::GetDateFields {}; rename ::tcl::clock::ParseFormatArgs {}; rename ::tcl::clock::getenv {}"),Code::Ok);
+            true
+        }));
+        let head = obj::Owned::fresh(obj::new_string_bytes(b"::tcl::clock::GetDateFields"));
+        let seconds = obj::Owned::fresh(obj::new_string_bytes(b"0"));
+        let change = obj::Owned::fresh(obj::new_string_bytes(b"2361222"));
+        assert_eq!(
+            interp.eval_original_object_vector(&[
+                head.as_ptr(),
+                seconds.as_ptr(),
+                table.as_ptr(),
+                change.as_ptr()
+            ]),
+            Code::Ok,
+            "{:?}",
+            interp.native_execution_refusal()
+        );
+        assert!(host.effect.borrow().is_none());
+        assert!(std::ptr::eq(
+            obj::obj_type_ptr(interp.get_obj_result()),
+            &crate::dict::TCL_DICT_TYPE
+        ));
+        for worker in ["GetDateFields", "ParseFormatArgs", "getenv"] {
+            assert!(interp
+                .resolve_cmd_token(format!("::tcl::clock::{worker}").as_bytes())
+                .is_none());
+        }
+        assert_eq!(
+            obj::bytes_of(
+                crate::dict::dict_get(interp.get_obj_result(), b"year")
+                    .unwrap()
+                    .unwrap()
+            ),
+            b"1970"
+        );
     }
 }
