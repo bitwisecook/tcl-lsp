@@ -22,6 +22,16 @@ Temporary current snapshot on `work`; remove with references before merge. Root 
 Use `source /tmp/name-env.sh`; explicitly lease tmp/name-target-issues or tmp/name-target-runtime. Root workspace Rust2024, standalone Runtime2021. Real matching C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 libraries and pinned Jim5bac7c99ad65864c87da513e22e2f01703fa4e03 are available. Keep actual inputs, argv, source/binary currency and limits; pre-suite operational refusal is not assertion failure. Restore temporary instrumentation byte-exact and mark its binary noncurrent. Regular coherent commits/pushes and compact current tracking preserve continuation; development history belongs in Git.
 
 
+## Oracle and completeness obligations
+
+| Obligation | Required next evidence |
+| --- | --- |
+| Original C Tcltest integrity | Verify exact release's original init.tcl/tcltest.tcl, support files and loaded binary/library/source pairing. File existence and patchlevel alone do not enforce originality. Keep unchanged upstream baseline separate from overlay/debug channels. |
+| Latest Jim | Rediscover upstream release/revision; retain commit, freshness, binary/source hashes, build flags, extensions and real operation capabilities. Provisioning the existing pin is insufficient. |
+| Every consumer | Reconcile actual call sites and all member/backend/provider/editor/generator rosters. A finite owner/drift gate cannot certify arbitrary string data flow. |
+| F5 outstanding variants | Consume returned answers and outstanding-operation-audit.md. Repair hosted ownership fixtures, prove entered lookup/frame, and request only unanswered context/variant questions from the appliance chat. Preserve original/supplemental scopes separately. |
+| Development and PR gates | Commit/push reviewed batches regularly even while red; record actual status. Before the PR remove temporary process material, format/regenerate, and pass all required checks. |
+
 ## Immediate priorities
 
 Integrated cleanup base `049c0fc7a`; inspect Git for current HEAD. Original var13.2 isolation is complete: Runtime aborts, C86 passes; all2787 tracked compiled inputs remain unchanged. The scrub altered one conservative-scope registry fixture: actual compiled-input currency must be checked separately, without restoring old content. Callback catalogue/store and retired-namespace provenance reviews run independently of bounded docs/comments cleanup.

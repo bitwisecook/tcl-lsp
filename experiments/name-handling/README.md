@@ -61,8 +61,18 @@ C Tcl's upstream tests run through `tcltest` on the matching real C interpreter
 are valid oracle evidence. Jim's equivalent upstream suite, run on the
 identified Jim build, serves the same role. Reuse relevant upstream name,
 namespace, variable, frame, alias and lifecycle cases before writing a bespoke
-probe. Use each C release's matching test tree and harness; do not assume a
-newer suite runs unchanged on an older interpreter.
+probe. Use each C release's matching test tree and harness. When using Tcltest,
+execute the **original init.tcl and tcltest.tcl for that exact interpreter
+version**, with its original package indices and support files. Retain upstream
+revision and hashes and verify the actual loaded library/harness, executable
+and source pairing. A minimal rewritten startup or another release's harness
+does not answer the original test. Do not alter expected values to make a
+consumer pass. File existence and interpreter patchlevel checks alone do not
+certify original harness bytes.
+
+Keep unchanged upstream execution, diagnostic backend overlays and adapted
+reduced probes as distinct channels. Record any overlay and launch/debug
+configuration that changes constraints or frame-sensitive expectations.
 
 Record the suite revision, test file and case ID, exact test definition,
 support files/packages, constraints, invocation and raw harness transcript.

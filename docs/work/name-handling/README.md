@@ -1,64 +1,74 @@
-# Name-handling work on `work`
+# Centralised name handling on work
 
-Complete centralised name handling across every supported surface, with real
-C Tcl 8.4–9.1, latest JimTcl and F5 oracle evidence. The starting report is
-[#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286), concerning W210
-across `tcltest` setup/body/cleanup execution. Its reproduction must be covered
-alongside the broader command, namespace, variable and object identity work.
+Complete one coherent set of name representations, lookup policies and
+purpose-specific queries across the entire codebase. The starting report is
+[#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286): W210 must understand
+the actual setup/body/cleanup frame of a resolved Tcltest invocation, while
+still reporting genuine missing reads. The wider goal includes every command,
+namespace, variable, array, link, procedure, class, method and callback consumer.
 
-Current published checkpoint at this snapshot: `d37be17db` on `work`.
-Read the compact continuation prompt and ledger for current ownership/results.
-Evidence certifies its exact recorded source and inputs, not later commits.
+Central owners retain source bytes and spans, dialect/release, interpreter,
+namespace/path/frame context, actual identity and relevant lifetimes. Consumers
+select the query for their purpose and adapt its output. Presentation is not
+identity. Conditional source advice, native allocation evidence, completed
+execution and permission to edit or optimise are separate facts. Ordinary
+dynamic Tcl idioms need useful shared analysis and explicit abstention when
+evidence cannot establish a target.
+
+## Read and continue
 
 | Document | Purpose |
 | --- | --- |
-| [Shared contract](../../design/contracts/name-handling.md) | Durable entry point for agents and all consumers; existing APIs and representation rules |
-| [Current state](current-state.md) | Verified source audit, gaps and misleading claims |
-| [Implementation ledger](implementation-ledger.md) | Current consumer obligations, validation, blockers and concrete next work |
-| [Issues](issues.md) | Related open/closed issues, dependencies and branch evidence rules |
-| [Issue action proposals](issue-actions.md) | Exact closure/update text and current validation requirements |
-| [Canonical naming proofs](../../design/analysis/name-resolution-proofs/README.md) | Sole question/evidence index and provider-specific proof authority |
-| [Consumer integration contracts](../../design/analysis/name-resolution-proofs/consumer-integrations.md) | Purpose-specific source, lookup, runtime and edit obligations |
-| [Corpus findings](../../../experiments/name-handling/patterns/corpus-findings.md) | Pinned idioms, authored probes, exact observations and limits |
-| [Completion plan](plan.md) | Every consumer group, ordered work and acceptance criteria |
-| [Continuation prompt](continue-prompt.md) | Complete prompt for a coordinating agent using subagents |
-| [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Real upstream suite outcomes and prioritised live-engine work |
-| [Oracle protocol](../../../experiments/name-handling/README.md) | Durable scripts, measurements, provenance and test promotion |
-| [Wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md) | Maintained real-world patterns, exact experiments and C/Jim/F5 evidence matrix |
-| [BIG-IP handoff](../../../experiments/name-handling/f5/REQUEST.md) | Questions and return format for the chat with appliance access |
+| [Continuation prompt](continue-prompt.md) | Complete instructions for a coordinator and sub-agents |
+| [Current state](current-state.md) | Scoped measured acceptance, failures and exact evidence |
+| [Completion plan](plan.md) | Every consumer group, inventory requirements and acceptance |
+| [Implementation ledger](implementation-ledger.md) | Remaining obligations and next bounded work |
+| [Related issues](issues.md) | Open and closed issues; GitHub status is separate from branch acceptance |
+| [Issue action proposals](issue-actions.md) | Existing scoped acceptance requirements |
+| [Name-handling contract](../../design/contracts/name-handling.md) | Durable entry point and representation/context rules |
+| [Implementer guide](../../design/compiler/name-resolution-implementer-guide.md) | Existing purpose-specific APIs and consumer recipes |
+| [Semantic queries](../../design/contracts/resolved-semantic-queries.md) | Shared evidence and query contracts |
+| [Consumer matrix](../../design/contracts/naming-consumer-matrix.md) | Durable consumer integrations |
+| [Canonical proofs](../../design/analysis/name-resolution-proofs/README.md) | Semantic questions and scoped provider evidence |
+| [Oracle experiments](../../../experiments/name-handling/README.md) | Retained scripts, measurements and test promotion |
+| [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Original suite outcomes and limitations |
+| [Pattern catalogue](../../../experiments/name-handling/patterns/README.md) | Corpus/Wiki idioms, positive/adversarial inputs and evidence |
+| [BIG-IP request](../../../experiments/name-handling/f5/REQUEST.md) | Questions for the chat with appliance access |
+| [BIG-IP answers](../../../experiments/name-handling/f5/answers/README.md) | Returned answers and outstanding operation audit |
 
-## Lifecycle
+The continuation audit read remote work at
+e0277ec42124d26b36cc06daa760de6b21a1decb on 13 October 2026.
+Inspect the actual branch head before implementing: source, executable and
+oracle receipts certify their captured inputs rather than every later commit.
+The audit used read-only sub-agents for consumers, issues and oracle integrity.
+The newly started local checkout is older than remote work and Git fetch could
+not reach its configured proxy. Updates use the GitHub connection; no fresh
+implementation build or test is claimed.
 
-Commit reviewed, coherent batches regularly. Update the ledger, current-state
-claims and affected contracts/experiment indexes in the same batch. Before
-pausing, ensure accepted work is committed and record any remaining uncommitted
-ownership explicitly. Preserve source/binary/input hashes and exact evidence
-paths; never replace a failed result with an unexecuted claim.
+## Acceptance and document lifecycle
 
-A new chat starts with `AGENTS.md`, this page, the ledger and the continuation
-prompt. Inspect branch/status and incoming changes, verify the evidence source
-before rerunning or interpreting a result, then take the next unresolved ledger
-obligation. Current small jobs are the native foreach counter repair and a temporary trace
-of the first W210 refusal; use the ledger for exact ownership.
-Required gates remain red. The user authorises regular development pushes
-before green checks; all required checks must pass at the PR stage.
+Use C Tcl 8.4–9.1, the latest identified upstream JimTcl, and actually reached
+F5 execution contexts as independent oracles. When using Tcltest, run the
+original init.tcl and tcltest.tcl belonging to that exact C interpreter version,
+with original suite/support inputs. Retain executable experiments, raw results,
+provenance, answer documents and deterministic conformance tests derived from
+those observed results.
 
-This directory is temporary coordination material on `work`. Keep the current
-state and remaining obligations accurate while work is active. Do not append
-session narratives, completed-step diaries or abandoned approaches.
+This directory is temporary coordination material. Maintain a compact current
+snapshot and unresolved obligations while work continues. The durable
+architecture and API documentation must describe the current implementation,
+with limitations made explicit. Before the final PR, remove this directory,
+all temporary plans/prompts/ledgers/proposals elsewhere, their links and generated
+copies, and the work-specific AGENTS push exception. Audit all documentation and
+comments repository-wide, including pre-existing files. Keep minimal necessary
+how/why comments, current public contracts and self-describing code.
 
-At completion remove this directory and its temporary links from the final
-branch diff. This is a merge acceptance requirement: remove temporary ledgers,
-continuation prompts, state documents and process narratives wherever they
-appear, including generated copies and links. Review mentions of phases, lanes
-and steps in context; retain only real current semantics or user procedures.
-Keep the current architecture/API contract, executable
-experiments, raw measurements, BIG-IP answers and conformance fixtures.
-Experiments preserve reproducible evidence, not development history. Git owns
-implementation history. The final PR describes the resulting behaviour,
-relevant design choices and validation; it contains no migration diary,
-agent handoff, phase history or progress bookkeeping.
+Preserve reproducible semantic evidence and legal attribution. Do not restore
+previously scrubbed lab/device/security material. Development history belongs
+in Git; the final PR describes the resulting behaviour and validation.
 
-An issue's GitHub state is separate from implementation evidence on `work`.
-An open issue may have a branch fix; a closed issue may still have a missed
-consumer. Reproduce, inspect and test before making either conclusion.
+Every consumer must be accounted for and verified, or have a measured,
+documented unsupported boundary with tested refusal. An unexamined consumer,
+unavailable required oracle, failing check or unanswered supported F5 operation
+prevents completion. Regular reviewed development pushes are authorised on work;
+all required checks must pass at the PR stage. No merge is requested.

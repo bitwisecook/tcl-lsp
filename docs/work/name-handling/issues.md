@@ -1,7 +1,10 @@
 # Related issues and prior work
 
-GitHub metadata refreshed on 2026-10-12 across all 1,050 returned issues.
-The #2300 closure was read back on 2026-10-13 at 00:32:48 UTC.
+The broad catalogue was searched on 12 October 2026. A focused follow-up on
+13 October verified issue states and relevant merged PRs with individual
+GitHub reads. Rows added below have verified states; unchanged broad rows
+retain their earlier snapshot and must be refreshed before issue actions.
+The #2286, #2287 and #2300 anchors were re-read in the focused audit.
 Issue metadata is a search snapshot; actual current state and narrow executed
 acceptance are recorded below and in current-state.md. An open issue supplies an
 acceptance target; its state alone does not establish current source behaviour.
@@ -87,6 +90,86 @@ Rust receipts retain separate authority.
 | [#2065](https://github.com/bitwisecook/tcl-lsp/issues/2065), [#2159](https://github.com/bitwisecook/tcl-lsp/issues/2159) | CLOSED | Namespace-local command realm shadows and fully-qualified expr shadow trust. The branch retains the namespace-local shadow fix; exact current consumer results remain independent of issue closure. |
 | [#2134](https://github.com/bitwisecook/tcl-lsp/issues/2134) | CLOSED | Open-world procedure name parameters must not be globally specialised to one caller's alias target. |
 | [#2166](https://github.com/bitwisecook/tcl-lsp/issues/2166) | CLOSED | Jim dialect/editor/CLI surface supports proc statics and two-word method names; comments reference jimsh 0.76–0.84. This does not fulfil latest-Jim oracle rerun requirement. |
+
+## Focused related-issue audit
+
+These verified relations extend the broad inventory. Reproduce the current
+branch before claiming a fix or a remaining failure. A related issue is an
+acceptance witness or dependency, not permission to expand into every adjacent
+feature. Keep this metadata in temporary coordination only; final contracts
+describe current semantics and retained regressions.
+
+### Additional direct open consumers
+
+| Issue | Verified state | Relationship / completion obligation |
+| --- | --- | --- |
+| [#1797](https://github.com/bitwisecook/tcl-lsp/issues/1797) | OPEN | Stable executable procedure generations must own summaries/formals/effects, including recovered bodies outside Module::procedures. |
+| [#2233](https://github.com/bitwisecook/tcl-lsp/issues/2233) | OPEN | Relative tcl::dict::set must use resolved registry invocation roles rather than lose stores. |
+| [#2247](https://github.com/bitwisecook/tcl-lsp/issues/2247) | OPEN | Qualified ::tcl::dict::with and dict with must agree on final invocation availability, handlers and diagnostics. |
+| [#2261](https://github.com/bitwisecook/tcl-lsp/issues/2261) | OPEN | uplevel 0 current-frame body reads/writes must reach shared SSA/place effects. |
+| [#2356](https://github.com/bitwisecook/tcl-lsp/issues/2356) | OPEN | F5 when binding walk and recorded sites disagree on ::when versus :: context; verify all event consumers with reached BIG-IP evidence. |
+| [#2413](https://github.com/bitwisecook/tcl-lsp/issues/2413) | OPEN | iRules sharedvar needs shared cell identity and lifetime/read-write facts; BIG-IP questions required. |
+| [#2398](https://github.com/bitwisecook/tcl-lsp/issues/2398) | OPEN | Later same-named procedure must not replace an earlier builtin invocation identity. |
+| [#2408](https://github.com/bitwisecook/tcl-lsp/issues/2408) | OPEN | Unrelated builtin rebinding must not disable all per-generation procedure summaries. |
+| [#1946](https://github.com/bitwisecook/tcl-lsp/issues/1946) | OPEN | VM unset codegen must preserve options and qualified/nested array base/key semantics. |
+| [#2276](https://github.com/bitwisecook/tcl-lsp/issues/2276) | OPEN | Multi-component interpreter creation paths need shared child-arena path semantics. |
+| [#2273](https://github.com/bitwisecook/tcl-lsp/issues/2273) | OPEN | interp exists/issafe must handle nested interpreter paths. |
+| [#2254](https://github.com/bitwisecook/tcl-lsp/issues/2254) | OPEN | Remove dead test-only hover fallback with whitespace/spelling recognition and dead-code allowance. |
+| [#1956](https://github.com/bitwisecook/tcl-lsp/issues/1956) | OPEN | clay::define class facts are related framework/registry coverage; establish supported scope and evidence first. |
+
+### Closed centralisation and regression families
+
+| Issues | Verified state | Coverage to preserve |
+| --- | --- | --- |
+| [#1400](https://github.com/bitwisecook/tcl-lsp/issues/1400), [#1473](https://github.com/bitwisecook/tcl-lsp/issues/1473), [#1784](https://github.com/bitwisecook/tcl-lsp/issues/1784) | CLOSED | Earlier whole-codebase centralisation/duplication inventories and one Tcl parsing owner. Re-audit current consumers; retired plans are not current architecture. |
+| [#923](https://github.com/bitwisecook/tcl-lsp/issues/923), [#934](https://github.com/bitwisecook/tcl-lsp/issues/934), [#945](https://github.com/bitwisecook/tcl-lsp/issues/945), [#936](https://github.com/bitwisecook/tcl-lsp/issues/936), [#946](https://github.com/bitwisecook/tcl-lsp/issues/946) | CLOSED | Namespace/colon navigation, control-flow/source/TclOO/interpreter soundness and cross-interpreter/trace parity. |
+| [#1185](https://github.com/bitwisecook/tcl-lsp/issues/1185), [#1275](https://github.com/bitwisecook/tcl-lsp/issues/1275), [#2065](https://github.com/bitwisecook/tcl-lsp/issues/2065) | CLOSED | Shared command-head identity and scoped builtin shadows across editor/analyser consumers. |
+| [#1079](https://github.com/bitwisecook/tcl-lsp/issues/1079), [#1138](https://github.com/bitwisecook/tcl-lsp/issues/1138), [#1252](https://github.com/bitwisecook/tcl-lsp/issues/1252) | CLOSED | Computed formal uncertainty, constructed-list scripts and reconstructed literal words. |
+| [#1455](https://github.com/bitwisecook/tcl-lsp/issues/1455), [#1458](https://github.com/bitwisecook/tcl-lsp/issues/1458), [#1606](https://github.com/bitwisecook/tcl-lsp/issues/1606) | CLOSED | Shared holder/tail qualification and empty-base element splitting. |
+| [#1457](https://github.com/bitwisecook/tcl-lsp/issues/1457), [#1460](https://github.com/bitwisecook/tcl-lsp/issues/1460), [#1605](https://github.com/bitwisecook/tcl-lsp/issues/1605) | CLOSED | One substitution/variable parsing owner across runtime, compiler and editor operations. |
+| [#1116](https://github.com/bitwisecook/tcl-lsp/issues/1116), [#1133](https://github.com/bitwisecook/tcl-lsp/issues/1133), [#1018](https://github.com/bitwisecook/tcl-lsp/issues/1018), [#1331](https://github.com/bitwisecook/tcl-lsp/issues/1331), [#994](https://github.com/bitwisecook/tcl-lsp/issues/994), [#974](https://github.com/bitwisecook/tcl-lsp/issues/974) | CLOSED | Import lifecycle precision, shared site identity, cross-document hover/diagnostics/object facts and expression functions. |
+| [#1002](https://github.com/bitwisecook/tcl-lsp/issues/1002), [#1006](https://github.com/bitwisecook/tcl-lsp/issues/1006), [#1007](https://github.com/bitwisecook/tcl-lsp/issues/1007), [#1009](https://github.com/bitwisecook/tcl-lsp/issues/1009), [#1010](https://github.com/bitwisecook/tcl-lsp/issues/1010) | CLOSED | Alias/rename/liveness and central existence/dispatch queries. |
+| [#1788](https://github.com/bitwisecook/tcl-lsp/issues/1788), [#1379](https://github.com/bitwisecook/tcl-lsp/issues/1379), [#1139](https://github.com/bitwisecook/tcl-lsp/issues/1139), [#1165](https://github.com/bitwisecook/tcl-lsp/issues/1165), [#1198](https://github.com/bitwisecook/tcl-lsp/issues/1198) | CLOSED | Actual compilation registry, exact frame effects and dynamic alias/global-write summaries. |
+| [#1412](https://github.com/bitwisecook/tcl-lsp/issues/1412), [#1450](https://github.com/bitwisecook/tcl-lsp/issues/1450), [#1463](https://github.com/bitwisecook/tcl-lsp/issues/1463) | CLOSED | Rename, hidden command and final-identity release availability. |
+| [#1484](https://github.com/bitwisecook/tcl-lsp/issues/1484), [#1497](https://github.com/bitwisecook/tcl-lsp/issues/1497) | CLOSED | Computed-name mutation barriers and bounded fail-closed analysis. |
+| [#1193](https://github.com/bitwisecook/tcl-lsp/issues/1193), [#1704](https://github.com/bitwisecook/tcl-lsp/issues/1704), [#1706](https://github.com/bitwisecook/tcl-lsp/issues/1706), [#1708](https://github.com/bitwisecook/tcl-lsp/issues/1708) | CLOSED | Minifier public identity, shared callbacks and iRules event emission. |
+| [#1798](https://github.com/bitwisecook/tcl-lsp/issues/1798) | CLOSED | Unknown handler effects and registry-owned barriers. |
+| [#1737](https://github.com/bitwisecook/tcl-lsp/issues/1737), [#1757](https://github.com/bitwisecook/tcl-lsp/issues/1757), [#1759](https://github.com/bitwisecook/tcl-lsp/issues/1759), [#2185](https://github.com/bitwisecook/tcl-lsp/issues/2185) | CLOSED | Authentic init/Tcltest startup, exact oracle patchlevels, non-vacuous reference tests and complete upstream file selection. |
+| [#1468](https://github.com/bitwisecook/tcl-lsp/issues/1468), [#1469](https://github.com/bitwisecook/tcl-lsp/issues/1469), [#1789](https://github.com/bitwisecook/tcl-lsp/issues/1789) | CLOSED | AI prompt, editor grammar and generated sample drift; fix generators and all outputs together. |
+| [#2450](https://github.com/bitwisecook/tcl-lsp/issues/2450) | CLOSED | W210 KCS must describe current behaviour, removing pre-registry migration history; repository-wide cleanup remains required. |
+
+### Adjacent dependencies
+
+| Issue | Verified state | Scope |
+| --- | --- | --- |
+| [#1712](https://github.com/bitwisecook/tcl-lsp/issues/1712) | OPEN | Broader semantic evidence programme: unknown versus absence, alias effective prefix and central facts. Use relevant obligations without absorbing unrelated work. |
+| [#1713](https://github.com/bitwisecook/tcl-lsp/issues/1713) | CLOSED | Related semantic-facts audit; retain relevant regressions. |
+| [#2426](https://github.com/bitwisecook/tcl-lsp/issues/2426) | OPEN | Structured diagnostics must preserve naming subjects; consumers must not infer identity from messages. |
+| [#2253](https://github.com/bitwisecook/tcl-lsp/issues/2253) | OPEN | Dialect-drift gate placement may omit execution; inspect actual Makefile route before relying on a green aggregate gate. |
+| [#2266](https://github.com/bitwisecook/tcl-lsp/issues/2266) | OPEN | MCP catalogue/documentation drift; related generated consumer consistency. |
+| [#2308](https://github.com/bitwisecook/tcl-lsp/issues/2308) | OPEN | Deferred reads/vwait roles; include if fixing central cell/frame facts requires it. |
+| [#2263](https://github.com/bitwisecook/tcl-lsp/issues/2263) | OPEN | Nested unset kill effects; distinguish names/cells from control-flow coverage. |
+
+The W210/control-flow issues in the broad catalogue (#2290, #2335, #2371,
+#2372, #2374, #2376, #2379, #2441) were also verified OPEN. Name centralisation
+alone does not prove their control-flow or array-state fixes.
+
+### Relevant merged pull requests
+
+| PRs | Verified state | Relevant result |
+| --- | --- | --- |
+| [PR #253](https://github.com/bitwisecook/tcl-lsp/pull/253), [PR #309](https://github.com/bitwisecook/tcl-lsp/pull/309) | MERGED | Early #246 rewrite/export/lowering. Python-era implementation is historical reference, not a current API. |
+| [PR #933](https://github.com/bitwisecook/tcl-lsp/pull/933), [PR #937](https://github.com/bitwisecook/tcl-lsp/pull/937), [PR #938](https://github.com/bitwisecook/tcl-lsp/pull/938), [PR #948](https://github.com/bitwisecook/tcl-lsp/pull/948) | MERGED | Rust lookup, dialect profiles and soundness. |
+| [PR #1282](https://github.com/bitwisecook/tcl-lsp/pull/1282) | MERGED | Shared registry command-head identity across consumers and Studio coverage. |
+| [PR #1415](https://github.com/bitwisecook/tcl-lsp/pull/1415) | MERGED | Consolidated resolution documentation and removed plans/stale comments; avoid new overlapping design documents. |
+| [PR #1504](https://github.com/bitwisecook/tcl-lsp/pull/1504), [PR #1591](https://github.com/bitwisecook/tcl-lsp/pull/1591) | MERGED | Owner-resolution enforcement and shared codec/substitution/naming primitives. |
+| [PR #1728](https://github.com/bitwisecook/tcl-lsp/pull/1728), [PR #1742](https://github.com/bitwisecook/tcl-lsp/pull/1742) | MERGED | Resolve variable once, typed synthetic markers, byte names and array base/key ownership. |
+| [PR #1744](https://github.com/bitwisecook/tcl-lsp/pull/1744), [PR #1747](https://github.com/bitwisecook/tcl-lsp/pull/1747) | MERGED | Authentic Tcl9 startup and namespace/ensemble conformance. |
+| [PR #2304](https://github.com/bitwisecook/tcl-lsp/pull/2304) | MERGED | Environment/registry selection and Jim authoring; measured tags 0.76–0.84 do not establish latest Jim. |
+
+The focused searches did not establish an open PR for this work branch.
+Implementation comments on #2286/#2287/#2300 are the immediate branch anchors.
+Do not attach the reference PRs as artifacts of this task.
 
 ## Evidence policy for continuation
 

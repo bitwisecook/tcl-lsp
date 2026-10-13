@@ -44,17 +44,23 @@ The final check reconciles all matches and all workspace members with the ledger
 | Tooling/AI | `tcl` CLI and support/query/refactor/compile/diagnostic paths, MCP including docstrings, debugger/explorer/evaluation, F5 CLI/query, AI prompts/skills and generators | CLI/LSP/MCP agree on identities and abstentions; generated AI guidance refers to current central APIs; equivalent tool-visible results. |
 | Enforcement/docs | owner manifest, drift gates, vector runners, contracts/design/KCS/README/glossary, generated docs, source comments | Coverage beyond proc/class equality scans; accurate current contracts; reproducible oracle evidence; zero final process/history artefacts. |
 
-## Measured engine priorities
+## Current execution priorities
 
-Use [the current suite evidence](../../../experiments/name-handling/results/RESULTS.md)
-to order the live-engine lane: restore 8.4/9.1 real-library bootstrap and a
-release-selectable VM runner; reduce suite-stopping namespace deletion,
-rename/trace and TclOO output-restore witnesses; resolve dead-cell/link/frame
-semantics; then complete path/unknown/introspection, arrays and OO library
-consumers. Promote C-passing cases as exact regressions and retain sequence tests.
-A passing focused suite is insufficient while original upstream files abort,
-time out or remain unexecuted. Static, backend, Jim and F5 obligations in the
-consumer matrix remain required.
+Use [current state](current-state.md) and its exact receipts before selecting
+work. Original C8.6 var-13.2 reproduces SIGABRT in Runtime; C8.6 completes the
+isolated original case. Investigate actual array-search/element-unset lifetime
+before applying the original-argv codegen proposal. Retired-namespace diagnostic
+metadata, callback catalogue/store, #2286 original declaration guards, VM OO
+boundaries and public middleware fixtures remain separate obligations.
+
+Original-library startup and a release-selectable VM driver need validation;
+the current VM suite driver is fixed to 9.0. The C8.4 and other-release captures
+contain completed failures and early refusals, not universal bootstrap absence.
+Use the [suite index](../../../experiments/name-handling/results/RESULTS.md)
+to select exact questions, preserving frozen capture scopes and revalidating
+current source. A focused pass cannot establish an unexecuted upstream file.
+Static consumers, every backend, latest Jim and reached F5 contexts remain
+required independently.
 
 ## Dynamic-pattern coverage and abstention
 
@@ -83,6 +89,58 @@ the existing import-example references. Record concrete project/Wiki provenance,
 reduce positive and adversarial examples, verify semantics on real oracles and
 evaluate recognisers on held-out project families. Preserve benchmark pins and
 separate patterns observed in code from identities proved at a particular site.
+
+## Sub-agent ownership and inventory deliverables
+
+Root owns shared documents, Git, issue actions and final integration. Assign
+disjoint owners for static/registry producers, runtime/VM, middle-end/codegen,
+LSP/workspace/tools/AI, oracles/F5 and final docs/comments. Each bounded job
+states exact paths, input dependency freeze, private build target, expected
+positive/adversarial evidence and unresolved dependencies. Serialize writes
+or captures involving the same owner; one target cache has one active builder.
+Use [the full prompt](continue-prompt.md) for the coordination protocol.
+
+Every call-site row records file/function, operation, input/output
+representation, owner API, dialect/provider/source/frame/namespace context,
+lifetime/invalidation, editable spans, intended consumer purpose, oracle
+question/observation, regression selectors and disposition. Build the inventory
+from actual tracked members, backend/provider rosters and generator sources.
+A group-level matrix or finite drift gate does not prove call-site completion.
+Record reconciled search hits, including legitimate presentation adapters.
+Before removing the temporary inventory, move useful current owner/consumer
+contracts into durable documentation.
+
+## Harness integrity and oracle handoff
+
+When using C Tcltest, execute the original init.tcl and tcltest.tcl from the
+exact interpreter version with original test/support/package inputs. Verify
+upstream revision and byte hashes, binary/library pairing and loaded harness.
+Current run_suites.py independently accepts source, executable and version;
+shared source checks do not certify original Tcltest bytes. Add meaningful
+integrity checks and fail a mismatch. Preserve unchanged-suite, backend-overlay
+and reduced-probe channels separately. The current overlay needs 8.5+;
+8.4 uses --no-overlay. Debug-frame settings affect launch expectations.
+Jim's original testing.tcl/tcltest.tcl wrapper and actual extension capabilities
+have their own provenance; rediscover latest upstream at run time.
+
+Consume [existing F5 answers](../../../experiments/name-handling/f5/answers/README.md)
+and the [outstanding operation audit](../../../experiments/name-handling/f5/answers/outstanding-operation-audit.md)
+before requesting more runs. Hosted proc-definition fixtures need explicit
+owned absolute names and catalogue/body/invocation/frame controls; unqualified
+proc inside namespace eval has measured appliance-specific publication.
+Prioritise unreached supported contexts and variants: actual forwarding/link
+frames, alias/import/trace mutation, warmed descendants, other TMM traffic,
+suspended activations, reload/restart, protocol availability and exact bytes.
+Each remains a named question; do not infer one context from another.
+
+Prepare bounded scripts/questions on work using REQUEST.md and ANSWER-TEMPLATE.md.
+The appliance-access chat returns answers, safe raw output, provider identity,
+input hashes and cleanup evidence under f5/answers/<run-id>/, committed to work.
+Both chats inspect incoming commits before pushing. Root verifies and promotes
+only actually reached answers into deterministic consumer tests. Continue
+independent C/Jim work while waiting; unanswered required F5 semantics stay
+blocked. Scope original numbered matrices, pattern matrices and supplements
+separately.
 
 ## Ordered work
 
@@ -124,15 +182,18 @@ separate patterns observed in code from identities proved at a particular site.
    source edits; a matching tail never overrides unresolved identity.
 7. **Turn evidence into conformance and enforce adoption.** Every observed case
    has release/context expectations and consumer tests. Add matrix completeness
-   and Jim provenance checking. Shared syntax runners currently use
-   `available_tclshs()` and skip absent/invalid references: migrate to validated
-   all-five discovery/assertions (or `witness_tclsh` for every `TclVersion::ALL`)
-   rather than relying on the environment variable alone. Extend drift checks
+   and Jim provenance checking. Require validated all-five C discovery using required_tclshs(TclVersion::ALL),
+   or TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1 for available-interpreter callers;
+   invalid configured references fail and absent required providers are not
+   green. Verify original init.tcl/tcltest.tcl and library/source pairing
+   independently of patchlevel or file-existence checks. Extend drift checks
    to semantic duplicates and
    representation misuse without banning legitimate presentation operations.
 8. **Clean all documentation and comments, then audit again.** Use the checklist
-   below. Remove temporary planning material after obligations are resolved or
-   accurately represented as supported limitations in current contracts.
+   below. Remove temporary planning material before the final PR, after obligations
+   are resolved or represented as measured unsupported boundaries with tested
+   refusal in current contracts. Unavailable required evidence is not a
+   supported limitation and remains a blocker.
 
 Rows dependent on unknown F5 semantics stay blocked until the other chat
 returns evidence. Continue independent C/Jim work while waiting. Do not invent
@@ -180,19 +241,19 @@ GitHub status alone is not a completion gate or proof of a branch fix.
 
 ## Conditional source advice for imports and paths
 
-The current server regressions expose a shared owner gap: both the existing
-top-level Tcltest import control and the new namespace-scoped #2287 fixture
-paint `-body` as string. Their actual compiled-run results are in
-[issue-actions.md](issue-actions.md). This does not justify a Tcltest matcher
-in semantic tokens or manufacturing an installed command/Normal completion.
+#2287 is closed with both complete packaged-server import controls passing.
+Retain those controls and their exact scoped receipts rather than treating the
+original highlighting failure as current. Callback after211 catalogue/transition
+advice remains unresolved; inspect the current shared producer and build a
+public-path positive/negative before broadening assistance.
 
 The consumer already delegates to Compiler
 `registry_invocation::source_structure::source_registry_words` and retains
 conditional `OriginalRegistryWords`. Review the producer path through
 `command_binding::source_catalogue_advice`, the original command-world
-candidate paths and `source_transition_advice::AdviceGraph`. That graph has
-command cells and namespace geometry but currently lacks import/export and
-namespace-path state for independent readonly catalogue assistance. Actual
+candidate paths and `source_transition_advice::AdviceGraph`. Review current import/export/path support at the particular source site;
+the accepted #2287 source schema does not establish callback catalogue
+completeness or native import execution. Actual
 execution-backed import facts and conditional source applicability are separate
 authorities; missing one cannot silently become the other.
 

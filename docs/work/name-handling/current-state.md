@@ -41,6 +41,35 @@ Tcl source recognition is conditional advice. Preserve original input, configura
 - [Historical owner29/full158](../../../experiments/name-handling/results/owner-resolution-current/20261012T231605Z/README.md); no fresh owner/proof gate follows the latest code changes.
 - [Last full proof check](../../../experiments/name-handling/results/proof-source-currency/20261012-current-consumer-check/README.md), [W210 actual factory-prefix probe](../../../experiments/name-handling/results/w210-original-program-admission/inner-predicate-question/actual/README.md), [suite census](../../../experiments/name-handling/results/RESULTS.md) and [real Snit experiment](../../../experiments/name-handling/patterns/corpus-snit-alias-original/README.md).
 
+## Continuation audit and evidence-integrity obligations
+
+A read-only issue/consumer/oracle audit on 13 October 2026 read remote work
+at e0277ec42124d26b36cc06daa760de6b21a1decb. No fresh implementation tests ran.
+The newly started local checkout is at 018587061 with a branch named work;
+its configured Git proxy was unreachable. Do not run acceptance on that older
+tree or treat its source as the remote continuation state. Synchronise before
+implementation; documentation updates use the authenticated GitHub connection.
+
+- C source/binary patchlevel and file-existence checks do not prove original
+  init.tcl/tcltest.tcl integrity. run_suites.py accepts tree, shell and version
+  independently. Verify exact upstream bytes, matching source/library selection
+  and actual loaded harness; label overlays/debug launch settings separately.
+  The VM driver remains fixed to 9.0.
+- The Jim pin 5bac7c99ad65864c87da513e22e2f01703fa4e03 reported
+  0.84-9-g5bac7c9 and was checked against upstream on 12 October.
+  Rediscover latest on the next run; provisioning that pin does not discover
+  latest. Record build flags, extensions and operation-specific capabilities.
+- The shared owner and resolution drift checks cover finite wiring patterns;
+  neither certifies every consumer. Reconcile all call sites, backend/provider/
+  editor rosters and generated owners with the completion inventory.
+- Additional verified open dependencies include #1797 procedure generations,
+  #2233/#2247 relative/qualified registry invocations, #2261 current-frame body
+  effects, #2356 F5 when context, #2413 sharedvar and #2426 diagnostic subjects.
+  See [issues](issues.md) for broader verified relations.
+- Repository-wide comment cleanup still includes migration explanations in
+  rust/tcl-compiler/src/codegen/mod.rs (artifact moves and former emitter state).
+  Audit current source before editing; preserve actual how/why contracts.
+
 ## Current execution priorities
 
 1. Investigate the reproduced original var-13.2 compatibility failure. [Isolated results](../../../experiments/name-handling/results/runtime-c86-real-suites/array-search-isolation/var-13.2/results.md): Runtime SIGABRT after10.609s, C86 passes1/skips109/fails0. All2787 tracked compiled inputs match the original runner; the scrubbed noncompiled fixture remains untouched. No source cause or repair is claimed.
@@ -52,7 +81,10 @@ Use `source /tmp/name-env.sh` and an explicitly coordinated target directory. On
 
 ## F5 and retained evidence
 
-Original400 F5 rows remain93 observed/244 unreached/63 unavailable. Supplementary40 derived variants/307 investigations/279 separate records do not promote originals. Suspended frames, restart persistence, other traffic units and earlier cleanup remain open. Preserve benign Tcl probes, actual reached channels and provenance. Never restore deleted lab/device/security material from historical snapshots. A further [transport projection](../../../scripts/dev/bigip-probes/resolution-2286/evidence/TRANSPORT_PROJECTION.md) removes remaining identities from910 plain files and42 archives;952 current manifest entries verify separately from historical execution seals.
+The original numbered snapshot retains400 F5 rows:93 observed/244 unreached/63 unavailable.
+The current pattern matrix separately reports108 observed/25 unsupported/267 unreached
+across50 questions/eight contexts. These scopes and status vocabularies differ;
+retain each record's actual question IDs rather than merging counts. Supplementary40 derived variants/307 investigations/279 separate records do not promote originals. Suspended frames, restart persistence, other traffic units and earlier cleanup remain open. Preserve benign Tcl probes, actual reached channels and provenance. Never restore deleted lab/device/security material from historical snapshots. A further [transport projection](../../../scripts/dev/bigip-probes/resolution-2286/evidence/TRANSPORT_PROJECTION.md) removes remaining identities from910 plain files and42 archives;952 current manifest entries verify separately from historical execution seals.
 
 The user's [scrub evidence](../../../experiments/name-handling/results/security-material-scrub/README.md) records current scans, redaction boundaries and reproduction procedures. Post-integration focused checks total18 passes; wider report15/17, Clippy assertion failures and absent Python engine remain scoped blockers. Historical executable identities are not hashes of redacted transport images; the retained Wasmtime input is a notice, not an executable replay source.
 
