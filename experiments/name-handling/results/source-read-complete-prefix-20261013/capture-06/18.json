@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::conditional_reachability_preserves_terminal_and_unavailable_paths",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::conditional_reachability_preserves_terminal_and_unavailable_paths",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.5157274289995257,
+  "timed_out": false
+}

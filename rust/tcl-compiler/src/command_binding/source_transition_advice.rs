@@ -235,6 +235,8 @@ pub enum SourceCommandTransitionObligation {
     ConditionalDeclarationApplicability,
     /// Authentic member-body source catalogue, without a member or frame entry.
     ConditionalMemberBodyCatalogueApplicability,
+    /// Authentic original body syntax, independently of current namespace/frame.
+    ConditionalOriginalBodyCatalogueApplicability,
     /// A complete Logical source body and its authentic parent schema own
     /// this conditional header. No runtime activation or frame is supplied.
     DeferredLogicalBodyApplicability,
@@ -346,6 +348,33 @@ pub(crate) struct SourceAdviceWord {
     pub(crate) origin: crate::registry_invocation::InvocationWordOrigin,
 }
 
+/// Genuine script/member issuers for conditional readonly body schemas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OriginalSourceCatalogueBody {
+    Script(Arc<crate::registry_invocation::OriginalSourceScriptBody>),
+    Member(Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>),
+}
+impl OriginalSourceCatalogueBody {
+    pub(crate) fn content_span(&self) -> tcl_lexer::Span {
+        match self {
+            Self::Script(body) => body.content_span(),
+            Self::Member(body) => body.content_span(),
+        }
+    }
+    pub(crate) fn matches_source(&self, source: &SourceImage, config: LexerConfig) -> bool {
+        match self {
+            Self::Script(body) => body.matches_source(source, config),
+            Self::Member(body) => body.matches_source(source, config),
+        }
+    }
+    pub(crate) fn matches_context(&self, context: &ContextRegistry) -> bool {
+        match self {
+            Self::Script(body) => body.matches_context(context),
+            Self::Member(body) => body.matches_context(context),
+        }
+    }
+}
+
 /// Sealed conditional source argv with its own original naming purpose and
 /// optional genuine authored transition lineage.
 /// This supplies no entered handler, current command table, Native, Normal,
@@ -374,6 +403,7 @@ pub struct OriginalSourceCommandTransitionAdvice {
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     member_catalogue_body:
         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
+    catalogue_body: Option<OriginalSourceCatalogueBody>,
 }
 impl OriginalSourceCommandTransitionAdvice {
     /// Actual lexical source occurrence; not a fabricated dispatch point.
@@ -459,6 +489,13 @@ impl OriginalSourceCommandTransitionAdvice {
                             && word.span().end() <= body.content_span().end()
                     })
             })
+            && self.catalogue_body.as_ref().is_none_or(|body| {
+                body.matches_source(image, config)
+                    && self.original.iter().all(|word| {
+                        word.span().start() >= body.content_span().start()
+                            && word.span().end() <= body.content_span().end()
+                    })
+            })
             && self.member_catalogue_body.as_ref().is_none_or(|body| {
                 body.matches_source(image, config)
                     && self.original.iter().all(|word| {
@@ -498,6 +535,10 @@ impl OriginalSourceCommandTransitionAdvice {
                 .as_ref()
                 .is_none_or(|body| body.matches_context(context))
             && self
+                .catalogue_body
+                .as_ref()
+                .is_none_or(|body| body.matches_context(context))
+            && self
                 .member_catalogue_body
                 .as_ref()
                 .is_none_or(|body| body.matches_context(context))
@@ -521,6 +562,10 @@ impl OriginalSourceCommandTransitionAdvice {
     ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
         self.procedure_body.as_deref()
     }
+    pub(crate) fn original_catalogue_source_body(&self) -> Option<&OriginalSourceCatalogueBody> {
+        self.catalogue_body.as_ref()
+    }
+
     /// Conditional C source coordinates, without a native namespace token.
     #[must_use]
     pub fn conditional_c_source_namespace(&self) -> Option<&ByteNamespacePath> {
@@ -568,6 +613,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     interpreter_paths: BTreeMap<u32, Vec<OriginalSourceInterpreterPathBinding>>,
     authored_prefixes: BTreeMap<u32, Option<OriginalSourceAuthoredCommandPrefix>>,
     member_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
+    body_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
     produced_prefixes: BTreeMap<u32, Option<OriginalSourceProducedCommandPrefix>>,
     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
@@ -658,7 +704,17 @@ impl OriginalSourceTransitionAdviceTape {
         self.member_catalogue.get(&offset)?.as_ref()
     }
 
+    pub(crate) fn body_catalogue(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceCommandTransitionAdvice> {
+        self.body_catalogue.get(&offset)?.as_ref()
+    }
+
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, receipt) in other.body_catalogue {
+            source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
+        }
         for (offset, receipt) in other.member_catalogue {
             source_class::merge_receipt(&mut self.member_catalogue, offset, receipt);
         }
@@ -1641,6 +1697,7 @@ impl AdviceInvocationContext<'_> {
         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);
+        self.retain_original_body_catalogue(tape, graph, invocation, schema);
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
         self.retain_logical_procedure_body(tape, invocation, graph, schema);
@@ -1770,6 +1827,7 @@ impl AdviceInvocationContext<'_> {
             c_source_path,
             procedure_body: graph.procedure_body.clone(),
             member_catalogue_body: None,
+            catalogue_body: None,
             logical_input: match self.policy {
                 AdviceNamingPolicy::Logical(input) => Some(input.clone()),
                 AdviceNamingPolicy::Native(_) => None,
@@ -1922,27 +1980,136 @@ impl super::SourceCommandBindings {
         self.final_state.logical_source_name_advice_input()
     }
 
+    #[cfg(test)]
     fn prepare_source_advice_tape(
         &self,
         context: &ContextRegistry,
     ) -> Option<AdviceTapeInputs<'_>> {
+        let seed = self.original_source_transition_seed()?;
+        let prepared = seed
+            .prepare_source_advice_tape(context, OriginalSourceCataloguePurpose::CompleteProgram)?;
+        Some(AdviceTapeInputs {
+            origin: self.source_origin()?,
+            config: prepared.config,
+            policy: prepared.policy,
+            dialect: prepared.dialect,
+            plan: prepared.plan,
+        })
+    }
+
+    #[cfg(test)]
+    fn initial_source_advice_graph(
+        &self,
+        context: &ContextRegistry,
+        policy: &AdviceNamingPolicy,
+    ) -> Option<AdviceGraph> {
+        self.original_source_transition_seed()?
+            .initial_source_advice_graph(context, policy)
+    }
+
+    pub(super) fn original_source_transition_seed(&self) -> Option<OriginalSourceTransitionSeed> {
         let origin = self.source_origin()?;
         let config = self.lexer_config?;
-        let baseline = &self.final_state.baseline;
+        self.matches_original_source_image(origin.source_image(), config)
+            .then_some(())?;
+        Some(OriginalSourceTransitionSeed {
+            origin: Arc::clone(origin),
+            config,
+            baseline: Arc::clone(&self.final_state.baseline),
+            logical_input: self.final_state.logical_source_name_advice_input().cloned(),
+        })
+    }
+
+    /// Independently interpreted authored root-script transitions. This owner
+    /// never mutates, publishes or borrows the retained runtime command state.
+    pub(crate) fn original_source_transition_advice_tape(
+        &self,
+        context: &ContextRegistry,
+    ) -> Option<OriginalSourceTransitionAdviceTape> {
+        self.original_source_transition_seed()?.prepare(context)
+    }
+
+    pub(crate) fn original_source_transition_advice_tape_for(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
+    ) -> Option<OriginalSourceTransitionAdviceTape> {
+        self.original_source_transition_seed()?
+            .prepare_for(context, purpose)
+    }
+}
+
+/// Immutable whole-source issuer shared by independently requested purposes.
+/// The baseline retains its real metadata and entry; no body becomes a new entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalSourceTransitionSeed {
+    origin: Arc<super::SourceOriginId>,
+    config: LexerConfig,
+    baseline: Arc<super::BindingBaseline>,
+    logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OriginalSourceCataloguePurpose {
+    CompleteProgram,
+    /// Authentic complete commands before the separately retained parse cut.
+    CompletePrefix,
+}
+
+impl OriginalSourceTransitionSeed {
+    pub(super) fn matches_registry(&self, registry: &tcl_registry::CommandRegistry) -> bool {
+        self.baseline.registry_snapshot.as_ref() == Some(&registry.snapshot().semantic_key())
+    }
+
+    pub(super) fn source_context(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Arc<ContextRegistry>> {
+        if !self.matches_registry(registry) {
+            return None;
+        }
+        match &self.baseline.metadata_context {
+            crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(input) => {
+                crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                    registry,
+                    input,
+                    self.config,
+                    Some(input.unit_profile()),
+                )?;
+                Some(input.context_registry())
+            }
+            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone => {
+                let profile = registry.profile()?;
+                // Explicit scalar compatibility selects static availability only.
+                // The exact frozen store keeps every override and generation.
+                Some(Arc::new(
+                    tcl_registry::model::ingress::context_for_profile(profile)
+                        .with_command_store(registry.snapshot().shared_registry()),
+                ))
+            }
+            crate::registry_invocation::OwnedInvocationMetadataContext::Supplied(_)
+            | crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable => None,
+        }
+    }
+
+    fn prepare_source_advice_tape(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
+    ) -> Option<AdviceTapeInputs<'_>> {
+        let origin = &self.origin;
+        let config = self.config;
+        let baseline = &self.baseline;
         let policy = if let Some(native) = baseline
             .execution_name_policy
             .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
         {
             AdviceNamingPolicy::Native(native)
         } else {
-            AdviceNamingPolicy::Logical(
-                self.final_state.logical_source_name_advice_input()?.clone(),
-            )
+            AdviceNamingPolicy::Logical(self.logical_input.as_ref()?.clone())
         };
         let dialect = baseline.dialect?;
         if baseline.registry_snapshot.as_ref()
             != Some(&context.commands().snapshot().semantic_key())
-            || !self.matches_original_source_image(origin.source_image(), config)
         {
             return None;
         }
@@ -1952,7 +2119,7 @@ impl super::SourceCommandBindings {
             config,
         )
         .ok()?;
-        if plan.fatal_tail.is_some() {
+        if plan.fatal_tail.is_some() && purpose == OriginalSourceCataloguePurpose::CompleteProgram {
             return None;
         }
         Some(AdviceTapeInputs {
@@ -1969,7 +2136,7 @@ impl super::SourceCommandBindings {
         context: &ContextRegistry,
         policy: &AdviceNamingPolicy,
     ) -> Option<AdviceGraph> {
-        let baseline = &self.final_state.baseline;
+        let baseline = &self.baseline;
         let mut graph = AdviceGraph::new(context, policy, baseline.dialect?)?;
         if let Some(entry) = &baseline.native_entry {
             graph.retain_native_baseline(context, entry)?;
@@ -1990,11 +2157,17 @@ impl super::SourceCommandBindings {
         Some(graph)
     }
 
-    /// Independently interpreted authored root-script transitions. This owner
-    /// never mutates, publishes or borrows the retained runtime command state.
-    pub(crate) fn original_source_transition_advice_tape(
+    pub(super) fn prepare(
         &self,
         context: &ContextRegistry,
+    ) -> Option<OriginalSourceTransitionAdviceTape> {
+        self.prepare_for(context, OriginalSourceCataloguePurpose::CompleteProgram)
+    }
+
+    pub(super) fn prepare_for(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
     ) -> Option<OriginalSourceTransitionAdviceTape> {
         let AdviceTapeInputs {
             origin,
@@ -2002,7 +2175,7 @@ impl super::SourceCommandBindings {
             policy,
             dialect,
             plan,
-        } = self.prepare_source_advice_tape(context)?;
+        } = self.prepare_source_advice_tape(context, purpose)?;
         let mut graph = self.initial_source_advice_graph(context, &policy)?;
         let mut tape = OriginalSourceTransitionAdviceTape::default();
         let advice_context = AdviceInvocationContext {

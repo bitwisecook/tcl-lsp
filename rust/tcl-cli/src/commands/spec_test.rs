@@ -404,6 +404,7 @@ proc ::__spec_test::pure {name lines} {
 pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
     let mut script =
         String::from(tcl_syntax::naming::original_namespace_variable_snapshot_support());
+    script.push_str(tcl_syntax::naming::original_script_name_query_support());
     script.push_str(tcl_syntax::naming::original_command_presence_support());
     script.push_str(&PRELUDE.replace("@PACKAGE@", &list_element(package)));
     for probe in probes {

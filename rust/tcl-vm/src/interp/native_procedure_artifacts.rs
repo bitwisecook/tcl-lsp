@@ -91,7 +91,7 @@ impl Vm {
             let Some(provenance) = module.procedure_provenance.get(qname) else {
                 continue;
             };
-            let Some(key) = ProcedureCacheKey::from_module_entry(qname, provenance) else {
+            let Some(key) = ProcedureCacheKey::from_module_entry(&asm.name, provenance) else {
                 continue;
             };
             let context = provenance

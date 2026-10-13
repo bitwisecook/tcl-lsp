@@ -50,6 +50,13 @@ enum DeclarationFrameReach {
     OtherFrame,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum DeclarationSchemaOrigin {
+    #[default]
+    OriginalLayout,
+    OriginalSourceCatalogue,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DeclarationEffectKnowledge {
     pub unknown_writes: bool,
@@ -57,6 +64,8 @@ pub(crate) struct DeclarationEffectKnowledge {
     /// Original metadata leaves the command lookup table unchanged. This
     /// permits retaining a later declaration layout, never entered dispatch.
     pub lookup_stable: bool,
+    /// Original body catalogue fields do not establish current invocation entry.
+    pub schema_origin: DeclarationSchemaOrigin,
     /// Selected intrinsic can observe or select a different call frame.
     /// Nested body effects retain their independently parsed ownership.
     frame_reach: DeclarationFrameReach,
@@ -195,34 +204,9 @@ pub(crate) fn declaration_invocation_flow(
         };
         let invocation =
             InvocationWords::structured(*words.first()?, &words[1..]).with_dialect(dialect);
-        let arguments = invocation.arguments();
-        let flow =
-            tcl_registry::case_bodies::script_body_flow_in_registry(registry, &facts, arguments);
-        if !matches!(flow, ScriptBodyFlow::CaseBodies(_))
-            && (!facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true))
-        {
-            return None;
-        }
-        let completion = registry
-            .native_registration_completion_route(
-                invocation,
-                tcl_registry::VariableAliasFrame::Procedure,
-            )
-            .or_else(|| {
-                registry.invocation_completion_route_in_frame(
-                    &facts.canonical_command,
-                    arguments,
-                    dialect.authoring_query(),
-                    tcl_registry::VariableAliasFrame::Procedure,
-                )
-            })?;
-        let quoted_operands = declared_quoted_operands(&facts, arguments, &flow)?;
-        let mut selected =
-            declaration_flow_projection(flow, completion, effective, quoted_operands, &facts);
-        retain_declared_local_values(&mut selected, &facts, arguments, dialect);
-        retain_declared_aliases_and_case(&mut selected, registry, &facts, arguments, dialect);
-        retain_declared_variable_roles(&mut selected, &facts, arguments, &values, dialect)?;
-        retain_declared_read_footprint(&mut selected, &facts);
+        let mut selected = declaration_flow_for_original_schema(
+            registry, effective, &values, &facts, invocation, dialect,
+        )?;
         if facts
             .state_transitions
             .declared()
@@ -246,6 +230,109 @@ pub(crate) fn declaration_invocation_flow(
         agreed = Some(selected);
     }
     agreed
+}
+
+/// Readonly declaration flow from the exact shared original-body catalogue.
+/// The result retains conditional source effects, never execution admission.
+pub(crate) fn declaration_source_read_flow(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    scope: &crate::command_binding::SourceReadScope,
+) -> Option<DeclarationInvocationFlow> {
+    let advice = scope.advice();
+    let source = advice.site().source.source_image().try_text().ok()?;
+    let words = super::source_structure::source_transition_words_from_advice(
+        source,
+        scope.config(),
+        scope.context(),
+        advice.clone(),
+    )?;
+    let dialect = words.dialect()?;
+    let mut values = vec![EffectiveInvocationWord::Literal(words.command().to_owned())];
+    values.extend(words.arguments().iter().map(|word| {
+        match super::source_structure::source_schema_word(word.as_registry_word()) {
+            InvocationWord::Literal(value) => EffectiveInvocationWord::Literal(value.to_owned()),
+            _ => word.clone(),
+        }
+    }));
+    let prefix = values
+        .iter()
+        .skip(1)
+        .zip(words.origins().iter().skip(1))
+        .filter_map(|(value, origin)| {
+            matches!(origin, super::InvocationWordOrigin::BindingPrefix(_)).then_some(value.clone())
+        })
+        .collect::<Vec<_>>();
+    let effective = super::compose_original_effective_words(tokens, words.command(), &prefix)?;
+    if effective.origins.get(1..) != words.origins().get(1..) {
+        return None;
+    }
+    words.with_source_schema(scope.context(), |schema| {
+        let facts = schema.facts();
+        // Caller links and lifecycle phases retain their independent owners.
+        if facts
+            .state_transitions
+            .declared()
+            .is_some_and(|transitions| {
+                transitions.facts().iter().any(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::VariableCellAlias(_)
+                    )
+                })
+            })
+        {
+            return None;
+        }
+        let mut selected = declaration_flow_for_original_schema(
+            registry,
+            effective,
+            &values,
+            &facts,
+            schema.words,
+            dialect,
+        )?;
+        selected.effects.schema_origin = DeclarationSchemaOrigin::OriginalSourceCatalogue;
+        (selected.flow != ScriptBodyFlow::CapturedLifecycle).then_some(selected)
+    })?
+}
+
+fn declaration_flow_for_original_schema(
+    registry: &CommandRegistry,
+    effective: EffectiveCommandWords,
+    values: &[EffectiveInvocationWord],
+    facts: &tcl_registry::InvocationFacts,
+    invocation: InvocationWords<'_>,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<DeclarationInvocationFlow> {
+    let arguments = invocation.arguments();
+    let flow = tcl_registry::case_bodies::script_body_flow_in_registry(registry, facts, arguments);
+    if !matches!(flow, ScriptBodyFlow::CaseBodies(_))
+        && (!facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true))
+    {
+        return None;
+    }
+    let completion = registry
+        .native_registration_completion_route(
+            invocation,
+            tcl_registry::VariableAliasFrame::Procedure,
+        )
+        .or_else(|| {
+            registry.invocation_completion_route_in_frame(
+                &facts.canonical_command,
+                arguments,
+                dialect.authoring_query(),
+                tcl_registry::VariableAliasFrame::Procedure,
+            )
+        })?;
+    let quoted_operands = declared_quoted_operands(facts, arguments, &flow)?;
+    let mut selected =
+        declaration_flow_projection(flow, completion, effective, quoted_operands, facts);
+    retain_declared_local_values(&mut selected, facts, arguments, dialect);
+    retain_declared_aliases_and_case(&mut selected, registry, facts, arguments, dialect);
+    retain_declared_variable_roles(&mut selected, facts, arguments, values, dialect)?;
+    retain_declared_read_footprint(&mut selected, facts);
+    Some(selected)
 }
 
 fn declaration_flow_projection(
@@ -281,6 +368,7 @@ fn declaration_flow_projection(
             unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)
                 || facts.effects.callback().kinds.is_unknown(),
             lookup_stable: declared_lookup_stable(facts),
+            schema_origin: DeclarationSchemaOrigin::OriginalLayout,
             frame_reach: if facts
                 .traits
                 .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)

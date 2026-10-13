@@ -124,7 +124,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         // The call-site namespace for O103 chain resolution is the proc's
         // own namespace (`::ns::foo` resolves a bare `bar` against `::ns`).
-        let namespace = super::helpers::naming::namespace_from_qualified(qname);
+        let Some(namespace) = proc
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+        else {
+            continue;
+        };
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
     // Load-forwarding runs a separate per-function pass on top
@@ -2326,7 +2333,7 @@ fn try_substitute_assign_expr(
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
-    _procedures: &std::collections::HashMap<String, crate::ir::Procedure>,
+    _procedures: &crate::ir::ProcedureInventory,
 ) {
     use super::helpers::expr_simplify::{
         expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants_for_execution,
@@ -2607,7 +2614,8 @@ fn try_o103_proc_fold(
         return None;
     }
     let qname = target.command.clone();
-    let declaration = cu.ir_module.procedures.get(&qname)?;
+    let (declaration_id, declaration) = cu.ir_module.source_procedure_for_target(target)?;
+    (cu.ir_module.procedures.unique_display(&qname)?.0 == &declaration_id).then_some(())?;
     if !target.matches_authored_implementation_image(&cu.ir_module.source, declaration.span.start())
     {
         return None;
@@ -2670,7 +2678,7 @@ fn try_o103_proc_fold(
     {
         render_proc_constant_return(ctx, cr)?
     } else if summary.pure
-        && let Some(callee) = cu.procedures.get(&qname)
+        && let Some(callee) = cu.function(&qname)
         && let Some(value) = evaluate_proc_with_constants(
             (ctx, cu),
             callee,
@@ -3265,7 +3273,7 @@ mod tests {
                 &s.constant_return,
             )
         });
-        let body = cu.procedures.get(name).map(|fu| {
+        let body = cu.function(name).map(|fu| {
             let statements: Vec<_> = fu
                 .cfg
                 .blocks

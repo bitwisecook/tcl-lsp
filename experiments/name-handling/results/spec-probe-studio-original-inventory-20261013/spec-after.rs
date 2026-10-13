@@ -1,0 +1,1493 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! `tcl spec` verb group — authoring `.tclspec` command packs.
+//!
+//! Four sub-actions:
+//!
+//! - `tcl spec import` reads *several releases* of a Tcl package and renders a
+//!   pack whose `introduced_version` / `retired_version` fields carry the
+//!   ranges those releases actually witness. A single-snapshot import cannot
+//!   do that — it can only stamp every command with whatever version the
+//!   newest sources declare, which is a fabrication.
+//! - `tcl spec upgrade` rewrites a 1.x pack's source into `SpecTcl` 2.0.
+//! - `tcl spec export` renders a pack's loaded snapshot back out as canonical
+//!   2.0 source, which for a pack written as a program is its expansion.
+//! - `tcl spec test` holds a pack's declared facts to the Tcl package they
+//!   describe, in a real shell the project's policy has opted in.
+//!
+//! Two ways to name the releases:
+//!
+//! - `--snapshot VERSION=PATH` (repeatable) — a directory, `.zip` or
+//!   `.tar.gz` per release, already on disk. No network at all.
+//! - `--github OWNER/REPO` — enumerate the repository's tags through the
+//!   GitHub REST API and fetch each release's tarball from codeload.
+//!
+//! Everything after "sources in hand" is
+//! [`tcl_cli_support::spec_import`], shared verbatim with the MCP
+//! `spec_import` tool; the tag enumeration and the downloads live here,
+//! because the MCP server deliberately has no fetcher.
+
+// Handlers return `anyhow::Result<u8>` for a uniform dispatch signature even
+// when a given verb cannot fail; the wrap is the interface contract.
+#![allow(clippy::unnecessary_wraps)]
+
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, anyhow, bail};
+use serde_json::{Value, json};
+use tcl_cli_support::chrome::{eprint_status, warn_style};
+use tcl_cli_support::spec_import::{
+    SpecImport, SpecImportOptions, import_snapshots, load_snapshot, parse_snapshot_arg,
+};
+use tcl_cli_support::{OutputTarget, write_text_output};
+use tcl_spec_studio::versions::VersionedSnapshot;
+
+use tcl_registry::command_snapshot::command_entry_json;
+use tcl_spectcl::{UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source};
+
+use crate::cli::{SpecCommand, SpecImportArgs, SpecTestArgs, SpecUpgradeArgs};
+
+/// GitHub's maximum page size for `/tags`; fewer requests, same answer.
+const TAGS_PER_PAGE: usize = 100;
+
+/// How many pages of tags to walk before giving up. A thousand tags is far
+/// more history than a spec import can use, and an unbounded loop against a
+/// paginated API is a way to hang on a hostile or broken endpoint.
+const MAX_TAG_PAGES: usize = 10;
+
+/// Dispatch a `tcl spec` sub-action.
+pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
+    match action {
+        SpecCommand::Import(args) => run_import(args),
+        SpecCommand::Upgrade(args) => run_upgrade(args),
+        SpecCommand::Export(args) => run_export(args),
+        SpecCommand::Test(args) => run_test(args),
+    }
+}
+
+/// `tcl spec export` — a pack's snapshot as canonical `SpecTcl` source.
+///
+/// The pack is **evaluated**, so a programmed pack expands:
+/// the file's loops and helper procedures run in the deterministic sandbox
+/// and what they registered is written back as straight-line declarations.
+/// A canonical pack therefore round-trips, which is the bijection the
+/// gates in `tcl-spectcl/tests/export.rs` hold to.
+///
+/// Two deliberate choices, both stated in the pack's own terms:
+///
+/// - **The declared vocabulary is the pack's own.** Export never raises a
+///   1.x header to 2.0 — that is `tcl spec upgrade`'s job and its U1 rule,
+///   and doing it here would change what the reloaded pack means.
+/// - **Evaluation is trusted.** The file is named on the command line by
+///   its author rather than discovered in a workspace, so E-R2's provenance
+///   gate (which asks *where a pack was found*) has nothing to answer here;
+///   the `spectcl_check` MCP tool reports a tier-gated verdict.
+///
+/// The text is run through the shared `SpecTcl` formatter profile — the one
+/// the studio's editors use — so an exported pack lands in the house style
+/// whatever wrote it.
+fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
+    let source = std::fs::read_to_string(&args.file)
+        .map_err(|e| anyhow!("cannot read {}: {e}", args.file.display()))?;
+    let pack = tcl_spectcl::evaluate_pack(&source);
+    let (canonical, losses) = tcl_spectcl::export_pack_reporting(&pack);
+    let canonical = tcl_spec_studio::format_pack(&canonical);
+
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        let value = json!({
+            "pack": pack.name,
+            "dsl_version": pack.dsl_version,
+            "commands": pack.commands.len(),
+            "target_dependent": pack.target_dependent,
+            "load_error": pack.load_error.as_ref().map(ToString::to_string),
+            "canonical_source": canonical,
+            "notices": pack.notices.iter().map(|n| json!({
+                "line": n.line,
+                "context": n.context,
+                "class": n.class.name(),
+                "reason": n.message,
+            })).collect::<Vec<_>>(),
+            "unwritable": losses.iter().map(|loss| json!({
+                "word": loss.word,
+                "line": loss.line,
+                "text": loss.text,
+            })).collect::<Vec<_>>(),
+        });
+        write_text_output(&target, &format!("{value:#}\n"))?;
+    } else {
+        write_text_output(&target, &canonical)?;
+    }
+
+    if let Some(error) = &pack.load_error {
+        eprint_status(warn_style(), format!("{}: {error}", args.file.display()));
+        return Ok(1);
+    }
+    for loss in &losses {
+        eprint_status(
+            warn_style(),
+            format!(
+                "{}:{}: `{}` carries text no verbatim word spells; written quoted",
+                args.file.display(),
+                loss.line,
+                loss.word
+            ),
+        );
+    }
+    if pack.target_dependent {
+        eprint_status(
+            warn_style(),
+            format!(
+                "{}: the pack queried `available?`, so this expansion is one \
+                 target's answer rather than the pack (design E-R1)",
+                args.file.display()
+            ),
+        );
+    }
+    Ok(u8::from(!losses.is_empty()))
+}
+
+/// `tcl spec test` — a pack's declared facts held to the package they describe.
+///
+/// The one place a pack's claims meet the code they are about: the package is
+/// required in a real shell and each declared command is asked what the pack
+/// says of it ([`crate::commands::spec_test`] has the questions). Requiring a
+/// package runs its Tcl, which is the decision the package manager keeps for
+/// the operator — packages are data until policy says otherwise — so the verb
+/// runs only for a package `[build] allow-build-scripts` and `tcl pkg trust`
+/// have opted in, through the same sandboxed chokepoint a build script uses. It
+/// is a CLI verb and nothing the editor runs: loading a pack never executes the
+/// package it describes.
+///
+/// The policy that opts the package in is the operator's: the project `tcl pkg`
+/// works in, found from the working directory, and never a tree the pack was
+/// found in. A package someone else ships, vendored into the project, has a
+/// `tclpkg.toml` of its own, and it must not be the thing that lets it run.
+///
+/// One row is printed per divergence. The status is 1 when there is any, when the
+/// package could not be required at all, and when the shell stopped before it had
+/// asked every command, whatever status it stopped with; it is 2 when the verb
+/// itself could not run — a pack that could not load, no shell, a package that did
+/// not finish in the time the policy allows.
+fn run_test(args: &SpecTestArgs) -> anyhow::Result<u8> {
+    let Some(target) = test_target(args)? else {
+        return Ok(0);
+    };
+    let dir = operator_project()?;
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    let package = &target.package;
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(1);
+    }
+    let profile = test_profile(args, &dir, &target)?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish testing '{package}' in time");
+    }
+    Ok(report_test(args, &target, &outcome))
+}
+
+/// What `tcl spec test` asks of a shell: the package to require and the
+/// questions the pack's commands raise.
+struct TestTarget {
+    package: String,
+    probes: Vec<crate::commands::spec_test::CommandProbe>,
+}
+
+/// Load the pack and name the package it describes. A failed load is an error;
+/// a valid command-free pack returns `None`, which is said on the way out.
+fn test_target(args: &SpecTestArgs) -> anyhow::Result<Option<TestTarget>> {
+    use crate::commands::spec_test::{probes_of, required_package};
+
+    if !args.pack.is_file() {
+        bail!("cannot read {}: not a file", args.pack.display());
+    }
+    // The file is named on the command line by its author, so it loads as the
+    // workspace's own pack: nothing narrows it.
+    let set = tcl_spectcl::pack::load(&[tcl_spectcl::PackFile {
+        tier: tcl_spectcl::Tier::Workspace,
+        path: args.pack.clone(),
+        origin: tcl_spectcl::discovery::Origin::Setting,
+        dependency_tier: None,
+    }]);
+    if let Some((path, error)) = set.load_errors.first() {
+        bail!("cannot load {}: {error}", path.display());
+    }
+    let probes = probes_of(&set);
+    if probes.is_empty() {
+        for notice in &set.notices {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "{}:{}: {}",
+                    args.pack.display(),
+                    notice.line,
+                    notice.message
+                ),
+            );
+        }
+        if set.packs.is_empty() {
+            bail!(
+                "cannot load {}: no speclib declaration was loaded",
+                args.pack.display()
+            );
+        }
+        println!(
+            "{}: the pack declares no command to test",
+            args.pack.display()
+        );
+        return Ok(None);
+    }
+    let Some(package) = args.package.clone().or_else(|| required_package(&set)) else {
+        bail!(
+            "name the Tcl package with --package: no command of {} agrees on a `required_package`",
+            args.pack.display()
+        );
+    };
+    Ok(Some(TestTarget { package, probes }))
+}
+
+/// The sandboxed shell that runs the probe: the probe on its standard input, no
+/// network, the environment a Tcl shell needs to find its library and the
+/// package, and read access to the project and the directories `TCLLIBPATH`
+/// names.
+fn test_profile(
+    args: &SpecTestArgs,
+    dir: &Path,
+    target: &TestTarget,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let script = crate::commands::spec_test::render_script(&target.package, &target.probes);
+    shell_profile("spec-test", args.tclsh.as_deref(), dir, script)
+}
+
+/// A sandboxed `tclsh` reading `script` from its standard input: no network,
+/// the environment a Tcl shell needs to find its library and its packages,
+/// and read access to the project and the directories `TCLLIBPATH` names.
+///
+/// The shell is `tclsh` when one is named, else the one `TCL_VENV` holds,
+/// else the newest on `PATH`.
+fn shell_profile(
+    name: &str,
+    tclsh: Option<&Path>,
+    dir: &Path,
+    script: String,
+) -> anyhow::Result<tcl_sandbox::Profile> {
+    let tclsh = match tclsh {
+        Some(path) => path.to_path_buf(),
+        None => match std::env::var_os("TCL_VENV") {
+            Some(venv) => PathBuf::from(venv).join("bin").join("tclsh"),
+            None => tcl_pkg::venv::find_tclsh()
+                .ok_or_else(|| anyhow!("tclsh not found on PATH; name one with --tclsh"))?,
+        },
+    };
+    let mut profile = tcl_sandbox::Profile::new(name, &tclsh, dir)
+        .arg("-")
+        .network(false)
+        .stdin_bytes(script.into_bytes());
+    for name in [
+        "PATH",
+        "HOME",
+        "TCL_LIBRARY",
+        "TCLLIBPATH",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+    ] {
+        profile = profile.pass_env(name);
+    }
+    profile.fs_read = std::iter::once(dir.to_path_buf())
+        .chain(
+            std::env::var_os("TCLLIBPATH")
+                .iter()
+                .flat_map(std::env::split_paths),
+        )
+        .collect();
+    Ok(profile)
+}
+
+/// Print one row per divergence the shell reported and the summary line, and
+/// return the status: 1 for any divergence, and for a shell that stopped before it
+/// had asked every command.
+///
+/// The probe's closing `done` line is the proof the shell finished, so it is
+/// required whatever status the shell exited with: a package that calls `exit 0`
+/// is a shell that stopped, and one that dies after a row has not been asked the
+/// rest. The summary counts the commands the shell asked, which is what was
+/// tested, and not the commands the pack declares.
+fn report_test(args: &SpecTestArgs, target: &TestTarget, outcome: &tcl_sandbox::Outcome) -> u8 {
+    let report =
+        crate::commands::spec_test::parse_report(&String::from_utf8_lossy(&outcome.stdout));
+    for divergence in &report.divergences {
+        println!("{divergence}");
+    }
+    // A package the shell could not require has nothing more asked of it.
+    let wanted = if report.package_missing() {
+        0
+    } else {
+        target.probes.len()
+    };
+    let asked = report.asked.len();
+    let finished = report.done == Some(wanted) && asked == wanted;
+    if finished {
+        if !outcome.success {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "the shell exited with status {} after it had reported",
+                    exit_status(outcome)
+                ),
+            );
+        }
+        println!(
+            "{}: {asked} command(s) tested against '{}', {} divergence(s)",
+            args.pack.display(),
+            target.package,
+            report.divergences.len()
+        );
+        return u8::from(!report.divergences.is_empty());
+    }
+    let missing: Vec<&str> = target
+        .probes
+        .iter()
+        .map(|probe| probe.name.as_str())
+        .filter(|name| !report.asked.iter().any(|asked| asked == name))
+        .collect();
+    eprint_status(
+        warn_style(),
+        format!(
+            "the shell exited with status {} before it had asked every command \
+             ({asked} of {wanted} asked; not asked: {}): {}",
+            exit_status(outcome),
+            missing.join(", "),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        ),
+    );
+    println!(
+        "{}: {asked} of {wanted} command(s) tested against '{}', {} divergence(s)",
+        args.pack.display(),
+        target.package,
+        report.divergences.len()
+    );
+    1
+}
+
+fn exit_status(outcome: &tcl_sandbox::Outcome) -> String {
+    outcome
+        .code
+        .map_or_else(|| "?".to_owned(), |code| code.to_string())
+}
+
+/// The operator's project: the outermost directory at or above the working
+/// directory that holds a `tclpkg.tcl`, or the working directory when there is
+/// none. Its `tclpkg.toml` is the project layer of the policy that decides whether
+/// the package runs, and it is the outermost because a dependency vendored into
+/// the project sits under the project's manifest: the operator who stands inside
+/// the dependency has made its manifest the nearest, and the policy is not the
+/// dependency's to write.
+fn operator_project() -> anyhow::Result<PathBuf> {
+    match crate::commands::pkg::find_outermost_project_root() {
+        Some(root) => Ok(root),
+        None => std::env::current_dir().context("cannot read the working directory"),
+    }
+}
+
+/// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
+///
+/// Two halves, per `docs/design/registry/dialect-and-package-registry-centralisation.md`
+/// §6: the loader reads every 1.x pack forever, and this rewrites 1.x sources
+/// to 2.0. It is a **source rewriter**, never a load-render round trip — the
+/// renderer emits no pack-level rows and degrades opaque fields to TODO
+/// comments, so rendering a loaded pack would delete parts of it. Edits are
+/// content-range replacements located by the loader's own lexer and applied
+/// back-to-front, so author layout, comments, and delimiters survive.
+///
+/// The version word moves only when the body rewrite completed on that
+/// file. A row whose tokens name environment *membership* rather than
+/// availability needs the environment registry, so it is left
+/// byte-identical, marked with a `# TODO(spectcl 2.0):` comment, and the file
+/// reports as partially upgraded.
+pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
+    let options = UpgradeOptions {
+        from: args.from.clone(),
+        to: args.to.clone(),
+        infer_provides: args.shape.infer_provides,
+        restyle: args.shape.restyle,
+    };
+    // `--verify` proves an upgrade rather than performing one, so it never
+    // writes: the whole claim it makes is about bytes that are already on
+    // disk versus bytes that would be.
+    let dry_run = args.proof.check || args.proof.verify;
+    let mut incomplete = 0u32;
+
+    for file in &args.files {
+        let source = std::fs::read_to_string(file)
+            .map_err(|e| anyhow!("cannot read {}: {e}", file.display()))?;
+        let outcome = upgrade_source(&source, &options);
+        let name = file.display();
+
+        match outcome.status {
+            UpgradeStatus::NotAPack => {
+                println!("{name}: no `speclib <name> <version>` line found — skipped");
+                incomplete += 1;
+                continue;
+            }
+            UpgradeStatus::Refused => {
+                for refusal in &outcome.refusals {
+                    eprint_status(
+                        warn_style(),
+                        format!("refused {name}:{}: {}", refusal.line, refusal.message),
+                    );
+                }
+                incomplete += 1;
+                continue;
+            }
+            UpgradeStatus::AlreadyCurrent => {
+                println!(
+                    "{name}: already vocabulary {} with nothing left to translate",
+                    outcome.declared_version.as_deref().unwrap_or("?")
+                );
+                continue;
+            }
+            UpgradeStatus::Upgraded | UpgradeStatus::Partial | UpgradeStatus::Restyled => {}
+        }
+
+        let partial = outcome.status == UpgradeStatus::Partial;
+        if partial {
+            incomplete += 1;
+        }
+        report_upgrade(&outcome, &format!("{name}"), dry_run);
+
+        if args.proof.verify {
+            match verify_snapshots(file, &source, &outcome.source) {
+                Ok(true) => println!("  verify: registry snapshots are byte-identical (U9)"),
+                Ok(false) => {
+                    incomplete += 1;
+                    eprint_status(
+                        warn_style(),
+                        format!(
+                            "verify {name}: registry snapshots differ — the rewrite is not \
+                             behaviour-preserving"
+                        ),
+                    );
+                }
+                Err(err) => {
+                    incomplete += 1;
+                    eprint_status(warn_style(), format!("verify {name}: {err}"));
+                }
+            }
+            continue;
+        }
+        if dry_run {
+            continue;
+        }
+        std::fs::write(file, &outcome.source)
+            .map_err(|e| anyhow!("cannot write {}: {e}", file.display()))?;
+    }
+
+    Ok(u8::from(incomplete > 0))
+}
+
+/// One file's report: what translated, what is left, and U7's proof.
+fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
+    let verb = if dry_run {
+        "would translate"
+    } else {
+        "translated"
+    };
+    println!(
+        "{name}: {verb} {} row(s); {} left for the environment wire-up{}",
+        outcome.translated.len(),
+        outcome.deferred.len(),
+        if outcome.status == UpgradeStatus::Partial {
+            " (partially upgraded — the `speclib` word stays where it is)"
+        } else {
+            ""
+        }
+    );
+    for row in &outcome.translated {
+        println!("  {}: {} -> {}", row.line, row.before, row.after);
+    }
+    for row in &outcome.deferred {
+        println!("  {}: TODO {}", row.line, row.reason);
+    }
+    if outcome.restyled {
+        println!(
+            "  {} in canonical form (comments and author layout dropped)",
+            if dry_run {
+                "would re-emit"
+            } else {
+                "re-emitted"
+            }
+        );
+    }
+    for loss in &outcome.restyle_losses {
+        eprint_status(
+            warn_style(),
+            format!(
+                "restyle {name}:{}: `{}` word quoted rather than written verbatim: {:?}",
+                loss.line, loss.word, loss.text
+            ),
+        );
+    }
+    if let Some(reason) = &outcome.restyle_skipped {
+        eprint_status(warn_style(), format!("not restyled {name}: {reason}"));
+    }
+    // U7: the rewritten file must need nothing newer than it declares.
+    for site in &outcome.above_target {
+        eprint_status(warn_style(), format!("above target: {site}"));
+    }
+}
+
+/// The dialects a `--verify` snapshot is taken in.
+///
+/// Every axis a 1.x `dialects` row can gate on, so a translation that
+/// widened or narrowed availability anywhere shows up as a snapshot
+/// difference rather than passing unnoticed. The environment-membership
+/// axes joined when U3 started translating their tokens: a widened or
+/// narrowed `f5-iapps` claim must show in the `f5-iapps` registry, not
+/// pass because the Tcl-ladder registries never admitted it.
+const VERIFY_DIALECTS: &[&str] = &[
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "f5-irules",
+    "f5-iapps",
+    "f5-tmsh",
+    "expect",
+    "spectcl",
+    "bpf",
+];
+
+/// U9: load the original and the rewritten pack and compare the registry
+/// entries of every command either one declares.
+///
+/// Entry-by-entry rather than whole-registry, because the shipped commands
+/// are identical on both sides by construction and the pack's own names are
+/// the entire claim.
+fn verify_snapshots(path: &Path, original: &str, upgraded: &str) -> anyhow::Result<bool> {
+    let before = in_memory_pack(path, original);
+    let after = in_memory_pack(path, upgraded);
+    // The U5 extension of the gate: the environment-scoped rows both
+    // forms load to — detection routing and package placements — must be
+    // identical, which is what licenses U4/U5 to move a row's *home*
+    // (pack level → `environment … -extend`) while the registry effect
+    // stays put once environment registration consumes the blocks.
+    for (before_pack, after_pack) in before.packs.iter().zip(after.packs.iter()) {
+        let left = tcl_spectcl::upgrade::merged_environment_effect_snapshot(before_pack);
+        let right = tcl_spectcl::upgrade::merged_environment_effect_snapshot(after_pack);
+        if left != right {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "environment effect differs for pack `{}`:\n  before: {left}\n  \
+                     after: {right}",
+                    before_pack.name
+                ),
+            );
+            return Ok(false);
+        }
+    }
+    let mut names: Vec<&str> = before
+        .packs
+        .iter()
+        .chain(after.packs.iter())
+        .flat_map(|pack| pack.commands.iter().map(|command| command.spec.name))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    if names.is_empty() {
+        bail!("the pack declares no commands, so there is nothing to compare");
+    }
+    for dialect in VERIFY_DIALECTS {
+        let before_registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &before);
+        let after_registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &after);
+        for name in &names {
+            let left = command_entry_json(&before_registry, dialect, name)
+                .map(|entry| entry.dumps_indent2());
+            let right = command_entry_json(&after_registry, dialect, name)
+                .map(|entry| entry.dumps_indent2());
+            if left != right {
+                eprint_status(warn_style(), format!("differs: {dialect} / {name}"));
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// A one-file [`PackSet`] built from text that may never reach disk.
+fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
+    tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: path.to_path_buf(),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+            dependency_tier: None,
+        },
+        source.to_owned(),
+    )])
+}
+
+/// `tcl spec import` — derive version ranges from several releases.
+pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    if !args.c_source.is_empty() || args.probe.is_some() {
+        return run_extension_import(args);
+    }
+    // `--partial-history` is the default, and is accepted so a script can say
+    // what it means rather than relying on the default staying put. The safe
+    // default is the modest claim: snapshots are only ever *some* releases
+    // until the caller says otherwise, and a wrong `introduced_version` is a
+    // fact nobody can tell from a derived one later.
+    let complete_history = args.history.complete_history;
+
+    let (snapshots, fetched) = if let Some(repo) = &args.github {
+        let repo = GithubRepo::parse(repo)?;
+        let picks = select_tags(
+            &github_tags(&repo, args.timeout)?,
+            args.tag_pattern.as_deref(),
+            args.limit,
+        );
+        if picks.is_empty() {
+            bail!(
+                "no tags of {repo} matched{}",
+                args.tag_pattern
+                    .as_deref()
+                    .map_or_else(String::new, |p| format!(" `{p}`"))
+            );
+        }
+        if args.list_tags {
+            return list_tags(&repo, &picks, args.json, args.out.as_deref());
+        }
+        (fetch_snapshots(&repo, &picks, args.timeout)?, true)
+    } else {
+        (local_snapshots(&args.snapshot)?, false)
+    };
+
+    // The CLI dialect ingest boundary, not `by_name`: an unrecognised spelling
+    // must be an input error rather than an accidental fallback to plain Tcl.
+    // `by_name` never fails, so `--dialect klingon` would be analysed as plain
+    // Tcl *and* stamped into the generated pack's provenance line as whichever
+    // name the fallback resolved to — a pack that misreports how it was built.
+    // Matches every other dialect-taking `tcl` subcommand.
+    let dialect = tcl_cli_support::resolve_dialect(Some(&args.dialect))?
+        .expect("`Some` input resolves to `Some` or errors");
+
+    let import = import_snapshots(
+        &snapshots,
+        &SpecImportOptions {
+            dialect,
+            package: args.package.as_deref(),
+            complete_history,
+        },
+    );
+
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        write_text_output(&target, &format!("{:#}\n", import.to_json()))?;
+    } else {
+        write_text_output(&target, &import.pack)?;
+    }
+    summarise(&import, fetched);
+    Ok(0)
+}
+
+/// `tcl spec import --c-source DIR` and `--probe PACKAGE` — describe a C
+/// extension's commands from the sources that can state them.
+///
+/// Nothing in a C source or a loaded package says what a command does, so every
+/// command is a row at the conservative default for a command native code
+/// registers; what a source does state (the arity a usage message gives, the
+/// subcommands an option table names, the package a `Tcl_PkgProvide` provides)
+/// is proposed beside it. Each row carries its provenance: `c-scan` for a
+/// mechanical scan of the source, `probe` for the commands a real shell saw a
+/// `package require` add, or both. The probe runs the package, so it is held to
+/// the package manager's policy as `tcl spec test` is.
+fn run_extension_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
+    use tcl_cli_support::spec_import::{C_EXTENSIONS, collect_c_sources, render_extension_import};
+    use tcl_spec_studio::infer::{ExtensionImport, UnchosenExtension, import_c_sources};
+
+    let mut origins = Vec::new();
+    let mut import = ExtensionImport::default();
+    if !args.c_source.is_empty() {
+        let mut files = Vec::new();
+        for dir in &args.c_source {
+            if !dir.is_dir() {
+                bail!("--c-source: {} is not a directory", dir.display());
+            }
+            let mut found = collect_c_sources(dir);
+            if found.is_empty() {
+                bail!(
+                    "--c-source: no C sources ({}) found under {}",
+                    C_EXTENSIONS.join(" "),
+                    dir.display()
+                );
+            }
+            origins.push(format!(
+                "c-scan: {} C file(s) under {}",
+                found.len(),
+                dir.display()
+            ));
+            if args.c_source.len() > 1 {
+                for file in &mut found {
+                    file.name = format!("{}/{}", dir.display(), file.name);
+                }
+            }
+            files.extend(found);
+        }
+        import = match import_c_sources(&files, args.entry.as_deref()) {
+            Ok(import) => import,
+            Err(UnchosenExtension::Several(entries)) => bail!(
+                "--c-source: the sources hold {} extensions, one per entry point: {}; describe \
+                 one at a time with --entry PREFIX (--entry {})",
+                entries.len(),
+                listed(&entries),
+                entries[0].prefix
+            ),
+            Err(UnchosenExtension::NotDefined { prefix, defined }) if defined.is_empty() => {
+                bail!("--entry {prefix}: the sources define no entry point, and no {prefix}_Init")
+            }
+            Err(UnchosenExtension::NotDefined { prefix, defined }) => bail!(
+                "--entry {prefix}: the sources define no {prefix}_Init; their entry points are {}",
+                listed(&defined)
+            ),
+        };
+        if let Some(entry) = &import.entry {
+            origins.push(format!("c-scan: the extension entered at {entry}"));
+        }
+    }
+    if let Some(package) = &args.probe {
+        let Some(report) = probe_package(args, package)? else {
+            return Ok(1);
+        };
+        origins.push(format!(
+            "probe: `package require {package}` in a real shell added {} command(s)",
+            report.commands.len()
+        ));
+        import.merge_probe(&report);
+    }
+
+    let pack = render_extension_import(&import, args.package.as_deref(), &origins);
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        write_text_output(&target, &format!("{:#}\n", import.to_json()))?;
+    } else {
+        write_text_output(&target, &pack.pack)?;
+    }
+    summarise_extension(&import, &pack.package);
+    Ok(0)
+}
+
+/// Entry points as a list a person reads: `Doors_Init (doors.c:261), Pkga_Init
+/// (pkga.c:303)`.
+fn listed(entries: &[tcl_spec_studio::infer::ExtensionEntry]) -> String {
+    entries
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Require `package` in a sandboxed shell and report the commands it added.
+/// `None` when the policy has not opted the package in, which is said.
+fn probe_package(
+    args: &SpecImportArgs,
+    package: &str,
+) -> anyhow::Result<Option<tcl_spec_studio::infer::ProbeReport>> {
+    use crate::commands::spec_probe::{
+        is_package_name, is_plain_name, parse_output, render_script,
+    };
+
+    if !is_package_name(package) {
+        bail!("--probe: `{package}` is not a package name");
+    }
+    let dir = operator_project()?;
+    let loaded = tcl_pkg::policy::load(Some(&dir));
+    if !loaded.config.build_script_allowed(package) {
+        eprintln!("error: running the package '{package}' is not permitted by policy");
+        eprintln!(
+            "  hint: set [build] allow-build-scripts = true and run 'tcl pkg trust {package}'"
+        );
+        return Ok(None);
+    }
+    let profile = shell_profile(
+        "spec-probe",
+        args.tclsh.as_deref(),
+        &dir,
+        render_script(package),
+    )?;
+    let outcome = tcl_pkg::exec::execute(&profile, &loaded.config.sandbox_policy())
+        .map_err(|error| anyhow!("{error}"))?;
+    if outcome.timed_out {
+        bail!("the shell did not finish probing '{package}' in time");
+    }
+    let output = std::str::from_utf8(&outcome.stdout)
+        .context("the command inventory report is not UTF-8")?;
+    let parsed = parse_output(output);
+    if let Some(error) = &parsed.error {
+        bail!("the shell could not require '{package}': {error}");
+    }
+    if !parsed.finished() {
+        bail!(
+            "the shell stopped before it had listed what '{package}' added (status {}): {}",
+            exit_status(&outcome),
+            String::from_utf8_lossy(&outcome.stderr).trim()
+        );
+    }
+    let (commands, rejected): (Vec<String>, Vec<String>) = parsed
+        .commands
+        .into_iter()
+        .partition(|name| is_plain_name(name));
+    for name in rejected {
+        eprint_status(
+            warn_style(),
+            format!("the probe skipped a command whose name is not plain text: {name:?}"),
+        );
+    }
+    Ok(Some(tcl_spec_studio::infer::ProbeReport {
+        package: package.to_owned(),
+        version: parsed.version,
+        commands,
+    }))
+}
+
+/// One line saying what an extension import described, on standard error.
+fn summarise_extension(import: &tcl_spec_studio::infer::ExtensionImport, package: &str) {
+    use tcl_spec_studio::infer::ExtensionSource;
+    let count = |source: ExtensionSource| {
+        import
+            .commands
+            .iter()
+            .filter(|row| row.sources.contains(&source))
+            .count()
+    };
+    eprint_status(
+        warn_style(),
+        format!(
+            "{package}: {} command(s) described ({} from the C source, {} from the probe); \
+             {} computed registration(s), {} call(s) the scan cannot read",
+            import.commands.len(),
+            count(ExtensionSource::CScan),
+            count(ExtensionSource::Probe),
+            import.dynamic.len(),
+            import.blind.len()
+        ),
+    );
+    for warning in &import.warnings {
+        eprint_status(warn_style(), warning.clone());
+    }
+}
+
+/// Read every `--snapshot VERSION=PATH` into a labelled snapshot.
+fn local_snapshots(args: &[String]) -> anyhow::Result<Vec<VersionedSnapshot>> {
+    if args.is_empty() {
+        bail!("pass --snapshot VERSION=PATH (repeatable) or --github OWNER/REPO");
+    }
+    let mut snapshots = Vec::with_capacity(args.len());
+    for arg in args {
+        let (version, path) = parse_snapshot_arg(arg)?;
+        snapshots.push(load_snapshot(&version, &path)?);
+    }
+    Ok(snapshots)
+}
+
+// GitHub mode
+
+/// A validated `OWNER/REPO`.
+///
+/// Both halves are checked against GitHub's own name alphabet before they are
+/// pasted into a URL: a `..` or a `?` in a repository name would otherwise
+/// build a request to somewhere the user did not ask for.
+#[derive(Debug, Clone)]
+struct GithubRepo {
+    owner: String,
+    repo: String,
+}
+
+impl GithubRepo {
+    fn parse(spec: &str) -> anyhow::Result<Self> {
+        let (owner, repo) = spec
+            .split_once('/')
+            .ok_or_else(|| anyhow!("--github expects OWNER/REPO, got `{spec}`"))?;
+        let repo = repo.strip_suffix(".git").unwrap_or(repo);
+        for (label, part) in [("owner", owner), ("repository", repo)] {
+            if part.is_empty() || !part.chars().all(is_name_char) {
+                bail!("--github: `{part}` is not a usable GitHub {label} name");
+            }
+        }
+        Ok(Self {
+            owner: owner.to_owned(),
+            repo: repo.to_owned(),
+        })
+    }
+}
+
+impl std::fmt::Display for GithubRepo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.owner, self.repo)
+    }
+}
+
+/// The characters GitHub allows in an owner or repository name.
+fn is_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')
+}
+
+/// The characters a tag may contain to be safe in a codeload path.
+///
+/// `/` is allowed because `release/1.2` is a real tag shape and codeload
+/// resolves it; a `..` segment is rejected separately.
+fn is_tag_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '+')
+}
+
+/// One tag we would fetch, and the version label derived from it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TagPick {
+    tag: String,
+    version: String,
+}
+
+impl TagPick {
+    /// The codeload tarball for this tag.
+    fn url(&self, repo: &GithubRepo) -> String {
+        format!(
+            "https://codeload.github.com/{}/{}/tar.gz/refs/tags/{}",
+            repo.owner, repo.repo, self.tag
+        )
+    }
+}
+
+/// Every tag name of `repo`, walking the REST API's pages.
+///
+/// `GITHUB_TOKEN`, when set, is sent as `Authorization: Bearer …` — the
+/// unauthenticated rate limit (60 requests/hour/IP) is easy to exhaust and the
+/// failure looks like "the repository has no tags". The request goes through
+/// [`tcl_pkg::fetchers::fetch_bytes`], so `HTTPS_PROXY` / `NO_PROXY` and the
+/// rest of the standard proxy environment are honoured.
+fn github_tags(repo: &GithubRepo, timeout: u64) -> anyhow::Result<Vec<String>> {
+    let token = std::env::var("GITHUB_TOKEN").ok().filter(|t| !t.is_empty());
+    let mut headers: Vec<(&str, &str)> = vec![
+        ("Accept", "application/vnd.github+json"),
+        ("X-GitHub-Api-Version", "2022-11-28"),
+    ];
+    let authorization;
+    if let Some(token) = &token {
+        authorization = format!("Bearer {token}");
+        headers.push(("Authorization", &authorization));
+    }
+
+    let mut tags = Vec::new();
+    for page in 1..=MAX_TAG_PAGES {
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/tags?per_page={TAGS_PER_PAGE}&page={page}",
+            repo.owner, repo.repo
+        );
+        let body = tcl_pkg::fetchers::fetch_bytes(&url, timeout, &headers)
+            .with_context(|| format!("listing tags of {repo}"))?;
+        let value: Value = serde_json::from_slice(&body)
+            .with_context(|| format!("listing tags of {repo}: response was not JSON"))?;
+        let Some(entries) = value.as_array() else {
+            // The API answers an error with an object carrying `message`.
+            let message = value
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("unexpected response shape");
+            bail!("listing tags of {repo}: {message}");
+        };
+        let page_len = entries.len();
+        tags.extend(
+            entries
+                .iter()
+                .filter_map(|e| e.get("name").and_then(Value::as_str))
+                .map(ToOwned::to_owned),
+        );
+        if page_len < TAGS_PER_PAGE {
+            return Ok(tags);
+        }
+    }
+    Ok(tags)
+}
+
+/// The version label a tag names.
+///
+/// Two reductions, both common and both reversible by eye:
+///
+/// 1. A leading project prefix — everything before the first `-` or `_` when
+///    that head carries no digit and the tail starts a version
+///    (`tcllib-1.20` → `1.20`, `release_2.0` → `2.0`). `v1.2-rc1` keeps its
+///    tail, because `v1.2` does carry a digit.
+/// 2. A leading `v` or `V` directly in front of a digit (`v1.2` → `1.2`).
+///
+/// Anything else is the label verbatim, so an unrecognised scheme is passed
+/// through rather than mangled.
+fn version_label(tag: &str) -> String {
+    let trimmed = tag.trim();
+    let mut label = trimmed;
+    if let Some((head, tail)) = trimmed.split_once(['-', '_'])
+        && !head.chars().any(|c| c.is_ascii_digit())
+        && starts_a_version(tail)
+    {
+        label = tail;
+    }
+    if let Some(rest) = label.strip_prefix(['v', 'V'])
+        && rest.starts_with(|c: char| c.is_ascii_digit())
+    {
+        label = rest;
+    }
+    label.to_owned()
+}
+
+/// Whether `text` looks like the start of a version: a digit, or a `v` in
+/// front of one.
+fn starts_a_version(text: &str) -> bool {
+    let text = text.strip_prefix(['v', 'V']).unwrap_or(text);
+    text.starts_with(|c: char| c.is_ascii_digit())
+}
+
+/// Whether `text` matches `pattern`, where `*` matches any run of characters
+/// (`/` included), `?` matches exactly one, and every other character matches
+/// itself. The whole tag must match — this is a filter, not a search.
+fn glob_matches(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    // Classic linear backtracking matcher: `star`/`mark` remember the last `*`
+    // and the position it had consumed up to, so a failed suffix retries with
+    // one more character eaten by that `*`.
+    let (mut pi, mut ti) = (0usize, 0usize);
+    let (mut star, mut mark) = (None, 0usize);
+    while ti < t.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
+            pi += 1;
+            ti += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = Some(pi);
+            mark = ti;
+            pi += 1;
+        } else if let Some(s) = star {
+            pi = s + 1;
+            mark += 1;
+            ti = mark;
+        } else {
+            return false;
+        }
+    }
+    p[pi..].iter().all(|c| *c == '*')
+}
+
+/// The tags to import, oldest first.
+///
+/// Filtered by `pattern`, dropped when the tag is unusable in a URL or yields
+/// no version label, ordered with the `package vcompare` port
+/// ([`tcl_dialect::compare_versions`], never GitHub's listing order),
+/// de-duplicated by label — two tags for one version would be a duplicate
+/// snapshot — and finally cut to the **newest** `limit`, because recent
+/// releases are what a spec is being written against.
+///
+/// The comparator is the dialect port rather than
+/// `tcl_registry::version::compare` because a release tag routinely carries a
+/// prerelease suffix: the registry comparator parses dotted integers only, so
+/// `1.0a1`, `1.0b1`, and `1.0` all compare equal and the `limit` cut would
+/// keep whichever the tag-name tiebreak happened to sort last. Duplicate
+/// detection stays *textual*, so two differently-spelt labels for the same
+/// release (`1.0` / `1.0.0`) both survive to the importer, which warns about
+/// them by name.
+fn select_tags(tags: &[String], pattern: Option<&str>, limit: Option<usize>) -> Vec<TagPick> {
+    let mut picks: Vec<TagPick> = tags
+        .iter()
+        .filter(|tag| pattern.is_none_or(|p| glob_matches(p, tag)))
+        .filter(|tag| tag.chars().all(is_tag_char) && !tag.split('/').any(|s| s == ".."))
+        .filter_map(|tag| {
+            let version = version_label(tag);
+            (!version.is_empty()).then(|| TagPick {
+                tag: tag.clone(),
+                version,
+            })
+        })
+        .collect();
+    picks.sort_by(|a, b| {
+        tcl_dialect::compare_versions(&a.version, &b.version).then_with(|| a.tag.cmp(&b.tag))
+    });
+    picks.dedup_by(|a, b| a.version == b.version);
+    if let Some(limit) = limit
+        && picks.len() > limit
+    {
+        picks.drain(..picks.len() - limit);
+    }
+    picks
+}
+
+/// `--list-tags`: say what would be fetched, and fetch nothing.
+fn list_tags(
+    repo: &GithubRepo,
+    picks: &[TagPick],
+    json: bool,
+    out: Option<&Path>,
+) -> anyhow::Result<u8> {
+    let target = OutputTarget::from_arg(out);
+    if json {
+        let value = json!({
+            "repository": repo.to_string(),
+            "tags": picks.iter().map(|p| json!({
+                "tag": p.tag,
+                "version": p.version,
+                "url": p.url(repo),
+            })).collect::<Vec<_>>(),
+        });
+        write_text_output(&target, &format!("{value:#}\n"))?;
+    } else {
+        let text = picks.iter().fold(String::new(), |mut text, pick| {
+            let _ = writeln!(text, "{}\t{}\t{}", pick.tag, pick.version, pick.url(repo));
+            text
+        });
+        write_text_output(&target, &text)?;
+    }
+    eprint_status(
+        warn_style(),
+        format!(
+            "{} release(s) would be fetched from {repo}; drop --list-tags to import them",
+            picks.len()
+        ),
+    );
+    Ok(0)
+}
+
+/// Fetch each picked tag's tarball and read its sources.
+fn fetch_snapshots(
+    repo: &GithubRepo,
+    picks: &[TagPick],
+    timeout: u64,
+) -> anyhow::Result<Vec<VersionedSnapshot>> {
+    let mut snapshots = Vec::with_capacity(picks.len());
+    for pick in picks {
+        let url = pick.url(repo);
+        eprint_status(warn_style(), format!("fetching {} … {url}", pick.version));
+        let scratch = ReleaseDir::new(&pick.version)?;
+        tcl_pkg::fetchers::fetch_tarball(&url, scratch.path(), timeout)
+            .map_err(|e| anyhow!("fetching {url}: {e}"))?;
+        snapshots.push(load_snapshot(&pick.version, scratch.path())?);
+    }
+    Ok(snapshots)
+}
+
+/// A scratch directory for one fetched release, removed when it drops.
+struct ReleaseDir(PathBuf);
+
+impl ReleaseDir {
+    fn new(version: &str) -> anyhow::Result<Self> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        // The label is sanitised, never used raw: a version derived from a tag
+        // like `release/1.2` would otherwise dig a directory tree out of the
+        // temp root. It is only there to make a stray directory identifiable.
+        let label: String = version
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+            .take(24)
+            .collect();
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-spec-import-{}-{nanos}-{seq}-{label}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+        Ok(Self(dir))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for ReleaseDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The human account of the import, on stderr so it never contaminates a pack
+/// written to stdout.
+fn summarise(import: &SpecImport, fetched: bool) {
+    let source = if fetched { "fetched" } else { "local" };
+    eprint_status(
+        warn_style(),
+        format!(
+            "{}: {} command(s) from {} {source} release(s) ({}); \
+             {} introduced, {} retired",
+            import.package,
+            import.commands.len(),
+            import.versions.len(),
+            import.versions.join(", "),
+            import.introduced_count(),
+            import.retired_count(),
+        ),
+    );
+    let gates: usize = import.commands.iter().map(|c| c.gates().len()).sum();
+    if gates > 0 {
+        eprint_status(
+            warn_style(),
+            format!("{gates} version fact(s) recorded as `version-gate:` notes in the pack header"),
+        );
+    }
+    for warning in &import.warnings {
+        eprint_status(warn_style(), format!("warning: {warning}"));
+    }
+    if !import.losses.is_empty() {
+        eprint_status(
+            warn_style(),
+            format!(
+                "{} field(s) could not be rendered into the pack; see its header",
+                import.losses.len()
+            ),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `tcl spec import --dialect <unknown>` is an input error.
+    ///
+    /// It must not fall back to plain Tcl: the dialect both selects the
+    /// registry every snapshot is analysed against and is stamped into the
+    /// generated pack's provenance line, so a silent fallback ships a pack
+    /// that misreports how it was built. `DialectProfile::by_name` cannot
+    /// express this — it never fails — which is why this goes through the
+    /// shared CLI ingest boundary.
+    #[test]
+    fn an_unknown_import_dialect_is_rejected_rather_than_defaulted() {
+        let err = tcl_cli_support::resolve_dialect(Some("klingon"))
+            .expect_err("an unregistered dialect name must not resolve");
+        let message = err.to_string();
+        assert!(
+            message.contains("klingon"),
+            "the error must name the rejected spelling: {message}"
+        );
+
+        // FN guard: the names this command legitimately accepts still resolve,
+        // including a registered alias and the additive `tk` ingress that has
+        // no catalogue profile of its own.
+        for name in ["tcl8.6", "f5-irules", "irules", "tk"] {
+            assert!(
+                tcl_cli_support::resolve_dialect(Some(name))
+                    .expect("registered spelling resolves")
+                    .is_some(),
+                "`{name}` must still be accepted"
+            );
+        }
+    }
+
+    fn finished_outcome(stdout: &str, code: i32) -> tcl_sandbox::Outcome {
+        tcl_sandbox::Outcome {
+            code: Some(code),
+            success: code == 0,
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: Vec::new(),
+            timed_out: false,
+            isolation: tcl_sandbox::IsolationLevel::Baseline,
+            network_enforced: false,
+        }
+    }
+
+    /// The probe's closing `done` line is what says the shell finished: every
+    /// command asked and a clean exit are not enough, since a shell can stop at
+    /// any point after the last question, and the count it ends on is the one the
+    /// pack declares or, for a package the shell could not require, none.
+    #[test]
+    fn a_shell_is_finished_when_it_says_done_for_every_command_it_was_to_ask() {
+        let probe = |name: &str| crate::commands::spec_test::CommandProbe {
+            name: name.to_owned(),
+            arity: None,
+            pure: false,
+            return_type: None,
+            examples: Vec::new(),
+            reference: None,
+        };
+        let args = SpecTestArgs {
+            pack: PathBuf::from("demo.tclspec"),
+            tclsh: None,
+            package: None,
+        };
+        let target = TestTarget {
+            package: "demo".to_owned(),
+            probes: vec![probe("demo::a"), probe("demo::b")],
+        };
+        let asked = "SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tasked\tdemo::b\t\n";
+        let status =
+            |stdout: &str, code| report_test(&args, &target, &finished_outcome(stdout, code));
+
+        assert_eq!(status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 0), 0);
+        assert_eq!(
+            status(asked, 0),
+            1,
+            "every command asked and a clean exit, but no done line"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t1\n"), 0),
+            1,
+            "a done line that counts another number of commands"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tasked\tdemo::a\t\nSPEC-TEST\tdone\t-\t2\n", 0),
+            1,
+            "a done line with a command never asked"
+        );
+        assert_eq!(
+            status(&format!("{asked}SPEC-TEST\tdone\t-\t2\n"), 3),
+            0,
+            "a shell that stopped after it had finished is a warning, not a failure"
+        );
+        // A package the shell could not require has nothing asked of it, and says so.
+        assert_eq!(
+            status(
+                "SPEC-TEST\tload\t-\tcan't find package demo\nSPEC-TEST\tdone\t-\t0\n",
+                0
+            ),
+            1,
+            "the missing package is a divergence"
+        );
+        assert_eq!(
+            status("SPEC-TEST\tload\t-\tcan't find package demo\n", 0),
+            1,
+            "and a missing package that never said done has not finished either"
+        );
+    }
+
+    #[test]
+    fn a_tag_maps_to_the_version_it_names() {
+        assert_eq!(version_label("v1.2"), "1.2");
+        assert_eq!(version_label("V2.0.1"), "2.0.1");
+        assert_eq!(version_label("1.2"), "1.2");
+        assert_eq!(version_label("tcllib-1.20"), "1.20");
+        assert_eq!(version_label("release_2.0"), "2.0");
+        assert_eq!(version_label("pkg-v3.1"), "3.1");
+        // A head that carries a digit is part of the version, not a prefix.
+        assert_eq!(version_label("v1.2-rc1"), "1.2-rc1");
+        // An unrecognised scheme is passed through rather than mangled.
+        assert_eq!(version_label("nightly"), "nightly");
+        assert_eq!(version_label("version"), "version");
+    }
+
+    #[test]
+    fn a_tag_pattern_anchors_to_the_whole_tag() {
+        assert!(glob_matches("v*", "v1.2"));
+        assert!(glob_matches("v1.*", "v1.20.3"));
+        assert!(!glob_matches("v1.*", "v2.0"));
+        assert!(glob_matches("v?.?", "v1.2"));
+        assert!(!glob_matches("v?.?", "v1.20"));
+        assert!(!glob_matches("1.2", "v1.2"), "the match is not a search");
+        assert!(glob_matches("*", "anything"));
+        assert!(glob_matches("release/*", "release/1.2"));
+        assert!(glob_matches("v1.2", "v1.2"));
+    }
+
+    #[test]
+    fn tags_are_selected_newest_last_and_deduplicated() {
+        let tags: Vec<String> = ["v1.10", "v1.2", "v1.9", "1.10", "nightly", "v2.0"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let picks = select_tags(&tags, Some("v*"), None);
+        let versions: Vec<&str> = picks.iter().map(|p| p.version.as_str()).collect();
+        // 1.10 sorts above 1.9 — version order, not lexicographic order — and
+        // `1.10` is filtered out by the pattern before the dedupe can see it.
+        assert_eq!(versions, ["1.2", "1.9", "1.10", "2.0"]);
+    }
+
+    #[test]
+    fn a_limit_keeps_the_newest_releases() {
+        let tags: Vec<String> = ["v1.0", "v1.1", "v2.0"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let picks = select_tags(&tags, None, Some(2));
+        let versions: Vec<&str> = picks.iter().map(|p| p.version.as_str()).collect();
+        assert_eq!(versions, ["1.1", "2.0"]);
+    }
+
+    #[test]
+    fn prerelease_tags_order_below_the_release_they_lead_up_to() {
+        // `tcl_registry::version::compare` stops at the first non-numeric
+        // segment, so it reads all three of these as `1.0` — the order would
+        // then fall to the tag-name tiebreak (`v1.0` first) and `--limit 1`
+        // would import a beta instead of the release. The `package vcompare`
+        // port orders alpha < beta < release.
+        let tags: Vec<String> = ["v1.0", "v1.0b1", "v1.0a1"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let picks = select_tags(&tags, None, None);
+        let versions: Vec<&str> = picks.iter().map(|p| p.version.as_str()).collect();
+        assert_eq!(versions, ["1.0a1", "1.0b1", "1.0"]);
+        // …so the newest-`limit` cut keeps the release, not the prerelease.
+        let newest = select_tags(&tags, None, Some(1));
+        assert_eq!(newest[0].version, "1.0");
+    }
+
+    #[test]
+    fn two_tags_for_one_version_import_once() {
+        let tags: Vec<String> = ["v1.0", "1.0"].iter().map(ToString::to_string).collect();
+        assert_eq!(select_tags(&tags, None, None).len(), 1);
+    }
+
+    #[test]
+    fn a_tag_that_could_escape_a_url_is_dropped() {
+        let tags: Vec<String> = ["v1.0", "v1.1?x=1", "../../etc/passwd", "v1.2#frag"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let picks = select_tags(&tags, None, None);
+        let kept: Vec<&str> = picks.iter().map(|p| p.tag.as_str()).collect();
+        assert_eq!(kept, ["v1.0"]);
+    }
+
+    #[test]
+    fn a_repository_name_is_validated_before_it_reaches_a_url() {
+        assert!(GithubRepo::parse("tcltk/tcllib").is_ok());
+        assert!(GithubRepo::parse("tcltk/tcllib.git").is_ok());
+        for bad in ["tcllib", "tcltk/", "/tcllib", "tcltk/../../x", "a b/c"] {
+            assert!(GithubRepo::parse(bad).is_err(), "`{bad}` should be refused");
+        }
+    }
+
+    #[test]
+    fn the_codeload_url_is_the_tag_tarball() {
+        let repo = GithubRepo::parse("tcltk/tcllib").expect("owner/repo");
+        let pick = TagPick {
+            tag: "v1.2".to_owned(),
+            version: "1.2".to_owned(),
+        };
+        assert_eq!(
+            pick.url(&repo),
+            "https://codeload.github.com/tcltk/tcllib/tar.gz/refs/tags/v1.2"
+        );
+    }
+}

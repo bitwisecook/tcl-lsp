@@ -1,0 +1,6 @@
+
+SPEC-PROBE	provided		1.0
+
+SPEC-PROBE	failure		command inventory unavailable: command inventory has no unambiguous namespace address
+
+SPEC-PROBE	done	0	

@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::array_index_effects_do_not_become_scalar_read_permission",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::array_index_effects_do_not_become_scalar_read_permission",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.3149088299978757,
+  "timed_out": false
+}

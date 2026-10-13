@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9576 filtered out; finished in 0.85s
+

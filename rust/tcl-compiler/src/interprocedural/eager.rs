@@ -58,7 +58,7 @@ impl EagerInvocations {
     /// The fact for `ir_module`, its commands read from `registry`.
     #[must_use]
     pub(crate) fn of(ir_module: &Module, registry: &CommandRegistry) -> Self {
-        let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+        let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
         let units: Vec<Span> = ir_module
             .body_units
             .values()
@@ -76,7 +76,7 @@ impl EagerInvocations {
                 .iter()
                 .filter(|(_, procedure)| encloses(procedure.span, span))
                 .min_by_key(|(_, procedure)| procedure.span.end() - procedure.span.start())
-                .map(|(qname, _)| qname.as_str())
+                .map(|(_, procedure)| procedure.qualified_name.as_str())
         };
 
         let mut load = Self::default();
@@ -86,7 +86,7 @@ impl EagerInvocations {
             load.note(stmt.span().start(), reach);
         };
         crate::ir::for_each_statement(&ir_module.top_level, &mut |stmt| at(stmt, "::top"));
-        for (qname, unit) in &ir_module.body_units {
+        for (qname, unit) in ir_module.body_units.display_entries() {
             if owner(unit.span).is_none() {
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| at(stmt, qname));
             }
@@ -98,13 +98,13 @@ impl EagerInvocations {
         // What each procedure's own runs reach: its body and the bodies
         // lowering registered inside it.
         let mut bodies: HashMap<&str, Reach> = HashMap::new();
-        for (qname, procedure) in &ir_module.procedures {
+        for (qname, procedure) in ir_module.procedures.display_entries() {
             let reach = bodies.entry(qname.as_str()).or_default();
             crate::ir::for_each_statement(&procedure.body, &mut |stmt| {
                 walk.statement(stmt, qname, reach);
             });
         }
-        for (qname, unit) in &ir_module.body_units {
+        for (qname, unit) in ir_module.body_units.display_entries() {
             if let Some(owner) = owner(unit.span) {
                 let reach = bodies.entry(owner).or_default();
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| {
@@ -230,7 +230,7 @@ pub(crate) fn definition_points(ir_module: &Module) -> HashMap<String, u32> {
     let by_span: HashMap<Span, &str> = ir_module
         .procedures
         .iter()
-        .map(|(qname, procedure)| (procedure.span, qname.as_str()))
+        .map(|(_, procedure)| (procedure.span, procedure.qualified_name.as_str()))
         .collect();
     let mut points = HashMap::new();
     let top = direct_definitions(&ir_module.top_level, &by_span, &mut points);

@@ -1,0 +1,13 @@
+{
+  "selector": "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": -15,
+  "seconds": 240.0163022710003,
+  "timed_out": true
+}

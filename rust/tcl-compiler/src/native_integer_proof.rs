@@ -326,7 +326,7 @@ pub fn prove_native_integer_adds(
         registry,
         Some(metadata),
     );
-    let params: &[String] = match unit.ir_module.procedures.get(function) {
+    let params: &[String] = match unit.ir_module.procedures.get_unique_display(function) {
         Some(procedure) => procedure.params.as_slice(),
         None => &[],
     };
@@ -1302,6 +1302,7 @@ mod tests {
             })
             .unwrap();
         let site = crate::common_aot_plan::DirectCallSiteId {
+            body_id: None,
             function: caller.name.clone(),
             block,
             statement_index: u32::try_from(index).unwrap(),
@@ -1360,6 +1361,7 @@ mod tests {
                         continue;
                     }
                     let site = crate::common_aot_plan::DirectCallSiteId {
+                        body_id: None,
                         function: unit.top_level.name.clone(),
                         block: *block,
                         statement_index: u32::try_from(index).unwrap(),

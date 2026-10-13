@@ -1,0 +1,29 @@
+{
+  "binaries_outside_git": [
+    {
+      "path": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c91/selected.so",
+      "bytes": 15384,
+      "sha256": "2722d611d673e3c3e7642db85b820cd842c8f9eb118a9cd9cc9a7592006a0558"
+    },
+    {
+      "path": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c90/selected.so",
+      "bytes": 15384,
+      "sha256": "2722d611d673e3c3e7642db85b820cd842c8f9eb118a9cd9cc9a7592006a0558"
+    },
+    {
+      "path": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c86/selected.so",
+      "bytes": 15384,
+      "sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5"
+    },
+    {
+      "path": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c85/selected.so",
+      "bytes": 15384,
+      "sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5"
+    },
+    {
+      "path": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c84/selected.so",
+      "bytes": 15384,
+      "sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5"
+    }
+  ]
+}

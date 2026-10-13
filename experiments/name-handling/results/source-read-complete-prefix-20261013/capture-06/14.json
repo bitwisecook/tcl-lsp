@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::authored_read_occurrences_preserve_unknown_runtime_and_array_effects",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::authored_read_occurrences_preserve_unknown_runtime_and_array_effects",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.3149306429986609,
+  "timed_out": false
+}

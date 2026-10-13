@@ -1084,6 +1084,10 @@ pub fn source_registry_words(
         metadata,
     )
     .or_else(|| {
+        let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
+        source_transition_words_with_segment(source, config, &context, segment, advice)
+    })
+    .or_else(|| {
         let advice = realm.original_member_source_catalogue_advice(input, &tokens)?;
         source_transition_words_with_segment(source, config, &context, segment, advice)
     })
@@ -1205,6 +1209,12 @@ pub fn source_registry_words_at(
     let realm = analysis.retained_command_realm()?;
     let binding = realm.invocation_at_source("", offset);
     let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+        segment
+    } else if let Some(segment) = analysis
+        .resolved_input
+        .as_ref()
+        .and_then(|input| realm.original_source_catalogue_segment_at(input, offset))
+    {
         segment
     } else {
         let tail = source.get(usize::try_from(offset).ok()?..)?;
@@ -2228,7 +2238,23 @@ fn logical_source_registry_words(
     }
     let context = input.context_registry();
     let words =
-        source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)?;
+        source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)
+            .or_else(|| {
+                let mut tokens = crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::new(source),
+                    input.lexer_config(),
+                    segment,
+                );
+                realm.stamp_original_tokens(&mut tokens);
+                let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
+                source_transition_words_with_segment(
+                    source,
+                    input.lexer_config(),
+                    &context,
+                    segment,
+                    advice,
+                )
+            })?;
     let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
         return None;
     };
@@ -3006,6 +3032,115 @@ mod tests {
         crate::analyser::Analyser::new()
             .with_resolved_input(input)
             .analyse(source, profile.name)
+    }
+
+    #[test]
+    fn original_source_prefix_catalogue_keeps_fatal_tail_separate() {
+        for dialect in ["tcl", "tcl8.6"] {
+            let source = "set arr(key) 1\nset v $arr(k more stuff\n";
+            let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+            let profile = environment.analyser_profile();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                environment.default_context_registry(),
+                config,
+            );
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let context = input.context_registry();
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(plan.fatal_tail.is_some());
+            assert_eq!(plan.commands.len(), 1);
+            let words = source_registry_words_at(source, &analysis, 0)
+                .expect("the genuine complete prefix keeps readonly source roles");
+            if input.has_logical_source_name_context() {
+                assert!(words.head_source().unwrap().input().is_none());
+                assert!(!words.operands_preserve_source_lookup());
+                let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                    panic!("the complete prefix keeps its original Logical source purpose");
+                };
+                assert!(advice.original_head().logical_input().is_some());
+                assert!(advice.original_head().native_input().is_none());
+            }
+            assert_eq!(
+                words.original_argument_word(0),
+                Some(&plan.commands[0].words[1])
+            );
+            assert_eq!(
+                words.with_source_schema(&context, |schema| schema
+                    .authored_source_variable_name_arguments()),
+                Some(vec![(0, tcl_registry::ArgRole::VarWrite)])
+            );
+            assert!(source_registry_words_at(source, &analysis, 15).is_none());
+            assert!(
+                source_registry_words_at(&format!("{source}# changed"), &analysis, 0).is_none()
+            );
+            let foreign = tcl_registry::model::ingress::context_for_profile(
+                tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+            );
+            assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        }
+    }
+
+    #[test]
+    fn original_body_catalogue_keeps_source_roles_after_conditional_loop() {
+        for dialect in ["tcl", "tcl8.6"] {
+            for source in [
+                "proc f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}",
+                "oo::class create C {method f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}}",
+            ] {
+                let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+                let profile = environment.analyser_profile();
+                let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+                let input = crate::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    environment.default_context_registry(),
+                    config,
+                );
+                let analysis = crate::analyser::Analyser::new()
+                    .with_resolved_input(input)
+                    .analyse(source, profile.name);
+                let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+                for (head, expected) in [
+                    ("set x", vec![(0, tcl_registry::ArgRole::VarWrite)]),
+                    ("incr n", vec![(0, tcl_registry::ArgRole::VarWrite)]),
+                    ("puts $x", vec![]),
+                ] {
+                    let offset = u32::try_from(source.find(head).unwrap()).unwrap();
+                    let words =
+                        source_registry_words_at(source, &analysis, offset).unwrap_or_else(|| {
+                            panic!("conditional original schema absent: {dialect} {head}")
+                        });
+                    let roles = words
+                        .with_source_schema(&context, |schema| {
+                            schema.authored_source_variable_name_arguments()
+                        })
+                        .unwrap();
+                    assert_eq!(roles, expected, "{dialect} {head}");
+                    assert!(
+                        words.matches_source(&tcl_lexer::SourceImage::document(source), config)
+                    );
+                }
+            }
+        }
+        for source in [
+            "proc set args {}; proc f {} {set x 1}",
+            "rename set saved; proc f {} {set x 1}",
+        ] {
+            let analysis = original_selector_analysis(source);
+            let offset = u32::try_from(source.rfind("set x").unwrap()).unwrap();
+            assert!(source_registry_words_at(source, &analysis, offset).is_none());
+        }
     }
 
     #[test]

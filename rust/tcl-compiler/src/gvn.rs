@@ -442,14 +442,30 @@ pub fn find_pure_procs(
     cfg_module: &CfgModule,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> PureProcs {
-    let mut pure: FxHashSet<String> = cfg_module.procedures.keys().cloned().collect();
+    let mut pure: FxHashSet<String> = cfg_module
+        .procedures
+        .values()
+        .filter(|body| {
+            cfg_module
+                .procedures
+                .values()
+                .filter(|candidate| candidate.name == body.name)
+                .count()
+                == 1
+        })
+        .map(|body| body.name.clone())
+        .collect();
 
     let mut changed = true;
     while changed {
         changed = false;
         let candidates: Vec<String> = pure.iter().cloned().collect();
         for name in candidates {
-            let Some(cfg) = cfg_module.procedures.get(&name) else {
+            let Some(cfg) = cfg_module
+                .procedures
+                .values()
+                .find(|body| body.name == name)
+            else {
                 continue;
             };
             if !function_body_is_pure(registry, cfg, &pure, dialect) {

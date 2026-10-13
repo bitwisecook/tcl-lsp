@@ -83,3 +83,7 @@ pub unsafe extern "C" fn tcl_engine_visible_command_inventory(interp: *mut Inter
     unsafe { incr_ref_count(object) };
     object
 }
+
+#[cfg(test)]
+#[path = "command_inventory_tests.rs"]
+mod tests;

@@ -139,6 +139,8 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
         .functions()
         .map(|fu| FunctionInputs {
             name: &fu.name,
+            body_id: fu.body_id,
+            is_top_level: std::ptr::eq(fu, &cu.top_level),
             ssa: &fu.ssa,
             du: &fu.def_use,
             sccp: Some(&fu.sccp),

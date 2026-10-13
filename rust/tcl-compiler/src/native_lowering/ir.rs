@@ -654,7 +654,7 @@ pub enum NativeOp {
     /// ordinary source-only procedure.
     DefineProc {
         /// Internal compiled-body selection key, never a publication operand.
-        entry_key: String,
+        entry_key: crate::ir::ProcedureId,
         /// Already evaluated original arguments, including the command head.
         argv: Vec<NativeValueId>,
     },

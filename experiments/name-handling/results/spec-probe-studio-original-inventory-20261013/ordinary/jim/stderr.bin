@@ -1,0 +1,4 @@
+/tmp/name-spec-probe-studio-20261013/ordinary/input.tcl:2: Error: package, unknown command "ifneeded": should be forget, names, provide, require
+Traceback (most recent call last):
+  File "/tmp/name-spec-probe-studio-20261013/ordinary/input.tcl", line 2
+    package ifneeded demo 1.0 {...

@@ -1,0 +1,202 @@
+[
+  {
+    "provider": "c84",
+    "expected_release": "8.4.20",
+    "captured_utc": "2026-10-13T20:35:08.688361+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "0cc522eb1f83ac9cc733296468578e7ef6fa62c8162f3667269d4ae30cc37930",
+    "runner_sha256": "905c8b4b659b5500352a0c30bdfb55ef541a6b917a25dff2444a803e61d6a4ef",
+    "exit_code": 0,
+    "stdout_sha256": "b63307501ccb998b23da42e16413008b0afb73552a8fb0fdf62432320151b26f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "original_CAPI_artifact": {
+      "build_command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-shared",
+        "-fPIC",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/probe.c",
+        "-o",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c84/selected.so"
+      ],
+      "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "source_sha256": "5c281d1155481bfdb2d9da994e866d2f1b00e73d771a4c6541201a3f87084b2e",
+      "artifact_sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5",
+      "build_exit": 0
+    },
+    "scope": "Original C5 API callback publishes original bare x inside actual N: context; Rust Runtime/Engine controls remain authored/unexecuted. No Jim/F5/tcltest identity claim."
+  },
+  {
+    "provider": "c85",
+    "expected_release": "8.5.19",
+    "captured_utc": "2026-10-13T20:35:08.859688+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "0cc522eb1f83ac9cc733296468578e7ef6fa62c8162f3667269d4ae30cc37930",
+    "runner_sha256": "905c8b4b659b5500352a0c30bdfb55ef541a6b917a25dff2444a803e61d6a4ef",
+    "exit_code": 0,
+    "stdout_sha256": "b63307501ccb998b23da42e16413008b0afb73552a8fb0fdf62432320151b26f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "original_CAPI_artifact": {
+      "build_command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-shared",
+        "-fPIC",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/probe.c",
+        "-o",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c85/selected.so"
+      ],
+      "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "source_sha256": "5c281d1155481bfdb2d9da994e866d2f1b00e73d771a4c6541201a3f87084b2e",
+      "artifact_sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5",
+      "build_exit": 0
+    },
+    "scope": "Original C5 API callback publishes original bare x inside actual N: context; Rust Runtime/Engine controls remain authored/unexecuted. No Jim/F5/tcltest identity claim."
+  },
+  {
+    "provider": "c86",
+    "expected_release": "8.6.18",
+    "captured_utc": "2026-10-13T20:35:09.019792+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "0cc522eb1f83ac9cc733296468578e7ef6fa62c8162f3667269d4ae30cc37930",
+    "runner_sha256": "905c8b4b659b5500352a0c30bdfb55ef541a6b917a25dff2444a803e61d6a4ef",
+    "exit_code": 0,
+    "stdout_sha256": "b63307501ccb998b23da42e16413008b0afb73552a8fb0fdf62432320151b26f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "original_CAPI_artifact": {
+      "build_command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-shared",
+        "-fPIC",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/probe.c",
+        "-o",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c86/selected.so"
+      ],
+      "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "source_sha256": "5c281d1155481bfdb2d9da994e866d2f1b00e73d771a4c6541201a3f87084b2e",
+      "artifact_sha256": "1007b249b9a780eb61061a710ac5b9d78321577421141046d7c8f0ddecb4eed5",
+      "build_exit": 0
+    },
+    "scope": "Original C5 API callback publishes original bare x inside actual N: context; Rust Runtime/Engine controls remain authored/unexecuted. No Jim/F5/tcltest identity claim."
+  },
+  {
+    "provider": "c90",
+    "expected_release": "9.0.4",
+    "captured_utc": "2026-10-13T20:35:09.182786+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "0cc522eb1f83ac9cc733296468578e7ef6fa62c8162f3667269d4ae30cc37930",
+    "runner_sha256": "905c8b4b659b5500352a0c30bdfb55ef541a6b917a25dff2444a803e61d6a4ef",
+    "exit_code": 0,
+    "stdout_sha256": "b63307501ccb998b23da42e16413008b0afb73552a8fb0fdf62432320151b26f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "original_CAPI_artifact": {
+      "build_command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-shared",
+        "-fPIC",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/probe.c",
+        "-o",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c90/selected.so"
+      ],
+      "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "source_sha256": "5c281d1155481bfdb2d9da994e866d2f1b00e73d771a4c6541201a3f87084b2e",
+      "artifact_sha256": "2722d611d673e3c3e7642db85b820cd842c8f9eb118a9cd9cc9a7592006a0558",
+      "build_exit": 0
+    },
+    "scope": "Original C5 API callback publishes original bare x inside actual N: context; Rust Runtime/Engine controls remain authored/unexecuted. No Jim/F5/tcltest identity claim."
+  },
+  {
+    "provider": "c91",
+    "expected_release": "9.1.0",
+    "captured_utc": "2026-10-13T20:35:09.374879+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/input.tcl"
+    ],
+    "cwd": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "0cc522eb1f83ac9cc733296468578e7ef6fa62c8162f3667269d4ae30cc37930",
+    "runner_sha256": "905c8b4b659b5500352a0c30bdfb55ef541a6b917a25dff2444a803e61d6a4ef",
+    "exit_code": 0,
+    "stdout_sha256": "b63307501ccb998b23da42e16413008b0afb73552a8fb0fdf62432320151b26f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "original_CAPI_artifact": {
+      "build_command": [
+        "/usr/bin/x86_64-linux-gnu-gcc-14",
+        "-shared",
+        "-fPIC",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/probe.c",
+        "-o",
+        "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/c91/selected.so"
+      ],
+      "compiler_path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "source_sha256": "5c281d1155481bfdb2d9da994e866d2f1b00e73d771a4c6541201a3f87084b2e",
+      "artifact_sha256": "2722d611d673e3c3e7642db85b820cd842c8f9eb118a9cd9cc9a7592006a0558",
+      "build_exit": 0
+    },
+    "scope": "Original C5 API callback publishes original bare x inside actual N: context; Rust Runtime/Engine controls remain authored/unexecuted. No Jim/F5/tcltest identity claim."
+  }
+]

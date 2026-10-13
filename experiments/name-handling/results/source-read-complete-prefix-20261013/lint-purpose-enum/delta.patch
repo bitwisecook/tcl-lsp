@@ -1,0 +1,96 @@
+diff --git a/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs b/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
+--- a/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
++++ b/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
+@@ -50,6 +50,13 @@
+     OtherFrame,
+ }
+ 
++#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
++pub(crate) enum DeclarationSchemaOrigin {
++    #[default]
++    OriginalLayout,
++    OriginalSourceCatalogue,
++}
++
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub(crate) struct DeclarationEffectKnowledge {
+     pub unknown_writes: bool,
+@@ -58,7 +65,7 @@
+     /// permits retaining a later declaration layout, never entered dispatch.
+     pub lookup_stable: bool,
+     /// Original body catalogue fields do not establish current invocation entry.
+-    pub source_catalogue_only: bool,
++    pub schema_origin: DeclarationSchemaOrigin,
+     /// Selected intrinsic can observe or select a different call frame.
+     /// Nested body effects retain their independently parsed ownership.
+     frame_reach: DeclarationFrameReach,
+@@ -285,7 +292,7 @@
+             schema.words,
+             dialect,
+         )?;
+-        selected.effects.source_catalogue_only = true;
++        selected.effects.schema_origin = DeclarationSchemaOrigin::OriginalSourceCatalogue;
+         (selected.flow != ScriptBodyFlow::CapturedLifecycle).then_some(selected)
+     })?
+ }
+@@ -361,7 +368,7 @@
+             unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)
+                 || facts.effects.callback().kinds.is_unknown(),
+             lookup_stable: declared_lookup_stable(facts),
+-            source_catalogue_only: false,
++            schema_origin: DeclarationSchemaOrigin::OriginalLayout,
+             frame_reach: if facts
+                 .traits
+                 .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_flow.rs b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -694,7 +694,7 @@
+ }
+ #[derive(Default)]
+ struct NodeAvailability {
+-    source_catalogue_only: bool,
++    schema_origin: crate::registry_invocation::DeclarationSchemaOrigin,
+     quoted_use_unavailable: bool,
+     unavailable_declared_prefix: bool,
+     unknown_reads: bool,
+@@ -1202,7 +1202,7 @@
+             self.unknown(dispatch, exits.normal);
+             return;
+         };
+-        self.nodes[id].availability.source_catalogue_only = selected.effects.source_catalogue_only;
++        self.nodes[id].availability.schema_origin = selected.effects.schema_origin;
+         for &operand in &selected.quoted_operands {
+             match self.quoted_mentions(site, &selected.effective, operand) {
+                 Ok(mentions) => self.nodes[id].quoted_mentions.extend(mentions),
+@@ -2328,10 +2328,12 @@
+             let Some(state) = &states[id] else {
+                 continue;
+             };
+-            report.unavailable |= node.unknown || node.availability.source_catalogue_only;
++            let source_catalogue_only = node.availability.schema_origin
++                == crate::registry_invocation::DeclarationSchemaOrigin::OriginalSourceCatalogue;
++            report.unavailable |= node.unknown || source_catalogue_only;
+             if let Some(site) = node.site {
+                 report.reached.insert(site);
+-                if state.unknown_writers || node.availability.source_catalogue_only {
++                if state.unknown_writers || source_catalogue_only {
+                     report.unavailable_before.insert(site);
+                 }
+             }
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -102,9 +102,9 @@
+ 
+ mod declaration_flow;
+ pub(crate) use declaration_flow::{
+-    DeclarationInvocationFlow, DeclarationLifecycleInvocation, declaration_dictionary_scope_advice,
+-    declaration_invocation_flow, declaration_lifecycle_invocation, declaration_source_read_flow,
+-    declared_argument_words,
++    DeclarationInvocationFlow, DeclarationLifecycleInvocation, DeclarationSchemaOrigin,
++    declaration_dictionary_scope_advice, declaration_invocation_flow,
++    declaration_lifecycle_invocation, declaration_source_read_flow, declared_argument_words,
+ };
+ 
+ mod interval_advice;

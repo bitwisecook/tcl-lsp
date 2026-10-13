@@ -328,20 +328,58 @@ impl FunctionReport {
     }
 }
 
+/// Identity of a reported compiled function, separate from its display name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NativeFunctionId {
+    /// Module entry script, independent of any procedure named `::top`.
+    TopLevel,
+    /// One retained procedure body.
+    Procedure(crate::ir::ProcedureId),
+}
+
+/// One exact compiled subject and its separate presentation label.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamedFunctionReport {
+    /// Display label; report rows are keyed by `NativeFunctionId`.
+    pub name: String,
+    /// Selection and refusal facts for this exact subject.
+    pub report: FunctionReport,
+}
+
 /// The native tier's record for a whole module.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NativeTierReport {
-    /// Whether the native tier was requested at all.
+    /// Whether the compile requested the tier, independent of acceptance.
     pub enabled: bool,
-    /// Per-function reports keyed by qualified function name (`::top` for
-    /// the top-level script).
-    pub functions: BTreeMap<String, FunctionReport>,
+    /// Every reported body, preserving equal display labels.
+    pub functions: BTreeMap<NativeFunctionId, NamedFunctionReport>,
 }
 
 impl NativeTierReport {
-    /// The report of one function.
+    pub(crate) fn record(&mut self, id: NativeFunctionId, name: &str, report: FunctionReport) {
+        self.functions.insert(
+            id,
+            NamedFunctionReport {
+                name: name.to_owned(),
+                report,
+            },
+        );
+    }
+
+    /// Join selection facts through the exact compiled subject.
+    #[must_use]
+    pub fn function_by_id(&self, id: NativeFunctionId) -> Option<&FunctionReport> {
+        Some(&self.functions.get(&id)?.report)
+    }
+
+    /// Presentation lookup declines a repeated display name.
     #[must_use]
     pub fn function(&self, name: &str) -> Option<&FunctionReport> {
-        self.functions.get(name)
+        let mut matching = self
+            .functions
+            .values()
+            .filter(|function| function.name == name);
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(&selected.report)
     }
 }

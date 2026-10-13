@@ -353,7 +353,7 @@ struct CallSiteScanCtx<'a, S> {
     previous: &'a CallSiteEvidence,
     /// The unit's procedures, for the declared parameter list of a body the
     /// scan walks as a caller.
-    procedures: &'a HashMap<String, crate::ir::Procedure>,
+    procedures: &'a crate::ir::ProcedureInventory,
     /// The procedures an unenumerable dispatch in this scan may reach — see
     /// [`unenumerable_reach`] and
     /// [`CallSiteEvidence::record_unenumerable_caller`].
@@ -1532,8 +1532,13 @@ fn record_original_callback_callers(
     if let Some(rows) = rows {
         for row in rows {
             if let Some(target) = row.target()
-                .and_then(|target| target.original_ir_procedure_name(ctx.procedures))
-                .filter(|target| ctx.known.contains(*target))
+                .and_then(|target| target.original_ir_procedure_id(ctx.procedures))
+                .and_then(|id| {
+                let procedure = ctx.procedures.get(&id)?;
+                (ctx.procedures.unique_display(&procedure.qualified_name)?.0 == &id)
+                    .then_some(procedure.qualified_name.as_str())
+            })
+            .filter(|target| ctx.known.contains(*target))
             { out.record_opaque_caller(target); }
             else if row.refusal() != Some(crate::command_binding::OriginalSourceCallbackProcedureRefusal::KnownSourceBarrier) {
                 out.record_unenumerable_caller(ctx.unenumerable_reach);
@@ -1622,7 +1627,7 @@ struct UpFrameCaller<'a> {
 fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     let mut out = Vec::new();
     collect_upframes("::top", &ir_module.top_level, &mut out);
-    for (qname, proc) in &ir_module.procedures {
+    for (qname, proc) in ir_module.procedures.display_entries() {
         collect_upframes(qname, &proc.body, &mut out);
     }
     // A `TclOO` method body resolves bare words against the global namespace
@@ -1631,7 +1636,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     for method in ir_module.methods.values() {
         collect_upframes("::top", &method.body, &mut out);
     }
-    for (qname, unit) in &ir_module.body_units {
+    for (qname, unit) in ir_module.body_units.display_entries() {
         collect_upframes(qname, &unit.body, &mut out);
     }
     out
@@ -1670,6 +1675,7 @@ pub(crate) struct ExtraCallSiteScanContext {
     /// Method/body-unit identity when this CFG is also consumed by the full
     /// per-unit lattice build. Upframe-only scan contexts leave this absent.
     analysis_unit: Option<String>,
+    analysis_body: Option<crate::ir::ProcedureId>,
     /// Qualified-name-shaped context used by `resolve_internal_call` for the
     /// exact fallback calls retained in this CFG.
     resolve_as: String,
@@ -1684,6 +1690,10 @@ pub(crate) struct ExtraCallSiteScanContext {
 }
 
 impl ExtraCallSiteScanContext {
+    pub(crate) fn body_analysis_cfg(&self, id: crate::ir::ProcedureId) -> Option<&CfgFunction> {
+        (self.analysis_body == Some(id)).then_some(&self.cfg)
+    }
+
     pub(crate) fn analysis_cfg(&self, qname: &str) -> Option<&CfgFunction> {
         (self.analysis_unit.as_deref() == Some(qname)).then_some(&self.cfg)
     }
@@ -1768,26 +1778,26 @@ pub(crate) fn build_extra_call_site_scan_contexts(
             );
             ExtraCallSiteScanContext {
                 analysis_unit: Some(mqname.clone()),
+                analysis_body: None,
                 resolve_as,
                 cfg,
                 execution_namespace,
                 requires_runtime_command_namespace,
             }
         })
-        .chain(
-            ir_module
-                .body_units
-                .iter()
-                .map(|(qname, unit)| ExtraCallSiteScanContext {
-                    analysis_unit: Some(qname.clone()),
-                    resolve_as: qname.clone(),
-                    cfg: build(qname, &unit.body),
-                    execution_namespace: crate::ir::ExecutionNamespace::exact(
-                        tcl_syntax::naming::key_holder_and_tail(qname).0,
-                    ),
-                    requires_runtime_command_namespace: false,
-                }),
-        )
+        .chain(ir_module.body_units.iter().map(|(id, unit)| {
+            let execution_namespace = unit
+                .body
+                .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
+            ExtraCallSiteScanContext {
+                analysis_unit: None,
+                analysis_body: Some(*id),
+                resolve_as: unit.qualified_name.clone(),
+                cfg: build(&unit.qualified_name, &unit.body),
+                execution_namespace,
+                requires_runtime_command_namespace: false,
+            }
+        }))
         .chain(upframes.into_iter().map(|up| {
             // Same shape as the method case: the caller context bare command
             // words resolve against is chosen by the frame the body runs in
@@ -1801,6 +1811,7 @@ pub(crate) fn build_extra_call_site_scan_contexts(
             );
             ExtraCallSiteScanContext {
                 analysis_unit: None,
+                analysis_body: None,
                 resolve_as: up.resolve_as,
                 cfg: build(&up.scope, up.body),
                 execution_namespace,
@@ -1840,7 +1851,7 @@ pub(crate) fn build_extra_call_site_scan_contexts(
 pub(crate) fn collect_call_site_constants(
     cfg_module: &CfgModule,
     extra_callers: &[ExtraCallSiteScanContext],
-    procedures: &HashMap<String, crate::ir::Procedure>,
+    procedures: &crate::ir::ProcedureInventory,
     future_call_sites: &[crate::command_binding::SourceFutureCallSite],
     source: CallSiteSourceContext<'_>,
 ) -> CallSiteEvidence {
@@ -1851,7 +1862,7 @@ pub(crate) fn collect_call_site_constants(
         input,
         identities,
     } = source;
-    let known: HashSet<String> = procedures.keys().cloned().collect();
+    let known: HashSet<String> = procedures.unique_displays().cloned().collect();
     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, declared);
     let var_facts =
         collect_module_scope_var_facts(cfg_module, extra_callers, &surface, module, identities);
@@ -1881,7 +1892,7 @@ pub(crate) fn collect_call_site_constants(
             unresolved_handler,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
-            .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
+            .chain(cfg_module.procedures.values().map(|f| (f.name.as_str(), f)))
             .chain(
                 extra_callers
                     .iter()
@@ -1963,7 +1974,7 @@ fn run_to_fixpoint(round: impl Fn(&CallSiteEvidence) -> CallSiteEvidence) -> Cal
 /// without it, one `eval $script` anywhere in a workspace would withdraw
 /// every interprocedural seed in every file.
 fn unenumerable_reach(
-    declared: &HashMap<String, crate::ir::Procedure>,
+    declared: &crate::ir::ProcedureInventory,
     declared_linkage: Traits,
     project_wide: &HashSet<String, impl std::hash::BuildHasher>,
 ) -> Vec<String> {
@@ -1972,7 +1983,7 @@ fn unenumerable_reach(
         reach.sort();
         return reach;
     }
-    let mut reach: Vec<String> = declared.keys().cloned().collect();
+    let mut reach: Vec<String> = declared.unique_displays().cloned().collect();
     reach.sort();
     reach
 }
@@ -2179,7 +2190,7 @@ fn scan_cfg_callers<'a>(
         // resolution, own frame).  A body the unit declares as a procedure is
         // one this evidence map attributes calls *to*; a method or `apply`
         // lambda is not, so its parameters may hold values never seen here.
-        let declared = ctx.procedures.get(func.name.as_str());
+        let declared = ctx.procedures.get_unique_display(func.name.as_str());
         let caller = CallerFrame {
             _resolve_as: resolve_as,
             metadata_owner: &func.metadata_context,
@@ -2678,7 +2689,7 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // it supplies the set (`tcl_lsp_db::file_dispatch_reach`); with none
     // given, the file's own declarations are the honest bound.
     let reach: Vec<String> = if dispatch_reach.is_empty() {
-        let mut own: Vec<String> = ir_module.procedures.keys().cloned().collect();
+        let mut own: Vec<String> = ir_module.procedures.unique_displays().cloned().collect();
         own.sort();
         own
     } else {
@@ -2722,7 +2733,7 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
             unresolved_handler,
         };
         let funcs = std::iter::once(("::top", &cfg_module.top_level))
-            .chain(cfg_module.procedures.iter().map(|(q, f)| (q.as_str(), f)))
+            .chain(cfg_module.procedures.values().map(|f| (f.name.as_str(), f)))
             .chain(
                 extra
                     .iter()
@@ -3255,6 +3266,8 @@ mod tests {
             name: "helper".into(),
             qualified_name: "::helper".into(),
             publication: None,
+            declaration_site: None,
+            body_kind: crate::ir::ProcedureBodyKind::Named,
             params: Vec::new(),
             span: tcl_lexer::Span::new(0, 0),
             body: crate::ir::Script::default(),

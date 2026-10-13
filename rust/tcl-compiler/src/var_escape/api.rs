@@ -95,7 +95,10 @@ pub fn analyse_var_escape(
         TOP_LEVEL_QNAME.to_owned(),
         analyse_script(&module.top_level, std::iter::empty::<String>()),
     );
-    for (qname, proc) in &module.procedures {
+    for (qname, proc) in module.procedures.display_entries() {
+        if module.procedures.unique_display(qname).is_none() {
+            continue;
+        }
         result.insert(
             qname.clone(),
             analyse_script(&proc.body, proc.params.iter().cloned()),
@@ -120,7 +123,10 @@ pub fn analyse_var_escape_with_registry(
         TOP_LEVEL_QNAME.to_owned(),
         analyse_script_with_registry(&module.top_level, std::iter::empty::<String>(), registry),
     );
-    for (qname, proc) in &module.procedures {
+    for (qname, proc) in module.procedures.display_entries() {
+        if module.procedures.unique_display(qname).is_none() {
+            continue;
+        }
         result.insert(
             qname.clone(),
             analyse_script_with_registry(&proc.body, proc.params.iter().cloned(), registry),
@@ -178,7 +184,9 @@ pub fn analyse_var_escape_cu_with_registry(
             .map(|p| p.params.clone())
             .unwrap_or_default();
         let proc = analyse_cfg_function_with_registry(&fu.cfg, &fu.ssa, params, registry);
-        result.insert(qname.clone(), cfg_result_to_summary(&proc));
+        if cu.ir_module.procedures.unique_display(&fu.name).is_some() {
+            result.insert(fu.name.clone(), cfg_result_to_summary(&proc));
+        }
     }
     if interprocedural {
         result = solve_interprocedural_escape_with_registry(&result, registry);

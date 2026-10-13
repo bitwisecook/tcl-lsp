@@ -1,0 +1,13 @@
+{
+  "selector": "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 11.05024805100038,
+  "timed_out": false
+}

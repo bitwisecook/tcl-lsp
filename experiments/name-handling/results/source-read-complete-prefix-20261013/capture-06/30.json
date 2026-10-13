@@ -1,0 +1,13 @@
+{
+  "selector": "lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.21433250499831047,
+  "timed_out": false
+}

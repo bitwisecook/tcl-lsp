@@ -15,7 +15,7 @@ use super::{
 use crate::ir::{CommandTokens, WordExpr, WordPart};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use tcl_registry::body_execution::BodyOperand;
 use tcl_registry::completion::CompletionCode;
 use tcl_registry::completion_route::InvocationCompletionRoute as Route;
@@ -24,6 +24,9 @@ use tcl_registry::script_body_flow::ScriptBodyFlow;
 #[derive(Debug)]
 pub(super) struct DeclarationFlowInventory {
     reports: DeclarationFlowReports,
+    source_seed: Option<super::source_transition_advice::OriginalSourceTransitionSeed>,
+    source_catalogue: OnceLock<Option<Arc<super::source_read_scope::SourceReadCatalogue>>>,
+    source_catalogue_memo: Arc<super::source_read_scope::SourceReadCatalogueMemo>,
     layouts: Arc<DeclarationLayouts>,
     accesses: Arc<super::SourceVariableAccesses>,
     origin_accesses: Arc<super::OriginVariableAccesses>,
@@ -32,6 +35,18 @@ pub(super) struct DeclarationFlowInventory {
 }
 
 impl DeclarationFlowInventory {
+    fn source_read_catalogue(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&super::source_read_scope::SourceReadCatalogue> {
+        let seed = self.source_seed.as_ref()?;
+        // Foreign requests cannot poison the independently retained cache.
+        seed.matches_registry(registry).then_some(())?;
+        self.source_catalogue
+            .get_or_init(|| self.source_catalogue_memo.get_or_prepare(seed, registry))
+            .as_deref()
+    }
+
     pub(super) fn new(
         layouts: Arc<DeclarationLayouts>,
         accesses: Arc<super::SourceVariableAccesses>,
@@ -41,6 +56,9 @@ impl DeclarationFlowInventory {
     ) -> Self {
         Self {
             reports: DeclarationFlowReports::default(),
+            source_seed: None,
+            source_catalogue: OnceLock::new(),
+            source_catalogue_memo: Arc::default(),
             layouts,
             accesses,
             origin_accesses,
@@ -52,7 +70,8 @@ impl DeclarationFlowInventory {
 // Derived reports never participate in source-inventory identity.
 impl PartialEq for DeclarationFlowInventory {
     fn eq(&self, other: &Self) -> bool {
-        self.layouts == other.layouts
+        self.source_seed == other.source_seed
+            && self.layouts == other.layouts
             && self.accesses == other.accesses
             && self.origin_accesses == other.origin_accesses
             && self.points == other.points
@@ -63,10 +82,13 @@ impl Eq for DeclarationFlowInventory {}
 
 /// Derived inventory retained only by this mutable builder. Clones start empty.
 #[derive(Default)]
-pub(super) struct SourceDeclarationFlowCache(Mutex<Option<Arc<DeclarationFlowInventory>>>);
+pub(super) struct SourceDeclarationFlowCache(
+    Mutex<Option<Arc<DeclarationFlowInventory>>>,
+    Arc<super::source_read_scope::SourceReadCatalogueMemo>,
+);
 impl Clone for SourceDeclarationFlowCache {
     fn clone(&self) -> Self {
-        Self::default()
+        Self(Mutex::new(None), Arc::clone(&self.1))
     }
 }
 impl std::fmt::Debug for SourceDeclarationFlowCache {
@@ -164,13 +186,15 @@ impl DeclarationFlowReports {
 }
 impl super::SourceCommandBindings {
     pub(super) fn current_declaration_flow_inventory(&self) -> Arc<DeclarationFlowInventory> {
-        let next = DeclarationFlowInventory::new(
+        let mut next = DeclarationFlowInventory::new(
             self.declaration_layouts.shared(),
             self.variable_accesses.shared(),
             self.origin_variable_accesses.shared(),
             self.points.shared(),
             self.origin_points.shared(),
         );
+        next.source_seed = self.original_source_transition_seed();
+        next.source_catalogue_memo = Arc::clone(&self.declaration_flow_cache.1);
         let mut current = self
             .declaration_flow_cache
             .0
@@ -670,6 +694,7 @@ struct Node {
 }
 #[derive(Default)]
 struct NodeAvailability {
+    schema_origin: crate::registry_invocation::DeclarationSchemaOrigin,
     quoted_use_unavailable: bool,
     unavailable_declared_prefix: bool,
     unknown_reads: bool,
@@ -860,14 +885,16 @@ impl Builder<'_> {
                     break;
                 }
                 self.read_sites.insert(site.clone());
-                if !super::declaration_preview::retains_successor_layout(
-                    &site,
-                    &tokens,
-                    &read.snapshot,
-                    &read.header.namespace,
-                    self.config,
-                    self.registry,
-                ) {
+                if self.source_read_selection(&tokens, &site).is_none()
+                    && !super::declaration_preview::retains_successor_layout(
+                        &site,
+                        &tokens,
+                        &read.snapshot,
+                        &read.header.namespace,
+                        self.config,
+                        self.registry,
+                    )
+                {
                     break;
                 }
             }
@@ -1005,7 +1032,90 @@ impl Builder<'_> {
         })
     }
 
+    fn source_read_selection(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
+        let body = match self.entry {
+            DeclarationFlowFrame::Existing(entry) => {
+                if !matches!(
+                    entry.frame(),
+                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
+                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                ) {
+                    return None;
+                }
+                let source = entry.source();
+                if &source.origin != &site.source || !entry.owns_source(&site.source, site.offset) {
+                    return None;
+                }
+                tcl_lexer::Span::new(
+                    source.base(),
+                    source
+                        .base()
+                        .checked_add(u32::try_from(source.text.len()).ok()?)?,
+                )
+            }
+            DeclarationFlowFrame::Read(entry) => {
+                entry.owns_source(&site.source, site.offset).then_some(())?;
+                entry.read.original_body_span()?
+            }
+        };
+        // Original layout corruption is terminal even for a source-only query.
+        let scopes = self.selection_scopes(tokens, site)?;
+        let mut retained = tokens.clone();
+        let points = self
+            .inventory
+            .points
+            .iter()
+            .chain(
+                self.inventory
+                    .origin_points
+                    .get(&site.source)
+                    .into_iter()
+                    .flatten(),
+            )
+            .filter(|point| {
+                point.dispatch
+                    && point.offset == site.offset
+                    && point.state.current_source_origin.as_ref() == Some(&site.source)
+                    && scopes.iter().any(|scope| {
+                        point.state.variable_frame == scope.snapshot.state.variable_frame
+                    })
+            });
+        let mut points = points.peekable();
+        if points.peek().is_some() {
+            retained.source_binding =
+                Some(super::SourceCommandBindings::query_dispatch_points(points));
+        }
+        let scope = self.inventory.source_read_catalogue(self.registry)?.scope(
+            site,
+            &retained,
+            body,
+            self.config,
+        )?;
+        if scope.advice().dialect() != self.dialect {
+            return None;
+        }
+        crate::registry_invocation::declaration_source_read_flow(self.registry, &retained, &scope)
+    }
+
     fn selection(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<(
+        crate::registry_invocation::DeclarationInvocationFlow,
+        Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
+    )> {
+        self.original_layout_selection(tokens, site).or_else(|| {
+            self.source_read_selection(tokens, site)
+                .map(|selected| (selected, None))
+        })
+    }
+
+    fn original_layout_selection(
         &self,
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
@@ -1092,6 +1202,7 @@ impl Builder<'_> {
             self.unknown(dispatch, exits.normal);
             return;
         };
+        self.nodes[id].availability.schema_origin = selected.effects.schema_origin;
         for &operand in &selected.quoted_operands {
             match self.quoted_mentions(site, &selected.effective, operand) {
                 Ok(mentions) => self.nodes[id].quoted_mentions.extend(mentions),
@@ -2217,10 +2328,12 @@ impl Builder<'_> {
             let Some(state) = &states[id] else {
                 continue;
             };
-            report.unavailable |= node.unknown;
+            let source_catalogue_only = node.availability.schema_origin
+                == crate::registry_invocation::DeclarationSchemaOrigin::OriginalSourceCatalogue;
+            report.unavailable |= node.unknown || source_catalogue_only;
             if let Some(site) = node.site {
                 report.reached.insert(site);
-                if state.unknown_writers {
+                if state.unknown_writers || source_catalogue_only {
                     report.unavailable_before.insert(site);
                 }
             }
@@ -2669,6 +2782,79 @@ mod tests {
         assert!(
             selection(&invalid).is_none(),
             "invalid reached owner remains terminal"
+        );
+    }
+
+    #[test]
+    fn source_read_scope_preserves_reached_owner_refusal_after_loop() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let source = "proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}";
+        let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
+        let offset = u32::try_from(source.find("puts $x").unwrap()).unwrap();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config("puts $x", offset, config)
+                .remove(0);
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceImage::document(source).source_map(),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let dialect = observation
+            .snapshot
+            .state
+            .source_variables
+            .invocation_dialect
+            .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+        let selected = |inventory| {
+            let builder = Builder {
+                inventory,
+                registry,
+                config,
+                dialect,
+                entry: &frame,
+                nodes: Vec::new(),
+                jobs: Vec::new(),
+                conditional_overwrites: Vec::new(),
+                read_sites: BTreeSet::new(),
+            };
+            let mut raw = tokens.clone();
+            raw.source_binding = None;
+            builder.source_read_selection(&raw, site)
+        };
+        assert!(selected(inventory).is_some());
+        let mut points = inventory.points.as_ref().clone();
+        assert!(
+            points
+                .iter()
+                .any(|point| point.dispatch && point.offset == site.offset)
+        );
+        for point in &mut points {
+            point.original_written_words = None;
+            point.compiled_execution.original_words = None;
+        }
+        let mut invalid = DeclarationFlowInventory::new(
+            Arc::clone(&inventory.layouts),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::new(points),
+            Arc::new(BTreeMap::new()),
+        );
+        invalid.source_seed = inventory.source_seed.clone();
+        assert!(
+            selected(&invalid).is_none(),
+            "malformed reached metadata stays terminal"
         );
     }
 

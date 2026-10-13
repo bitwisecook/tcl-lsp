@@ -40,6 +40,7 @@ struct BodyWalk<'context, 'source> {
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     member_catalogue_body:
         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
+    catalogue_body: Option<super::OriginalSourceCatalogueBody>,
 }
 
 /// Original substitution order, omitting descendants visited with their parent.
@@ -104,6 +105,7 @@ impl AdviceInvocationContext<'_> {
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
             member_catalogue_body: None,
+            catalogue_body: None,
         };
         if walk.regions(&mut branch, &advice, schema, depth).is_some()
             && let Some(inventory) = walk.inventory
@@ -165,6 +167,12 @@ impl AdviceInvocationContext<'_> {
                         continue;
                     }
                     let body = Arc::new(body);
+                    self.retain_original_body_command_catalogue(
+                        tape,
+                        graph,
+                        super::OriginalSourceCatalogueBody::Member(Arc::clone(&body)),
+                        body.original_words(),
+                    );
                     let mut branch = graph.clone();
                     branch.record_uncertainty(body.original_words());
                     let mut walk = BodyWalk {
@@ -174,7 +182,8 @@ impl AdviceInvocationContext<'_> {
                         inventory: None,
                         authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
                         source_body: None,
-                        member_catalogue_body: Some(Arc::clone(&body)),
+                        member_catalogue_body: Some(body.clone()),
+                        catalogue_body: None,
                     };
                     if walk.script(&mut branch, body.content_span(), 0).is_none() {
                         continue;
@@ -188,6 +197,88 @@ impl AdviceInvocationContext<'_> {
                 }
             }
         }
+    }
+
+    /// The same guarded body issuer also retains source-only syntax where a
+    /// current namespace/frame interpretation is unavailable. Effects stay out
+    /// of this catalogue and known shadows/deletions remain authoritative.
+    pub(super) fn retain_original_body_catalogue(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) {
+        if schema.authored_source_definition_body_grammar().is_some() {
+            return;
+        }
+        if !self
+            .authored_roles(schema)
+            .0
+            .iter()
+            .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+        {
+            return;
+        }
+        if schema.semantics.body_interpreter.resolve_with(|ordinal| {
+            std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
+        }) != tcl_registry::world_effect::InterpreterScope::Current
+        {
+            return;
+        }
+        let Some(advice) = self.schema_advice(invocation, graph, schema) else {
+            return;
+        };
+        let Ok(source) = self.origin.source_image().try_text() else {
+            return;
+        };
+        let Some(words) =
+            crate::registry_invocation::source_structure::source_transition_words_from_advice(
+                source,
+                self.config,
+                self.context,
+                advice,
+            )
+        else {
+            return;
+        };
+        for body in words.source_script_bodies(self.context) {
+            if !body.matches_source(self.origin.source_image(), self.config)
+                || !body.matches_context(self.context)
+            {
+                continue;
+            }
+            self.retain_original_body_command_catalogue(
+                tape,
+                graph,
+                super::OriginalSourceCatalogueBody::Script(Arc::new(body)),
+                invocation.native,
+            );
+        }
+    }
+
+    fn retain_original_body_command_catalogue(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        body: super::OriginalSourceCatalogueBody,
+        original: &[NativeWord],
+    ) {
+        let mut branch = graph.clone();
+        branch.record_uncertainty(original);
+        let mut walk = BodyWalk {
+            context: self,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: None,
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+            member_catalogue_body: None,
+            catalogue_body: Some(body.clone()),
+        };
+        // Complete source prefixes keep their separately owned fatal tail.
+        let _ = walk.script(&mut branch, body.content_span(), 0);
+        tape.extend_inventory(walk.authored_prefixes);
     }
 
     /// Reuse the original executable arena before selecting source head advice.
@@ -214,6 +305,7 @@ impl AdviceInvocationContext<'_> {
                     .then(OriginalSourceTransitionAdviceTape::default),
                 source_body: None,
                 member_catalogue_body: None,
+                catalogue_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             };
             walk.substitutions(graph, native, 0)?;
@@ -249,6 +341,7 @@ impl AdviceInvocationContext<'_> {
             .then(OriginalSourceTransitionAdviceTape::default),
             source_body: None,
             member_catalogue_body: None,
+            catalogue_body: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
         };
         #[cfg(test)]
@@ -412,6 +505,19 @@ impl BodyWalk<'_, '_> {
                     }
                 }
             }
+            let catalogue = self.catalogue_body.clone();
+            if catalogue.is_some()
+                && (schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                    || schema
+                        .semantics
+                        .traits
+                        .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
+                    || schema.facts().frame_effect.is_some())
+            {
+                self.catalogue_body = Some(super::OriginalSourceCatalogueBody::Script(Arc::new(
+                    region.clone(),
+                )));
+            }
             let source_body = (self.inventory.is_some()
                 && (schema.semantics.body_kind == tcl_registry::BodyKind::Plain
                     || branch.c_source_namespace.is_some()))
@@ -419,6 +525,7 @@ impl BodyWalk<'_, '_> {
             let parent = std::mem::replace(&mut self.source_body, source_body);
             let walked = self.script(&mut branch, span, depth);
             self.source_body = parent;
+            self.catalogue_body = catalogue;
             walked?;
             Self::retain_possible_effects(graph, &original, branch, advice.original_words());
         }
@@ -615,7 +722,7 @@ impl BodyWalk<'_, '_> {
             plan.fatal_tail.is_none(),
             plan.commands.len(),
         );
-        if plan.fatal_tail.is_some() {
+        if plan.fatal_tail.is_some() && self.catalogue_body.is_none() {
             return None;
         }
         for command in plan.commands {
@@ -818,6 +925,22 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        if let Some(body) = &self.catalogue_body {
+            let offset = invocation.native.first()?.span().start();
+            if self.authored_prefixes.body_catalogue.len() < MAX_COMMANDS {
+                let receipt = (!graph.blocks_registry_source(invocation.head)).then(|| {
+                    let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+                    advice.catalogue_body = Some(body.clone());
+                    advice.obligations.push(SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability);
+                    (advice.matches_source(self.context.origin.source_image(), self.context.config) && advice.matches_context(self.context.context)).then_some(advice)
+                }).flatten();
+                super::source_class::merge_receipt(
+                    &mut self.authored_prefixes.body_catalogue,
+                    offset,
+                    receipt,
+                );
+            }
+        }
         if let Some(body) = &self.member_catalogue_body {
             let offset = invocation.native.first()?.span().start();
             if self.authored_prefixes.member_catalogue.len() < 256 {
@@ -1513,6 +1636,7 @@ mod original_expression_purpose_frontier_tests {
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
             member_catalogue_body: None,
+            catalogue_body: None,
         };
         assert!(
             logical
@@ -1540,6 +1664,7 @@ mod original_expression_purpose_frontier_tests {
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
             member_catalogue_body: None,
+            catalogue_body: None,
         };
         assert!(
             native

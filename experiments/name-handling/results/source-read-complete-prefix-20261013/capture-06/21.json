@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::indexed_conditions_preserve_declared_zero_trip_reads",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::indexed_conditions_preserve_declared_zero_trip_reads",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.21514952100187656,
+  "timed_out": false
+}

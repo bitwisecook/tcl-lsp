@@ -1,0 +1,23 @@
+{
+  "provider": "jim",
+  "expected_release": "selected latest Jim source checkout",
+  "captured_utc": "2026-10-13T20:16:37.422603+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-spec-probe-studio-20261013/ambiguous/input.tcl"
+  ],
+  "cwd": "/tmp/name-spec-probe-studio-20261013/ambiguous",
+  "selected_environment": {},
+  "unset_environment": [
+    "TCL_LIBRARY",
+    "TCLLIBPATH",
+    "LD_LIBRARY_PATH"
+  ],
+  "input_sha256": "afb5f0b4c62417255c9fd1d9c91e5cc72175e2ecc13104754747e7ecf4bb6519",
+  "runner_sha256": "339ce59523a31e81f0d9ec46a19c67cc18abd13672ff43de90e9005eba33bd67",
+  "exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "c4bec88fd59c7c733157f0b8d1833e771c7b192a990f28bf72a2b3a739280c8e",
+  "seal_changes": {},
+  "scope": "Original executable SpecProbe shared script inventory source forms; Rust renderer and Studio assertions unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

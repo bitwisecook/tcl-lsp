@@ -20,7 +20,7 @@ impl<'a> ProcedureSummaryCandidates<'a> {
             .as_ref()
             .filter(|owner| owner.matches_module(module, registry));
         let mut by_key = HashMap::new();
-        for (qname, procedure) in &module.procedures {
+        for (qname, procedure) in module.procedures.display_entries() {
             let original = qname == &procedure.qualified_name
                 && !module.redefined_procedures.contains(qname)
                 && owner.is_some_and(|owner| owner.matches_original_procedure(procedure));

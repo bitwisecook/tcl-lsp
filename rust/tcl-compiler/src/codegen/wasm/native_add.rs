@@ -735,6 +735,7 @@ mod tests {
             ]
         );
         let site = DirectCallSiteId {
+            body_id: None,
             function: "::top".to_owned(),
             block: crate::cfg::BlockId(0),
             statement_index: 3,

@@ -214,8 +214,8 @@ fn merge_write_projection(
 fn opaque_procedure_summaries(module: &Module) -> HashMap<String, GlobalWriteInfo> {
     module
         .procedures
-        .keys()
-        .flat_map(|name| registered_keys(name))
+        .display_entries()
+        .flat_map(|(name, _)| registered_keys(name))
         .map(|name| {
             (
                 name,
@@ -314,7 +314,8 @@ pub(crate) fn detect_global_write_procs_with_bindings(
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
     // Qualified ordering keeps shared short-name unions and the complete
     // per-procedure memo input independent of HashMap traversal order.
-    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> =
+        module.procedures.display_entries().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     for (qname, proc) in &entries {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);

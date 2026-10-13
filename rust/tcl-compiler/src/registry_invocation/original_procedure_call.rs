@@ -12,12 +12,17 @@ use tcl_syntax::formal_params::FormalArgumentCountShape;
 /// Logical and authored-simulation issuers retain separate applicability;
 /// this argument/count model grants no Native invocation, frame or completion.
 pub(crate) struct OriginalSourceProcedureCall<'a> {
+    id: crate::ir::ProcedureId,
     procedure: &'a Procedure,
     arguments: super::EffectiveCommandWords,
     count: Option<FormalArgumentCountShape>,
 }
 
 impl<'a> OriginalSourceProcedureCall<'a> {
+    pub(crate) const fn id(&self) -> crate::ir::ProcedureId {
+        self.id
+    }
+
     pub(crate) const fn procedure(&self) -> &'a Procedure {
         self.procedure
     }
@@ -125,13 +130,7 @@ fn original_procedure_calls_for_targets<'a>(
     targets
         .iter()
         .map(|target| {
-            let mut matching = module.procedures.values().filter(|procedure| {
-                target.matches_authored_implementation_image(&module.source, procedure.span.start())
-            });
-            let procedure = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
+            let (id, procedure) = module.source_procedure_for_target(target)?;
             if !module
                 .retained_source_bindings
                 .as_ref()?
@@ -142,6 +141,7 @@ fn original_procedure_calls_for_targets<'a>(
             let count = count_for_procedure(procedure);
             let arguments = super::effective_words_for_target(tokens, target)?;
             Some(OriginalSourceProcedureCall {
+                id,
                 procedure,
                 arguments,
                 count,

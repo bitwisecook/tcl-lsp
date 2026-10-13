@@ -120,7 +120,9 @@ mod declaration_body_ownership;
 mod declaration_layout;
 pub use declaration_layout::SourceOriginalVariableFrame;
 mod declaration_preview;
+mod source_read_scope;
 pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;
+pub(crate) use source_read_scope::{SourceReadScope, source_targets_match_advice};
 mod scalar_body_alpha;
 pub use scalar_body_alpha::OriginalScalarBodyAlphaRename;
 mod vendor_catalogue_advice;
@@ -132,6 +134,7 @@ mod source_transition_advice;
 pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
+pub(crate) use source_transition_advice::OriginalSourceCataloguePurpose;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
     OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
@@ -13786,9 +13789,18 @@ impl ModuleCommandBindings {
                 matches!(namespace, crate::ir::ExecutionNamespace::RuntimeSelected)
                     && crate::ir_helpers::requires_runtime_command_namespace(script, registry)
             });
-        let mut procedure_bodies: BTreeSet<String> = module.procedures.keys().cloned().collect();
+        let mut procedure_bodies: BTreeSet<String> = module
+            .procedures
+            .values()
+            .map(|procedure| procedure.qualified_name.clone())
+            .collect();
         for discarded_module in &discarded.modules {
-            procedure_bodies.extend(discarded_module.procedures.keys().cloned());
+            procedure_bodies.extend(
+                discarded_module
+                    .procedures
+                    .values()
+                    .map(|procedure| procedure.qualified_name.clone()),
+            );
         }
         let mut state = Self {
             opaque_domain: opaque_binding_mutation || options.unknown_entry,
@@ -15779,7 +15791,7 @@ fn discarded_procedure_history(
     let retained_procedures = module
         .procedures
         .iter()
-        .map(|(qname, procedure)| (qname.clone(), procedure.span))
+        .map(|(_, procedure)| (procedure.qualified_name.clone(), procedure.span))
         .collect();
     let mut occurrences = HashMap::new();
     // Keep body units here: namespace/apply barriers do not retain their body
@@ -16216,9 +16228,9 @@ impl RetainedBindingRoots {
             else {
                 continue;
             };
-            let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-            let namespace =
-                crate::ir::ExecutionNamespace::exact(if holder.is_empty() { "::" } else { holder });
+            let namespace = unit
+                .body
+                .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
             self.evaluated_bodies
                 .entry(namespace)
                 .or_default()
@@ -16767,13 +16779,23 @@ fn apply_may_invocation_transitions(
             ProcedureDefinitionReplay::Recovered { qname, module } => {
                 let inventory_was_complete = !module.oo_evidence.unretained_executable_roots
                     && std::iter::once(qname)
-                        .chain(module.procedures.keys())
+                        .chain(
+                            module
+                                .procedures
+                                .values()
+                                .map(|procedure| &procedure.qualified_name),
+                        )
                         .all(|name| alternative.procedure_bodies.contains(name));
                 if module.oo_evidence.unretained_executable_roots {
                     alternative.mark_opaque_binding_mutation();
                 }
                 alternative.extend_procedure_bodies(
-                    std::iter::once(qname.clone()).chain(module.procedures.keys().cloned()),
+                    std::iter::once(qname.clone()).chain(
+                        module
+                            .procedures
+                            .values()
+                            .map(|procedure| procedure.qualified_name.clone()),
+                    ),
                 );
                 context.retained_roots.extend_module_roots(module, false);
                 if single_exact_invocation && inventory_was_complete {

@@ -20,6 +20,8 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
 
 type SourceAdviceCacheEntry = (
     ResolvedContext,
+    tcl_registry::RegistrySemanticKey,
+    crate::command_binding::OriginalSourceCataloguePurpose,
     Arc<Option<OriginalSourceTransitionAdviceTape>>,
 );
 
@@ -33,11 +35,29 @@ impl OriginalSourceTransitionAdviceCache {
         context: &ContextRegistry,
         prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
     ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        self.get_or_prepare_for(
+            context,
+            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram,
+            prepare,
+        )
+    }
+
+    fn get_or_prepare_for(
+        &self,
+        context: &ContextRegistry,
+        purpose: crate::command_binding::OriginalSourceCataloguePurpose,
+        prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        let registry = context.commands().snapshot().semantic_key();
         let find = |entries: &[SourceAdviceCacheEntry]| {
             entries
                 .iter()
-                .find(|(owned, _)| owned == context.context())
-                .map(|(_, value)| Arc::clone(value))
+                .find(|(owned, commands, source_purpose, _)| {
+                    owned == context.context()
+                        && commands == &registry
+                        && *source_purpose == purpose
+                })
+                .map(|(_, _, _, value)| Arc::clone(value))
         };
         if let Some(value) = find(
             &self
@@ -56,7 +76,12 @@ impl OriginalSourceTransitionAdviceCache {
             return value;
         }
         if entries.len() < 4 {
-            entries.push((context.context().clone(), Arc::clone(&prepared)));
+            entries.push((
+                context.context().clone(),
+                registry,
+                purpose,
+                Arc::clone(&prepared),
+            ));
         }
         prepared
     }
@@ -559,6 +584,89 @@ impl super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        self.original_catalogue_advice(input, tokens, true)
+    }
+
+    /// Readonly schema at a complete original command before a distinct parse tail.
+    /// This grants no partial command, body entry, current cell or execution.
+    pub(crate) fn original_source_prefix_catalogue_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        self.original_catalogue_advice(input, tokens, false)
+    }
+
+    /// Exact original command extent from the shared source issuer. The caller
+    /// still checks current point/target metadata before using its schema.
+    pub(crate) fn original_source_catalogue_segment_at(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        offset: u32,
+    ) -> Option<crate::segmenter::SegmentedCommand> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.borrowed_context_registry();
+        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+            self.bindings
+                .original_source_transition_advice_tape_for(context, purpose)
+        });
+        let tape = prepared.as_ref().as_ref()?;
+        if tape.blocks_registry_source(offset) {
+            return None;
+        }
+        let advice = if let Some(advice) = tape.body_catalogue(offset) {
+            advice
+        } else {
+            match tape.lookup(offset) {
+                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
+                OriginalSourceTransitionAdviceLookup::Refused
+                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
+            }
+        };
+        if !advice.matches_context(context) || !advice.matches_source(image, config) {
+            return None;
+        }
+        let span = tcl_lexer::Span::new(
+            advice.original_words().first()?.span().start(),
+            advice.original_words().last()?.span().end(),
+        );
+        if span.start() != offset {
+            return None;
+        }
+        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+            image.try_text().ok()?.get(span.as_range())?,
+            span.start(),
+            config.nested(),
+        );
+        (segments.len() == 1).then_some(())?;
+        let segment = segments.pop()?;
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(image),
+            config,
+            &segment,
+        );
+        (crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            offset,
+            config,
+        )?
+        .as_slice()
+            == advice.original_words())
+        .then_some(segment)
+    }
+
+    fn original_catalogue_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &crate::ir::CommandTokens,
+        member: bool,
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
         self.matches_resolved_analysis_input(input).then_some(())?;
         if tokens.synthetic.is_some() {
             return None;
@@ -579,58 +687,43 @@ impl super::CommandBindingRealm {
             offset,
             config,
         )?;
-        let prepared = self.source_advice.get_or_prepare(context, || {
+        let purpose = if member {
+            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram
+        } else {
+            crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix
+        };
+        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
             self.bindings
-                .original_source_transition_advice_tape(context)
+                .original_source_transition_advice_tape_for(context, purpose)
         });
         let tape = prepared.as_ref().as_ref()?;
         if tape.blocks_registry_source(offset) {
             return None;
         }
-        let advice = tape.member_catalogue(offset)?;
+        let advice = if member {
+            tape.member_catalogue(offset)?
+        } else if let Some(advice) = tape.body_catalogue(offset) {
+            advice
+        } else {
+            match tape.lookup(offset) {
+                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
+                OriginalSourceTransitionAdviceLookup::Refused
+                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
+            }
+        };
         if !advice.matches_context(context)
             || !advice.matches_source(image, config)
             || original.as_slice() != advice.original_words()
         {
             return None;
         }
-        let spec = tcl_registry::model::SpecKey::new(context.commands().get(advice.command())?);
-        let captured = advice
-            .arguments()
-            .iter()
-            .take_while(|word| {
-                matches!(
-                    word.origin,
-                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
-                )
-            })
-            .collect::<Vec<_>>();
-        for target in &binding.targets {
-            if target
-                .registry_identity()
-                .and_then(|identity| context.commands().get(identity))
-                .map(tcl_registry::model::SpecKey::new)
-                != Some(spec)
-                || target.prepended.len() != captured.len()
-            {
-                return None;
-            }
-            if target.prepended.iter().zip(&captured).any(|(value, word)| {
-                value.literal_bytes().is_none() || value.literal_bytes() != word.value.as_deref()
-            }) {
-                return None;
-            }
-            if !captured.is_empty() {
-                let inputs = target.original_prepended_name_inputs()?;
-                if inputs.iter().zip(&captured).any(|(input, word)| {
-                    word.input
-                        .as_ref()
-                        .and_then(crate::command_binding::SourceAdviceNameInput::native_input)
-                        != Some(input)
-                }) {
-                    return None;
-                }
-            }
+        if binding.lookup_state.is_some() {
+            binding
+                .original_invocation_metadata_at_point(tokens, context.commands())
+                .ok()?;
+        }
+        if !crate::command_binding::source_targets_match_advice(context, binding, advice) {
+            return None;
         }
         Some(advice.clone())
     }
@@ -821,7 +914,10 @@ impl super::CommandBindingRealm {
             trace_original_child_guard(
                 "retained.target_match",
                 Some(offset),
-                logical.is_none() || logical_targets_match_advice(context, binding, &advice),
+                logical.is_none()
+                    || crate::command_binding::source_targets_match_advice(
+                        context, binding, &advice,
+                    ),
             );
         }
         if !advice.matches_context(context)
@@ -837,57 +933,11 @@ impl super::CommandBindingRealm {
         {
             return None;
         }
-        if logical.is_some() && !logical_targets_match_advice(context, binding, &advice) {
+        if logical.is_some()
+            && !crate::command_binding::source_targets_match_advice(context, binding, &advice)
+        {
             return None;
         }
         Some(advice)
     }
-}
-
-/// Conditional Logical advice cannot override an actually selected target.
-fn logical_targets_match_advice(
-    context: &ContextRegistry,
-    binding: &crate::command_binding::SourceInvocationBinding,
-    advice: &OriginalSourceCommandTransitionAdvice,
-) -> bool {
-    if binding.lookup_state.is_some() && !binding.unknown && binding.targets.is_empty() {
-        return false;
-    }
-    let prefix = advice
-        .arguments()
-        .iter()
-        .filter(|word| {
-            matches!(
-                word.origin,
-                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
-            )
-        })
-        .map(|word| word.value.as_deref())
-        .collect::<Option<Vec<_>>>();
-    let Some(prefix) = prefix else {
-        return false;
-    };
-    let Some(descriptor) = context
-        .context()
-        .resolve_spec(context.commands(), advice.command())
-    else {
-        return false;
-    };
-    if binding.targets.iter().any(|target| {
-        !target.registry_backed
-            || !context
-                .context()
-                .resolve_spec(context.commands(), &target.command)
-                .is_some_and(|selected| std::ptr::eq(selected, descriptor))
-            || target
-                .prepended
-                .iter()
-                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
-                .collect::<Option<Vec<_>>>()
-                .as_deref()
-                != Some(prefix.as_slice())
-    }) {
-        return false;
-    }
-    true
 }

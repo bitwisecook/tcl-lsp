@@ -41,7 +41,7 @@ pub struct RetainedSourceModuleBindings {
     registry: RegistrySemanticKey,
     observed: ModuleCommandBindings,
     positioned: Arc<SourceCommandBindings>,
-    procedures: std::collections::BTreeMap<String, OriginalProcedureSource>,
+    procedures: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
 }
 
 /// Original header and body coordinates retained by the real Module producer.
@@ -171,8 +171,8 @@ impl RetainedSourceModuleBindings {
     /// still require their own original token and selected operation receipts.
     pub(crate) fn matches_original_procedure(&self, procedure: &Procedure) -> bool {
         self.procedures
-            .get(&procedure.qualified_name)
-            .is_some_and(|original| original.matches(procedure))
+            .values()
+            .any(|original| original.matches(procedure))
     }
 
     /// Authenticate the complete written source carrier under this Module's

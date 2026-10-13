@@ -1,0 +1,480 @@
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/script_name_query.rs
+@@ -0,0 +1,22 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Original script query-family selection, separate from Native entry authority.
++
++/// Select the audited script family; unsupported query versions refuse.
++/// Version observations cannot issue a Native identity or allocation receipt.
++#[must_use]
++pub const fn original_script_name_query_support() -> &'static str {
++    SUPPORT
++}
++
++const SUPPORT: &str = r#"namespace eval ::__tcl_name_query {}
++proc ::__tcl_name_query::family {} {
++    if {![catch {::info tclversion} version] && [lsearch -exact {8.4 8.5 8.6 9.0 9.1} $version] >= 0} {
++        return c
++    }
++    if {![catch {::info version} version] && $version eq "0.84"} {return jim}
++    error "name query has no selected interpreter grammar"
++}
++"#;
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/script_command_inventory.rs
+@@ -0,0 +1,63 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Bounded original root command operands for external script inventory.
++
++/// Original simple/table words and explicit root-context operands; never report inverses.
++/// Namespace or query ambiguity makes the whole inventory unavailable.
++#[must_use]
++pub const fn original_script_command_inventory_support() -> &'static str {
++    SUPPORT
++}
++
++const SUPPORT: &str = r#"namespace eval ::__tcl_command_inventory {}
++proc ::__tcl_command_inventory::in_root {excluded} {
++    if {[::__tcl_name_query::family] eq "jim"} {
++        set found {}
++        foreach word [uplevel #0 {::info -nons commands}] {
++            set private 0
++            foreach ns [concat $excluded {::__tcl_command_inventory ::__tcl_name_query}] {
++                set prefix [string range $ns 2 end]::
++                if {[string first $prefix $word] == 0} {set private 1; break}
++            }
++            if {$private} continue
++            if {[string first "\0" $word] >= 0 || ![uplevel #0 [list ::exists -command $word]]} {
++                error "command inventory has no original callable root word"
++            }
++            lappend found $word
++        }
++        return [lsort -unique $found]
++    }
++    set found {}
++    set pending [list ::]
++    while {[llength $pending]} {
++        set ns [lindex $pending 0]
++        set pending [lrange $pending 1 end]
++        if {[lsearch -exact $excluded $ns] >= 0 || [lsearch -exact {::__tcl_command_inventory ::__tcl_name_query} $ns] >= 0} continue
++        if {[string first "\0" $ns] >= 0 || [string range $ns 0 1] ne "::" || [string first ":::" $ns] >= 0 || ($ns ne "::" && [string index $ns end] eq ":")} {
++            error "command inventory has no unambiguous namespace address"
++        }
++        foreach child [::namespace children $ns] {lappend pending $child}
++        foreach word [::namespace inscope $ns {::info commands}] {
++            if {[string first "\0" $word] >= 0 || [string first :: $word] >= 0} {
++                error "command inventory has no original simple command word"
++            }
++            set selected [::namespace inscope $ns [list ::namespace which -command $word]]
++            set expected [expr {$ns eq "::" ? "::$word" : "${ns}::$word"}]
++            if {$selected ne $expected} continue
++            if {$ns eq "::"} {
++                set operand $word
++            } else {
++                if {[string index $word 0] eq ":"} {error "command inventory has no callable root operand"}
++                set operand ${ns}::$word
++                if {[uplevel #0 [list ::namespace which -command $operand]] ne $selected} {
++                    error "command inventory root lookup disagrees with its original context"
++                }
++            }
++            lappend found $operand
++        }
++    }
++    return [lsort -unique $found]
++}
++"#;
+--- a/rust/tcl-syntax/src/naming/script_command_presence.rs
++++ b/rust/tcl-syntax/src/naming/script_command_presence.rs
+@@ -51,12 +51,9 @@
+ const SUPPORT: &str = r#"namespace eval ::__tcl_name_presence {}
+ proc ::__tcl_name_presence::in_root {cpattern jimpattern supported} {
+     if {!$supported} {error "command presence has no original-byte script transport"}
+-    if {![catch {::info tclversion} version] && [lsearch -exact {8.4 8.5 8.6 9.0 9.1} $version] >= 0} {
+-        set pattern $cpattern
+-    } elseif {![catch {::info version} version] && $version eq "0.84"} {
+-        set pattern $jimpattern
+-    } else {
+-        error "command presence has no selected interpreter query grammar"
++    switch -- [::__tcl_name_query::family] {
++        c {set pattern $cpattern}
++        jim {set pattern $jimpattern}
+     }
+     return [expr {[llength [uplevel #0 [list ::info commands $pattern]]] > 0}]
+ }
+--- a/rust/tcl-cli/src/commands/spec_test.rs
++++ b/rust/tcl-cli/src/commands/spec_test.rs
+@@ -404,6 +404,7 @@
+ pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
+     let mut script =
+         String::from(tcl_syntax::naming::original_namespace_variable_snapshot_support());
++    script.push_str(tcl_syntax::naming::original_script_name_query_support());
+     script.push_str(tcl_syntax::naming::original_command_presence_support());
+     script.push_str(&PRELUDE.replace("@PACKAGE@", &list_element(package)));
+     for probe in probes {
+--- a/rust/tcl-cli/src/commands/spec_probe.rs
++++ b/rust/tcl-cli/src/commands/spec_probe.rs
+@@ -35,7 +35,8 @@
+ /// The Tcl script that requires `package` and reports what it added.
+ #[must_use]
+ pub fn render_script(package: &str) -> String {
+-    let mut script = String::new();
++    let mut script = String::from(tcl_syntax::naming::original_script_name_query_support());
++    script.push_str(tcl_syntax::naming::original_script_command_inventory_support());
+     script.push_str(
+         r#"namespace eval ::__spec_probe {}
+ proc ::__spec_probe::say {kind a b} {
+@@ -44,21 +45,16 @@
+     puts "\nSPEC-PROBE\t$kind\t$a\t$b"
+ }
+ proc ::__spec_probe::commands {} {
+-    set found {}
+-    set todo ::
+-    while {[llength $todo]} {
+-        set ns [lindex $todo 0]
+-        set todo [lrange $todo 1 end]
+-        if {$ns eq "::__spec_probe"} continue
+-        if {$ns eq "::"} {set pattern ::*} else {set pattern ${ns}::*}
+-        foreach name [info commands $pattern] {lappend found $name}
+-        foreach child [namespace children $ns] {lappend todo $child}
+-    }
+-    return $found
++    return [::__tcl_command_inventory::in_root {::__spec_probe}]
+ }
+ catch {package require __spec_probe_warmup}
+ array set ::__spec_probe::before {}
+-foreach name [::__spec_probe::commands] {set ::__spec_probe::before($name) 1}
++if {[catch {::__spec_probe::commands} inventory]} {
++    ::__spec_probe::say failure {} "command inventory unavailable: $inventory"
++    ::__spec_probe::say done 0 {}
++    exit 0
++}
++foreach name $inventory {set ::__spec_probe::before($name) 1}
+ "#,
+     );
+     let _ = write!(
+@@ -68,16 +64,21 @@
+          ::__spec_probe::say done 0 {{}}\n    exit 0\n}}\n"
+     );
+     script.push_str(
+-        r"::__spec_probe::say provided {} $version
++        r#"::__spec_probe::say provided {} $version
+ set ::__spec_probe::count 0
+-foreach name [lsort [::__spec_probe::commands]] {
++if {[catch {::__spec_probe::commands} inventory]} {
++    ::__spec_probe::say failure {} "command inventory unavailable: $inventory"
++    ::__spec_probe::say done 0 {}
++    exit 0
++}
++foreach name $inventory {
+     if {![info exists ::__spec_probe::before($name)]} {
+         incr ::__spec_probe::count
+         ::__spec_probe::say added $name {}
+     }
+ }
+ ::__spec_probe::say done $::__spec_probe::count {}
+-",
++"#,
+     );
+     script
+ }
+@@ -89,7 +90,7 @@
+     pub version: Option<String>,
+     /// Why the package could not be required, when it could not.
+     pub error: Option<String>,
+-    /// The commands the package added, qualified, in the order printed.
++    /// Checked original root-context operands added by the package.
+     pub commands: Vec<String>,
+     /// How many commands the shell said it printed, when it got as far as
+     /// saying.
+@@ -242,4 +243,94 @@
+         let parsed = parse_output("SPEC-PROBE\tadded\t::a\\tb\\nc\\\\d\\re\t\n");
+         assert_eq!(parsed.commands, ["::a\tb\nc\\d\re"]);
+     }
+-}
++
++    fn original_inventory_report(interpreter: &std::path::Path, package_body: &str) -> ProbeOutput {
++        let nonce = std::time::SystemTime::now()
++            .duration_since(std::time::UNIX_EPOCH)
++            .expect("clock")
++            .as_nanos();
++        let directory =
++            std::env::temp_dir().join(format!("tcl-spec-probe-{}-{nonce}", std::process::id()));
++        std::fs::create_dir(&directory).expect("fixture directory");
++        let package = directory.join("demo.tcl");
++        std::fs::write(
++            &package,
++            format!("{package_body}\npackage provide demo 1.0\n"),
++        )
++        .expect("package fixture");
++        let directory_word =
++            tcl_syntax::list::list_element(directory.to_str().expect("fixture path"));
++        let package_word = tcl_syntax::list::list_element(package.to_str().expect("fixture file"));
++        let setup = format!(
++            "proc lost {{}} {{return PLAIN}}\nset ::auto_path [linsert $::auto_path 0 {directory_word}]\nif {{![catch {{::info tclversion}} provider]}} {{package ifneeded demo 1.0 [list source {package_word}]}}\n"
++        );
++        let script = format!("{setup}{}", render_script("demo"));
++        let outcome = tcl_test_support::run_script(interpreter, script.as_bytes())
++            .expect("original package inventory");
++        std::fs::remove_dir_all(&directory).expect("remove fixture");
++        let text = outcome
++            .strict_text()
++            .expect("original UTF-8 inventory protocol");
++        let report = parse_output(&text);
++        assert!(report.finished(), "{text}");
++        report
++    }
++
++    const ORIGINAL_PACKAGE: &str = r#"
++proc :lost {} {return COLON}
++namespace eval {N[0]} {proc {p*} {} {return BRACKET}}
++namespace eval N0 {proc pZ {} {return SIBLING}}
++proc __spec_probeOther {} {return OTHER}
++"#;
++
++    #[test]
++    fn original_c_package_inventory_keeps_root_colons_and_literal_namespace_words() {
++        for interpreter in tcl_test_support::available_tclshs() {
++            let report = original_inventory_report(&interpreter.path, ORIGINAL_PACKAGE);
++            assert!(report.error.is_none(), "{report:?}");
++            assert_eq!(
++                report.commands,
++                ["::N0::pZ", "::N[0]::p*", ":lost", "__spec_probeOther"],
++                "{report:?}"
++            );
++        }
++    }
++
++    #[test]
++    fn original_c_package_inventory_refuses_ambiguous_namespace_root_addresses() {
++        for interpreter in tcl_test_support::available_tclshs() {
++            let report = original_inventory_report(
++                &interpreter.path,
++                "namespace eval N: {proc x {} {return TRAILING}}",
++            );
++            assert!(report.commands.is_empty(), "{report:?}");
++            assert!(
++                report
++                    .error
++                    .as_deref()
++                    .is_some_and(|error| error.contains("no unambiguous namespace address")),
++                "{report:?}"
++            );
++        }
++    }
++
++    #[test]
++    fn original_jim_package_inventory_retains_flat_root_keys_without_namespace_children() {
++        let interpreter = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
++            Some(tcl_test_support::require_jimsh().expect("required original Jim oracle"))
++        } else {
++            tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
++        };
++        let Some(interpreter) = interpreter else {
++            eprintln!("skipping original Jim inventory control: no Jim oracle");
++            return;
++        };
++        let report = original_inventory_report(&interpreter.path, ORIGINAL_PACKAGE);
++        assert!(report.error.is_none(), "{report:?}");
++        assert_eq!(
++            report.commands,
++            [":lost", "N0::pZ", "N[0]::p*", "__spec_probeOther"],
++            "{report:?}"
++        );
++    }
++}
+--- a/rust/tcl-cli/src/commands/spec.rs
++++ b/rust/tcl-cli/src/commands/spec.rs
+@@ -845,7 +845,9 @@
+     if outcome.timed_out {
+         bail!("the shell did not finish probing '{package}' in time");
+     }
+-    let parsed = parse_output(&String::from_utf8_lossy(&outcome.stdout));
++    let output = std::str::from_utf8(&outcome.stdout)
++        .context("the command inventory report is not UTF-8")?;
++    let parsed = parse_output(output);
+     if let Some(error) = &parsed.error {
+         bail!("the shell could not require '{package}': {error}");
+     }
+--- a/rust/tcl-spec-studio/src/infer/extension.rs
++++ b/rust/tcl-spec-studio/src/infer/extension.rs
+@@ -76,16 +76,18 @@
+     pub package: String,
+     /// The version it provided, when it said.
+     pub version: Option<String>,
+-    /// The commands it added to the shell, qualified, in name order.
++    /// Checked original root-context operands the shell inventory observed.
+     pub commands: Vec<String>,
+ }
+ 
+-/// One command an extension registers: its draft, at the conservative
+-/// default, and the evidence for every proposal in it.
++/// An exact original operand's authoring draft and retained source evidence.
++/// C publication context is unresolved; this is no live binding assertion.
+ #[derive(Debug, Clone)]
+ pub struct ExtensionCommand {
+-    /// The command's name, as the extension spells it.
++    /// The original command operand used to seed this authoring draft.
+     pub name: String,
++    /// Original C literal publication operands; their runtime context is unresolved.
++    pub c_registration_operands: Vec<String>,
+     /// The sources that found it, in a fixed order.
+     pub sources: Vec<ExtensionSource>,
+     /// The draft: the extension default with the proposals applied.
+@@ -135,6 +137,8 @@
+             "version": self.version,
+             "commands": self.commands.iter().map(|command| json!({
+                 "name": command.name,
++                "c_registration_operands": command.c_registration_operands,
++                "c_publication_context": if command.c_registration_operands.is_empty() { None } else { Some("unresolved") },
+                 "provenance": command.sources.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                 "draft": Value::Object(command.draft.clone()),
+                 "notes": command.notes.clone(),
+@@ -172,7 +176,7 @@
+         if self.version.is_none() {
+             self.version.clone_from(&probe.version);
+         }
+-        for name in probe.commands.iter().map(|name| normalised(name)) {
++        for name in &probe.commands {
+             let note = format!(
+                 "probe: `package require {}` added `{name}` to the shell",
+                 probe.package
+@@ -279,7 +283,7 @@
+         }
+         for command in &scan.commands {
+             match &command.name {
+-                CName::Literal(name) => add_command(&mut import, normalised(name), command, file),
++                CName::Literal(name) => add_command(&mut import, name, command, file),
+                 CName::Dynamic(expression) => import.dynamic.push(DynamicRegistration {
+                     file: file.name.clone(),
+                     line: command.line,
+@@ -459,12 +463,6 @@
+     )
+ }
+ 
+-/// Remove one root marker from a constructed descriptor/reporting key.
+-/// Literal colon-named components remain part of the row identity.
+-fn normalised(name: &str) -> &str {
+-    tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
+-}
+-
+ /// Add the row for `command`, or a note on the row already there when a
+ /// second registration of the same name is found.
+ fn add_command(
+@@ -474,6 +472,7 @@
+     file: &SourceFile,
+ ) {
+     if let Some(row) = import.commands.iter_mut().find(|row| row.name == name) {
++        row.c_registration_operands.push(name.to_owned());
+         row.notes.push(format!(
+             "c-scan: registered again by {} at {}:{}; the first registration's facts stand",
+             command.api, file.name, command.line
+@@ -482,6 +481,7 @@
+     }
+     let package = import.package.clone();
+     let mut row = default_row(name, package.as_deref());
++    row.c_registration_operands.push(name.to_owned());
+     row.sources = vec![ExtensionSource::CScan];
+     describe(&mut row, command, file);
+     import.commands.push(row);
+@@ -496,6 +496,7 @@
+     }
+     ExtensionCommand {
+         name: name.to_owned(),
++        c_registration_operands: Vec::new(),
+         sources: Vec::new(),
+         draft,
+         notes: Vec::new(),
+@@ -811,7 +812,7 @@
+     }
+ 
+     #[test]
+-    fn a_leading_double_colon_does_not_make_a_second_row() {
++    fn matching_original_operands_share_a_draft_without_root_reinterpretation() {
+         let mut import = import_c_sources(&[file(
+             "x.c",
+             r#"int Init(Tcl_Interp *i) { Tcl_CreateObjCommand(i, "::x::cmd", P, 0, 0); return 0; }"#,
+@@ -823,7 +824,7 @@
+             commands: vec!["::x::cmd".to_owned()],
+         });
+         assert_eq!(import.commands.len(), 1);
+-        assert_eq!(import.commands[0].name, "x::cmd");
++        assert_eq!(import.commands[0].name, "::x::cmd");
+         assert_eq!(
+             import.commands[0].sources,
+             [ExtensionSource::CScan, ExtensionSource::Probe]
+@@ -1242,4 +1243,55 @@
+         assert_eq!(one.package.as_deref(), Some("ext"));
+         assert!(one.entry.is_none(), "nothing was chosen");
+     }
+-}
++
++    #[test]
++    fn literal_registration_inputs_remain_unresolved_and_do_not_fold_root_colons() {
++        let mut import = import_c_sources(
++            &[file(
++                "x.c",
++                r#"
++int Init(Tcl_Interp *i) {
++    Tcl_CreateObjCommand(i, ":::p", P, 0, 0);
++    Tcl_CreateObjCommand(i, ":p", Q, 0, 0);
++    return 0;
++}
++"#,
++            )],
++            None,
++        )
++        .expect("one scanned extension");
++        import.merge_probe(&ProbeReport {
++            package: "x".to_owned(),
++            version: None,
++            commands: vec!["p".to_owned(), ":p".to_owned()],
++        });
++        assert_eq!(
++            import
++                .commands
++                .iter()
++                .map(|row| row.name.as_str())
++                .collect::<Vec<_>>(),
++            [":::p", ":p", "p"]
++        );
++        let scanned = import
++            .commands
++            .iter()
++            .find(|row| row.name == ":::p")
++            .expect("original input");
++        assert_eq!(scanned.c_registration_operands, [":::p"]);
++        assert_eq!(scanned.sources, [ExtensionSource::CScan]);
++        let observed = import
++            .commands
++            .iter()
++            .find(|row| row.name == "p")
++            .expect("root operand");
++        assert!(observed.c_registration_operands.is_empty());
++        assert_eq!(observed.sources, [ExtensionSource::Probe]);
++        let json = import.to_json();
++        assert_eq!(json["commands"][0]["c_publication_context"], "unresolved");
++        assert_eq!(
++            json["commands"][0]["c_registration_operands"],
++            json!([":::p"])
++        );
++    }
++}
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -56,6 +56,10 @@
+ mod reporting;
+ mod root_source;
+ pub use root_source::native_command_root_source_spelling;
++mod script_name_query;
++pub use script_name_query::original_script_name_query_support;
++mod script_command_inventory;
++pub use script_command_inventory::original_script_command_inventory_support;
+ mod script_command_presence;
+ pub use script_command_presence::{
+     ScriptRootCommandPresencePlan, original_command_presence_support,

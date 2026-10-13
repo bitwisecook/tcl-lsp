@@ -1,0 +1,13 @@
+{
+  "selector": "provider_fixtures::tests::provider_read_domain_requires_the_same_current_complete_input",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "provider_fixtures::tests::provider_read_domain_requires_the_same_current_complete_input",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 1.1172173760023725,
+  "timed_out": false
+}

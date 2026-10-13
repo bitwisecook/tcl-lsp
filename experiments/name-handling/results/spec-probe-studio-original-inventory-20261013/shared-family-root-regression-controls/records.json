@@ -1,0 +1,145 @@
+[
+  {
+    "provider": "c84",
+    "expected_release": "8.4.20",
+    "captured_utc": "2026-10-13T20:25:47.406694+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c85",
+    "expected_release": "8.5.19",
+    "captured_utc": "2026-10-13T20:25:47.521790+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c86",
+    "expected_release": "8.6.18",
+    "captured_utc": "2026-10-13T20:25:47.636404+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c90",
+    "expected_release": "9.0.4",
+    "captured_utc": "2026-10-13T20:25:47.760742+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c91",
+    "expected_release": "9.1.0",
+    "captured_utc": "2026-10-13T20:25:47.872992+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "jim",
+    "expected_release": "selected latest Jim source checkout",
+    "captured_utc": "2026-10-13T20:25:47.910444+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls/input.tcl"
+    ],
+    "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-root-regression-controls",
+    "selected_environment": {},
+    "unset_environment": [
+      "TCL_LIBRARY",
+      "TCLLIBPATH",
+      "LD_LIBRARY_PATH"
+    ],
+    "input_sha256": "392fcf8ce2a0f83da501607adc7077f702ce605cd47c0376b88a5b7e0994d95d",
+    "runner_sha256": "d2c265ed287a5781f63e5bb2aaf42a996a4029021a62a8bcbff6bb75e9e33531",
+    "exit_code": 0,
+    "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "selector": "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "script_binds::tests::declaration_read_advice_requires_original_unchanged_body_and_formals",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.7162349749996793,
+  "timed_out": false
+}

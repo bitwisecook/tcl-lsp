@@ -724,7 +724,8 @@ impl Analyser {
             &crate::interprocedural::ModuleProcedures<'_>,
         ),
     ) {
-        for (qname, fu) in &cu.procedures {
+        for (id, fu) in &cu.procedures {
+            let qname = &fu.name;
             // For ``::when::*`` procs, threaded
             // ``cross_event_defs | cross_event_imports`` from the
             // ConnectionScope so dead-store / unused-variable
@@ -752,7 +753,7 @@ impl Analyser {
                 fu,
                 cu.ir_module
                     .procedures
-                    .get(qname)
+                    .get(id)
                     .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
                 (&extra_known_defined, &cross_event_vars),
                 Some(&module),

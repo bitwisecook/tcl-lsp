@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::conditional_output_candidates_do_not_become_physical_stores",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::conditional_output_candidates_do_not_become_physical_stores",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.6659006219997536,
+  "timed_out": false
+}

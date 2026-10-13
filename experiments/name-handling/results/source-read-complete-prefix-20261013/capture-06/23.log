@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::original_call_entry_precedes_its_unknown_dispatch ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9576 filtered out; finished in 0.39s
+

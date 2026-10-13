@@ -113,34 +113,37 @@ impl Lowerer<'_> {
         let start = installed.source.base();
         let end =
             start.saturating_add(u32::try_from(installed.source.text.len()).unwrap_or(u32::MAX));
-        self.module.body_units.insert(
-            label.clone(),
-            Procedure {
-                name: installed.command,
-                qualified_name: label.clone(),
-                publication: None,
-                params: installed
-                    .parameters
-                    .into_iter()
-                    .map(|parameter| parameter.name)
-                    .collect(),
-                span: tcl_lexer::Span::new(start, end),
-                body,
-                params_raw,
-                body_source: installed.source.try_text().ok().map(str::to_owned),
-                body_offset: start,
-                namespace_scoped: false,
-                base_priority: 500,
+        let id = self.module.retain_body_unit(Procedure {
+            name: installed.command,
+            qualified_name: label.clone(),
+            publication: None,
+            declaration_site: Some(installed.allocation.site.clone()),
+            body_kind: if original_declaration {
+                crate::ir::ProcedureBodyKind::OriginalDeclaration
+            } else {
+                crate::ir::ProcedureBodyKind::Installed
             },
-        );
+            params: installed
+                .parameters
+                .into_iter()
+                .map(|parameter| parameter.name)
+                .collect(),
+            span: tcl_lexer::Span::new(start, end),
+            body,
+            params_raw,
+            body_source: installed.source.try_text().ok().map(str::to_owned),
+            body_offset: start,
+            namespace_scoped: false,
+            base_priority: 500,
+        });
         if original_declaration {
             self.module
                 .original_declaration_body_units
-                .insert(label, installed.allocation);
+                .insert(id, installed.allocation);
         } else {
             self.module
                 .installed_procedure_body_units
-                .insert(label, installed.allocation);
+                .insert(id, installed.allocation);
         }
     }
 }

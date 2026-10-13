@@ -67,7 +67,10 @@ pub fn detect_passthrough_candidates(
     registry: &CommandRegistry,
 ) -> HashMap<String, PassthroughShape> {
     let mut out = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    for (qname, proc) in module.procedures.display_entries() {
+        if module.procedures.unique_display(qname).is_none() {
+            continue;
+        }
         if let Some(shape) =
             classify_passthrough(proc, registry, module.source_entry.invocation_dialect)
         {
@@ -479,7 +482,8 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     }
     let generations: HashMap<_, _> = module
         .procedures
-        .iter()
+        .display_entries()
+        .filter(|(name, _)| module.procedures.unique_display(name).is_some())
         .map(|(name, proc)| (name.clone(), proc.span.start()))
         .collect();
     let config = module.lexer_config;
@@ -509,10 +513,17 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     let mut top = std::mem::take(&mut module.top_level);
     rewrite_script_in_place(&mut top, "::", &context);
     module.top_level = top;
-    let proc_qnames: Vec<String> = module.procedures.keys().cloned().collect();
+    let proc_qnames: Vec<crate::ir::ProcedureId> = module.procedures.keys().cloned().collect();
     for qname in proc_qnames {
-        let caller_ns = namespace_of(&qname);
         if let Some(proc) = module.procedures.get_mut(&qname) {
+            let Some(caller_ns) = proc
+                .body
+                .namespace_context
+                .as_deref()
+                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            else {
+                continue;
+            };
             let mut body = std::mem::take(&mut proc.body);
             rewrite_script_in_place(&mut body, &caller_ns, &context);
             proc.body = body;

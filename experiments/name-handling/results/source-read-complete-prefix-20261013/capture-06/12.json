@@ -1,0 +1,13 @@
+{
+  "selector": "analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 6.185075995999796,
+  "timed_out": false
+}

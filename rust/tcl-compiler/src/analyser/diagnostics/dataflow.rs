@@ -599,7 +599,7 @@ impl Analyser {
         let seed: Vec<(String, Binding)> = cu
             .ir_module
             .procedures
-            .keys()
+            .unique_displays()
             .map(|q| {
                 (
                     q.clone(),

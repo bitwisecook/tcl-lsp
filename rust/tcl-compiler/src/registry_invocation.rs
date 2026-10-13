@@ -102,8 +102,9 @@ pub(crate) use declaration_assistance::{
 
 mod declaration_flow;
 pub(crate) use declaration_flow::{
-    DeclarationInvocationFlow, DeclarationLifecycleInvocation, declaration_dictionary_scope_advice,
-    declaration_invocation_flow, declaration_lifecycle_invocation, declared_argument_words,
+    DeclarationInvocationFlow, DeclarationLifecycleInvocation, DeclarationSchemaOrigin,
+    declaration_dictionary_scope_advice, declaration_invocation_flow,
+    declaration_lifecycle_invocation, declaration_source_read_flow, declared_argument_words,
 };
 
 mod interval_advice;

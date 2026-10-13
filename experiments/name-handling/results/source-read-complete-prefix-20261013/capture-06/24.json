@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::original_declaration_flow_cache_retains_full_inventory_and_query_identity",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::original_declaration_flow_cache_retains_full_inventory_and_query_identity",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.3147392699975171,
+  "timed_out": false
+}

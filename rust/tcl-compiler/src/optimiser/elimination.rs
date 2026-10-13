@@ -287,15 +287,21 @@ enum Defined<'a> {
 
 impl<'a> Defined<'a> {
     /// What `fu` can take as defined, read from the module and the summaries.
-    fn of(ctx: &'a PassContext<'_>, fu: &FunctionUnit, runtime_namespace: bool) -> Self {
+    fn of(
+        ctx: &'a PassContext<'_>,
+        fu: &FunctionUnit,
+        runtime_namespace: bool,
+        is_top_level: bool,
+    ) -> Self {
         if runtime_namespace {
             return Self::Nothing;
         }
-        if fu.name == "::top" {
+        if is_top_level {
             return Self::Before;
         }
         if let Some(module) = ctx.ir_module
-            && let Some(unit) = module.body_units.get(&fu.name)
+            && let Some(id) = fu.body_id
+            && let Some(unit) = module.body_units.get(&id)
         {
             let run_by_a_procedure = module.procedures.values().any(|procedure| {
                 procedure.span.start() <= unit.span.start()
@@ -341,7 +347,7 @@ impl CallCompletion<'_> {
                     .and_then(|module| {
                         crate::registry_invocation::original_procedure_formal_count_shape(
                             module,
-                            module.procedures.get(qname)?,
+                            module.procedures.get_unique_display(qname)?,
                             self.registry,
                         )
                     })
@@ -358,6 +364,7 @@ impl<'a> RaiseProof<'a> {
         ctx: &'a PassContext<'_>,
         fu: &'a FunctionUnit,
         execution_namespace: Option<&crate::ir::ExecutionNamespace>,
+        is_top_level: bool,
     ) -> Self {
         // Alias recognition is registry-driven; a registry-less context (unit
         // tests) falls back to the cached default.
@@ -394,7 +401,7 @@ impl<'a> RaiseProof<'a> {
                     .is_some_and(|m| !m.traced_commands.is_empty() || m.has_dynamic_trace),
                 module: ctx.ir_module,
                 registry,
-                defined: Defined::of(ctx, fu, execution_namespace.is_some()),
+                defined: Defined::of(ctx, fu, execution_namespace.is_some(), is_top_level),
             },
         }
     }
@@ -640,7 +647,7 @@ fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<String> {
 /// Run the elimination pass — emits O107, O108, O109, O126
 /// across every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    let is_top_level = |fu: &FunctionUnit| fu.name == "::top";
+    let is_top_level = |fu: &FunctionUnit| std::ptr::eq(fu, &cu.top_level);
     // O109/O126 closure: the user-proc / TclOO-method purity sets
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
@@ -678,10 +685,20 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         if !deep_analysis_available(fu) {
             continue;
         }
-        ctx.cross_event_vars = if qname.starts_with("::when::") {
+        ctx.cross_event_vars = if ctx.registry.is_some_and(|registry| {
+            cu.ir_module.procedures.get(qname).is_some_and(|procedure| {
+                crate::source_graph::event_body_for_procedure(
+                    &cu.ir_module,
+                    qname,
+                    procedure,
+                    registry,
+                )
+                .is_some()
+            })
+        }) {
             cu.connection_scope
                 .as_ref()
-                .map(|scope| scope.handler_source_names(qname, false))
+                .map(|scope| scope.handler_source_names(&fu.name, false))
                 .unwrap_or_default()
         } else {
             std::collections::HashSet::new()
@@ -855,6 +872,8 @@ fn unreachable_blocks(cfg: &CfgFunction, sccp: &SccpResult) -> HashSet<crate::cf
 pub struct DeadStore {
     /// The owning function's qualified name (`::top`, `::add`, …).
     pub function: String,
+    /// Retained owning body identity, independent of its display name.
+    pub body_id: Option<crate::ir::ProcedureId>,
     /// The CFG block holding the dead store.
     pub block: String,
     /// The statement's index within its block.
@@ -921,7 +940,7 @@ fn emit_dead_stores_and_unused(
         );
         &fallback_contexts
     };
-    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
+    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace, is_top_level);
     let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
     // The `def_use` builder does not scan Return-value reads or
     // embedded string-interpolation reads; do a supplementary
@@ -1297,6 +1316,7 @@ fn emit_dse_entries(
         if e.code == DiagCode::O109 {
             ctx.dead_stores.push(DeadStore {
                 function: fu.name.clone(),
+                body_id: fu.body_id,
                 block: e.block.clone(),
                 statement_index: e.statement_index,
                 variable: fu.ssa.cell_symbol(&e.key.0).map_or_else(
@@ -1335,7 +1355,7 @@ fn emit_adce(
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     keep_forever.extend(observed_store_definitions(ctx, fu, top_level, registry));
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
+    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace, top_level);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
@@ -1932,18 +1952,18 @@ mod tests {
         ctx.registry = Some(context.commands());
         ctx.command_mutations = unit.command_mutations.clone();
         ctx.ir_module = Some(&unit.ir_module);
-        assert!(RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        assert!(RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
         let mut changed = unit.ir_module.clone();
         changed.procedures.get_mut("::leaf").unwrap().params_raw = "{x DEFAULT}".into();
         ctx.ir_module = Some(&changed);
-        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
         ctx.ir_module = None;
-        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
         ctx.ir_module = Some(&unit.ir_module);
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry();
         ctx.registry = Some(foreign.commands());
-        assert!(!RaiseProof::new(&ctx, &unit.top_level, None).calls_complete(statement));
+        assert!(!RaiseProof::new(&ctx, &unit.top_level, None, true).calls_complete(statement));
     }
 
     #[test]
@@ -2845,7 +2865,7 @@ mod tests {
             PassContext::new(&native.source, InterproceduralAnalysis::default());
         context_native.registry = Some(registry);
         context_native.ir_module = Some(&native.ir_module);
-        let proof = RaiseProof::new(&context_native, &native.top_level, None);
+        let proof = RaiseProof::new(&context_native, &native.top_level, None, true);
         assert!(proof.metadata_available);
         assert!(!proof.logical_source_assistance);
         // Same assistance input, independently retained Logical source driver.
@@ -2869,11 +2889,11 @@ mod tests {
             PassContext::new(&logical.source, InterproceduralAnalysis::default());
         context_logical.registry = Some(registry);
         context_logical.ir_module = Some(&logical.ir_module);
-        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None, true);
         assert!(proof.metadata_available);
         assert!(proof.logical_source_assistance);
         context_logical.ir_module = None;
-        let proof = RaiseProof::new(&context_logical, &logical.top_level, None);
+        let proof = RaiseProof::new(&context_logical, &logical.top_level, None, true);
         assert!(!proof.logical_source_assistance);
     }
 }

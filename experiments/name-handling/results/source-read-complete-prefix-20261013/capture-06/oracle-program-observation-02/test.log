@@ -1,0 +1,6 @@
+
+running 1 test
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9576 filtered out; finished in 70.54s
+

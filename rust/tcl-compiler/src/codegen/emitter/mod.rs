@@ -401,8 +401,8 @@ pub fn codegen_procedure_module_with_emission_scope(
 }
 
 struct EmittedProcedures {
-    functions: HashMap<String, FunctionAsm>,
-    provenance: HashMap<String, tcl_bytecode::ProcedureProvenance>,
+    functions: HashMap<crate::ir::ProcedureId, FunctionAsm>,
+    provenance: HashMap<crate::ir::ProcedureId, tcl_bytecode::ProcedureProvenance>,
 }
 
 fn codegen_procedures(
@@ -449,7 +449,7 @@ fn codegen_procedures(
                     }
                     _ => None,
                 });
-                let legacy = || tcl_syntax::naming::key_holder_and_tail(qname).0;
+                let legacy = || tcl_syntax::naming::key_holder_and_tail(&cfg_func.name).0;
                 super::namespace_path_from_constructed_key(authored.unwrap_or_else(legacy))
             });
         let mut asm = codegen_function_src(

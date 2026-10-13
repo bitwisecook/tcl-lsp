@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::original_diagnostic_frame_keeps_root_values_and_expanded_loop_bindings",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::original_diagnostic_frame_keeps_root_values_and_expanded_loop_bindings",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.2144358010009455,
+  "timed_out": false
+}

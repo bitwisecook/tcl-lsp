@@ -1,0 +1,36 @@
+
+SPEC-TEST	asked	::N[0]::p	
+
+SPEC-TEST	asked	::W*::p	
+
+SPEC-TEST	asked	::Q?::p	
+
+SPEC-TEST	asked	::B\slash::p	
+
+SPEC-TEST	asked	::N[0]::p*	
+
+SPEC-TEST	asked	::N[0]::p?	
+
+SPEC-TEST	asked	::N[0]::p[0]	
+
+SPEC-TEST	asked	::N[0]::p\tail	
+
+SPEC-TEST	asked	::N[0]::	
+
+SPEC-TEST	asked	:p	
+
+SPEC-TEST	asked	p*	
+
+SPEC-TEST	missing	::N[missing]::absent	declared, but the package does not define it
+
+SPEC-TEST	asked	::N[missing]::absent	
+
+SPEC-TEST	missing	::N[0]::absent*	declared, but the package does not define it
+
+SPEC-TEST	asked	::N[0]::absent*	
+
+SPEC-TEST	missing	absent*	declared, but the package does not define it
+
+SPEC-TEST	asked	absent*	
+
+SPEC-TEST	done	-	14

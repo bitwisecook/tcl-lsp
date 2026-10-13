@@ -736,11 +736,22 @@ impl Function {
 pub struct CfgModule {
     /// CFG for the top-level script.
     pub top_level: Function,
-    /// CFGs for named procedures, keyed by qualified name.
-    pub procedures: HashMap<String, Function>,
+    /// CFGs joined to their retained module body IDs.
+    pub procedures: HashMap<crate::ir::ProcedureId, Function>,
 }
 
 impl CfgModule {
+    /// Readonly compatibility selection; repeated display names remain unavailable.
+    #[must_use]
+    pub fn procedure_by_display<'a>(
+        &'a self,
+        module: &crate::ir::Module,
+        name: &str,
+    ) -> Option<&'a Function> {
+        self.procedures
+            .get(module.procedures.unique_display(name)?.0)
+    }
+
     /// `(aot_clean, total)` — how many of this module's functions (the top-level
     /// script plus every procedure) are fully AOT-compilable per
     /// [`Function::is_aot_clean`]. The coverage signal for "as much AOT as

@@ -53,7 +53,7 @@ pub(super) fn import(
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
-) -> BTreeSet<String> {
+) -> BTreeSet<crate::ir::ProcedureId> {
     let mut imported = BTreeSet::new();
     // Read the original callers before an appended body changes the image.
     let called = called_descriptors(module, registry);
@@ -68,7 +68,7 @@ pub(super) fn import(
             continue;
         };
         let qualified = definition.qualified_name.clone();
-        if module.procedures.contains_key(&qualified)
+        if module.procedures.has_display(&qualified)
             || module.redefined_procedures.contains(&qualified)
         {
             continue;
@@ -83,8 +83,8 @@ pub(super) fn import(
             backing: spec.runtime_backing.kind(),
             facts,
         });
-        module.procedures.insert(qualified.clone(), proc);
-        imported.insert(qualified);
+        let id = module.retain_procedure(proc);
+        imported.insert(id);
     }
     imported
 }
@@ -149,7 +149,8 @@ fn lower_definition(
     {
         return None;
     }
-    let (_, proc) = lowered.procedures.drain().next()?;
+    let id = *lowered.procedures.keys().next()?;
+    let proc = lowered.procedures.remove(&id)?;
     let selected = registry.get(&proc.qualified_name)?;
     if !std::ptr::eq(selected, expected) {
         return None;

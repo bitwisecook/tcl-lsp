@@ -93,6 +93,7 @@ impl crate::command_binding::SourceCommandBindings {
             c_source_path: None,
             procedure_body: None,
             member_catalogue_body: None,
+            catalogue_body: None,
         })
     }
 }

@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::array_index_effects_do_not_become_scalar_read_permission ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9576 filtered out; finished in 0.28s
+

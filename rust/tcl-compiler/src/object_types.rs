@@ -465,7 +465,12 @@ fn build_facts_gated(
     // still useful for possible callback edges, independently of SSA proof.
     for (name, procedure) in &cu.ir_module.procedures {
         if !cu.procedures.contains_key(name) {
-            harvest_script_factories(&procedure.body, name, registry, &mut sink);
+            harvest_script_factories(
+                &procedure.body,
+                &procedure.qualified_name,
+                registry,
+                &mut sink,
+            );
         }
     }
     for (name, method) in &cu.ir_module.methods {
@@ -964,7 +969,10 @@ fn returning_proc_candidates<'a>(
     let metadata = Some(context.as_ref().into());
     // A retained generic body can have original constructor evidence without
     // an executable FunctionUnit. This is a class candidate only.
-    for (name, procedure) in &cu.ir_module.procedures {
+    for (name, procedure) in cu.ir_module.procedures.display_entries() {
+        if cu.ir_module.procedures.unique_display(name).is_none() {
+            continue;
+        }
         if returns.contains_key(name.as_str()) {
             continue;
         }
@@ -1214,7 +1222,7 @@ fn scan_flow_edges(
         .procedures
         .iter()
         .filter(|(name, _)| !cu.procedures.contains_key(*name))
-        .map(|(name, procedure)| (name.as_str(), &procedure.body))
+        .map(|(_, procedure)| (procedure.qualified_name.as_str(), &procedure.body))
         .chain(
             cu.ir_module
                 .methods

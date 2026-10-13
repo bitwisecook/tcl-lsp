@@ -532,8 +532,11 @@ pub fn push_taint_and_module_checks(
     // per-function `fu.taints` for the warning families so a tainted argument
     // flowing into a callee parameter and then a sink is reported (cross-proc
     // entry-taint).
-    let proc_qnames: std::collections::HashSet<&str> =
-        cu.procedures.keys().map(String::as_str).collect();
+    let proc_qnames: std::collections::HashSet<&str> = cu
+        .procedures
+        .values()
+        .map(|body| body.name.as_str())
+        .collect();
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable's value in ways static analysis can't see; a name traced
     // anywhere in the module is conservatively treated as tainted everywhere

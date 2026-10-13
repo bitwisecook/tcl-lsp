@@ -250,8 +250,11 @@ fn count_static_calls(
     module: &Module,
     summaries: &HashMap<String, ProcEscapeSummary>,
 ) -> HashMap<String, usize> {
-    let mut counts: HashMap<String, usize> =
-        module.procedures.keys().map(|q| (q.clone(), 0)).collect();
+    let mut counts: HashMap<String, usize> = module
+        .procedures
+        .unique_displays()
+        .map(|q| (q.clone(), 0))
+        .collect();
     let top_caller = namespace_caller_key(&module.top_level_namespace);
     tally_calls(
         &module.top_level,
@@ -261,7 +264,7 @@ fn count_static_calls(
         &mut counts,
         0,
     );
-    for (qname, proc) in &module.procedures {
+    for (qname, proc) in module.procedures.display_entries() {
         let root_ns = root_namespace_of(qname);
         tally_calls(&proc.body, &root_ns, qname, summaries, &mut counts, 0);
     }
@@ -697,8 +700,9 @@ fn build_inlinable_map(
     // holds the module.
     let word_rules = WordValueRules::from_config(&module.lexer_config);
     let mut map = HashMap::new();
-    for (qname, proc) in &module.procedures {
-        if module.redefined_procedures.contains(qname)
+    for (qname, proc) in module.procedures.display_entries() {
+        if module.procedures.unique_display(qname).is_none()
+            || module.redefined_procedures.contains(qname)
             || !source.matches_procedure(proc)
             || crate::native_compilation_admission::script_requires_admission(&proc.body)
         {
@@ -824,14 +828,14 @@ enum Inlining<'a> {
     Everything,
     /// Only the procedures the importer added: the module's own are neither
     /// inlined nor rewritten.
-    Only(&'a BTreeSet<String>),
+    Only(&'a BTreeSet<crate::ir::ProcedureId>),
 }
 
 impl Inlining<'_> {
-    fn admits(&self, qname: &str) -> bool {
+    fn admits(&self, id: &crate::ir::ProcedureId) -> bool {
         match self {
             Self::Everything => true,
-            Self::Only(names) => names.contains(qname),
+            Self::Only(names) => names.contains(id),
         }
     }
 
@@ -888,7 +892,12 @@ fn inline_procedures(
 ) -> Module {
     let summaries = crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
     let mut inlinable = build_inlinable_map(&module, &summaries, registry);
-    inlinable.retain(|qname, _| scope.admits(qname));
+    inlinable.retain(|qname, _| {
+        module
+            .procedures
+            .unique_display(qname)
+            .is_some_and(|(id, _)| scope.admits(id))
+    });
     if inlinable.is_empty() {
         return module;
     }
@@ -915,7 +924,7 @@ fn inline_procedures(
         }
         let (new_body, changed) = rewrite_script(
             &proc.body,
-            qname,
+            &proc.qualified_name,
             &inlinable,
             &summaries,
             &mut counter,

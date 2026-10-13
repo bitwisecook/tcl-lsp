@@ -303,10 +303,15 @@ impl<'a> Lowerer<'a> {
             && !mutations.has_dynamic_mutation()
             && !mutations.changes_command_resolution()
             && !mutations.rebinds_under("::tcl::mathfunc::")
-            && !module
-                .procedures
-                .keys()
-                .any(|name| name.starts_with("::tcl::mathfunc::"));
+            && !module.procedures.values().any(|procedure| {
+                procedure.publication.as_ref().is_none_or(|publication| {
+                    publication.slot().namespace.as_segments()
+                        == [
+                            tcl_core_types::NameBytes::from("tcl"),
+                            tcl_core_types::NameBytes::from("mathfunc"),
+                        ]
+                })
+            });
         Self {
             input,
             values: Vec::new(),
@@ -981,24 +986,25 @@ impl<'a> Lowerer<'a> {
     /// does, and additionally binds the compiled entry the emitter installed
     /// for that body.
     ///
-    /// The binding is keyed on the *statement's own span* matching the
-    /// surviving [`crate::ir::Procedure`]'s. Lowering keeps the first
-    /// definition of a name (a later `proc p` of the same name only records a
-    /// redefinition), so only the statement whose body became this module's
-    /// function lowers to [`NativeOp::DefineProc`]; a second definition of the
-    /// same name stays a generic invocation and therefore rebinds an ordinary
-    /// source-only procedure at run time, exactly as Tcl does.
+    /// The exact original allocating instruction selects the retained body.
+    /// Missing or ambiguous body provenance keeps the generic invocation.
     fn lower_definition(
         &mut self,
         invoke: &GenericInvoke,
         argv: &[NativeValueId],
     ) -> Option<StatementOutcome> {
-        let procedure = self
+        let site = invoke.source_binding.as_ref()?.invocation_site()?;
+        let mut matching = self
             .input
             .module
             .procedures
-            .values()
-            .find(|procedure| procedure.span == invoke.source.span)?;
+            .at_declaration(site)
+            .filter(|(_, procedure)| procedure.span == invoke.source.span);
+        let (id, procedure) = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+
         // A body the front end never captured (a synthetic or dynamic one)
         // has nothing for the runtime to bind; keep the generic invocation.
         let body_source = procedure.body_source.clone()?;
@@ -1018,7 +1024,7 @@ impl<'a> Lowerer<'a> {
         }
         self.max_argc = self.max_argc.max(argv.len());
         self.emit(NativeOp::DefineProc {
-            entry_key: procedure.qualified_name.clone(),
+            entry_key: *id,
             argv: argv.to_vec(),
         });
         self.clobber_shadows();

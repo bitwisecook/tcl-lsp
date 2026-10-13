@@ -224,3 +224,7 @@ fn limit_of(kind: BudgetKind) -> BudgetLimit {
         BudgetKind::ValueSize => BudgetLimit::AllocationBytes,
     }
 }
+
+#[cfg(test)]
+#[path = "extension_inventory_tests.rs"]
+mod inventory_tests;

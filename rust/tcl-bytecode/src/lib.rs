@@ -2582,14 +2582,12 @@ pub struct ModuleAsm {
     /// can differ from the AOT form. Slots resolve by name at run time, so this
     /// is a disassembly difference only.
     pub top_level_body: FunctionAsm,
-    /// Procedure assemblies keyed by canonical rooted constructed name.
-    /// These keys are identities, not written Tcl names; consumers remove the
-    /// root marker exactly once and never re-canonicalise the remainder.
-    pub procedures: HashMap<String, FunctionAsm>,
+    /// Procedure assemblies joined by their originating module body ID.
+    pub procedures: HashMap<tcl_runtime_api::ProcedureId, FunctionAsm>,
     /// Source identity for each statically emitted procedure body. Runtimes
     /// use this to admit a fast precompiled body only for the exact `proc`
     /// definition that produced it, never by command name alone.
-    pub procedure_provenance: HashMap<String, ProcedureProvenance>,
+    pub procedure_provenance: HashMap<tcl_runtime_api::ProcedureId, ProcedureProvenance>,
     /// What this artefact says about the world it was compiled for: the
     /// environment, release and build of [`Self::profile`], the package
     /// floors, the pack facts any function's sites rest on, and the ABI,
@@ -2621,10 +2619,8 @@ impl ModuleAsm {
 /// Exact source provenance for a compiler-emitted procedure body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcedureProvenance {
-    /// Canonical rooted constructed procedure key. This is not a written Tcl
-    /// name: consumers remove exactly the leading root marker and must never
-    /// feed the remainder back through written-name canonicalisation (a `:`
-    /// namespace segment would become ambiguous).
+    /// Reporting name, checked against the joined assembly's name.
+    /// Retained namespace geometry independently distinguishes colliding labels.
     pub name: String,
     /// Original body lookup context, separate from the displayed declaration name.
     /// A constructed path preserves geometry without attesting a native owner.

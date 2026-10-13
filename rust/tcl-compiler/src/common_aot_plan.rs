@@ -49,7 +49,9 @@ pub use declared_arguments::{
 /// substitution nested in one argument of the enclosing statement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirectCallSiteId {
-    /// Qualified caller function.
+    /// Actual retained caller body; `None` denotes the top level.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Caller display, retained separately from body identity.
     pub function: String,
     /// CFG block identity.
     pub block: BlockId,
@@ -63,7 +65,9 @@ pub struct DirectCallSiteId {
 /// Stable source identity of an in-unit Tcl procedure definition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProcedureIdentity {
-    /// Fully qualified Tcl command name.
+    /// Exact Module-issued declaration identity, independent of its label.
+    pub id: crate::ir::ProcedureId,
+    /// Declaration display; no callable name or allocation authority.
     pub qualified_name: String,
     /// Definition source-span start.
     pub definition_start: u32,
@@ -74,7 +78,9 @@ pub struct ProcedureIdentity {
 /// Stable identity of one SSA value in one procedure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SsaValueIdentity {
-    /// Qualified procedure name.
+    /// Actual retained body owning the local SSA namespace.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Body display; local symbols are joined through `body_id`.
     pub function: String,
     /// Function-local interned variable symbol.
     pub symbol: Symbol,
@@ -1053,8 +1059,8 @@ struct CallCandidate<'a> {
 fn function_units(unit: &CompilationUnit) -> impl Iterator<Item = (&str, &FunctionUnit)> {
     std::iter::once((unit.top_level.name.as_str(), &unit.top_level)).chain(
         unit.procedures
-            .iter()
-            .map(|(name, unit)| (name.as_str(), unit)),
+            .values()
+            .map(|unit| (unit.name.as_str(), unit)),
     )
 }
 
@@ -1093,6 +1099,7 @@ fn call_sites<'a>(
             let statement_index = u32::try_from(index).unwrap_or(u32::MAX);
             out.push(CallCandidate {
                 id: DirectCallSiteId {
+                    body_id: function.body_id,
                     function: caller.to_owned(),
                     block: *block,
                     statement_index,
@@ -1114,6 +1121,7 @@ fn call_sites<'a>(
                 };
                 out.push(CallCandidate {
                     id: DirectCallSiteId {
+                        body_id: function.body_id,
                         function: caller.to_owned(),
                         block: *block,
                         statement_index,
@@ -1161,7 +1169,12 @@ fn collect_direct_calls(
     mutations: &crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: &crate::command_binding::ProcBindingTrustProjection,
 ) -> DirectCollection {
-    let known: HashSet<String> = unit.ir_module.procedures.keys().cloned().collect();
+    let known: HashSet<String> = unit
+        .ir_module
+        .procedures
+        .unique_displays()
+        .cloned()
+        .collect();
     let mut direct_calls = BTreeMap::new();
     let mut declined_callees = BTreeSet::new();
     // `None` is a poison fact: at least one selected call supplied an actual
@@ -1180,32 +1193,20 @@ fn collect_direct_calls(
                 .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target);
             let target = binding.and_then(|binding| binding.direct_procedure_target(&site.command));
             let resolved = terminal
-                .and_then(|target| {
-                    unit.ir_module
-                        .procedures
-                        .iter()
-                        .find_map(|(name, procedure)| {
-                            target
-                                .matches_authored_implementation_image(
-                                    &unit.ir_module.source,
-                                    procedure.span.start(),
-                                )
-                                .then(|| name.clone())
-                        })
-                })
+                .and_then(|target| unit.ir_module.source_procedure_for_target(target))
                 .or_else(|| {
-                    crate::interprocedural::resolve_internal_call(
+                    let name = crate::interprocedural::resolve_internal_call(
                         &site.command,
                         caller_name,
                         &known,
-                    )
+                    )?;
+                    let (id, procedure) = unit.ir_module.procedures.unique_display(&name)?;
+                    Some((*id, procedure))
                 });
-            let Some(callee_name) = resolved else {
+            let Some((callee_id, proc_def)) = resolved else {
                 continue;
             };
-            let Some(proc_def) = unit.ir_module.procedures.get(&callee_name) else {
-                continue;
-            };
+            let callee_name = proc_def.qualified_name.clone();
             let decision = direct_decision(&DirectInputs {
                 unit,
                 registry,
@@ -1215,6 +1216,7 @@ fn collect_direct_calls(
                 binding_target: terminal.map(|target| target.command.as_str()),
                 source_target: target,
                 callee_name: &callee_name,
+                callee_id,
                 proc_def,
                 summary: escape.get(&callee_name),
                 mutations,
@@ -1222,7 +1224,8 @@ fn collect_direct_calls(
                 context: selection.standalone_context(),
                 metadata: selection.for_function(function, registry, &unit.ir_module),
                 callee_metadata: unit
-                    .function(&callee_name)
+                    .procedures
+                    .get(&callee_id)
                     .and_then(|callee| selection.for_function(callee, registry, &unit.ir_module)),
                 enabled: config.is_enabled(SemanticOptimisationPassId::DirectProc),
                 frame_elision_enabled: config.is_enabled(SemanticOptimisationPassId::FrameElision),
@@ -1377,6 +1380,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         .is_some()
         {
             let nested = DirectCallSiteId {
+                body_id: input.site.id.body_id,
                 function: input.site.id.function.clone(),
                 block: input.site.block,
                 statement_index: input.site.statement_index,
@@ -1491,6 +1495,7 @@ fn closed_constant_store(
         return false;
     };
     let site = DirectCallSiteId {
+        body_id: input.function.body_id,
         function: input.function.name.clone(),
         block: input.function.cfg.entry,
         statement_index: u32::try_from(index).unwrap_or(u32::MAX),
@@ -1568,6 +1573,7 @@ fn cover_closed_constant_store(
     }
     let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
         let value = SsaValueIdentity {
+            body_id: input.function.body_id,
             function: input.function.name.clone(),
             symbol: *symbol,
             version: *version,
@@ -1581,6 +1587,7 @@ fn cover_closed_constant_store(
     Some(ClosedProgramStatementEvidence::DirectActualConstant {
         statement: statement_id,
         value: SsaValueIdentity {
+            body_id: input.function.body_id,
             function: input.function.name.clone(),
             symbol,
             version,
@@ -1609,6 +1616,7 @@ fn cover_closed_statement(
         return None;
     };
     let site = DirectCallSiteId {
+        body_id: input.function.body_id,
         function: input.function.name.clone(),
         block: input.function.cfg.entry,
         statement_index,
@@ -1723,6 +1731,7 @@ struct DirectInputs<'a> {
     binding_target: Option<&'a str>,
     source_target: Option<&'a crate::command_binding::SourceCommandTarget>,
     callee_name: &'a str,
+    callee_id: crate::ir::ProcedureId,
     proc_def: &'a Procedure,
     summary: Option<&'a ProcEscapeSummary>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
@@ -1742,7 +1751,8 @@ fn direct_prerequisite_decline(input: &DirectInputs<'_>) -> Option<DirectProcDec
     (input.function.requires_native_math_binding_validation()
         || input
             .unit
-            .function(input.callee_name)
+            .procedures
+            .get(&input.callee_id)
             .is_some_and(FunctionUnit::requires_native_math_binding_validation))
     .then_some(DirectProcDecline::MathBindingPrerequisiteRequired)
 }
@@ -1804,7 +1814,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         || input
             .unit
             .procedures
-            .get(input.callee_name)
+            .get(&input.callee_id)
             .is_some_and(|callee| !callee.cfg.exception_edges.is_empty())
     {
         return decline(DirectProcDecline::ExceptionalControlFlow);
@@ -1910,6 +1920,7 @@ fn select_direct_evidence(
         matches!(body, DirectProcBodyDecision::Selected(_)) && summary.safe_for_frame_elision();
     DirectProcDecision::Selected(DirectProcEvidence {
         callee: ProcedureIdentity {
+            id: input.callee_id,
             qualified_name: input.callee_name.to_owned(),
             definition_start: input.proc_def.span.start(),
             definition_end: input.proc_def.span.end(),
@@ -2155,6 +2166,7 @@ fn actual_fact(
         return (
             ty,
             DirectActualValue::Ssa(SsaValueIdentity {
+                body_id: function.body_id,
                 function: function.name.clone(),
                 symbol,
                 version,
@@ -2284,9 +2296,11 @@ fn collect_materialisable_slots(
     closed_program_coverage: &ClosedProgramCoverageDecision,
 ) -> BTreeMap<SsaValueIdentity, MaterialisableSlotDecision> {
     let mut slots = BTreeMap::new();
-    for (qname, function) in
-        std::iter::once((&unit.top_level.name, &unit.top_level)).chain(unit.procedures.iter())
-    {
+    for (qname, function) in std::iter::once((&unit.top_level.name, &unit.top_level)).chain(
+        unit.procedures
+            .values()
+            .map(|function| (&function.name, function)),
+    ) {
         let summary = escape.get(qname);
         let sealed_cells = if qname == "::top" && environment == CommonAotEnvironment::SealedProgram
         {
@@ -2320,8 +2334,14 @@ fn collect_materialisable_slots(
             &function.sccp.values,
             unit.ir_module.number_syntax(),
         );
-        for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
+        for key in ssa_value_keys(
+            function,
+            function
+                .body_id
+                .and_then(|id| unit.ir_module.procedures.get(&id)),
+        ) {
             let identity = SsaValueIdentity {
+                body_id: function.body_id,
                 function: qname.clone(),
                 symbol: key.0,
                 version: key.1,
@@ -2441,7 +2461,11 @@ fn materialisable_slot_allocation(
             Some((ordinal, MaterialisableSlotAuthority::Authored))
         }
         VariableCellKey::Activation { identity, simple } => {
-            let procedure = input.unit.ir_module.procedures.get(input.qname)?;
+            let procedure = input
+                .unit
+                .ir_module
+                .procedures
+                .get_unique_display(input.qname)?;
             let declaration = OriginalDeclaredProcedureArgumentSlots::from_module(
                 &input.unit.ir_module,
                 procedure,
@@ -2517,7 +2541,11 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if input.key.1 == 0
-        && let Some(proc_def) = input.unit.ir_module.procedures.get(input.qname)
+        && let Some(proc_def) = input
+            .unit
+            .ir_module
+            .procedures
+            .get_unique_display(input.qname)
         && let Some(index) = match &authority {
             MaterialisableSlotAuthority::SourceFormal { .. } => usize::try_from(local_slot).ok(),
             MaterialisableSlotAuthority::Authored => {
@@ -3130,6 +3158,7 @@ mod tests {
             })
             .expect("original source store retains a structural statement");
         let id = DirectCallSiteId {
+            body_id: None,
             function: "::top".into(),
             block,
             statement_index: u32::try_from(index).unwrap(),

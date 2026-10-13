@@ -629,7 +629,7 @@ impl Analyser {
         // Original procedure and method units contribute possible result advice.
         let units: Vec<(&str, &crate::compilation_unit::FunctionUnit)> =
             std::iter::once(("::top", &cu.top_level))
-                .chain(cu.procedures.iter().map(|(q, fu)| (q.as_str(), fu)))
+                .chain(cu.procedures.values().map(|fu| (fu.name.as_str(), fu)))
                 .chain(cu.methods.iter().map(|(q, fu)| (q.as_str(), fu)))
                 .collect();
 
@@ -664,7 +664,7 @@ impl Analyser {
 
         // Bare-name → qualified-name index for resolving relative call heads.
         let mut bare_to_qnames: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
-        for qname in cu.ir_module.procedures.keys() {
+        for qname in cu.ir_module.procedures.unique_displays() {
             let bare = crate::naming::key_tail(qname);
             bare_to_qnames.entry(bare).or_default().push(qname.as_str());
         }
@@ -686,7 +686,7 @@ impl Analyser {
             }
             if qname == "::top" {
                 ranges.push((0, u32::MAX, names));
-            } else if let Some(p) = cu.ir_module.procedures.get(&qname) {
+            } else if let Some(p) = cu.ir_module.procedures.get_unique_display(&qname) {
                 ranges.push((p.span.start(), p.span.end(), names));
             }
         }
@@ -2243,7 +2243,10 @@ fn build_tainted_by_scope(
     for (qname, fu) in &cu.procedures {
         let names = tainted_names_of(fu);
         if !names.is_empty() {
-            tainted_by_scope.insert(qname.clone(), names);
+            tainted_by_scope
+                .entry(fu.name.clone())
+                .or_default()
+                .extend(names);
         }
     }
     tainted_by_scope

@@ -3201,7 +3201,8 @@ fn detect_upvar_procs_with_bindings(
     let mut result: HashMap<String, UpvarInfo> = HashMap::new();
     let candidates = summary_candidates::ProcedureSummaryCandidates::for_module(module, registry);
     // Stable original-body order; each shared key retains every candidate.
-    let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
+    let mut entries: Vec<(&String, &crate::ir::Procedure)> =
+        module.procedures.display_entries().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     let rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(module.dialect.as_deref());
     let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
@@ -3590,9 +3591,7 @@ fn build_cfg_inner_with_context(
     for (qname, proc) in &module.procedures {
         let namespace = proc
             .body
-            .execution_namespace(crate::ir::ExecutionNamespace::exact(command_namespace(
-                qname,
-            )));
+            .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
         let timeline = top_timeline
             .entry_after(proc.span, command_bindings)
             .map_or_else(
@@ -3609,7 +3608,10 @@ fn build_cfg_inner_with_context(
         let mut builder = new_builder(true)
             .with_invocation_namespace(namespace)
             .with_source_binding_timeline(timeline);
-        proc_cfgs.insert(qname.clone(), builder.build_function(qname, &proc.body));
+        proc_cfgs.insert(
+            qname.clone(),
+            builder.build_function(&proc.qualified_name, &proc.body),
+        );
     }
 
     CfgModule {

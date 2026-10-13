@@ -195,6 +195,10 @@ pub struct AliasInfo {
 pub struct FunctionDataFlowGraph {
     /// Qualified function name.
     pub function_name: String,
+    /// Retained local body identity, independent of the display name.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Explicit top-level input; a procedure named `::top` is not this owner.
+    pub is_top_level: bool,
     /// One node per SSA def.
     pub nodes: Vec<DataFlowNode>,
     /// One edge per def-use or phi-incoming pair.
@@ -415,6 +419,8 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 
     FunctionDataFlowGraph {
         function_name: name.to_owned(),
+        body_id: None,
+        is_top_level: false,
         nodes,
         edges,
         aliases,
@@ -435,6 +441,10 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
 pub struct FunctionInputs<'a, S = std::collections::hash_map::RandomState> {
     /// Qualified function name.
     pub name: &'a str,
+    /// Retained local body identity from the actual function unit.
+    pub body_id: Option<crate::ir::ProcedureId>,
+    /// Whether this is the actual compilation unit's top-level input.
+    pub is_top_level: bool,
     /// SSA form.
     pub ssa: &'a SsaFunction,
     /// Def-use chains.
@@ -459,16 +469,18 @@ pub fn extract_dataflow_graph<S: std::hash::BuildHasher>(
 ) -> DataFlowGraph {
     let mut functions: Vec<FunctionDataFlowGraph> = inputs
         .iter()
-        .map(|i| extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types))
+        .map(|i| {
+            let mut graph = extract_function_dataflow(i.name, i.ssa, i.du, i.sccp, i.mem, i.types);
+            graph.body_id = i.body_id;
+            graph.is_top_level = i.is_top_level;
+            graph
+        })
         .collect();
     functions.sort_by(|a, b| {
-        // Top-level (`::top`) sorts before every procedure; the rest go
-        // alphabetically by qualified name.
-        let a_top = a.function_name == "::top";
-        let b_top = b.function_name == "::top";
-        b_top
-            .cmp(&a_top)
+        b.is_top_level
+            .cmp(&a.is_top_level)
             .then_with(|| a.function_name.cmp(&b.function_name))
+            .then_with(|| a.body_id.cmp(&b.body_id))
     });
     DataFlowGraph { functions }
 }
@@ -760,6 +772,8 @@ mod tests {
         let inputs: Vec<FunctionInputs> = vec![
             FunctionInputs {
                 name: "::z",
+                body_id: None,
+                is_top_level: false,
                 ssa: &ssa_b,
                 du: &du_b,
                 sccp: None,
@@ -768,6 +782,8 @@ mod tests {
             },
             FunctionInputs {
                 name: "::a",
+                body_id: None,
+                is_top_level: false,
                 ssa: &ssa_a,
                 du: &du_a,
                 sccp: None,
@@ -810,6 +826,8 @@ mod tests {
     fn data_flow_graph_totals() {
         let f1 = FunctionDataFlowGraph {
             function_name: "::a".into(),
+            body_id: None,
+            is_top_level: false,
             nodes: Vec::new(),
             edges: Vec::new(),
             aliases: vec![AliasInfo {
@@ -826,6 +844,8 @@ mod tests {
         };
         let f2 = FunctionDataFlowGraph {
             function_name: "::b".into(),
+            body_id: None,
+            is_top_level: false,
             nodes: Vec::new(),
             edges: Vec::new(),
             aliases: Vec::new(),

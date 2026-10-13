@@ -1,0 +1,6 @@
+
+running 1 test
+test script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9576 filtered out; finished in 5.54s
+

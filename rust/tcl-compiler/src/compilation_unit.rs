@@ -80,6 +80,8 @@ type CfgContext = crate::cfg_builder::CfgContext;
 /// parameter list, the module-wide upvar / proc-param context (so the rebuilt
 /// CFG is identical to the whole-module build's), and the analysis dialect.
 pub struct LatticeRequest<'a> {
+    /// Exact current body for memo-result joins; neutral cached facts need no ID key.
+    pub body_id: crate::ir::ProcedureId,
     /// Qualified procedure name (e.g. `::foo::bar`).
     pub qname: &'a str,
     /// The procedure body, normalised to offset 0.
@@ -256,8 +258,8 @@ fn connection_scoped_names(
     let config = options.config;
     let mut names: BTreeSet<String> = BTreeSet::new();
     let mut any = false;
-    for (qname, cfg) in &cfg_module.procedures {
-        if !qname.starts_with(WHEN_HANDLER_PREFIX) {
+    for (_, cfg) in &cfg_module.procedures {
+        if !cfg.name.starts_with(WHEN_HANDLER_PREFIX) {
             continue;
         }
         any |= crate::dynamic_names::dynamic_name_barrier(cfg, registry, config).writes;
@@ -289,11 +291,15 @@ fn connection_scoped_names(
 
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
 ///
-/// Given a procedure's qualified name and the whole-module
+/// Given the exact body ID, its display name and the whole-module
 /// [`InterproceduralAnalysis`], returns its (memoised) interprocedural taints,
 /// or `None` to fall back to a fresh [`FunctionUnit::interproc_taints`] re-run.
-pub type TaintCascadeCallback<'a> =
-    dyn FnMut(&str, &InterproceduralAnalysis) -> Option<Arc<HashMap<ValueKey, TaintLattice>>> + 'a;
+pub type TaintCascadeCallback<'a> = dyn FnMut(
+        crate::ir::ProcedureId,
+        &str,
+        &InterproceduralAnalysis,
+    ) -> Option<Arc<HashMap<ValueKey, TaintLattice>>>
+    + 'a;
 
 // Per-function analysis bundle
 
@@ -389,6 +395,8 @@ pub struct FunctionUnit {
     pub(crate) source_config: tcl_lexer::LexerConfig,
     /// Qualified function name (e.g. `::top`, `::foo::bar`).
     pub name: String,
+    /// Retained module body identity; top-level and method units leave this absent.
+    pub body_id: Option<crate::ir::ProcedureId>,
     /// Control-flow graph.
     pub cfg: CfgFunction,
     /// SSA form.
@@ -519,6 +527,7 @@ pub(crate) mod durable_field_inventory {
         source_metadata_input,
         source_config,
         name,
+        body_id,
         cfg,
         ssa,
         def_use,
@@ -960,6 +969,11 @@ impl SourceFunctionPhaseTrace {
 }
 
 impl FunctionUnit {
+    pub(crate) fn with_body_id(mut self, id: crate::ir::ProcedureId) -> Self {
+        self.body_id = Some(id);
+        self
+    }
+
     /// Complete actual source input, independently of Native execution grants.
     #[must_use]
     pub fn source_metadata_input(&self) -> Option<&crate::analyser::ResolvedAnalysisInput> {
@@ -1825,6 +1839,7 @@ impl FunctionUnit {
             source_metadata_input: source_metadata_input.cloned(),
             source_config: config,
             name: name.into(),
+            body_id: None,
             cfg,
             ssa,
             def_use: Arc::new(def_use),
@@ -1857,6 +1872,7 @@ impl FunctionUnit {
             source_metadata_input: None,
             source_config: tcl_lexer::LexerConfig::default(),
             name: name.into(),
+            body_id: None,
             cfg,
             ssa,
             def_use: Arc::default(),
@@ -2218,8 +2234,8 @@ pub struct CompilationUnit {
     pub source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
     /// Top-level script analysis.
     pub top_level: FunctionUnit,
-    /// Per-procedure analyses keyed by qualified name.
-    pub procedures: HashMap<String, FunctionUnit>,
+    /// Per-procedure analyses joined to their retained module body ID.
+    pub procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     /// `TclOO` method bodies lowered to per-method [`FunctionUnit`]s.
     /// Keyed by `{class_qname}::{method_name}`; empty for
     /// non-OO sources. Kept separate from [`Self::procedures`] so the
@@ -2239,7 +2255,7 @@ pub struct CompilationUnit {
     /// changes behaviour; only analyses that explicitly opt in (via
     /// [`Self::body_function_units`]) read them. Empty for the overwhelmingly
     /// common source with no `apply`/`namespace eval` body.
-    pub body_units: HashMap<String, FunctionUnit>,
+    pub body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     /// Interprocedural summary (optional — populated when the
     /// interprocedural pass has been run).
     pub interproc: Option<InterproceduralAnalysis>,
@@ -2278,11 +2294,11 @@ pub struct UnitCallerScope {
     pub has_cross_file_evidence: bool,
     /// The merged (in-unit + cross-file) call-site evidence the seed read.
     pub call_sites: crate::unit_scope::CallSiteEvidence,
-    /// The seed each procedure was actually built under, keyed by qualified
+    /// The seed each procedure was actually built under, keyed by body ID.
     /// name and encoded as the same sorted `(param, version, literal)`
     /// triples the lattice memo key interns.  Only procedures that received
     /// a seed appear.  Sorted so the explorer's rendering is deterministic.
-    pub param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
+    pub param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     /// Narrow declared-procedure identity trust projected from the prepared
     /// command-binding summary. Unlike the unit's `command_mutations`, this
     /// excludes transitive opacity introduced by an unresolved/autoloaded
@@ -2565,7 +2581,11 @@ fn resolve_unit_scope(
         // A missing retained interpretation cannot become an unchanged-name
         // realm or fresh source replay. Every possible local caller is opaque.
         let mut evidence = crate::unit_scope::CallSiteEvidence::default();
-        let reachable = ir_module.procedures.keys().cloned().collect::<Vec<_>>();
+        let reachable = ir_module
+            .procedures
+            .values()
+            .map(|procedure| procedure.qualified_name.clone())
+            .collect::<Vec<_>>();
         evidence.record_unenumerable_caller(&reachable);
         evidence
     };
@@ -2704,13 +2724,13 @@ fn module_procedures<'a>(
 
 fn retained_procedure_event_body(
     ctx: &ProcedureBuildContext<'_>,
-    qname: &str,
+    id: &crate::ir::ProcedureId,
     proc: Option<&crate::ir::Procedure>,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Arc<crate::ir::SourceIrulesEventBody>> {
     ctx.ir_module
         .irules_event_bodies
-        .get(qname)
+        .get(id)
         .filter(|event| {
             proc.is_some_and(|procedure| {
                 event.owns_procedure(procedure, &ctx.ir_module.source, config, ctx.registry)
@@ -2743,12 +2763,12 @@ fn retain_procedure_source_analysis(
 }
 
 fn retain_procedure_parameter_constants(
-    retained: &mut BTreeMap<String, Vec<(String, u32, String)>>,
-    name: &str,
+    retained: &mut BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    id: &crate::ir::ProcedureId,
     encoded: Option<&[(String, u32, String)]>,
 ) {
     if let Some(encoded) = encoded.filter(|values| !values.is_empty()) {
-        retained.insert(name.to_owned(), encoded.to_vec());
+        retained.insert(*id, encoded.to_vec());
     }
 }
 
@@ -2763,17 +2783,25 @@ fn build_procedure_units(
     let memo_config = config.nested().normalized();
     let memo_input = module_source_metadata_input(ctx.ir_module, ctx.registry)
         .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
-    let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
-    let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
-    for (qname, cfg) in &ctx.cfg_module.procedures {
+    let mut procedures: HashMap<crate::ir::ProcedureId, FunctionUnit> = HashMap::new();
+    let mut param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>> =
+        BTreeMap::new();
+    for (id, cfg) in &ctx.cfg_module.procedures {
         let params = ctx
             .ir_module
             .procedures
-            .get(qname)
+            .get(id)
             .map_or(&[][..], |p| p.params.as_slice());
-        let proc = ctx.ir_module.procedures.get(qname);
-        let event_body = retained_procedure_event_body(ctx, qname, proc, config);
+        let proc = ctx.ir_module.procedures.get(id);
+        let qname = cfg.name.as_str();
+        let event_body = retained_procedure_event_body(ctx, id, proc, config);
         let param_constants = proc.and_then(|procedure| {
+            (ctx.ir_module
+                .procedures
+                .unique_display(&procedure.qualified_name)?
+                .0
+                == id)
+                .then_some(())?;
             params_constants_from_native_call_sites(
                 procedure,
                 ctx.ir_module.parameter_grammar(),
@@ -2791,7 +2819,7 @@ fn build_procedure_units(
                 config,
             );
             unit.irules_event_body = event_body;
-            procedures.insert(qname.clone(), unit);
+            procedures.insert(*id, unit.with_body_id(*id));
             continue;
         }
         let body_offset = proc.map_or(0, |p| p.span.start());
@@ -2811,7 +2839,7 @@ fn build_procedure_units(
         // that were actually seeded.
         retain_procedure_parameter_constants(
             &mut param_constants_by_proc,
-            qname,
+            id,
             encoded_pc.as_deref(),
         );
         // Route through the memo only when (a) a cache is present, (b) the
@@ -2852,6 +2880,7 @@ fn build_procedure_units(
                 let mut body = proc.body.clone();
                 crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
                 let mut fu = memo(&LatticeRequest {
+                    body_id: *id,
                     qname,
                     body: &body,
                     source,
@@ -2925,7 +2954,7 @@ fn build_procedure_units(
         // world until a workspace-aware entry contract exists.
         fu.irules_event_body = event_body;
         fu = retain_procedure_source_analysis(fu, ctx, proc);
-        procedures.insert(qname.clone(), fu);
+        procedures.insert(*id, fu.with_body_id(*id));
     }
     BuiltProcedureUnits {
         procedures,
@@ -2937,8 +2966,8 @@ fn build_procedure_units(
 /// interprocedural seed each was built under (explorer provenance only —
 /// the pipeline consumes the seed where it is produced).
 struct BuiltProcedureUnits {
-    procedures: HashMap<String, FunctionUnit>,
-    param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>>,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
 }
 
 impl CompilationUnit {
@@ -3480,14 +3509,14 @@ impl CompilationUnit {
     ///
     /// `None` lets non-iRules consumers skip the empty sweep.
     fn build_connection_scope(
-        procedures: &HashMap<String, FunctionUnit>,
+        procedures: &HashMap<crate::ir::ProcedureId, FunctionUnit>,
         registry: &CommandRegistry,
         module: &crate::ir::Module,
     ) -> Option<crate::connection_scope::ConnectionScope> {
         let when_procs: HashMap<String, FunctionUnit> = procedures
             .iter()
             .filter(|(_, unit)| unit.irules_event_body.is_some())
-            .map(|(qname, unit)| (qname.clone(), unit.clone()))
+            .map(|(qname, unit)| (unit.name.clone(), unit.clone()))
             .collect();
         (!when_procs.is_empty()).then(|| {
             crate::connection_scope::build_connection_scope_for_module(
@@ -3514,7 +3543,7 @@ impl CompilationUnit {
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         ctx: BodyUnitContext<'_>,
-    ) -> HashMap<String, FunctionUnit> {
+    ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
         let BodyUnitContext {
             registry,
             known_class_set,
@@ -3529,20 +3558,19 @@ impl CompilationUnit {
         ir_module
             .body_units
             .iter()
-            .map(|(qname, proc)| {
+            .map(|(id, proc)| {
+                let qname = &proc.qualified_name;
                 let cfg = extra_callers
                     .iter()
-                    .find_map(|caller| caller.analysis_cfg(qname))
+                    .find_map(|caller| caller.body_analysis_cfg(*id))
                     .expect("call-site scan prepares every body-unit CFG")
                     .clone();
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of
                 // a deep (and slow) analysis.
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
-                let declaration_body = ir_module
-                    .original_declaration_body_units
-                    .contains_key(qname)
-                    || ir_module.installed_procedure_body_units.contains_key(qname);
+                let declaration_body = ir_module.original_declaration_body_units.contains_key(id)
+                    || ir_module.installed_procedure_body_units.contains_key(id);
                 let mut entry_context = if declaration_body {
                     if let Some(namespace) = proc.body.namespace_context.as_deref() {
                         // This is the original declaration's analytical local
@@ -3557,7 +3585,7 @@ impl CompilationUnit {
                         crate::var_resolve::ResolveContext::default()
                             .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
                     }
-                } else if ir_module.lambda_body_units.contains(qname) {
+                } else if ir_module.lambda_body_units.contains(id) {
                     crate::var_resolve::ResolveContext::for_function(qname)
                 } else {
                     crate::var_resolve::ResolveContext::for_namespace(
@@ -3600,7 +3628,7 @@ impl CompilationUnit {
                     Some(&proc.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
-                (qname.clone(), fu)
+                (*id, fu.with_body_id(*id))
             })
             .collect()
     }
@@ -3613,7 +3641,7 @@ impl CompilationUnit {
     /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
     /// set it (a miscompile).
     fn drop_cross_event_existence_folds(
-        procedures: &mut HashMap<String, FunctionUnit>,
+        procedures: &mut HashMap<crate::ir::ProcedureId, FunctionUnit>,
         connection_scope: Option<&crate::connection_scope::ConnectionScope>,
         registry: &CommandRegistry,
     ) {
@@ -3651,7 +3679,7 @@ impl CompilationUnit {
                 let context = points.before_terminator(*id);
                 !crate::place_bridge::terminator_read_places(terminator, context, registry)
                     .iter()
-                    .any(|place| cs.observes_cross_event_place(qn, place))
+                    .any(|place| cs.observes_cross_event_place(&fu.name, place))
             });
         }
     }
@@ -3771,7 +3799,7 @@ impl CompilationUnit {
     /// reachable-callee summaries are unchanged across an edit reuses its cached
     /// taints instead of re-propagating.
     ///
-    /// `taint_cb(qname, &interproc)` returns the procedure's taints, or `None` to
+    /// `taint_cb(id, display, &interproc)` returns the procedure's taints, or `None` to
     /// fall back to a fresh [`FunctionUnit::interproc_taints`] (e.g. a procedure
     /// the lattice memo didn't intern).  The top level is always re-run fresh.
     /// Byte-identical to [`Self::with_interprocedural`] provided `taint_cb`
@@ -3811,10 +3839,10 @@ impl CompilationUnit {
         // Compute each procedure's taints (memoised via `taint_cb`, or fresh on a
         // miss) before mutating, so the immutable `&self.procedures` borrow the
         // fallback needs doesn't overlap the write-back.
-        let mut new_taints: Vec<(String, Arc<HashMap<ValueKey, TaintLattice>>)> =
+        let mut new_taints: Vec<(crate::ir::ProcedureId, Arc<HashMap<ValueKey, TaintLattice>>)> =
             Vec::with_capacity(self.procedures.len());
         for (qname, fu) in &self.procedures {
-            let taints = taint_cb(qname, &interproc)
+            let taints = taint_cb(*qname, &fu.name, &interproc)
                 .unwrap_or_else(|| Arc::new(fu.interproc_taints(registry, &interproc, dialect)));
             new_taints.push((qname.clone(), taints));
         }
@@ -3969,9 +3997,10 @@ impl CompilationUnit {
     #[must_use]
     pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
         if name == "::top" {
-            return Some(&self.top_level);
+            return (!self.ir_module.procedures.has_display(name)).then_some(&self.top_level);
         }
-        self.procedures.get(name)
+        let (id, _) = self.ir_module.procedures.unique_display(name)?;
+        self.procedures.get(id)
     }
 
     /// Iterate over every function unit in the module: the top-level unit
@@ -4604,7 +4633,7 @@ mod tests {
             .with_interprocedural(registry, Some(profile));
         assert!(ordinary.interproc.is_none());
         let mut callbacks = 0;
-        let mut callback = |_: &str, _: &InterproceduralAnalysis| {
+        let mut callback = |_: crate::ir::ProcedureId, _: &str, _: &InterproceduralAnalysis| {
             callbacks += 1;
             None
         };

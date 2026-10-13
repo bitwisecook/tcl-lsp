@@ -51,12 +51,9 @@ pub const fn original_command_presence_support() -> &'static str {
 const SUPPORT: &str = r#"namespace eval ::__tcl_name_presence {}
 proc ::__tcl_name_presence::in_root {cpattern jimpattern supported} {
     if {!$supported} {error "command presence has no original-byte script transport"}
-    if {![catch {::info tclversion} version] && [lsearch -exact {8.4 8.5 8.6 9.0 9.1} $version] >= 0} {
-        set pattern $cpattern
-    } elseif {![catch {::info version} version] && $version eq "0.84"} {
-        set pattern $jimpattern
-    } else {
-        error "command presence has no selected interpreter query grammar"
+    switch -- [::__tcl_name_query::family] {
+        c {set pattern $cpattern}
+        jim {set pattern $jimpattern}
     }
     return [expr {[llength [uplevel #0 [list ::info commands $pattern]]] > 0}]
 }

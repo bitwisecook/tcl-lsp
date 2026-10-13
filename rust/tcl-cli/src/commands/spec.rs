@@ -845,7 +845,9 @@ fn probe_package(
     if outcome.timed_out {
         bail!("the shell did not finish probing '{package}' in time");
     }
-    let parsed = parse_output(&String::from_utf8_lossy(&outcome.stdout));
+    let output = std::str::from_utf8(&outcome.stdout)
+        .context("the command inventory report is not UTF-8")?;
+    let parsed = parse_output(output);
     if let Some(error) = &parsed.error {
         bail!("the shell could not require '{package}': {error}");
     }

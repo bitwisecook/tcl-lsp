@@ -1,0 +1,13 @@
+{
+  "selector": "script_binds::tests::original_procedure_read_scope_preserves_continuation_occurrences",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "script_binds::tests::original_procedure_read_scope_preserves_continuation_occurrences",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 3.7251285949969315,
+  "timed_out": false
+}

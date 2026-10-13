@@ -1,0 +1,22 @@
+{
+  "patch": "/tmp/name-source-flow-isolated/production-03/lint-purpose-enum/delta.patch",
+  "patch_sha256": "7ddc0e3fa519d4e0cd83af7cfee1fe60f976d7d16759195fb58feccdee66e4fd",
+  "basis": "frozen06 tested source + exact already-integrated qualification/Jim changes",
+  "reason": "retain typed source schema origin without adding fourth boolean in two structs; no suppressions",
+  "compiled": false,
+  "rustfmt": "PASS",
+  "owners": {
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": {
+      "before": "b00c9503567b76aa553006a8538fd2d837f6bab95d635afc9c335ff263e0f096",
+      "after": "d29e182ef319d0d60b70f5d7ba81cb4968ba975bcb857ed6d574670d15451160"
+    },
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": {
+      "before": "5d1a13ae8cc2f8e6533615441fb4bb52c906a0e131060d9cee10ba6e38f4e3d7",
+      "after": "e90fa8aedeeeb5388e8f1be23a0f337092cb00304b9ccbff7e0ef9389a0af86d"
+    },
+    "rust/tcl-compiler/src/registry_invocation.rs": {
+      "before": "b4a092091a42e9ef6f07c9d0abec809607f6e82d9a70e7de8ce4e510ca2ae221",
+      "after": "06841fdc941a26135f8ef5e228cab2903191c3703095a6e1f5d84f4de864f8ee"
+    }
+  }
+}

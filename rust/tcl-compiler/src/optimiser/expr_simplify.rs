@@ -95,7 +95,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
-type Procedures = std::collections::HashMap<String, crate::ir::Procedure>;
+type Procedures = crate::ir::ProcedureInventory;
 
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].

@@ -1,0 +1,9 @@
+{
+  "binaries_outside_git": [
+    {
+      "path": "/tmp/name-source-flow-isolated/production-03/capture-06/frozen-tcl-compiler-tests",
+      "bytes": 220948240,
+      "sha256": "34697f9e10574b9f3839d6ceaeffd3544fef39bce0b16d33623a1e045a9b28d3"
+    }
+  ]
+}

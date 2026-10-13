@@ -1,0 +1,4 @@
+strace: test_ptrace_get_syscall_info: PTRACE_TRACEME: Operation not permitted
+strace: ptrace(PTRACE_TRACEME, ...): Operation not permitted
+strace: PTRACE_SETOPTIONS: Operation not permitted
+strace: cleanup: waitpid(-1, __WALL): No child processes

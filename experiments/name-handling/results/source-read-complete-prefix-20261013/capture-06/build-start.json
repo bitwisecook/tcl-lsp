@@ -1,0 +1,29 @@
+{
+  "started_utc": "2026-10-13T20:24:24.770060+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "--no-run"
+  ],
+  "source_paths": 6728,
+  "env": {
+    "TCL_LSP_TCLSH90": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "TCL_LSP_TCLSH91": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "TCL_LSP_TCLSH86": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "CARGO_TARGET_DIR": "/tmp/name-agent-target-source-flow",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_TCLSH85": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "TCL_LSP_TCLSH84": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

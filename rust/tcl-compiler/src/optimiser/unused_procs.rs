@@ -64,8 +64,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let mut event_names: HashSet<String> = HashSet::new();
     let mut user_procs: Vec<String> = Vec::new();
 
-    for qname in ir_module.procedures.keys() {
-        if qname.starts_with("::when::") {
+    for (_, procedure) in ir_module.procedures.iter() {
+        let qname = &procedure.qualified_name;
+        if ir_module.procedures.unique_display(qname).is_none() {
+            return;
+        }
+        if procedure.body_kind == crate::ir::ProcedureBodyKind::Event {
             event_procs.insert(qname.clone());
             event_names.insert(when_event_name(qname).to_owned());
         } else {
@@ -106,7 +110,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     unused.sort();
 
     for qname in unused {
-        let Some(ir_proc) = ir_module.procedures.get(qname) else {
+        let Some(ir_proc) = ir_module.procedures.get_unique_display(qname) else {
             continue;
         };
         let span = full_rewrite_span(ctx.source, ir_proc.span);

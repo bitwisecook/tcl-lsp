@@ -1,0 +1,12 @@
+
+SPEC-PROBE	provided		1.0
+
+SPEC-PROBE	added	:lost	
+
+SPEC-PROBE	added	N0::pZ	
+
+SPEC-PROBE	added	N[0]::p*	
+
+SPEC-PROBE	added	__spec_probeOther	
+
+SPEC-PROBE	done	4	

@@ -4,7 +4,7 @@
 //! no editable range, runtime dispatch, entered frame or completion receipt.
 
 use crate::analyser::{AnalysisResult, ProcDef};
-use crate::ir::{Module, Procedure, SourceIrulesEventBody};
+use crate::ir::{Module, Procedure, ProcedureId, SourceIrulesEventBody};
 use crate::signature_scan::original_name::SourceDeclarationMetadata;
 use tcl_lexer::{LexerConfig, SourceImage};
 
@@ -96,14 +96,14 @@ pub fn reference_matches_declaration<T>(
 
 /// Select one compiled body only when its original implementation allocation,
 /// executed source and namespace independently match this current declaration.
-/// Labels index authenticated units and do not select a source declaration.
+/// The returned body ID joins authenticated units without a display-name lookup.
 #[must_use]
 pub fn procedure_body_for_declaration<'a>(
     source: &str,
     analysis: &AnalysisResult,
     module: &'a Module,
     declaration: &SourceDeclarationMetadata<ProcDef>,
-) -> Option<(&'a str, &'a Procedure)> {
+) -> Option<(ProcedureId, &'a Procedure)> {
     let (image, config) = current_analysis(source, analysis)?;
     if module.source != image
         || module.lexer_config != config
@@ -121,7 +121,9 @@ pub fn procedure_body_for_declaration<'a>(
         .procedures
         .iter()
         .chain(module.body_units.iter())
-        .filter_map(|(label, procedure)| {
+        .filter_map(|(id, procedure)| {
+            (procedure.declaration_site.as_ref() == Some(declaration.declaration_site()))
+                .then_some(())?;
             let executed = procedure.body.executed_source.as_deref()?;
             let namespace = procedure.body.namespace_context.as_deref()?;
             let owner = module.procedure_implementation_bodies.iter().find(|body| {
@@ -131,13 +133,13 @@ pub fn procedure_body_for_declaration<'a>(
             })?;
             if let Some(allocation) = module
                 .original_declaration_body_units
-                .get(label)
-                .or_else(|| module.installed_procedure_body_units.get(label))
+                .get(id)
+                .or_else(|| module.installed_procedure_body_units.get(id))
                 && allocation != &owner.allocation
             {
                 return None;
             }
-            Some((label.as_str(), procedure))
+            Some((*id, procedure))
         });
     let first = bodies.next()?;
     bodies.next().is_none().then_some(first)
@@ -148,11 +150,11 @@ pub fn procedure_body_for_declaration<'a>(
 #[must_use]
 pub fn event_body_for_procedure<'a>(
     module: &'a Module,
-    label: &str,
+    id: &ProcedureId,
     procedure: &Procedure,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<&'a SourceIrulesEventBody> {
-    let event = module.irules_event_bodies.get(label)?;
+    let event = module.irules_event_bodies.get(id)?;
     event
         .owns_procedure(procedure, &module.source, module.lexer_config, registry)
         .then_some(event.as_ref())

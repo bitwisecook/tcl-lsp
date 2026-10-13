@@ -1,0 +1,80 @@
+{
+  "scope": "Original C5 C API callback publication; Runtime/WASM Rust controls remain authored/unexecuted. Bare original x root versus original relative qualified child::y entered namespace N:. No Native receipt from report.",
+  "checks": [
+    {
+      "provider": "c84",
+      "release": "8.4.20",
+      "original_observations": [
+        "ROW entered-original 0 ORIGINAL",
+        "ROW root-bare 0 ORIGINAL",
+        "ROW scoped-report 0 ::x",
+        "ROW entered-qualified 0 ORIGINAL",
+        "ROW root-qualified 1 {invalid command name \"N:::child::y\"}",
+        "ROW root-child 1 {invalid command name \"child::y\"}",
+        "ROW scoped-child-report 0 ::N:::child::y"
+      ],
+      "source_tclBasic_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "passed": true
+    },
+    {
+      "provider": "c85",
+      "release": "8.5.19",
+      "original_observations": [
+        "ROW entered-original 0 ORIGINAL",
+        "ROW root-bare 0 ORIGINAL",
+        "ROW scoped-report 0 ::x",
+        "ROW entered-qualified 0 ORIGINAL",
+        "ROW root-qualified 1 {invalid command name \"N:::child::y\"}",
+        "ROW root-child 1 {invalid command name \"child::y\"}",
+        "ROW scoped-child-report 0 ::N:::child::y"
+      ],
+      "source_tclBasic_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "passed": true
+    },
+    {
+      "provider": "c86",
+      "release": "8.6.18",
+      "original_observations": [
+        "ROW entered-original 0 ORIGINAL",
+        "ROW root-bare 0 ORIGINAL",
+        "ROW scoped-report 0 ::x",
+        "ROW entered-qualified 0 ORIGINAL",
+        "ROW root-qualified 1 {invalid command name \"N:::child::y\"}",
+        "ROW root-child 1 {invalid command name \"child::y\"}",
+        "ROW scoped-child-report 0 ::N:::child::y"
+      ],
+      "source_tclBasic_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "passed": true
+    },
+    {
+      "provider": "c90",
+      "release": "9.0.4",
+      "original_observations": [
+        "ROW entered-original 0 ORIGINAL",
+        "ROW root-bare 0 ORIGINAL",
+        "ROW scoped-report 0 ::x",
+        "ROW entered-qualified 0 ORIGINAL",
+        "ROW root-qualified 1 {invalid command name \"N:::child::y\"}",
+        "ROW root-child 1 {invalid command name \"child::y\"}",
+        "ROW scoped-child-report 0 ::N:::child::y"
+      ],
+      "source_tclBasic_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "passed": true
+    },
+    {
+      "provider": "c91",
+      "release": "9.1.0",
+      "original_observations": [
+        "ROW entered-original 0 ORIGINAL",
+        "ROW root-bare 0 ORIGINAL",
+        "ROW scoped-report 0 ::x",
+        "ROW entered-qualified 0 ORIGINAL",
+        "ROW root-qualified 1 {invalid command name \"N:::child::y\"}",
+        "ROW root-child 1 {invalid command name \"child::y\"}",
+        "ROW scoped-child-report 0 ::N:::child::y"
+      ],
+      "source_tclBasic_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "passed": true
+    }
+  ]
+}

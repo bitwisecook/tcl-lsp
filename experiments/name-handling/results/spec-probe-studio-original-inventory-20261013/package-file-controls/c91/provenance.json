@@ -1,0 +1,24 @@
+{
+  "provider": "c91",
+  "expected_release": "9.1.0",
+  "captured_utc": "2026-10-13T20:17:55.696501+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/tmp/name-spec-probe-studio-20261013/package-file-controls/input.tcl"
+  ],
+  "cwd": "/tmp/name-spec-probe-studio-20261013/package-file-controls",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "5a05ca6fab6d2a977b656a1314a0b03d59e0a453cebfcad0f175ef2c6f29e8e6",
+  "runner_sha256": "92fb38da9aa81d5e8e4cfb07c79d1162550b7fabf5617afec66bfd744591e2d4",
+  "exit_code": 0,
+  "stdout_sha256": "5daf327819e6692f6b64d4bdc339863f870193f0bf8c48b3a39b3b4ad77a8fcb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable SpecProbe shared script inventory source forms; Rust renderer and Studio assertions unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

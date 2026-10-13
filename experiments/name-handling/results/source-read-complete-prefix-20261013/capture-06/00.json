@@ -1,0 +1,13 @@
+{
+  "selector": "registry_invocation::source_structure::tests::original_source_prefix_catalogue_keeps_fatal_tail_separate",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "registry_invocation::source_structure::tests::original_source_prefix_catalogue_keeps_fatal_tail_separate",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.7162061470007757,
+  "timed_out": false
+}

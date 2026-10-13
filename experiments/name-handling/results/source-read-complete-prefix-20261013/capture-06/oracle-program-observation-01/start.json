@@ -1,0 +1,30 @@
+{
+  "command": [
+    "strace",
+    "-f",
+    "-tt",
+    "-T",
+    "-e",
+    "trace=process",
+    "-o",
+    "/tmp/name-source-flow-isolated/production-03/capture-06/oracle-program-observation-01/process-syscalls.log",
+    "/tmp/name-source-flow-isolated/production-03/capture-06/frozen-tcl-compiler-tests",
+    "analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "binary_sha256": "34697f9e10574b9f3839d6ceaeffd3544fef39bce0b16d33623a1e045a9b28d3",
+  "timeout": 900,
+  "source_capture": "capture-06",
+  "env": {
+    "TCL_LSP_TCLSH90": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "TCL_LSP_TCLSH91": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "TCL_LSP_TCLSH86": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "TCL_LSP_REQUIRE_ALL_TCL_ORACLES": "1",
+    "TCL_LSP_TCLSH85": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "TCL_LSP_TCLSH84": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "TCL_LSP_REQUIRE_JIM_ORACLE": "1",
+    "TCL_LSP_JIMSH": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh"
+  }
+}

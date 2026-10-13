@@ -1,0 +1,47 @@
+{
+  "git_head": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "started_utc": "2026-10-13T20:35:24Z",
+  "scope": "Production typecheck of Compiler lib and genuine selected local dependency inputs; no executed Compiler tests, Native entry, Runtime/WASM or oracle acceptance implied. No temporary instrumentation.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/name-agent-target-codegen",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_NET_OFFLINE": "true"
+  },
+  "tools": {
+    "rustc": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "f3834d26669b03f6855fa54bd2381443123e860167bc0c7a8dd137e5cf6e5e4f",
+      "exit_code": 0,
+      "stdout": "rustc 1.99.0 (b940084d7 2026-09-28)\n",
+      "stderr": ""
+    },
+    "cargo": {
+      "path": "/workspace/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "e951141cc55a6cd7b9876d187bd30a3720e6086b99413af95e3b8de1cdd72f14",
+      "exit_code": 0,
+      "stdout": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+      "stderr": ""
+    }
+  },
+  "build": {
+    "argv": [
+      "cargo",
+      "check",
+      "--offline",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 29.004116190000786,
+    "stdout": "build.stdout",
+    "stderr": "build.stderr"
+  },
+  "unchanged_preexisting_inputs": true,
+  "changed_preexisting_inputs": {},
+  "finished_utc": "2026-10-13T20:36:00Z"
+}

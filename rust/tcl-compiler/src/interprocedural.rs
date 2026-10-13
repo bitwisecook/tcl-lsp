@@ -848,7 +848,7 @@ struct ModuleUnits<'a> {
 struct SeedlessUnits<'a> {
     /// The unit itself, whose procedures a seedless run's calls reach.
     unit: &'a crate::compilation_unit::CompilationUnit,
-    procedures: &'a HashMap<String, crate::compilation_unit::FunctionUnit>,
+    procedures: &'a HashMap<crate::ir::ProcedureId, crate::compilation_unit::FunctionUnit>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     /// The transfer summaries the unit's build computed.
     transfers: &'a TransferSummaries,
@@ -864,7 +864,7 @@ fn build_interprocedural_analysis_inner(
     units: Option<ModuleUnits<'_>>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.candidates;
-    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
 
     let local = scan_all_procs(
         ir_module,
@@ -1057,7 +1057,7 @@ pub(crate) fn global_instance_classes_with(
     sites.sort_by_key(|(statement, _, _)| statement.span().start());
     ir_module
         .procedures
-        .keys()
+        .unique_displays()
         .map(|qname| {
             let eager = invocations.named(qname);
             let mut classes = crate::taint::InstanceClassState::new();
@@ -1120,8 +1120,9 @@ fn direct_instance_option_writes(
     cfg_module
         .procedures
         .iter_mut()
-        .map(|(qname, cfg)| {
-            let initial = global_classes.get(qname).cloned().unwrap_or_default();
+        .map(|(_, cfg)| {
+            let qname = cfg.name.clone();
+            let initial = global_classes.get(&qname).cloned().unwrap_or_default();
             let mut defs =
                 crate::ssa::enrich_instance_option_defs_with_initial(cfg, registry, &initial);
             defs.retain(|name| name.starts_with("::"));
@@ -1161,9 +1162,9 @@ fn close_tainted_global_writes(
     ir_module: &crate::ir::Module,
     mut writes: HashMap<String, HashSet<String>>,
 ) -> HashMap<String, HashSet<String>> {
-    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
     let mut calls: HashMap<String, HashSet<String>> = HashMap::new();
-    for (qname, procedure) in &ir_module.procedures {
+    for (qname, procedure) in ir_module.procedures.display_entries() {
         let proc_calls = calls.entry(qname.clone()).or_default();
         crate::ir::for_each_statement(&procedure.body, &mut |statement| {
             let crate::ir::Statement::Call { command, .. } = statement else {
@@ -1209,7 +1210,7 @@ pub(crate) fn enrich_instance_taint_cfg(
     let direct_writes = direct_instance_option_writes(cfg_module, registry, &global_classes);
     let writes = close_tainted_global_writes(ir_module, direct_writes);
 
-    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
     let annotate_calls = |cfg: &mut crate::cfg::Function| {
         let caller = cfg.name.clone();
         for block in cfg.blocks.values_mut() {
@@ -1421,7 +1422,7 @@ struct MethodScan<'a> {
     /// The document's own command declarations — see [`ProcScan::declared`].
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
-    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
+    source_procedures: &'a crate::ir::ProcedureInventory,
 }
 
 fn scan_method_body_facts(
@@ -1774,7 +1775,10 @@ fn scan_all_procs(
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
-    for (qname, proc) in &ir_module.procedures {
+    for (qname, proc) in ir_module.procedures.display_entries() {
+        if ir_module.procedures.unique_display(qname).is_none() {
+            continue;
+        }
         local.insert(
             qname.clone(),
             scan_proc(ProcScan {
@@ -1809,7 +1813,7 @@ struct ProcScan<'a> {
     /// with the catalogue through [`ScanCtx::surface`].
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
-    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
+    source_procedures: &'a crate::ir::ProcedureInventory,
 }
 
 fn compute_all_transitive_calls(
@@ -1952,7 +1956,7 @@ fn materialise_summaries(
     let rules =
         tcl_syntax::word_rules::WordValueRules::of_dialect_name(ir_module.dialect.as_deref());
     for (qname, facts) in local {
-        let Some(proc) = ir_module.procedures.get(qname) else {
+        let Some(proc) = ir_module.procedures.get_unique_display(qname) else {
             continue;
         };
         let mut calls_list: Vec<String> = transitive_calls
@@ -2220,7 +2224,7 @@ struct ScanCtx<'a> {
     /// from exact source carriers; raw text must not regain declined semantics.
     positioned_substitutions: bool,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
-    source_procedures: &'a HashMap<String, crate::ir::Procedure>,
+    source_procedures: &'a crate::ir::ProcedureInventory,
 }
 
 impl<'a> ScanCtx<'a> {
@@ -2917,7 +2921,15 @@ fn scan_positioned_candidate_callbacks(
     for row in rows {
         if let Some(target) = row
             .target()
-            .and_then(|target| target.original_ir_procedure_name(ctx.source_procedures))
+            .and_then(|target| target.original_ir_procedure_id(ctx.source_procedures))
+            .and_then(|id| {
+                let procedure = ctx.source_procedures.get(&id)?;
+                (ctx.source_procedures
+                    .unique_display(&procedure.qualified_name)?
+                    .0
+                    == &id)
+                    .then_some(procedure.qualified_name.as_str())
+            })
             .filter(|target| ctx.known.contains(*target))
         {
             facts.direct_calls.insert(target.to_owned());
@@ -4196,7 +4208,11 @@ fn seedless_returns(
     units
         .procedures
         .iter()
-        .filter(|(qname, fu)| pure.get(*qname).copied().unwrap_or(false) && !fu.complexity_guarded)
+        .filter(|(_, fu)| {
+            ir_module.procedures.unique_display(&fu.name).is_some()
+                && pure.get(&fu.name).copied().unwrap_or(false)
+                && !fu.complexity_guarded
+        })
         .map(|(qname, fu)| {
             let source_metadata_input = fu
                 .invocation_metadata_context_for_module(registry, ir_module)
@@ -4204,7 +4220,7 @@ fn seedless_returns(
                     crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
                 );
             if source_metadata_input.is_none() && !fu.cfg.metadata_context.is_standalone() {
-                return (qname.clone(), None);
+                return (fu.name.clone(), None);
             }
             let dialect = source_metadata_input
                 .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
@@ -4258,7 +4274,7 @@ fn seedless_returns(
                 },
             });
             (
-                qname.clone(),
+                fu.name.clone(),
                 exit_value(ExitBody::of(fu), &result, reading),
             )
         })

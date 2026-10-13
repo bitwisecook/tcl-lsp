@@ -353,11 +353,11 @@ fn format_instruction_tables(asm: &FunctionAsm, instr: &Instruction, lines: &mut
 #[must_use]
 pub fn format_module_asm(module: &ModuleAsm) -> String {
     let mut parts = vec![format_function_asm(&module.top_level)];
-    let mut proc_names: Vec<&String> = module.procedures.keys().collect();
-    proc_names.sort();
-    for name in proc_names {
+    let mut body_ids: Vec<_> = module.procedures.keys().collect();
+    body_ids.sort();
+    for id in body_ids {
         parts.push(String::new());
-        parts.push(format_function_asm(&module.procedures[name]));
+        parts.push(format_function_asm(&module.procedures[id]));
     }
     parts.join("\n")
 }

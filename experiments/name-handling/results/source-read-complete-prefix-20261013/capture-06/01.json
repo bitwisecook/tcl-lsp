@@ -1,0 +1,13 @@
+{
+  "selector": "registry_invocation::source_structure::tests::original_body_catalogue_keeps_source_roles_after_conditional_loop",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "registry_invocation::source_structure::tests::original_body_catalogue_keeps_source_roles_after_conditional_loop",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 2.772631284999079,
+  "timed_out": false
+}

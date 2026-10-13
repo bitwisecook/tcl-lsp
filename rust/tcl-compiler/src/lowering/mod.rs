@@ -3279,26 +3279,34 @@ impl<'r> Lowerer<'r> {
                 lowerer.lower_original_body(source, Some(declaration.namespace()))
             });
         if !self.suppress_proc_register {
-            match self.module.procedures.entry(qualified.clone()) {
-                std::collections::hash_map::Entry::Vacant(entry) => {
-                    entry.insert(Procedure {
-                        name,
-                        qualified_name: qualified,
-                        publication: original_procedure_publication(tokens),
-                        params,
-                        span: seg.span,
-                        body,
-                        params_raw,
-                        body_source: Some(body_source),
-                        body_offset,
-                        namespace_scoped: self.in_namespace_eval,
-                        base_priority: 500,
-                    });
-                }
-                std::collections::hash_map::Entry::Occupied(_) => {
-                    self.module.redefined_procedures.insert(qualified);
-                }
+            let publication = original_procedure_publication(tokens);
+            if publication.as_ref().is_some_and(|publication| {
+                self.module
+                    .procedures
+                    .values()
+                    .any(|previous| previous.publication.as_ref() == Some(publication))
+            }) {
+                self.module.redefined_procedures.insert(qualified.clone());
             }
+            self.module.retain_procedure(Procedure {
+                name,
+                qualified_name: qualified,
+                publication,
+                declaration_site: tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.invocation_site())
+                    .cloned(),
+                body_kind: crate::ir::ProcedureBodyKind::Named,
+                params,
+                span: seg.span,
+                body,
+                params_raw,
+                body_source: Some(body_source),
+                body_offset,
+                namespace_scoped: self.in_namespace_eval,
+                base_priority: 500,
+            });
         }
         Some(self.lower_default(seg, namespace))
     }
@@ -3813,26 +3821,33 @@ impl<'r> Lowerer<'r> {
         // was still lowered above for analysis; only the premature static
         // registration is suppressed.
         if !self.suppress_proc_register {
-            match self.module.procedures.entry(qualified.clone()) {
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    e.insert(Procedure {
-                        name: proc_name.clone(),
-                        qualified_name: qualified,
-                        publication: Some(publication),
-                        params,
-                        span: seg.span,
-                        body,
-                        params_raw: args[1].clone(),
-                        body_source: Some(args[2].clone()),
-                        body_offset,
-                        namespace_scoped: self.in_namespace_eval,
-                        base_priority: 500,
-                    });
-                }
-                std::collections::hash_map::Entry::Occupied(_) => {
-                    self.module.redefined_procedures.insert(qualified);
-                }
+            if self
+                .module
+                .procedures
+                .values()
+                .any(|previous| previous.publication.as_ref() == Some(&publication))
+            {
+                self.module.redefined_procedures.insert(qualified.clone());
             }
+            self.module.retain_procedure(Procedure {
+                name: proc_name.clone(),
+                qualified_name: qualified,
+                publication: Some(publication),
+                declaration_site: tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.invocation_site())
+                    .cloned(),
+                body_kind: crate::ir::ProcedureBodyKind::Named,
+                params,
+                span: seg.span,
+                body,
+                params_raw: args[1].clone(),
+                body_source: Some(args[2].clone()),
+                body_offset,
+                namespace_scoped: self.in_namespace_eval,
+                base_priority: 500,
+            });
         }
 
         Statement::Call {
@@ -4235,34 +4250,36 @@ impl<'r> Lowerer<'r> {
         };
 
         let (image, event_word) = self.original_when_source_geometry(seg, event_name);
-        self.module.irules_event_bodies.insert(
-            qualified.clone(),
-            std::sync::Arc::new(crate::ir::SourceIrulesEventBody::from_lowering(
-                event_name,
-                seg.span,
-                &body,
-                image,
-                self.config,
-                self.registry,
-                event_word,
-            )),
-        );
-        self.module.procedures.insert(
-            qualified.clone(),
-            Procedure {
-                name: event_name.to_owned(),
-                qualified_name: qualified,
-                publication: None,
-                params: vec![],
-                span: seg.span,
-                body,
-                params_raw: String::new(),
-                body_source: None,
-                body_offset,
-                namespace_scoped: false,
-                base_priority,
-            },
-        );
+        let event_body = std::sync::Arc::new(crate::ir::SourceIrulesEventBody::from_lowering(
+            event_name,
+            seg.span,
+            &body,
+            image,
+            self.config,
+            self.registry,
+            event_word,
+        ));
+        let id = self.module.retain_procedure(Procedure {
+            name: event_name.to_owned(),
+            qualified_name: qualified,
+            publication: None,
+            declaration_site: self
+                .cmd_tokens(seg)
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.invocation_site())
+                .cloned(),
+            body_kind: crate::ir::ProcedureBodyKind::Event,
+            params: vec![],
+            span: seg.span,
+            body,
+            params_raw: String::new(),
+            body_source: None,
+            body_offset,
+            namespace_scoped: false,
+            base_priority,
+        });
+        self.module.irules_event_bodies.insert(id, event_body);
 
         Statement::Call {
             span: seg.span,
@@ -4563,25 +4580,33 @@ impl<'r> Lowerer<'r> {
         // even when `label` carries a namespace prefix — matching every
         // other `Procedure::name`'s "short name" contract.
         let short_name = prefix.rsplit("::").next().unwrap_or(prefix).to_string();
-        if is_lambda {
-            self.module.lambda_body_units.insert(qualified.clone());
-        }
-        self.module.body_units.insert(
-            qualified.clone(),
-            Procedure {
-                name: short_name,
-                qualified_name: qualified,
-                publication: None,
-                params,
-                span,
-                body,
-                params_raw: String::new(),
-                body_source: None,
-                body_offset: 0,
-                namespace_scoped: false,
-                base_priority: 500,
+        let id = self.module.retain_body_unit(Procedure {
+            name: short_name,
+            qualified_name: qualified,
+            publication: None,
+            declaration_site: body.executed_source.as_ref().map(|source| {
+                crate::command_binding::CommandAllocationSite {
+                    source: std::sync::Arc::clone(&source.origin),
+                    offset: source.base(),
+                }
+            }),
+            body_kind: if is_lambda {
+                crate::ir::ProcedureBodyKind::Lambda
+            } else {
+                crate::ir::ProcedureBodyKind::NamespaceScript
             },
-        );
+            params,
+            span,
+            body,
+            params_raw: String::new(),
+            body_source: None,
+            body_offset: 0,
+            namespace_scoped: false,
+            base_priority: 500,
+        });
+        if is_lambda {
+            self.module.lambda_body_units.insert(id);
+        }
     }
 
     fn lower_apply(&mut self, seg: &SegmentedCommand) -> Statement {
@@ -5242,11 +5267,15 @@ impl<'r> Lowerer<'r> {
             .module
             .procedures
             .iter()
-            .map(|(q, p)| (q.clone(), p.body.clone()))
+            .filter_map(|(_, p)| {
+                Some((
+                    p.body.namespace_context.as_deref()?.advisory_key()?,
+                    p.body.clone(),
+                ))
+            })
             .collect();
-        for (qname, body) in &procs {
-            let proc_ns = proc_namespace(qname);
-            self.walk_for_oo_methods(&body.statements, &proc_ns);
+        for (namespace, body) in &procs {
+            self.walk_for_oo_methods(&body.statements, namespace);
         }
         // Every definition block for every class has now been walked, so the
         // per-class instance-variable union is complete.  Merge it into each

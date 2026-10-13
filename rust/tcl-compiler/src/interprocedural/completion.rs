@@ -217,9 +217,9 @@ pub(super) fn procedures_complete(
 ) -> HashMap<String, bool> {
     let calls: HashMap<&str, Vec<(String, usize)>> = module
         .procedures
-        .iter()
+        .display_entries()
         .filter_map(|(qname, procedure)| {
-            if qname != &procedure.qualified_name {
+            if module.procedures.unique_display(qname).is_none() {
                 return None;
             }
             let bound = crate::registry_invocation::original_procedure_scalar_bindings(
@@ -252,7 +252,7 @@ pub(super) fn procedures_complete(
                     && defined(callee, qname)
                     && module
                         .procedures
-                        .get(callee)
+                        .get_unique_display(callee)
                         .and_then(|procedure| {
                             crate::registry_invocation::original_procedure_formal_count_shape(
                                 module, procedure, registry,
@@ -269,7 +269,7 @@ pub(super) fn procedures_complete(
     }
     module
         .procedures
-        .keys()
+        .unique_displays()
         .map(|qname| (qname.clone(), completes.contains(qname.as_str())))
         .collect()
 }

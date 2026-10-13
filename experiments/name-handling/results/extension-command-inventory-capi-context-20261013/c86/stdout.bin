@@ -1,0 +1,10 @@
+ROW entered-original 0 ORIGINAL
+ROW rooted-joined 1 {invalid command name "N:::x"}
+ROW rooted-ordinary 1 {invalid command name "N::x"}
+ROW root-bare 0 ORIGINAL
+ROW scoped-report 0 ::x
+ROW joined-report 0 {}
+ROW entered-qualified 0 ORIGINAL
+ROW root-qualified 1 {invalid command name "N:::child::y"}
+ROW root-child 1 {invalid command name "child::y"}
+ROW scoped-child-report 0 ::N:::child::y

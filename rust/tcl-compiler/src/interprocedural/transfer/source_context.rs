@@ -117,7 +117,7 @@ impl<'a> SourceSummaryContext<'a> {
     }
 
     pub(super) fn procedure(&self, qname: &str) -> Option<&'a Procedure> {
-        let procedure = self.module.procedures.get(qname)?;
+        let procedure = self.module.procedures.get_unique_display(qname)?;
         (qname == procedure.qualified_name
             && self
                 .module

@@ -1,0 +1,53 @@
+{
+  "prepared_utc": "2026-10-13T20:23:06.017747+00:00",
+  "worktree": "/workspace/name-implementation-worktrees/source_flow",
+  "baseline": "7aa200ed1da6b663da67c688e53839a20f19f052",
+  "built": true,
+  "heavy_lease": "released to Root after capture06 no-run/full artifact closure; no active Cargo/rustc",
+  "patch": "/tmp/name-source-flow-isolated/production-03/draft.patch",
+  "patch_sha256": "19b9d94c601e84686a99e238cfc926739124ba4fdae9c7d60028cb8105fec7e6",
+  "owners": {
+    "rust/tcl-compiler/src/command_binding.rs": "5468fbf7d93c1670b597868cfaf70c3cc72c9d85b47029863444ba31438c9ed6",
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "5d1a13ae8cc2f8e6533615441fb4bb52c906a0e131060d9cee10ba6e38f4e3d7",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "6c80a3b2399bddaf14225ca34e622bca9b0bd4160a0420dce9d34a35e16367e6",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "b51006f18bb4db58731aedcbc51d7176a13a5bbf52d2122d0d4c27e6263eb029",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs": "6dfec41e7d24c52a918598e5de61d36a3eca681d3ecaedc94f2c49e118ced573",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "b532d5da31227731726b8ac36874cc3675650a302d9eb31a5e7a51902e95821c",
+    "rust/tcl-compiler/src/registry_invocation.rs": "b4a092091a42e9ef6f07c9d0abec809607f6e82d9a70e7de8ce4e510ca2ae221",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "b00c9503567b76aa553006a8538fd2d837f6bab95d635afc9c335ff263e0f096",
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "b2ea882080c539138cf9cabd82b9e3151a486ab87b6ae10f6ad857e2e07d4d31",
+    "rust/tcl-compiler/src/script_binds.rs": "77ff562d8f9ce81568ded3394a081d0a78da4021183c4877d6ddd58bd57aac79",
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "a6344a0327515de35e63e1c4303ea40dc2546fdb36d1f32637bf75e64201a693",
+    "rust/tcl-lsp-core/src/diagnostic_subject.rs": "f3bd1db7d976098f70e886d94a458237e96aeea843832216c8c413edc2a58323"
+  },
+  "original_controls": 35,
+  "new_controls": 3,
+  "selectors": "/tmp/name-source-flow-isolated/production-03/capture-01/selectors.json",
+  "original_test_source_and_assertions": "unchanged; original Jim fixture resolves environment alias through existing ingress; three newly added source-purpose tests",
+  "measured_first_refusal": "Original rows, entry/config/words/source/frame all pass; execution opaque snapshot prevents original_site operand advice; no schema/config failure established. Main Unit ::f producer still absent before read graph.",
+  "last_compiled_patch": "19b9d94c601e84686a99e238cfc926739124ba4fdae9c7d60028cb8105fec7e6",
+  "last_capture": {
+    "path": "/tmp/name-source-flow-isolated/production-03/capture-06",
+    "executed": 38,
+    "passed": 36,
+    "assertion_failures": 1,
+    "timeout": 1,
+    "original35_passed": 33,
+    "new3_passed": 3,
+    "changed_sources": {},
+    "original_selector_replay": {
+      "path": "/tmp/name-source-flow-isolated/production-03/capture-06/oracle-program-observation-02",
+      "pass": true,
+      "seconds": 70.84404164700027,
+      "unchanged_full_source_and_artifact_closure": true
+    }
+  },
+  "actual_distinct_controls": {
+    "executed": 38,
+    "passing": 37,
+    "failing": 1,
+    "original35_pass": 34,
+    "new3_pass": 3,
+    "initial_timeout_replayed_pass": true
+  }
+}

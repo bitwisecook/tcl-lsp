@@ -1,0 +1,714 @@
+[
+  {
+    "rendered": "warning: use of deprecated method `core::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency\n  --> rust/tcl-core-types/src/body_identity.rs:39:14\n   |\n39 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n   |              ^^^^^^^^^^^^\n   |\n   = note: `#[warn(deprecated)]` on by default\nhelp: replace the use of the deprecated method\n   |\n39 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n39 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n   |\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "note",
+        "message": "`#[warn(deprecated)]` on by default",
+        "rendered": null,
+        "spans": []
+      },
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "replace the use of the deprecated method",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 1031,
+            "byte_start": 1019,
+            "column_end": 26,
+            "column_start": 14,
+            "expansion": null,
+            "file_name": "rust/tcl-core-types/src/body_identity.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 39,
+            "line_start": 39,
+            "suggested_replacement": "try_update",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 26,
+                "highlight_start": 14,
+                "text": "            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "use of deprecated method `core::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency",
+    "spans": [
+      {
+        "byte_end": 1031,
+        "byte_start": 1019,
+        "column_end": 26,
+        "column_start": 14,
+        "expansion": null,
+        "file_name": "rust/tcl-core-types/src/body_identity.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 39,
+        "line_start": 39,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 26,
+            "highlight_start": 14,
+            "text": "            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "deprecated",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: use of deprecated method `core::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency\n  --> rust/tcl-core-types/src/body_identity.rs:61:14\n   |\n61 |             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n   |              ^^^^^^^^^^^^\n   |\nhelp: replace the use of the deprecated method\n   |\n61 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n61 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {\n   |\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "replace the use of the deprecated method",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 1586,
+            "byte_start": 1574,
+            "column_end": 26,
+            "column_start": 14,
+            "expansion": null,
+            "file_name": "rust/tcl-core-types/src/body_identity.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 61,
+            "line_start": 61,
+            "suggested_replacement": "try_update",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 26,
+                "highlight_start": 14,
+                "text": "            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "use of deprecated method `core::sync::atomic::Atomic::<u32>::fetch_update`: renamed to `try_update` for consistency",
+    "spans": [
+      {
+        "byte_end": 1586,
+        "byte_start": 1574,
+        "column_end": 26,
+        "column_start": 14,
+        "expansion": null,
+        "file_name": "rust/tcl-core-types/src/body_identity.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 61,
+        "line_start": 61,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 26,
+            "highlight_start": 14,
+            "text": "            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "deprecated",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qname`\n    --> rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2243:10\n     |\n2243 |     for (qname, fu) in &cu.procedures {\n     |          ^^^^^ help: if this is intentional, prefix it with an underscore: `_qname`\n     |\n     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "note",
+        "message": "`#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default",
+        "rendered": null,
+        "spans": []
+      },
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 100512,
+            "byte_start": 100507,
+            "column_end": 15,
+            "column_start": 10,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 2243,
+            "line_start": 2243,
+            "suggested_replacement": "_qname",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 15,
+                "highlight_start": 10,
+                "text": "    for (qname, fu) in &cu.procedures {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qname`",
+    "spans": [
+      {
+        "byte_end": 100512,
+        "byte_start": 100507,
+        "column_end": 15,
+        "column_start": 10,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 2243,
+        "line_start": 2243,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 15,
+            "highlight_start": 10,
+            "text": "    for (qname, fu) in &cu.procedures {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `proc`\n    --> rust/tcl-compiler/src/codegen/wasm/backend.rs:2520:28\n     |\n2520 |             .filter(|((id, proc), lowered)| {\n     |                            ^^^^ help: if this is intentional, prefix it with an underscore: `_proc`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 97052,
+            "byte_start": 97048,
+            "column_end": 32,
+            "column_start": 28,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 2520,
+            "line_start": 2520,
+            "suggested_replacement": "_proc",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 32,
+                "highlight_start": 28,
+                "text": "            .filter(|((id, proc), lowered)| {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `proc`",
+    "spans": [
+      {
+        "byte_end": 97052,
+        "byte_start": 97048,
+        "column_end": 32,
+        "column_start": 28,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 2520,
+        "line_start": 2520,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 32,
+            "highlight_start": 28,
+            "text": "            .filter(|((id, proc), lowered)| {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qname`\n     --> rust/tcl-compiler/src/command_binding.rs:16200:14\n      |\n16200 |         for (qname, unit) in body_units {\n      |              ^^^^^ help: if this is intentional, prefix it with an underscore: `_qname`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 659946,
+            "byte_start": 659941,
+            "column_end": 19,
+            "column_start": 14,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/command_binding.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 16200,
+            "line_start": 16200,
+            "suggested_replacement": "_qname",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 19,
+                "highlight_start": 14,
+                "text": "        for (qname, unit) in body_units {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qname`",
+    "spans": [
+      {
+        "byte_end": 659946,
+        "byte_start": 659941,
+        "column_end": 19,
+        "column_start": 14,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/command_binding.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 16200,
+        "line_start": 16200,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 19,
+            "highlight_start": 14,
+            "text": "        for (qname, unit) in body_units {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qname`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3519:20\n     |\n3519 |             .map(|(qname, unit)| (unit.name.clone(), unit.clone()))\n     |                    ^^^^^ help: if this is intentional, prefix it with an underscore: `_qname`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 154180,
+            "byte_start": 154175,
+            "column_end": 25,
+            "column_start": 20,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/compilation_unit.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 3519,
+            "line_start": 3519,
+            "suggested_replacement": "_qname",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 25,
+                "highlight_start": 20,
+                "text": "            .map(|(qname, unit)| (unit.name.clone(), unit.clone()))"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qname`",
+    "spans": [
+      {
+        "byte_end": 154180,
+        "byte_start": 154175,
+        "column_end": 25,
+        "column_start": 20,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/compilation_unit.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 3519,
+        "line_start": 3519,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 25,
+            "highlight_start": 20,
+            "text": "            .map(|(qname, unit)| (unit.name.clone(), unit.clone()))"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qn`\n    --> rust/tcl-compiler/src/compilation_unit.rs:3651:14\n     |\n3651 |         for (qn, fu) in procedures.iter_mut() {\n     |              ^^ help: if this is intentional, prefix it with an underscore: `_qn`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 160596,
+            "byte_start": 160594,
+            "column_end": 16,
+            "column_start": 14,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/compilation_unit.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 3651,
+            "line_start": 3651,
+            "suggested_replacement": "_qn",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 16,
+                "highlight_start": 14,
+                "text": "        for (qn, fu) in procedures.iter_mut() {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qn`",
+    "spans": [
+      {
+        "byte_end": 160596,
+        "byte_start": 160594,
+        "column_end": 16,
+        "column_start": 14,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/compilation_unit.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 3651,
+        "line_start": 3651,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 16,
+            "highlight_start": 14,
+            "text": "        for (qn, fu) in procedures.iter_mut() {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qname`\n    --> rust/tcl-compiler/src/interprocedural.rs:4216:16\n     |\n4216 |         .map(|(qname, fu)| {\n     |                ^^^^^ help: if this is intentional, prefix it with an underscore: `_qname`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 168384,
+            "byte_start": 168379,
+            "column_end": 21,
+            "column_start": 16,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/interprocedural.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 4216,
+            "line_start": 4216,
+            "suggested_replacement": "_qname",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 21,
+                "highlight_start": 16,
+                "text": "        .map(|(qname, fu)| {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qname`",
+    "spans": [
+      {
+        "byte_end": 168384,
+        "byte_start": 168379,
+        "column_end": 21,
+        "column_start": 16,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/interprocedural.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 4216,
+        "line_start": 4216,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 21,
+            "highlight_start": 16,
+            "text": "        .map(|(qname, fu)| {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: unused variable: `qname`\n    --> rust/tcl-compiler/src/ir.rs:3177:51\n     |\n3177 |         roots.extend(procedures.into_iter().map(|(qname, procedure)| {\n     |                                                   ^^^^^ help: if this is intentional, prefix it with an underscore: `_qname`\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "if this is intentional, prefix it with an underscore",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 136354,
+            "byte_start": 136349,
+            "column_end": 56,
+            "column_start": 51,
+            "expansion": null,
+            "file_name": "rust/tcl-compiler/src/ir.rs",
+            "is_primary": true,
+            "label": null,
+            "line_end": 3177,
+            "line_start": 3177,
+            "suggested_replacement": "_qname",
+            "suggestion_applicability": "MachineApplicable",
+            "text": [
+              {
+                "highlight_end": 56,
+                "highlight_start": 51,
+                "text": "        roots.extend(procedures.into_iter().map(|(qname, procedure)| {"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "level": "warning",
+    "message": "unused variable: `qname`",
+    "spans": [
+      {
+        "byte_end": 136354,
+        "byte_start": 136349,
+        "column_end": 56,
+        "column_start": 51,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/ir.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 3177,
+        "line_start": 3177,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 56,
+            "highlight_start": 51,
+            "text": "        roots.extend(procedures.into_iter().map(|(qname, procedure)| {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "unused_variables",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: function `namespace_of` is never used\n   --> rust/tcl-compiler/src/inline_uplevel.rs:535:4\n    |\n535 | fn namespace_of(qname: &str) -> String {\n    |    ^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\n",
+    "$message_type": "diagnostic",
+    "children": [
+      {
+        "children": [],
+        "code": null,
+        "level": "note",
+        "message": "`#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default",
+        "rendered": null,
+        "spans": []
+      }
+    ],
+    "level": "warning",
+    "message": "function `namespace_of` is never used",
+    "spans": [
+      {
+        "byte_end": 20465,
+        "byte_start": 20453,
+        "column_end": 16,
+        "column_start": 4,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/inline_uplevel.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 535,
+        "line_start": 535,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 16,
+            "highlight_start": 4,
+            "text": "fn namespace_of(qname: &str) -> String {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "dead_code",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: function `execution_namespace_for_qname` is never used\n    --> rust/tcl-compiler/src/ir.rs:2982:4\n     |\n2982 | fn execution_namespace_for_qname(qname: &str) -> String {\n     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+    "$message_type": "diagnostic",
+    "children": [],
+    "level": "warning",
+    "message": "function `execution_namespace_for_qname` is never used",
+    "spans": [
+      {
+        "byte_end": 128238,
+        "byte_start": 128209,
+        "column_end": 33,
+        "column_start": 4,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/ir.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 2982,
+        "line_start": 2982,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 33,
+            "highlight_start": 4,
+            "text": "fn execution_namespace_for_qname(qname: &str) -> String {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "dead_code",
+      "explanation": null
+    }
+  },
+  {
+    "rendered": "warning: function `proc_namespace` is never used\n   --> rust/tcl-compiler/src/lowering/mod.rs:170:4\n    |\n170 | fn proc_namespace(qname: &str) -> String {\n    |    ^^^^^^^^^^^^^^\n\n",
+    "$message_type": "diagnostic",
+    "children": [],
+    "level": "warning",
+    "message": "function `proc_namespace` is never used",
+    "spans": [
+      {
+        "byte_end": 6056,
+        "byte_start": 6042,
+        "column_end": 18,
+        "column_start": 4,
+        "expansion": null,
+        "file_name": "rust/tcl-compiler/src/lowering/mod.rs",
+        "is_primary": true,
+        "label": null,
+        "line_end": 170,
+        "line_start": 170,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 18,
+            "highlight_start": 4,
+            "text": "fn proc_namespace(qname: &str) -> String {"
+          }
+        ]
+      }
+    ],
+    "code": {
+      "code": "dead_code",
+      "explanation": null
+    }
+  }
+]

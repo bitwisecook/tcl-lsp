@@ -309,9 +309,9 @@ struct WasmEmitter {
     frame_local: u64,
     mode: FunctionMode,
     local_slots: HashMap<String, u32>,
-    proc_indices: HashMap<String, u32>,
-    procedure_arity: HashMap<String, usize>,
-    direct_procs: HashSet<String>,
+    proc_indices: HashMap<crate::ir::ProcedureId, u32>,
+    procedure_arity: HashMap<crate::ir::ProcedureId, usize>,
+    direct_procs: HashSet<crate::ir::ProcedureId>,
     facts: FunctionFacts,
 }
 
@@ -1603,7 +1603,7 @@ fn initial_procedure_bindings(module: &Module, is_top: bool) -> Vec<(String, Bin
     }
     module
         .procedures
-        .keys()
+        .unique_displays()
         .map(|name| {
             (
                 name.clone(),
@@ -2054,10 +2054,10 @@ fn add_aot_imports(wasm: &mut WasmModule) -> AotImports {
 }
 
 struct ProcedurePlan<'a> {
-    procs: Vec<&'a Procedure>,
-    indices: HashMap<String, u32>,
-    arity: HashMap<String, usize>,
-    direct: HashSet<String>,
+    procs: Vec<(crate::ir::ProcedureId, &'a Procedure)>,
+    indices: HashMap<crate::ir::ProcedureId, u32>,
+    arity: HashMap<crate::ir::ProcedureId, usize>,
+    direct: HashSet<crate::ir::ProcedureId>,
 }
 
 fn procedure_plan<'a>(
@@ -2065,21 +2065,21 @@ fn procedure_plan<'a>(
     analysis: Option<(&CompilationUnit, &CommandRegistry)>,
     top_idx: u32,
 ) -> ProcedurePlan<'a> {
-    let mut procs: Vec<&Procedure> = module
+    let procs: Vec<_> = module
         .procedures
-        .values()
-        .filter(|p| {
-            !p.namespace_scoped
-                && !crate::native_compilation_admission::script_requires_admission(&p.body)
+        .iter()
+        .filter(|(_, procedure)| {
+            !procedure.namespace_scoped
+                && !crate::native_compilation_admission::script_requires_admission(&procedure.body)
         })
+        .map(|(id, procedure)| (*id, procedure))
         .collect();
-    procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
     let indices = procs
         .iter()
         .enumerate()
-        .map(|(position, proc)| {
+        .map(|(position, (id, _))| {
             (
-                proc.qualified_name.clone(),
+                *id,
                 top_idx
                     .saturating_add(1)
                     .saturating_add(u32::try_from(position).unwrap_or(u32::MAX)),
@@ -2088,17 +2088,28 @@ fn procedure_plan<'a>(
         .collect();
     let arity = procs
         .iter()
-        .map(|proc| (proc.qualified_name.clone(), proc.params.len()))
+        .map(|(id, procedure)| (*id, procedure.params.len()))
         .collect();
     let direct = analysis.map_or_else(HashSet::new, |(unit, registry)| {
         procs
             .iter()
-            .filter(|proc| {
-                unit.procedures.get(&proc.qualified_name).is_some_and(|fu| {
-                    direct_proc_eligible(module, proc, fu, registry, &unit.command_mutations)
+            .filter(|(id, procedure)| {
+                unit.procedures.get(id).is_some_and(|function| {
+                    // Existing direct-call facts address display names; ambiguity cannot grant a target.
+                    module
+                        .procedures
+                        .unique_display(&procedure.qualified_name)
+                        .is_some_and(|(unique, _)| unique == id)
+                        && direct_proc_eligible(
+                            module,
+                            procedure,
+                            function,
+                            registry,
+                            &unit.command_mutations,
+                        )
                 })
             })
-            .map(|proc| proc.qualified_name.clone())
+            .map(|(id, _)| *id)
             .collect()
     });
     ProcedurePlan {
@@ -2255,9 +2266,12 @@ enum LoweredProc {
 /// shape, which is the exact set that can read a table entry.
 fn collect_defined_procs(
     function: &crate::native_lowering::ir::NativeFunction,
-    out: &mut HashSet<String>,
+    out: &mut HashSet<crate::ir::ProcedureId>,
 ) {
-    fn walk(ops: &[crate::native_lowering::ir::NativeOp], out: &mut HashSet<String>) {
+    fn walk(
+        ops: &[crate::native_lowering::ir::NativeOp],
+        out: &mut HashSet<crate::ir::ProcedureId>,
+    ) {
         use crate::native_lowering::ir::NativeOp;
         for op in ops {
             match op {
@@ -2291,8 +2305,8 @@ fn collect_defined_procs(
 /// `--growable-table`: the module traps at its entry point with a clear
 /// backtrace rather than dispatching to whatever sits at slot 0.
 fn table_install(
-    bound: &BTreeMap<String, u32>,
-    indices: &HashMap<String, u32>,
+    bound: &BTreeMap<crate::ir::ProcedureId, u32>,
+    indices: &HashMap<crate::ir::ProcedureId, u32>,
     base_global: u32,
 ) -> Vec<WasmInstruction> {
     if bound.is_empty() {
@@ -2381,8 +2395,9 @@ fn codegen_runtime_chunk(
             .push(start_function(create, set_current, library, top_index));
     }
     let mut report = NativeTierReport::default();
-    report.functions.insert(
-        "::top".to_owned(),
+    report.record(
+        crate::native_lowering::NativeFunctionId::TopLevel,
+        "::top",
         FunctionReport::declined(FunctionDecline::NativeCompilationAdmissionRequired),
     );
     (wasm, report)
@@ -2470,9 +2485,9 @@ fn codegen(
     let lowered_top = native.map(|tier| tier.lower(&tier.unit.top_level, true, 0));
     let lowered_procs: Vec<Option<LoweredProc>> = procs
         .iter()
-        .map(|proc| {
+        .map(|(id, proc)| {
             let tier = native?;
-            let unit = tier.unit.procedures.get(&proc.qualified_name)?;
+            let unit = tier.unit.procedures.get(id)?;
             Some(match tier.lower(unit, false, proc.body_offset) {
                 Ok((function, report)) => LoweredProc::Lowered {
                     decline: native_emit::proc_entry_decline(&function),
@@ -2486,7 +2501,7 @@ fn codegen(
     // Only a definition statement the lowering actually took natively can
     // carry an entry, and the table window must hold exactly those: a slot
     // nothing binds would import the runtime's table for nothing.
-    let mut defined: HashSet<String> = HashSet::new();
+    let mut defined: HashSet<crate::ir::ProcedureId> = HashSet::new();
     if let Some(Ok((function, _))) = &lowered_top {
         collect_defined_procs(function, &mut defined);
     }
@@ -2498,21 +2513,16 @@ fn codegen(
     // A binding is only reachable through `::top`'s install sequence, so a
     // module whose entry point stayed on the legacy path installs nothing and
     // every definition it emits is source-only.
-    let bound: BTreeMap<String, u32> = if matches!(lowered_top, Some(Ok(_))) {
+    let bound: BTreeMap<crate::ir::ProcedureId, u32> = if matches!(lowered_top, Some(Ok(_))) {
         procs
             .iter()
             .zip(&lowered_procs)
-            .filter(|(proc, lowered)| {
+            .filter(|((id, proc), lowered)| {
                 matches!(lowered, Some(LoweredProc::Lowered { decline: None, .. }))
-                    && defined.contains(&proc.qualified_name)
+                    && defined.contains(id)
             })
             .enumerate()
-            .map(|(slot, (proc, _))| {
-                (
-                    proc.qualified_name.clone(),
-                    u32::try_from(slot).unwrap_or(u32::MAX),
-                )
-            })
+            .map(|(slot, ((id, _), _))| (*id, u32::try_from(slot).unwrap_or(u32::MAX)))
             .collect()
     } else {
         BTreeMap::new()
@@ -2543,7 +2553,11 @@ fn codegen(
     // structured walk with the typed reason recorded.
     match (lowered_top, native_imports) {
         (Some(Ok((function, function_report))), Some(native_imports)) => {
-            report.functions.insert("::top".to_owned(), function_report);
+            report.record(
+                crate::native_lowering::NativeFunctionId::TopLevel,
+                "::top",
+                function_report,
+            );
             let mut top = native_emit::emit_function(
                 "::top",
                 "native-top",
@@ -2561,9 +2575,11 @@ fn codegen(
         }
         (lowered, _) => {
             if let Some(Err(reason)) = lowered {
-                report
-                    .functions
-                    .insert("::top".to_owned(), FunctionReport::declined(reason));
+                report.record(
+                    crate::native_lowering::NativeFunctionId::TopLevel,
+                    "::top",
+                    FunctionReport::declined(reason),
+                );
             }
             structured::walk(
                 &mut emitter,
@@ -2583,7 +2599,7 @@ fn codegen(
     // `namespace eval`, not at load, so they are skipped — mirroring the bytecode
     // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
     // module bytes are deterministic (`procedures` is a hash map).
-    for (proc, lowered) in procs.iter().zip(lowered_procs) {
+    for ((id, proc), lowered) in procs.iter().zip(lowered_procs) {
         match (lowered, native_imports) {
             (
                 Some(LoweredProc::Lowered {
@@ -2593,15 +2609,16 @@ fn codegen(
                 }),
                 Some(native_imports),
             ) => {
-                function_report.binding = match (decline, bound.contains_key(&proc.qualified_name))
-                {
+                function_report.binding = match (decline, bound.contains_key(id)) {
                     (None, true) => NativeBinding::BoundNatively,
                     (Some(reason), _) => NativeBinding::SourceOnly(reason),
                     (None, false) => NativeBinding::NotApplicable,
                 };
-                report
-                    .functions
-                    .insert(proc.qualified_name.clone(), function_report);
+                report.record(
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
+                    &proc.qualified_name,
+                    function_report,
+                );
                 let func = native_emit::emit_function(
                     &proc.qualified_name,
                     "native-proc",
@@ -2617,14 +2634,15 @@ fn codegen(
                 continue;
             }
             (Some(LoweredProc::Declined(reason)), _) => {
-                report.functions.insert(
-                    proc.qualified_name.clone(),
+                report.record(
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
+                    &proc.qualified_name,
                     FunctionReport::declined(reason),
                 );
             }
             _ => {}
         }
-        let direct = emitter.direct_procs.contains(&proc.qualified_name);
+        let direct = emitter.direct_procs.contains(id);
         emitter.mode = if direct {
             FunctionMode::DirectProc
         } else {
@@ -2648,7 +2666,7 @@ fn codegen(
         emitter.facts = analysis
             .and_then(|(unit, registry)| {
                 unit.procedures
-                    .get(&proc.qualified_name)
+                    .get(id)
                     .map(|fu| function_facts(fu, module, registry, &unit.command_mutations, false))
             })
             .unwrap_or_default();

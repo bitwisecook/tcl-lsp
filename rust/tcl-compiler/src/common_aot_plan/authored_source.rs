@@ -236,8 +236,12 @@ impl OriginalAuthoredProgramSourcePlan {
     }
 }
 
-fn procedure_identity(procedure: &crate::ir::Procedure) -> ProcedureIdentity {
+fn procedure_identity(
+    id: crate::ir::ProcedureId,
+    procedure: &crate::ir::Procedure,
+) -> ProcedureIdentity {
     ProcedureIdentity {
+        id,
         qualified_name: procedure.qualified_name.clone(),
         definition_start: procedure.span.start(),
         definition_end: procedure.span.end(),
@@ -266,11 +270,16 @@ fn original_statement(
             .ok_or(Residual::StatementSchemaUnavailable)?;
     let kind = match invocation.facts.operation {
         SemanticOperationId::StructuredLowering(LoweringHookId::Proc) => {
+            let site = tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.invocation_site())
+                .ok_or(Residual::DeclarationUnavailable)?;
             let mut declarations = module
                 .procedures
-                .values()
-                .filter(|procedure| procedure.span == statement.span());
-            let procedure = declarations
+                .at_declaration(site)
+                .filter(|(_, procedure)| procedure.span == statement.span());
+            let (id, procedure) = declarations
                 .next()
                 .ok_or(Residual::DeclarationUnavailable)?;
             if declarations.next().is_some()
@@ -284,7 +293,7 @@ fn original_statement(
             let arguments = OriginalDeclaredProcedureArgumentSlots::from_module(module, procedure)
                 .ok_or(Residual::DeclarationUnavailable)?;
             OriginalAuthoredSourceStatementKind::ProcedureDeclaration {
-                procedure: procedure_identity(procedure),
+                procedure: procedure_identity(*id, procedure),
                 arguments,
             }
         }
@@ -378,7 +387,7 @@ fn original_nested_procedures(
             if !target.accepts_arguments() {
                 return None;
             }
-            procedures.push(procedure_identity(target.procedure()));
+            procedures.push(procedure_identity(target.id(), target.procedure()));
         }
     }
     Some(procedures)

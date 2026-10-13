@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::quoted_data_mentions_do_not_supply_executed_reads",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::quoted_data_mentions_do_not_supply_executed_reads",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.5152595810031926,
+  "timed_out": false
+}

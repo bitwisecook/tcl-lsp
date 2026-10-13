@@ -123,7 +123,8 @@ pub(super) fn collect(
         for ordinal in 0..declaration.arguments().names().len() {
             let identity = DeclaredArgumentIdentity {
                 procedure: ProcedureIdentity {
-                    qualified_name: qname.clone(),
+                    id: *qname,
+                    qualified_name: procedure.qualified_name.clone(),
                     definition_start: procedure.span.start(),
                     definition_end: procedure.span.end(),
                 },
@@ -136,13 +137,13 @@ pub(super) fn collect(
                     function,
                     registry,
                     declaration: &declaration,
-                    summary: escape.get(qname),
+                    summary: escape.get(&procedure.qualified_name),
                     propagated,
                     metadata_available: selection
                         .for_function(function, registry, &unit.ir_module)
                         .is_some(),
                     enabled: config.is_enabled(SemanticOptimisationPassId::MaterialisableSlot),
-                    qname,
+                    qname: &procedure.qualified_name,
                     ordinal,
                 }),
             );

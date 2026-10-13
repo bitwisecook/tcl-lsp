@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::lifecycle_subcommand_schedules_its_original_phase_scripts",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::lifecycle_subcommand_schedules_its_original_phase_scripts",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.4148741999997583,
+  "timed_out": false
+}

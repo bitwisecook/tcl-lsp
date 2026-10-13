@@ -597,19 +597,22 @@ impl Scan<'_> {
         let bindings = self
             .bindings
             .get_or_init(|| ModuleCommandBindings::analyse(self.module, self.registry));
-        // The lambdas the body applies are body units of its own lowering,
-        // each run in a frame of its own in the namespace its name holds.
-        let frames = std::iter::once((&lowered.top_level, namespace)).chain(
-            lowered
-                .body_units
-                .iter()
-                .filter(|(name, _)| lowered.lambda_body_units.contains(*name))
-                .map(|(name, unit)| {
-                    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(name);
-                    let namespace = if holder.is_empty() { "::" } else { holder };
-                    (&unit.body, namespace.to_owned())
-                }),
-        );
+        let mut frames = vec![(&lowered.top_level, namespace)];
+        for (id, unit) in &lowered.body_units {
+            if !lowered.lambda_body_units.contains(id) {
+                continue;
+            }
+            let Some(namespace) = unit
+                .body
+                .namespace_context
+                .as_deref()
+                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+            else {
+                self.out.any = true;
+                continue;
+            };
+            frames.push((&unit.body, namespace));
+        }
         let mut names = Vec::new();
         for (body, namespace) in frames {
             let info = match metadata {
@@ -669,7 +672,7 @@ impl Scan<'_> {
     /// what the body writes in the global frame changes when the callback
     /// fires.
     fn procedure(&mut self, head: &str) {
-        let is_procedure = self.module.procedures.keys().any(|qualified| {
+        let is_procedure = self.module.procedures.unique_displays().any(|qualified| {
             crate::cfg_builder::qualified_lookup_keys(qualified)
                 .iter()
                 .any(|key| key == head)

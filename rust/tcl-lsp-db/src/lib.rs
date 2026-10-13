@@ -2892,10 +2892,10 @@ pub(crate) fn memoised_compilation_unit(
 /// memo — the checks, the rewrites, the taint cascade — takes the unit's.
 fn memo_key<'db>(
     db: &'db dyn TclDb,
-    keys: &HashMap<String, FnLatticeKey<'db>>,
-    qname: &str,
+    keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+    body_id: Option<tcl_compiler::ir::ProcedureId>,
 ) -> Option<FnLatticeKey<'db>> {
-    keys.get(qname)
+    keys.get(&body_id?)
         .copied()
         .filter(|&key| !function_lattice(db, key).sccp.reads_module)
 }
@@ -2917,7 +2917,10 @@ fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
     source: &str,
     options: UnitBuildOptions<'_>,
-) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
+) -> (
+    CompilationUnit,
+    HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+) {
     build_unit_with_keys_and_input(db, source, options, None)
 }
 
@@ -2926,7 +2929,10 @@ fn build_unit_with_keys_and_input<'db>(
     source: &str,
     options: UnitBuildOptions<'_>,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
-) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
+) -> (
+    CompilationUnit,
+    HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+) {
     let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
     // Values, rather than an environment-name round trip, own memo identity.
@@ -2944,7 +2950,8 @@ fn build_unit_with_keys_and_input<'db>(
     // interprocedural taint pass below can demand the procedure's offset-0
     // baseline (`function_lattice`) again to layer the `taint_cascade` memo on
     // top — without re-deriving the offset-0 body/context.
-    let mut lattice_keys: HashMap<String, FnLatticeKey<'db>> = HashMap::new();
+    let mut lattice_keys: HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>> =
+        HashMap::new();
     let mut lattice_memo = |req: &LatticeRequest<'_>| -> FunctionUnit {
         let context = *context.get_or_insert_with(|| {
             let mut upvar: Vec<(String, UpvarInfo)> = req
@@ -3013,7 +3020,7 @@ fn build_unit_with_keys_and_input<'db>(
                 .and_then(|inverse| function_lattice(db, key).relocated_variable_proofs(&inverse))
                 .and_then(|unit| unit.restored_source_proofs(&proofs));
             if let Some(unit) = unit {
-                lattice_keys.insert(req.qname.to_owned(), key);
+                lattice_keys.insert(req.body_id, key);
                 return unit;
             }
         }
@@ -3028,7 +3035,7 @@ fn build_unit_with_keys_and_input<'db>(
             &registry_snapshot,
             epoch,
         );
-        lattice_keys.insert(req.qname.to_owned(), key);
+        lattice_keys.insert(req.body_id, key);
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
             eprintln!(
@@ -3084,8 +3091,8 @@ fn build_unit_with_keys_and_input<'db>(
     let unit = cu.with_interprocedural_memoized(
         registry,
         dialect_opt,
-        &mut |qname: &str, ia: &InterproceduralAnalysis| {
-            let key = memo_key(db, &lattice_keys, qname)?;
+        &mut |body_id: tcl_compiler::ir::ProcedureId, qname: &str, ia: &InterproceduralAnalysis| {
+            let key = memo_key(db, &lattice_keys, Some(body_id))?;
             let summary_key = taint_summary_key(db, ia, qname, dialect_key);
             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
             // is span-free (the offset rebase never touches it), so the unit can
@@ -3606,7 +3613,7 @@ fn solve_checks_for_unit<'db>(
     dialect: &str,
     registry: &CommandRegistry,
     cu: CompilationUnit,
-    lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
+    lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
     dialect_opt: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Arc<CheckSolve> {
     let interproc = cu.interproc.as_ref();
@@ -3615,13 +3622,16 @@ fn solve_checks_for_unit<'db>(
         &cu,
         registry,
         dialect_opt,
-        &mut |qname, params, fu, known, summaries| match memo_key(db, lattice_keys, qname) {
+        &mut |qname, params, fu, known, summaries| match memo_key(db, lattice_keys, fu.body_id) {
             // Memoised path: the proc has an offset-0 baseline key.
             Some(lattice_key) => {
                 let body_source = cu
                     .ir_module
                     .procedures
-                    .get(qname)
+                    .get(
+                        &fu.body_id
+                            .expect("memo selection retained the exact body ID"),
+                    )
                     .and_then(|p| p.body_source.as_deref());
                 let deps_key = summary_deps_key(
                     db,
@@ -3660,12 +3670,15 @@ fn solve_checks_for_unit<'db>(
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
     for fu in cu.analysable_functions() {
-        match memo_key(db, lattice_keys, &fu.name) {
+        match memo_key(db, lattice_keys, fu.body_id) {
             Some(key) => {
                 let body_offset = cu
                     .ir_module
                     .procedures
-                    .get(&fu.name)
+                    .get(
+                        &fu.body_id
+                            .expect("memo selection retained the exact body ID"),
+                    )
                     .map_or(0, |p| p.span.start());
                 fn_checks.extend(
                     function_checks(db, key)
@@ -3981,6 +3994,8 @@ pub fn function_optimisations<'db>(
         name: deps.proc_name(db).clone(),
         qualified_name: qname.clone(),
         publication: None,
+        declaration_site: None,
+        body_kind: tcl_compiler::ir::ProcedureBodyKind::Named,
         params: params.clone(),
         span: tcl_lexer::Span::new(0, body_len),
         body,
@@ -3995,9 +4010,8 @@ pub fn function_optimisations<'db>(
         namespace_scoped: false,
         base_priority: 0,
     };
-    let mut ir_procs = HashMap::new();
-    ir_procs.insert(qname.clone(), proc);
-    let ir_module = tcl_compiler::ir::Module {
+
+    let mut ir_module = tcl_compiler::ir::Module {
         irules_event_bodies: HashMap::new(),
         retained_source_bindings: None,
         // A body-only synthetic image lacks the complete original input owner.
@@ -4038,9 +4052,10 @@ pub fn function_optimisations<'db>(
         // it is never a trace/mutation recovery artefact.
         plain_command_dispatch: false,
         top_level: tcl_compiler::ir::Script::new(),
-        procedures: ir_procs,
+        procedures: Default::default(),
+        procedure_ids: Default::default(),
         methods: HashMap::new(),
-        body_units: HashMap::new(),
+        body_units: Default::default(),
         lambda_body_units: std::collections::BTreeSet::new(),
         redefined_procedures: redefined,
         redefined_methods: HashMap::new(),
@@ -4063,12 +4078,15 @@ pub fn function_optimisations<'db>(
         reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
         declared_frame_effects: std::collections::BTreeMap::new(),
     };
+    let body_id = ir_module.retain_procedure(proc);
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
     let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], registry, key.lexer_config(db));
     let mut cfg_procs = HashMap::new();
-    cfg_procs.insert(qname.clone(), fu.cfg.clone());
+    cfg_procs.insert(body_id, fu.cfg.clone());
+    let mut retained_fu = (*fu).clone();
+    retained_fu.body_id = Some(body_id);
     let mut fu_procs = HashMap::new();
-    fu_procs.insert(qname.clone(), (*fu).clone());
+    fu_procs.insert(body_id, retained_fu);
     let cu = CompilationUnit {
         source: body_source,
         ir_module,
@@ -4141,7 +4159,7 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
 fn solve_optimisations<'db>(
     db: &'db dyn TclDb,
     cu: &CompilationUnit,
-    lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
+    lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
@@ -4289,9 +4307,10 @@ fn top_level_only_unit(
             dialect: cu.ir_module.dialect.clone(),
             plain_command_dispatch: cu.ir_module.plain_command_dispatch,
             top_level: cu.ir_module.top_level.clone(),
-            procedures: HashMap::new(),
+            procedures: Default::default(),
+            procedure_ids: cu.ir_module.procedure_ids.clone(),
             methods: HashMap::new(),
-            body_units: HashMap::new(),
+            body_units: Default::default(),
             lambda_body_units: std::collections::BTreeSet::new(),
             redefined_procedures: redefined.clone(),
             redefined_methods: HashMap::new(),
@@ -8454,7 +8473,7 @@ p\uD801 ordinary";
             file.text(db),
             unit_build_options(db, file, cfg, registry, None, &declared),
         );
-        let known: HashSet<_> = cu.ir_module.procedures.keys().cloned().collect();
+        let known: HashSet<_> = cu.ir_module.procedures.unique_displays().cloned().collect();
         let mut summaries: HashMap<_, _> = known
             .iter()
             .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))

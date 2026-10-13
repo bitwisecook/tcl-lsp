@@ -304,8 +304,18 @@ fn proc_dispatch_facts<'a>(
     // Direct facts + direct proc callees per proc.
     let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
     let mut callees: HashMap<&str, HashSet<String>> = HashMap::new();
-    for (qname, proc) in &ir.procedures {
-        let namespace = super::helpers::naming::namespace_from_qualified(qname);
+    for (qname, proc) in ir.procedures.display_entries() {
+        if ir.procedures.unique_display(qname).is_none() {
+            continue;
+        }
+        let Some(namespace) = proc
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+        else {
+            continue;
+        };
         let mut f = DispatchFacts::default();
         let mut c: HashSet<String> = HashSet::new();
         collect_dispatches(
@@ -606,10 +616,18 @@ fn record_procedure(
     facts: &mut DispatchFacts,
     callees: &mut HashSet<String>,
 ) {
-    let Some(procedure) = env.ir.procedures.get(&target.command).filter(|procedure| {
-        !env.ir.redefined_procedures.contains(&target.command)
-            && target.matches_authored_implementation_image(&env.ir.source, procedure.span.start())
-    }) else {
+    let Some((_, procedure)) =
+        env.ir
+            .source_procedure_for_target(target)
+            .filter(|(id, procedure)| {
+                !env.ir.redefined_procedures.contains(&target.command)
+                    && env
+                        .ir
+                        .procedures
+                        .unique_display(&procedure.qualified_name)
+                        .is_some_and(|(unique, _)| unique == id)
+            })
+    else {
         facts.anywhere = true;
         return;
     };

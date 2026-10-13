@@ -124,6 +124,8 @@ mod tests {
             name: name.into(),
             qualified_name: format!("::{name}"),
             publication: None,
+            declaration_site: None,
+            body_kind: crate::ir::ProcedureBodyKind::Named,
             params: Vec::new(),
             span: Span::new(0, 0),
             body: Script::new(),

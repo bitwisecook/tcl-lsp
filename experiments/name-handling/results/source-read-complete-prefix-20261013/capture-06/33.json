@@ -1,0 +1,13 @@
+{
+  "selector": "script_binds::tests::native_read_scope_requires_matching_complete_metadata",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "script_binds::tests::native_read_scope_requires_matching_complete_metadata",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 5.181252929000038,
+  "timed_out": false
+}

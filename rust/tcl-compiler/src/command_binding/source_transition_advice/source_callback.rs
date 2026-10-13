@@ -294,10 +294,10 @@ impl OriginalSourceCallbackProcedureTarget {
     pub fn declaration_slot(&self) -> Option<&ByteCommandSlot> {
         Some(&self.procedure.as_ref()?.declaration_slot)
     }
-    pub(crate) fn original_ir_procedure_name<'a>(
+    pub(crate) fn original_ir_procedure_id<'a>(
         &self,
-        procedures: &'a std::collections::HashMap<String, crate::ir::Procedure>,
-    ) -> Option<&'a str> {
+        procedures: &'a crate::ir::ProcedureInventory,
+    ) -> Option<crate::ir::ProcedureId> {
         let producer = self.procedure.as_ref()?;
         let body = producer.body.content_span();
         let image = producer.declaration.original_words().first()?.image();
@@ -305,7 +305,8 @@ impl OriginalSourceCallbackProcedureTarget {
             .bytes()
             .get(body.start() as usize..body.end() as usize)?;
         let mut matching = procedures.iter().filter(|(_, procedure)| {
-            procedure.span.start() == producer.declaration.site().offset
+            procedure.declaration_site.as_ref() == Some(producer.declaration.site())
+                && procedure.span.start() == producer.declaration.site().offset
                 && procedure.body_offset == body.start()
                 && procedure
                     .body_source
@@ -313,7 +314,7 @@ impl OriginalSourceCallbackProcedureTarget {
                     .is_some_and(|text| text.as_bytes() == bytes)
         });
         let (name, _) = matching.next()?;
-        matching.next().is_none().then_some(name.as_str())
+        matching.next().is_none().then_some(*name)
     }
     /// Original alias/move producers supplying the source target and prefix.
     #[must_use]

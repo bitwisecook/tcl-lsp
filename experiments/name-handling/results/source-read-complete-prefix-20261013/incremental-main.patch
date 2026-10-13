@@ -1,0 +1,1819 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index 1e14a8804..9059c76b2 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -120,6 +120,8 @@ mod declaration_body_ownership;
+ mod declaration_layout;
+ pub use declaration_layout::SourceOriginalVariableFrame;
+ mod declaration_preview;
++mod source_read_scope;
++pub(crate) use source_read_scope::{SourceReadScope, source_targets_match_advice};
+ pub(crate) use declaration_preview::OriginalProcedureReadDeclaration;
+ mod scalar_body_alpha;
+ pub use scalar_body_alpha::OriginalScalarBodyAlphaRename;
+@@ -132,6 +134,7 @@ mod source_transition_advice;
+ pub use source_catalogue_advice::{
+     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
+ };
++pub(crate) use source_transition_advice::OriginalSourceCataloguePurpose;
+ pub(crate) use source_transition_advice::original_single_command_substitution_words;
+ pub use source_transition_advice::{
+     OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_flow.rs b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+index 09decdea8..19911a24c 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -15,7 +15,7 @@ use super::{
+ use crate::ir::{CommandTokens, WordExpr, WordPart};
+ use std::collections::{BTreeMap, BTreeSet, VecDeque};
+ use std::hash::{Hash, Hasher};
+-use std::sync::{Arc, Mutex};
++use std::sync::{Arc, Mutex, OnceLock};
+ use tcl_registry::body_execution::BodyOperand;
+ use tcl_registry::completion::CompletionCode;
+ use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+@@ -24,6 +24,9 @@ use tcl_registry::script_body_flow::ScriptBodyFlow;
+ #[derive(Debug)]
+ pub(super) struct DeclarationFlowInventory {
+     reports: DeclarationFlowReports,
++    source_seed: Option<super::source_transition_advice::OriginalSourceTransitionSeed>,
++    source_catalogue: OnceLock<Option<Arc<super::source_read_scope::SourceReadCatalogue>>>,
++    source_catalogue_memo: Arc<super::source_read_scope::SourceReadCatalogueMemo>,
+     layouts: Arc<DeclarationLayouts>,
+     accesses: Arc<super::SourceVariableAccesses>,
+     origin_accesses: Arc<super::OriginVariableAccesses>,
+@@ -32,6 +35,18 @@ pub(super) struct DeclarationFlowInventory {
+ }
+ 
+ impl DeclarationFlowInventory {
++    fn source_read_catalogue(
++        &self,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<&super::source_read_scope::SourceReadCatalogue> {
++        let seed = self.source_seed.as_ref()?;
++        // Foreign requests cannot poison the independently retained cache.
++        seed.matches_registry(registry).then_some(())?;
++        self.source_catalogue
++            .get_or_init(|| self.source_catalogue_memo.get_or_prepare(seed, registry))
++            .as_deref()
++    }
++
+     pub(super) fn new(
+         layouts: Arc<DeclarationLayouts>,
+         accesses: Arc<super::SourceVariableAccesses>,
+@@ -41,6 +56,9 @@ impl DeclarationFlowInventory {
+     ) -> Self {
+         Self {
+             reports: DeclarationFlowReports::default(),
++            source_seed: None,
++            source_catalogue: OnceLock::new(),
++            source_catalogue_memo: Arc::default(),
+             layouts,
+             accesses,
+             origin_accesses,
+@@ -52,7 +70,8 @@ impl DeclarationFlowInventory {
+ // Derived reports never participate in source-inventory identity.
+ impl PartialEq for DeclarationFlowInventory {
+     fn eq(&self, other: &Self) -> bool {
+-        self.layouts == other.layouts
++        self.source_seed == other.source_seed
++            && self.layouts == other.layouts
+             && self.accesses == other.accesses
+             && self.origin_accesses == other.origin_accesses
+             && self.points == other.points
+@@ -63,10 +82,13 @@ impl Eq for DeclarationFlowInventory {}
+ 
+ /// Derived inventory retained only by this mutable builder. Clones start empty.
+ #[derive(Default)]
+-pub(super) struct SourceDeclarationFlowCache(Mutex<Option<Arc<DeclarationFlowInventory>>>);
++pub(super) struct SourceDeclarationFlowCache(
++    Mutex<Option<Arc<DeclarationFlowInventory>>>,
++    Arc<super::source_read_scope::SourceReadCatalogueMemo>,
++);
+ impl Clone for SourceDeclarationFlowCache {
+     fn clone(&self) -> Self {
+-        Self::default()
++        Self(Mutex::new(None), Arc::clone(&self.1))
+     }
+ }
+ impl std::fmt::Debug for SourceDeclarationFlowCache {
+@@ -164,13 +186,15 @@ impl DeclarationFlowReports {
+ }
+ impl super::SourceCommandBindings {
+     pub(super) fn current_declaration_flow_inventory(&self) -> Arc<DeclarationFlowInventory> {
+-        let next = DeclarationFlowInventory::new(
++        let mut next = DeclarationFlowInventory::new(
+             self.declaration_layouts.shared(),
+             self.variable_accesses.shared(),
+             self.origin_variable_accesses.shared(),
+             self.points.shared(),
+             self.origin_points.shared(),
+         );
++        next.source_seed = self.original_source_transition_seed();
++        next.source_catalogue_memo = Arc::clone(&self.declaration_flow_cache.1);
+         let mut current = self
+             .declaration_flow_cache
+             .0
+@@ -670,6 +694,7 @@ struct Node {
+ }
+ #[derive(Default)]
+ struct NodeAvailability {
++    source_catalogue_only: bool,
+     quoted_use_unavailable: bool,
+     unavailable_declared_prefix: bool,
+     unknown_reads: bool,
+@@ -860,14 +885,16 @@ impl Builder<'_> {
+                     break;
+                 }
+                 self.read_sites.insert(site.clone());
+-                if !super::declaration_preview::retains_successor_layout(
+-                    &site,
+-                    &tokens,
+-                    &read.snapshot,
+-                    &read.header.namespace,
+-                    self.config,
+-                    self.registry,
+-                ) {
++                if self.source_read_selection(&tokens, &site).is_none()
++                    && !super::declaration_preview::retains_successor_layout(
++                        &site,
++                        &tokens,
++                        &read.snapshot,
++                        &read.header.namespace,
++                        self.config,
++                        self.registry,
++                    )
++                {
+                     break;
+                 }
+             }
+@@ -1005,6 +1032,75 @@ impl Builder<'_> {
+         })
+     }
+ 
++    fn source_read_selection(
++        &self,
++        tokens: &CommandTokens,
++        site: &CommandAllocationSite,
++    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
++        let body = match self.entry {
++            DeclarationFlowFrame::Existing(entry) => {
++                if !matches!(
++                    entry.frame(),
++                    crate::var_resolve::VariableExecutionFrame::Procedure { .. }
++                        | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
++                ) {
++                    return None;
++                }
++                let source = entry.source();
++                if &source.origin != &site.source || !entry.owns_source(&site.source, site.offset) {
++                    return None;
++                }
++                tcl_lexer::Span::new(
++                    source.base(),
++                    source
++                        .base()
++                        .checked_add(u32::try_from(source.text.len()).ok()?)?,
++                )
++            }
++            DeclarationFlowFrame::Read(entry) => {
++                entry.owns_source(&site.source, site.offset).then_some(())?;
++                entry.read.original_body_span()?
++            }
++        };
++        // Original layout corruption is terminal even for a source-only query.
++        let scopes = self.selection_scopes(tokens, site)?;
++        let mut retained = tokens.clone();
++        let points = self
++            .inventory
++            .points
++            .iter()
++            .chain(
++                self.inventory
++                    .origin_points
++                    .get(&site.source)
++                    .into_iter()
++                    .flatten(),
++            )
++            .filter(|point| {
++                point.dispatch
++                    && point.offset == site.offset
++                    && point.state.current_source_origin.as_ref() == Some(&site.source)
++                    && scopes.iter().any(|scope| {
++                        point.state.variable_frame == scope.snapshot.state.variable_frame
++                    })
++            });
++        let mut points = points.peekable();
++        if points.peek().is_some() {
++            retained.source_binding =
++                Some(super::SourceCommandBindings::query_dispatch_points(points));
++        }
++        let scope = self.inventory.source_read_catalogue(self.registry)?.scope(
++            site,
++            &retained,
++            body,
++            self.config,
++        )?;
++        if scope.advice().dialect() != self.dialect {
++            return None;
++        }
++        crate::registry_invocation::declaration_source_read_flow(self.registry, &retained, &scope)
++    }
++
+     fn selection(
+         &self,
+         tokens: &CommandTokens,
+@@ -1012,6 +1108,20 @@ impl Builder<'_> {
+     ) -> Option<(
+         crate::registry_invocation::DeclarationInvocationFlow,
+         Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
++    )> {
++        self.original_layout_selection(tokens, site).or_else(|| {
++            self.source_read_selection(tokens, site)
++                .map(|selected| (selected, None))
++        })
++    }
++
++    fn original_layout_selection(
++        &self,
++        tokens: &CommandTokens,
++        site: &CommandAllocationSite,
++    ) -> Option<(
++        crate::registry_invocation::DeclarationInvocationFlow,
++        Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
+     )> {
+         let mut agreed = None;
+         for DeclarationSelectionScope {
+@@ -1092,6 +1202,7 @@ impl Builder<'_> {
+             self.unknown(dispatch, exits.normal);
+             return;
+         };
++        self.nodes[id].availability.source_catalogue_only = selected.effects.source_catalogue_only;
+         for &operand in &selected.quoted_operands {
+             match self.quoted_mentions(site, &selected.effective, operand) {
+                 Ok(mentions) => self.nodes[id].quoted_mentions.extend(mentions),
+@@ -2213,10 +2328,10 @@ impl Builder<'_> {
+             let Some(state) = &states[id] else {
+                 continue;
+             };
+-            report.unavailable |= node.unknown;
++            report.unavailable |= node.unknown || node.availability.source_catalogue_only;
+             if let Some(site) = node.site {
+                 report.reached.insert(site);
+-                if state.unknown_writers {
++                if state.unknown_writers || node.availability.source_catalogue_only {
+                     report.unavailable_before.insert(site);
+                 }
+             }
+@@ -2668,6 +2783,79 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn source_read_scope_preserves_reached_owner_refusal_after_loop() {
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
++        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
++        let source = "proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}";
++        let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
++        let offset = u32::try_from(source.find("puts $x").unwrap()).unwrap();
++        let segment =
++            crate::segmenter::segment_commands_with_offset_and_config("puts $x", offset, config)
++                .remove(0);
++        let mut tokens = CommandTokens::from_segmented(
++            &tcl_lexer::SourceImage::document(source).source_map(),
++            config,
++            &segment,
++        );
++        bindings.stamp_original_tokens(&mut tokens);
++        let binding = tokens.source_binding.as_ref().unwrap();
++        let site = binding.invocation_site().unwrap();
++        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
++        let observation = super::super::declaration_layout::original_declaration_layouts(
++            inventory.layouts.get(site).unwrap(),
++        )
++        .unwrap()
++        .next()
++        .unwrap();
++        let dialect = observation
++            .snapshot
++            .state
++            .source_variables
++            .invocation_dialect
++            .unwrap();
++        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
++        let selected = |inventory| {
++            let builder = Builder {
++                inventory,
++                registry,
++                config,
++                dialect,
++                entry: &frame,
++                nodes: Vec::new(),
++                jobs: Vec::new(),
++                conditional_overwrites: Vec::new(),
++                read_sites: BTreeSet::new(),
++            };
++            let mut raw = tokens.clone();
++            raw.source_binding = None;
++            builder.source_read_selection(&raw, site)
++        };
++        assert!(selected(inventory).is_some());
++        let mut points = inventory.points.as_ref().clone();
++        assert!(
++            points
++                .iter()
++                .any(|point| point.dispatch && point.offset == site.offset)
++        );
++        for point in &mut points {
++            point.original_written_words = None;
++            point.compiled_execution.original_words = None;
++        }
++        let mut invalid = DeclarationFlowInventory::new(
++            Arc::clone(&inventory.layouts),
++            Arc::clone(&inventory.accesses),
++            Arc::clone(&inventory.origin_accesses),
++            Arc::new(points),
++            Arc::new(BTreeMap::new()),
++        );
++        invalid.source_seed = inventory.source_seed.clone();
++        assert!(
++            selected(&invalid).is_none(),
++            "malformed reached metadata stays terminal"
++        );
++    }
++
+     fn report(source: &str) -> Arc<DeclarationFlowReport> {
+         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+index 1fcd7e7fa..f5097ad0c 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -235,6 +235,8 @@ pub enum SourceCommandTransitionObligation {
+     ConditionalDeclarationApplicability,
+     /// Authentic member-body source catalogue, without a member or frame entry.
+     ConditionalMemberBodyCatalogueApplicability,
++    /// Authentic original body syntax, independently of current namespace/frame.
++    ConditionalOriginalBodyCatalogueApplicability,
+     /// A complete Logical source body and its authentic parent schema own
+     /// this conditional header. No runtime activation or frame is supplied.
+     DeferredLogicalBodyApplicability,
+@@ -346,6 +348,33 @@ pub(crate) struct SourceAdviceWord {
+     pub(crate) origin: crate::registry_invocation::InvocationWordOrigin,
+ }
+ 
++/// Genuine script/member issuers for conditional readonly body schemas.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(crate) enum OriginalSourceCatalogueBody {
++    Script(Arc<crate::registry_invocation::OriginalSourceScriptBody>),
++    Member(Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>),
++}
++impl OriginalSourceCatalogueBody {
++    pub(crate) fn content_span(&self) -> tcl_lexer::Span {
++        match self {
++            Self::Script(body) => body.content_span(),
++            Self::Member(body) => body.content_span(),
++        }
++    }
++    pub(crate) fn matches_source(&self, source: &SourceImage, config: LexerConfig) -> bool {
++        match self {
++            Self::Script(body) => body.matches_source(source, config),
++            Self::Member(body) => body.matches_source(source, config),
++        }
++    }
++    pub(crate) fn matches_context(&self, context: &ContextRegistry) -> bool {
++        match self {
++            Self::Script(body) => body.matches_context(context),
++            Self::Member(body) => body.matches_context(context),
++        }
++    }
++}
++
+ /// Sealed conditional source argv with its own original naming purpose and
+ /// optional genuine authored transition lineage.
+ /// This supplies no entered handler, current command table, Native, Normal,
+@@ -374,6 +403,7 @@ pub struct OriginalSourceCommandTransitionAdvice {
+     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+     member_catalogue_body:
+         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
++    catalogue_body: Option<OriginalSourceCatalogueBody>,
+ }
+ impl OriginalSourceCommandTransitionAdvice {
+     /// Actual lexical source occurrence; not a fabricated dispatch point.
+@@ -459,6 +489,13 @@ impl OriginalSourceCommandTransitionAdvice {
+                             && word.span().end() <= body.content_span().end()
+                     })
+             })
++            && self.catalogue_body.as_ref().is_none_or(|body| {
++                body.matches_source(image, config)
++                    && self.original.iter().all(|word| {
++                        word.span().start() >= body.content_span().start()
++                            && word.span().end() <= body.content_span().end()
++                    })
++            })
+             && self.member_catalogue_body.as_ref().is_none_or(|body| {
+                 body.matches_source(image, config)
+                     && self.original.iter().all(|word| {
+@@ -497,6 +534,10 @@ impl OriginalSourceCommandTransitionAdvice {
+                 .c_source_body
+                 .as_ref()
+                 .is_none_or(|body| body.matches_context(context))
++            && self
++                .catalogue_body
++                .as_ref()
++                .is_none_or(|body| body.matches_context(context))
+             && self
+                 .member_catalogue_body
+                 .as_ref()
+@@ -521,6 +562,10 @@ impl OriginalSourceCommandTransitionAdvice {
+     ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
+         self.procedure_body.as_deref()
+     }
++    pub(crate) fn original_catalogue_source_body(&self) -> Option<&OriginalSourceCatalogueBody> {
++        self.catalogue_body.as_ref()
++    }
++
+     /// Conditional C source coordinates, without a native namespace token.
+     #[must_use]
+     pub fn conditional_c_source_namespace(&self) -> Option<&ByteNamespacePath> {
+@@ -568,6 +613,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
+     interpreter_paths: BTreeMap<u32, Vec<OriginalSourceInterpreterPathBinding>>,
+     authored_prefixes: BTreeMap<u32, Option<OriginalSourceAuthoredCommandPrefix>>,
+     member_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
++    body_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
+     produced_prefixes: BTreeMap<u32, Option<OriginalSourceProducedCommandPrefix>>,
+     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
+     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
+@@ -658,7 +704,17 @@ impl OriginalSourceTransitionAdviceTape {
+         self.member_catalogue.get(&offset)?.as_ref()
+     }
+ 
++    pub(crate) fn body_catalogue(
++        &self,
++        offset: u32,
++    ) -> Option<&OriginalSourceCommandTransitionAdvice> {
++        self.body_catalogue.get(&offset)?.as_ref()
++    }
++
+     fn extend_inventory(&mut self, other: Self) {
++        for (offset, receipt) in other.body_catalogue {
++            source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
++        }
+         for (offset, receipt) in other.member_catalogue {
+             source_class::merge_receipt(&mut self.member_catalogue, offset, receipt);
+         }
+@@ -1641,6 +1697,7 @@ impl AdviceInvocationContext<'_> {
+         self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
+         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
+         self.retain_definition_member_prefix_inventory(tape, graph, invocation, schema);
++        self.retain_original_body_catalogue(tape, graph, invocation, schema);
+         self.retain_source_callback_targets(tape, invocation, graph, schema);
+         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
+         self.retain_logical_procedure_body(tape, invocation, graph, schema);
+@@ -1770,6 +1827,7 @@ impl AdviceInvocationContext<'_> {
+             c_source_path,
+             procedure_body: graph.procedure_body.clone(),
+             member_catalogue_body: None,
++            catalogue_body: None,
+             logical_input: match self.policy {
+                 AdviceNamingPolicy::Logical(input) => Some(input.clone()),
+                 AdviceNamingPolicy::Native(_) => None,
+@@ -1922,27 +1980,136 @@ impl super::SourceCommandBindings {
+         self.final_state.logical_source_name_advice_input()
+     }
+ 
++    #[cfg(test)]
+     fn prepare_source_advice_tape(
+         &self,
+         context: &ContextRegistry,
+     ) -> Option<AdviceTapeInputs<'_>> {
++        let seed = self.original_source_transition_seed()?;
++        let prepared = seed
++            .prepare_source_advice_tape(context, OriginalSourceCataloguePurpose::CompleteProgram)?;
++        Some(AdviceTapeInputs {
++            origin: self.source_origin()?,
++            config: prepared.config,
++            policy: prepared.policy,
++            dialect: prepared.dialect,
++            plan: prepared.plan,
++        })
++    }
++
++    #[cfg(test)]
++    fn initial_source_advice_graph(
++        &self,
++        context: &ContextRegistry,
++        policy: &AdviceNamingPolicy,
++    ) -> Option<AdviceGraph> {
++        self.original_source_transition_seed()?
++            .initial_source_advice_graph(context, policy)
++    }
++
++    pub(super) fn original_source_transition_seed(&self) -> Option<OriginalSourceTransitionSeed> {
+         let origin = self.source_origin()?;
+         let config = self.lexer_config?;
+-        let baseline = &self.final_state.baseline;
++        self.matches_original_source_image(origin.source_image(), config)
++            .then_some(())?;
++        Some(OriginalSourceTransitionSeed {
++            origin: Arc::clone(origin),
++            config,
++            baseline: Arc::clone(&self.final_state.baseline),
++            logical_input: self.final_state.logical_source_name_advice_input().cloned(),
++        })
++    }
++
++    /// Independently interpreted authored root-script transitions. This owner
++    /// never mutates, publishes or borrows the retained runtime command state.
++    pub(crate) fn original_source_transition_advice_tape(
++        &self,
++        context: &ContextRegistry,
++    ) -> Option<OriginalSourceTransitionAdviceTape> {
++        self.original_source_transition_seed()?.prepare(context)
++    }
++
++    pub(crate) fn original_source_transition_advice_tape_for(
++        &self,
++        context: &ContextRegistry,
++        purpose: OriginalSourceCataloguePurpose,
++    ) -> Option<OriginalSourceTransitionAdviceTape> {
++        self.original_source_transition_seed()?
++            .prepare_for(context, purpose)
++    }
++}
++
++/// Immutable whole-source issuer shared by independently requested purposes.
++/// The baseline retains its real metadata and entry; no body becomes a new entry.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(super) struct OriginalSourceTransitionSeed {
++    origin: Arc<super::SourceOriginId>,
++    config: LexerConfig,
++    baseline: Arc<super::BindingBaseline>,
++    logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
++}
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum OriginalSourceCataloguePurpose {
++    CompleteProgram,
++    /// Authentic complete commands before the separately retained parse cut.
++    CompletePrefix,
++}
++
++impl OriginalSourceTransitionSeed {
++    pub(super) fn matches_registry(&self, registry: &tcl_registry::CommandRegistry) -> bool {
++        self.baseline.registry_snapshot.as_ref() == Some(&registry.snapshot().semantic_key())
++    }
++
++    pub(super) fn source_context(
++        &self,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<Arc<ContextRegistry>> {
++        if !self.matches_registry(registry) {
++            return None;
++        }
++        match &self.baseline.metadata_context {
++            crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(input) => {
++                crate::registry_invocation::InvocationMetadataContext::for_source_input(
++                    registry,
++                    input,
++                    self.config,
++                    Some(input.unit_profile()),
++                )?;
++                Some(input.context_registry())
++            }
++            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone => {
++                let profile = registry.profile()?;
++                // Explicit scalar compatibility selects static availability only.
++                // The exact frozen store keeps every override and generation.
++                Some(Arc::new(
++                    tcl_registry::model::ingress::context_for_profile(profile)
++                        .with_command_store(registry.snapshot().shared_registry()),
++                ))
++            }
++            crate::registry_invocation::OwnedInvocationMetadataContext::Supplied(_)
++            | crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable => None,
++        }
++    }
++
++    fn prepare_source_advice_tape(
++        &self,
++        context: &ContextRegistry,
++        purpose: OriginalSourceCataloguePurpose,
++    ) -> Option<AdviceTapeInputs<'_>> {
++        let origin = &self.origin;
++        let config = self.config;
++        let baseline = &self.baseline;
+         let policy = if let Some(native) = baseline
+             .execution_name_policy
+             .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+         {
+             AdviceNamingPolicy::Native(native)
+         } else {
+-            AdviceNamingPolicy::Logical(
+-                self.final_state.logical_source_name_advice_input()?.clone(),
+-            )
++            AdviceNamingPolicy::Logical(self.logical_input.as_ref()?.clone())
+         };
+         let dialect = baseline.dialect?;
+         if baseline.registry_snapshot.as_ref()
+             != Some(&context.commands().snapshot().semantic_key())
+-            || !self.matches_original_source_image(origin.source_image(), config)
+         {
+             return None;
+         }
+@@ -1952,7 +2119,7 @@ impl super::SourceCommandBindings {
+             config,
+         )
+         .ok()?;
+-        if plan.fatal_tail.is_some() {
++        if plan.fatal_tail.is_some() && purpose == OriginalSourceCataloguePurpose::CompleteProgram {
+             return None;
+         }
+         Some(AdviceTapeInputs {
+@@ -1969,7 +2136,7 @@ impl super::SourceCommandBindings {
+         context: &ContextRegistry,
+         policy: &AdviceNamingPolicy,
+     ) -> Option<AdviceGraph> {
+-        let baseline = &self.final_state.baseline;
++        let baseline = &self.baseline;
+         let mut graph = AdviceGraph::new(context, policy, baseline.dialect?)?;
+         if let Some(entry) = &baseline.native_entry {
+             graph.retain_native_baseline(context, entry)?;
+@@ -1990,11 +2157,17 @@ impl super::SourceCommandBindings {
+         Some(graph)
+     }
+ 
+-    /// Independently interpreted authored root-script transitions. This owner
+-    /// never mutates, publishes or borrows the retained runtime command state.
+-    pub(crate) fn original_source_transition_advice_tape(
++    pub(super) fn prepare(
++        &self,
++        context: &ContextRegistry,
++    ) -> Option<OriginalSourceTransitionAdviceTape> {
++        self.prepare_for(context, OriginalSourceCataloguePurpose::CompleteProgram)
++    }
++
++    pub(super) fn prepare_for(
+         &self,
+         context: &ContextRegistry,
++        purpose: OriginalSourceCataloguePurpose,
+     ) -> Option<OriginalSourceTransitionAdviceTape> {
+         let AdviceTapeInputs {
+             origin,
+@@ -2002,7 +2175,7 @@ impl super::SourceCommandBindings {
+             policy,
+             dialect,
+             plan,
+-        } = self.prepare_source_advice_tape(context)?;
++        } = self.prepare_source_advice_tape(context, purpose)?;
+         let mut graph = self.initial_source_advice_graph(context, &policy)?;
+         let mut tape = OriginalSourceTransitionAdviceTape::default();
+         let advice_context = AdviceInvocationContext {
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+index 54715345b..450457e3c 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -40,6 +40,7 @@ struct BodyWalk<'context, 'source> {
+     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+     member_catalogue_body:
+         Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
++    catalogue_body: Option<super::OriginalSourceCatalogueBody>,
+ }
+ 
+ /// Original substitution order, omitting descendants visited with their parent.
+@@ -104,6 +105,7 @@ impl AdviceInvocationContext<'_> {
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
+             member_catalogue_body: None,
++            catalogue_body: None,
+         };
+         if walk.regions(&mut branch, &advice, schema, depth).is_some()
+             && let Some(inventory) = walk.inventory
+@@ -165,6 +167,12 @@ impl AdviceInvocationContext<'_> {
+                         continue;
+                     }
+                     let body = Arc::new(body);
++                    self.retain_original_body_command_catalogue(
++                        tape,
++                        graph,
++                        super::OriginalSourceCatalogueBody::Member(Arc::clone(&body)),
++                        body.original_words(),
++                    );
+                     let mut branch = graph.clone();
+                     branch.record_uncertainty(body.original_words());
+                     let mut walk = BodyWalk {
+@@ -174,7 +182,8 @@ impl AdviceInvocationContext<'_> {
+                         inventory: None,
+                         authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+                         source_body: None,
+-                        member_catalogue_body: Some(Arc::clone(&body)),
++                        member_catalogue_body: Some(body.clone()),
++                        catalogue_body: None,
+                     };
+                     if walk.script(&mut branch, body.content_span(), 0).is_none() {
+                         continue;
+@@ -190,6 +199,88 @@ impl AdviceInvocationContext<'_> {
+         }
+     }
+ 
++    /// The same guarded body issuer also retains source-only syntax where a
++    /// current namespace/frame interpretation is unavailable. Effects stay out
++    /// of this catalogue and known shadows/deletions remain authoritative.
++    pub(super) fn retain_original_body_catalogue(
++        &self,
++        tape: &mut OriginalSourceTransitionAdviceTape,
++        graph: &AdviceGraph,
++        invocation: AdviceInvocation<'_>,
++        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++    ) {
++        if schema.authored_source_definition_body_grammar().is_some() {
++            return;
++        }
++        if !self
++            .authored_roles(schema)
++            .0
++            .iter()
++            .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
++        {
++            return;
++        }
++        if schema.semantics.body_interpreter.resolve_with(|ordinal| {
++            std::str::from_utf8(invocation.arguments.get(ordinal)?.value.as_deref()?).ok()
++        }) != tcl_registry::world_effect::InterpreterScope::Current
++        {
++            return;
++        }
++        let Some(advice) = self.schema_advice(invocation, graph, schema) else {
++            return;
++        };
++        let Ok(source) = self.origin.source_image().try_text() else {
++            return;
++        };
++        let Some(words) =
++            crate::registry_invocation::source_structure::source_transition_words_from_advice(
++                source,
++                self.config,
++                self.context,
++                advice,
++            )
++        else {
++            return;
++        };
++        for body in words.source_script_bodies(self.context) {
++            if !body.matches_source(self.origin.source_image(), self.config)
++                || !body.matches_context(self.context)
++            {
++                continue;
++            }
++            self.retain_original_body_command_catalogue(
++                tape,
++                graph,
++                super::OriginalSourceCatalogueBody::Script(Arc::new(body)),
++                invocation.native,
++            );
++        }
++    }
++
++    fn retain_original_body_command_catalogue(
++        &self,
++        tape: &mut OriginalSourceTransitionAdviceTape,
++        graph: &AdviceGraph,
++        body: super::OriginalSourceCatalogueBody,
++        original: &[NativeWord],
++    ) {
++        let mut branch = graph.clone();
++        branch.record_uncertainty(original);
++        let mut walk = BodyWalk {
++            context: self,
++            visited: 0,
++            unavailable_lifecycle_effects: false,
++            inventory: None,
++            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
++            source_body: None,
++            member_catalogue_body: None,
++            catalogue_body: Some(body.clone()),
++        };
++        // Complete source prefixes keep their separately owned fatal tail.
++        let _ = walk.script(&mut branch, body.content_span(), 0);
++        tape.extend_inventory(walk.authored_prefixes);
++    }
++
+     /// Reuse the original executable arena before selecting source head advice.
+     /// Known child transitions are processed; unresolved variable/observer
+     /// effects stay separate from the post-operand execution lookup.
+@@ -214,6 +305,7 @@ impl AdviceInvocationContext<'_> {
+                     .then(OriginalSourceTransitionAdviceTape::default),
+                 source_body: None,
+                 member_catalogue_body: None,
++                catalogue_body: None,
+                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             };
+             walk.substitutions(graph, native, 0)?;
+@@ -249,6 +341,7 @@ impl AdviceInvocationContext<'_> {
+             .then(OriginalSourceTransitionAdviceTape::default),
+             source_body: None,
+             member_catalogue_body: None,
++            catalogue_body: None,
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+         };
+         #[cfg(test)]
+@@ -412,6 +505,19 @@ impl BodyWalk<'_, '_> {
+                     }
+                 }
+             }
++            let catalogue = self.catalogue_body.clone();
++            if catalogue.is_some()
++                && (schema.semantics.body_kind != tcl_registry::BodyKind::Plain
++                    || schema
++                        .semantics
++                        .traits
++                        .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
++                    || schema.facts().frame_effect.is_some())
++            {
++                self.catalogue_body = Some(super::OriginalSourceCatalogueBody::Script(Arc::new(
++                    region.clone(),
++                )));
++            }
+             let source_body = (self.inventory.is_some()
+                 && (schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                     || branch.c_source_namespace.is_some()))
+@@ -419,6 +525,7 @@ impl BodyWalk<'_, '_> {
+             let parent = std::mem::replace(&mut self.source_body, source_body);
+             let walked = self.script(&mut branch, span, depth);
+             self.source_body = parent;
++            self.catalogue_body = catalogue;
+             walked?;
+             Self::retain_possible_effects(graph, &original, branch, advice.original_words());
+         }
+@@ -615,7 +722,7 @@ impl BodyWalk<'_, '_> {
+             plan.fatal_tail.is_none(),
+             plan.commands.len(),
+         );
+-        if plan.fatal_tail.is_some() {
++        if plan.fatal_tail.is_some() && self.catalogue_body.is_none() {
+             return None;
+         }
+         for command in plan.commands {
+@@ -818,6 +925,22 @@ impl BodyWalk<'_, '_> {
+         invocation: AdviceInvocation<'_>,
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+     ) -> Option<()> {
++        if let Some(body) = &self.catalogue_body {
++            let offset = invocation.native.first()?.span().start();
++            if self.authored_prefixes.body_catalogue.len() < MAX_COMMANDS {
++                let receipt = (!graph.blocks_registry_source(invocation.head)).then(|| {
++                    let mut advice = self.context.schema_advice(invocation, graph, schema)?;
++                    advice.catalogue_body = Some(body.clone());
++                    advice.obligations.push(SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability);
++                    (advice.matches_source(self.context.origin.source_image(), self.context.config) && advice.matches_context(self.context.context)).then_some(advice)
++                }).flatten();
++                super::source_class::merge_receipt(
++                    &mut self.authored_prefixes.body_catalogue,
++                    offset,
++                    receipt,
++                );
++            }
++        }
+         if let Some(body) = &self.member_catalogue_body {
+             let offset = invocation.native.first()?.span().start();
+             if self.authored_prefixes.member_catalogue.len() < 256 {
+@@ -1513,6 +1636,7 @@ mod original_expression_purpose_frontier_tests {
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
+             member_catalogue_body: None,
++            catalogue_body: None,
+         };
+         assert!(
+             logical
+@@ -1540,6 +1664,7 @@ mod original_expression_purpose_frontier_tests {
+             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+             source_body: None,
+             member_catalogue_body: None,
++            catalogue_body: None,
+         };
+         assert!(
+             native
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs
+index 9baac6576..0dd90a799 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs
+@@ -93,6 +93,7 @@ impl crate::command_binding::SourceCommandBindings {
+             c_source_path: None,
+             procedure_body: None,
+             member_catalogue_body: None,
++            catalogue_body: None,
+         })
+     }
+ }
+diff --git a/rust/tcl-compiler/src/realm/source_transition_advice.rs b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+index e85831e9e..8f4da7a64 100644
+--- a/rust/tcl-compiler/src/realm/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+@@ -20,6 +20,8 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
+ 
+ type SourceAdviceCacheEntry = (
+     ResolvedContext,
++    tcl_registry::RegistrySemanticKey,
++    crate::command_binding::OriginalSourceCataloguePurpose,
+     Arc<Option<OriginalSourceTransitionAdviceTape>>,
+ );
+ 
+@@ -33,11 +35,29 @@ impl OriginalSourceTransitionAdviceCache {
+         context: &ContextRegistry,
+         prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
+     ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
++        self.get_or_prepare_for(
++            context,
++            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram,
++            prepare,
++        )
++    }
++
++    fn get_or_prepare_for(
++        &self,
++        context: &ContextRegistry,
++        purpose: crate::command_binding::OriginalSourceCataloguePurpose,
++        prepare: impl FnOnce() -> Option<OriginalSourceTransitionAdviceTape>,
++    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
++        let registry = context.commands().snapshot().semantic_key();
+         let find = |entries: &[SourceAdviceCacheEntry]| {
+             entries
+                 .iter()
+-                .find(|(owned, _)| owned == context.context())
+-                .map(|(_, value)| Arc::clone(value))
++                .find(|(owned, commands, source_purpose, _)| {
++                    owned == context.context()
++                        && commands == &registry
++                        && *source_purpose == purpose
++                })
++                .map(|(_, _, _, value)| Arc::clone(value))
+         };
+         if let Some(value) = find(
+             &self
+@@ -56,7 +76,12 @@ impl OriginalSourceTransitionAdviceCache {
+             return value;
+         }
+         if entries.len() < 4 {
+-            entries.push((context.context().clone(), Arc::clone(&prepared)));
++            entries.push((
++                context.context().clone(),
++                registry,
++                purpose,
++                Arc::clone(&prepared),
++            ));
+         }
+         prepared
+     }
+@@ -558,6 +583,89 @@ impl super::CommandBindingRealm {
+         &self,
+         input: &crate::analyser::ResolvedAnalysisInput,
+         tokens: &crate::ir::CommandTokens,
++    ) -> Option<OriginalSourceCommandTransitionAdvice> {
++        self.original_catalogue_advice(input, tokens, true)
++    }
++
++    /// Readonly schema at a complete original command before a distinct parse tail.
++    /// This grants no partial command, body entry, current cell or execution.
++    pub(crate) fn original_source_prefix_catalogue_advice(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Option<OriginalSourceCommandTransitionAdvice> {
++        self.original_catalogue_advice(input, tokens, false)
++    }
++
++    /// Exact original command extent from the shared source issuer. The caller
++    /// still checks current point/target metadata before using its schema.
++    pub(crate) fn original_source_catalogue_segment_at(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        offset: u32,
++    ) -> Option<crate::segmenter::SegmentedCommand> {
++        self.matches_resolved_analysis_input(input).then_some(())?;
++        let image = self.original_source_image()?;
++        let config = input.lexer_config();
++        self.matches_original_source_image(image, config)
++            .then_some(())?;
++        let context = input.borrowed_context_registry();
++        let purpose = crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix;
++        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
++            self.bindings
++                .original_source_transition_advice_tape_for(context, purpose)
++        });
++        let tape = prepared.as_ref().as_ref()?;
++        if tape.blocks_registry_source(offset) {
++            return None;
++        }
++        let advice = if let Some(advice) = tape.body_catalogue(offset) {
++            advice
++        } else {
++            match tape.lookup(offset) {
++                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
++                OriginalSourceTransitionAdviceLookup::Refused
++                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
++            }
++        };
++        if !advice.matches_context(context) || !advice.matches_source(image, config) {
++            return None;
++        }
++        let span = tcl_lexer::Span::new(
++            advice.original_words().first()?.span().start(),
++            advice.original_words().last()?.span().end(),
++        );
++        if span.start() != offset {
++            return None;
++        }
++        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
++            image.try_text().ok()?.get(span.as_range())?,
++            span.start(),
++            config.nested(),
++        );
++        (segments.len() == 1).then_some(())?;
++        let segment = segments.pop()?;
++        let tokens = crate::ir::CommandTokens::from_segmented(
++            &tcl_lexer::SourceMap::from_image(image),
++            config,
++            &segment,
++        );
++        (crate::registry_invocation::original_native_compiler_words(
++            image,
++            tokens.words(),
++            offset,
++            config,
++        )?
++        .as_slice()
++            == advice.original_words())
++        .then_some(segment)
++    }
++
++    fn original_catalogue_advice(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        tokens: &crate::ir::CommandTokens,
++        member: bool,
+     ) -> Option<OriginalSourceCommandTransitionAdvice> {
+         self.matches_resolved_analysis_input(input).then_some(())?;
+         if tokens.synthetic.is_some() {
+@@ -579,58 +687,43 @@ impl super::CommandBindingRealm {
+             offset,
+             config,
+         )?;
+-        let prepared = self.source_advice.get_or_prepare(context, || {
++        let purpose = if member {
++            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram
++        } else {
++            crate::command_binding::OriginalSourceCataloguePurpose::CompletePrefix
++        };
++        let prepared = self.source_advice.get_or_prepare_for(context, purpose, || {
+             self.bindings
+-                .original_source_transition_advice_tape(context)
++                .original_source_transition_advice_tape_for(context, purpose)
+         });
+         let tape = prepared.as_ref().as_ref()?;
+         if tape.blocks_registry_source(offset) {
+             return None;
+         }
+-        let advice = tape.member_catalogue(offset)?;
++        let advice = if member {
++            tape.member_catalogue(offset)?
++        } else if let Some(advice) = tape.body_catalogue(offset) {
++            advice
++        } else {
++            match tape.lookup(offset) {
++                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
++                OriginalSourceTransitionAdviceLookup::Refused
++                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
++            }
++        };
+         if !advice.matches_context(context)
+             || !advice.matches_source(image, config)
+             || original.as_slice() != advice.original_words()
+         {
+             return None;
+         }
+-        let spec = tcl_registry::model::SpecKey::new(context.commands().get(advice.command())?);
+-        let captured = advice
+-            .arguments()
+-            .iter()
+-            .take_while(|word| {
+-                matches!(
+-                    word.origin,
+-                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+-                )
+-            })
+-            .collect::<Vec<_>>();
+-        for target in &binding.targets {
+-            if target
+-                .registry_identity()
+-                .and_then(|identity| context.commands().get(identity))
+-                .map(tcl_registry::model::SpecKey::new)
+-                != Some(spec)
+-                || target.prepended.len() != captured.len()
+-            {
+-                return None;
+-            }
+-            if target.prepended.iter().zip(&captured).any(|(value, word)| {
+-                value.literal_bytes().is_none() || value.literal_bytes() != word.value.as_deref()
+-            }) {
+-                return None;
+-            }
+-            if !captured.is_empty() {
+-                let inputs = target.original_prepended_name_inputs()?;
+-                if inputs.iter().zip(&captured).any(|(input, word)| {
+-                    word.input
+-                        .as_ref()
+-                        .and_then(crate::command_binding::SourceAdviceNameInput::native_input)
+-                        != Some(input)
+-                }) {
+-                    return None;
+-                }
+-            }
++        if binding.lookup_state.is_some() {
++            binding
++                .original_invocation_metadata_at_point(tokens, context.commands())
++                .ok()?;
++        }
++        if !crate::command_binding::source_targets_match_advice(context, binding, advice) {
++            return None;
+         }
+         Some(advice.clone())
+     }
+@@ -821,7 +914,10 @@ impl super::CommandBindingRealm {
+             trace_original_child_guard(
+                 "retained.target_match",
+                 Some(offset),
+-                logical.is_none() || logical_targets_match_advice(context, binding, &advice),
++                logical.is_none()
++                    || crate::command_binding::source_targets_match_advice(
++                        context, binding, &advice,
++                    ),
+             );
+         }
+         if !advice.matches_context(context)
+@@ -837,57 +933,11 @@ impl super::CommandBindingRealm {
+         {
+             return None;
+         }
+-        if logical.is_some() && !logical_targets_match_advice(context, binding, &advice) {
++        if logical.is_some()
++            && !crate::command_binding::source_targets_match_advice(context, binding, &advice)
++        {
+             return None;
+         }
+         Some(advice)
+     }
+ }
+-
+-/// Conditional Logical advice cannot override an actually selected target.
+-fn logical_targets_match_advice(
+-    context: &ContextRegistry,
+-    binding: &crate::command_binding::SourceInvocationBinding,
+-    advice: &OriginalSourceCommandTransitionAdvice,
+-) -> bool {
+-    if binding.lookup_state.is_some() && !binding.unknown && binding.targets.is_empty() {
+-        return false;
+-    }
+-    let prefix = advice
+-        .arguments()
+-        .iter()
+-        .filter(|word| {
+-            matches!(
+-                word.origin,
+-                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+-            )
+-        })
+-        .map(|word| word.value.as_deref())
+-        .collect::<Option<Vec<_>>>();
+-    let Some(prefix) = prefix else {
+-        return false;
+-    };
+-    let Some(descriptor) = context
+-        .context()
+-        .resolve_spec(context.commands(), advice.command())
+-    else {
+-        return false;
+-    };
+-    if binding.targets.iter().any(|target| {
+-        !target.registry_backed
+-            || !context
+-                .context()
+-                .resolve_spec(context.commands(), &target.command)
+-                .is_some_and(|selected| std::ptr::eq(selected, descriptor))
+-            || target
+-                .prepended
+-                .iter()
+-                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+-                .collect::<Option<Vec<_>>>()
+-                .as_deref()
+-                != Some(prefix.as_slice())
+-    }) {
+-        return false;
+-    }
+-    true
+-}
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 6b4163867..f5766a8c1 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -103,7 +103,8 @@ pub(crate) use declaration_assistance::{
+ mod declaration_flow;
+ pub(crate) use declaration_flow::{
+     DeclarationInvocationFlow, DeclarationLifecycleInvocation, declaration_dictionary_scope_advice,
+-    declaration_invocation_flow, declaration_lifecycle_invocation, declared_argument_words,
++    declaration_invocation_flow, declaration_lifecycle_invocation, declaration_source_read_flow,
++    declared_argument_words,
+ };
+ 
+ mod interval_advice;
+diff --git a/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs b/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
+index 8b9185e7c..1d045cf00 100644
+--- a/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
++++ b/rust/tcl-compiler/src/registry_invocation/declaration_flow.rs
+@@ -57,6 +57,8 @@ pub(crate) struct DeclarationEffectKnowledge {
+     /// Original metadata leaves the command lookup table unchanged. This
+     /// permits retaining a later declaration layout, never entered dispatch.
+     pub lookup_stable: bool,
++    /// Original body catalogue fields do not establish current invocation entry.
++    pub source_catalogue_only: bool,
+     /// Selected intrinsic can observe or select a different call frame.
+     /// Nested body effects retain their independently parsed ownership.
+     frame_reach: DeclarationFrameReach,
+@@ -195,34 +197,9 @@ pub(crate) fn declaration_invocation_flow(
+         };
+         let invocation =
+             InvocationWords::structured(*words.first()?, &words[1..]).with_dialect(dialect);
+-        let arguments = invocation.arguments();
+-        let flow =
+-            tcl_registry::case_bodies::script_body_flow_in_registry(registry, &facts, arguments);
+-        if !matches!(flow, ScriptBodyFlow::CaseBodies(_))
+-            && (!facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true))
+-        {
+-            return None;
+-        }
+-        let completion = registry
+-            .native_registration_completion_route(
+-                invocation,
+-                tcl_registry::VariableAliasFrame::Procedure,
+-            )
+-            .or_else(|| {
+-                registry.invocation_completion_route_in_frame(
+-                    &facts.canonical_command,
+-                    arguments,
+-                    dialect.authoring_query(),
+-                    tcl_registry::VariableAliasFrame::Procedure,
+-                )
+-            })?;
+-        let quoted_operands = declared_quoted_operands(&facts, arguments, &flow)?;
+-        let mut selected =
+-            declaration_flow_projection(flow, completion, effective, quoted_operands, &facts);
+-        retain_declared_local_values(&mut selected, &facts, arguments, dialect);
+-        retain_declared_aliases_and_case(&mut selected, registry, &facts, arguments, dialect);
+-        retain_declared_variable_roles(&mut selected, &facts, arguments, &values, dialect)?;
+-        retain_declared_read_footprint(&mut selected, &facts);
++        let mut selected = declaration_flow_for_original_schema(
++            registry, effective, &values, &facts, invocation, dialect,
++        )?;
+         if facts
+             .state_transitions
+             .declared()
+@@ -248,6 +225,109 @@ pub(crate) fn declaration_invocation_flow(
+     agreed
+ }
+ 
++/// Readonly declaration flow from the exact shared original-body catalogue.
++/// The result retains conditional source effects, never execution admission.
++pub(crate) fn declaration_source_read_flow(
++    registry: &CommandRegistry,
++    tokens: &CommandTokens,
++    scope: &crate::command_binding::SourceReadScope,
++) -> Option<DeclarationInvocationFlow> {
++    let advice = scope.advice();
++    let source = advice.site().source.source_image().try_text().ok()?;
++    let words = super::source_structure::source_transition_words_from_advice(
++        source,
++        scope.config(),
++        scope.context(),
++        advice.clone(),
++    )?;
++    let dialect = words.dialect()?;
++    let mut values = vec![EffectiveInvocationWord::Literal(words.command().to_owned())];
++    values.extend(words.arguments().iter().map(|word| {
++        match super::source_structure::source_schema_word(word.as_registry_word()) {
++            InvocationWord::Literal(value) => EffectiveInvocationWord::Literal(value.to_owned()),
++            _ => word.clone(),
++        }
++    }));
++    let prefix = values
++        .iter()
++        .skip(1)
++        .zip(words.origins().iter().skip(1))
++        .filter_map(|(value, origin)| {
++            matches!(origin, super::InvocationWordOrigin::BindingPrefix(_)).then_some(value.clone())
++        })
++        .collect::<Vec<_>>();
++    let effective = super::compose_original_effective_words(tokens, words.command(), &prefix)?;
++    if effective.origins.get(1..) != words.origins().get(1..) {
++        return None;
++    }
++    words.with_source_schema(scope.context(), |schema| {
++        let facts = schema.facts();
++        // Caller links and lifecycle phases retain their independent owners.
++        if facts
++            .state_transitions
++            .declared()
++            .is_some_and(|transitions| {
++                transitions.facts().iter().any(|fact| {
++                    matches!(
++                        fact.transition,
++                        tcl_registry::StateTransition::VariableCellAlias(_)
++                    )
++                })
++            })
++        {
++            return None;
++        }
++        let mut selected = declaration_flow_for_original_schema(
++            registry,
++            effective,
++            &values,
++            &facts,
++            schema.words,
++            dialect,
++        )?;
++        selected.effects.source_catalogue_only = true;
++        (selected.flow != ScriptBodyFlow::CapturedLifecycle).then_some(selected)
++    })?
++}
++
++fn declaration_flow_for_original_schema(
++    registry: &CommandRegistry,
++    effective: EffectiveCommandWords,
++    values: &[EffectiveInvocationWord],
++    facts: &tcl_registry::InvocationFacts,
++    invocation: InvocationWords<'_>,
++    dialect: tcl_registry::InvocationDialect,
++) -> Option<DeclarationInvocationFlow> {
++    let arguments = invocation.arguments();
++    let flow = tcl_registry::case_bodies::script_body_flow_in_registry(registry, facts, arguments);
++    if !matches!(flow, ScriptBodyFlow::CaseBodies(_))
++        && (!facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true))
++    {
++        return None;
++    }
++    let completion = registry
++        .native_registration_completion_route(
++            invocation,
++            tcl_registry::VariableAliasFrame::Procedure,
++        )
++        .or_else(|| {
++            registry.invocation_completion_route_in_frame(
++                &facts.canonical_command,
++                arguments,
++                dialect.authoring_query(),
++                tcl_registry::VariableAliasFrame::Procedure,
++            )
++        })?;
++    let quoted_operands = declared_quoted_operands(facts, arguments, &flow)?;
++    let mut selected =
++        declaration_flow_projection(flow, completion, effective, quoted_operands, facts);
++    retain_declared_local_values(&mut selected, facts, arguments, dialect);
++    retain_declared_aliases_and_case(&mut selected, registry, facts, arguments, dialect);
++    retain_declared_variable_roles(&mut selected, facts, arguments, values, dialect)?;
++    retain_declared_read_footprint(&mut selected, facts);
++    Some(selected)
++}
++
+ fn declaration_flow_projection(
+     flow: ScriptBodyFlow,
+     completion: tcl_registry::completion_route::InvocationCompletionRoute,
+@@ -281,6 +361,7 @@ fn declaration_flow_projection(
+             unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)
+                 || facts.effects.callback().kinds.is_unknown(),
+             lookup_stable: declared_lookup_stable(facts),
++            source_catalogue_only: false,
+             frame_reach: if facts
+                 .traits
+                 .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure.rs b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+index 9c8c4b684..6ffbea274 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -1083,6 +1083,10 @@ pub fn source_registry_words(
+         segment,
+         metadata,
+     )
++    .or_else(|| {
++        let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
++        source_transition_words_with_segment(source, config, &context, segment, advice)
++    })
+     .or_else(|| {
+         let advice = realm.original_member_source_catalogue_advice(input, &tokens)?;
+         source_transition_words_with_segment(source, config, &context, segment, advice)
+@@ -1206,6 +1210,12 @@ pub fn source_registry_words_at(
+     let binding = realm.invocation_at_source("", offset);
+     let segment = if let Some((segment, _)) = binding.original_recorded_command() {
+         segment
++    } else if let Some(segment) = analysis
++        .resolved_input
++        .as_ref()
++        .and_then(|input| realm.original_source_catalogue_segment_at(input, offset))
++    {
++        segment
+     } else {
+         let tail = source.get(usize::try_from(offset).ok()?..)?;
+         crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config.nested())
+@@ -2228,7 +2238,23 @@ fn logical_source_registry_words(
+     }
+     let context = input.context_registry();
+     let words =
+-        source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)?;
++        source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)
++            .or_else(|| {
++                let mut tokens = crate::ir::CommandTokens::from_segmented(
++                    &tcl_lexer::SourceMap::new(source),
++                    input.lexer_config(),
++                    segment,
++                );
++                realm.stamp_original_tokens(&mut tokens);
++                let advice = realm.original_source_prefix_catalogue_advice(input, &tokens)?;
++                source_transition_words_with_segment(
++                    source,
++                    input.lexer_config(),
++                    &context,
++                    segment,
++                    advice,
++                )
++            })?;
+     let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+         return None;
+     };
+@@ -3008,6 +3034,115 @@ mod tests {
+             .analyse(source, profile.name)
+     }
+ 
++    #[test]
++    fn original_source_prefix_catalogue_keeps_fatal_tail_separate() {
++        for dialect in ["tcl", "tcl8.6"] {
++            let source = "set arr(key) 1\nset v $arr(k more stuff\n";
++            let environment = tcl_registry::model::ingress::resolve_environment(dialect);
++            let profile = environment.analyser_profile();
++            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++            let input = crate::analyser::ResolvedAnalysisInput::new(
++                profile,
++                profile,
++                environment.default_context_registry(),
++                config,
++            );
++            let analysis = crate::analyser::Analyser::new()
++                .with_resolved_input(input)
++                .analyse(source, profile.name);
++            let input = analysis.resolved_input.as_ref().unwrap();
++            let context = input.context_registry();
++            let plan = tcl_lexer::native_script_words_in(
++                tcl_lexer::SourceImage::document(source),
++                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
++                config,
++            )
++            .unwrap();
++            assert!(plan.fatal_tail.is_some());
++            assert_eq!(plan.commands.len(), 1);
++            let words = source_registry_words_at(source, &analysis, 0)
++                .expect("the genuine complete prefix keeps readonly source roles");
++            if input.has_logical_source_name_context() {
++                assert!(words.head_source().unwrap().input().is_none());
++                assert!(!words.operands_preserve_source_lookup());
++                let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
++                    panic!("the complete prefix keeps its original Logical source purpose");
++                };
++                assert!(advice.original_head().logical_input().is_some());
++                assert!(advice.original_head().native_input().is_none());
++            }
++            assert_eq!(
++                words.original_argument_word(0),
++                Some(&plan.commands[0].words[1])
++            );
++            assert_eq!(
++                words.with_source_schema(&context, |schema| schema
++                    .authored_source_variable_name_arguments()),
++                Some(vec![(0, tcl_registry::ArgRole::VarWrite)])
++            );
++            assert!(source_registry_words_at(source, &analysis, 15).is_none());
++            assert!(
++                source_registry_words_at(&format!("{source}# changed"), &analysis, 0).is_none()
++            );
++            let foreign = tcl_registry::model::ingress::context_for_profile(
++                tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
++            );
++            assert!(words.with_source_schema(&foreign, |_| ()).is_none());
++        }
++    }
++
++    #[test]
++    fn original_body_catalogue_keeps_source_roles_after_conditional_loop() {
++        for dialect in ["tcl", "tcl8.6"] {
++            for source in [
++                "proc f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}",
++                "oo::class create C {method f {n} {while {$n > 0} {set x 1; incr n -1}; puts $x}}",
++            ] {
++                let environment = tcl_registry::model::ingress::resolve_environment(dialect);
++                let profile = environment.analyser_profile();
++                let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
++                let input = crate::analyser::ResolvedAnalysisInput::new(
++                    profile,
++                    profile,
++                    environment.default_context_registry(),
++                    config,
++                );
++                let analysis = crate::analyser::Analyser::new()
++                    .with_resolved_input(input)
++                    .analyse(source, profile.name);
++                let context = analysis.resolved_input.as_ref().unwrap().context_registry();
++                for (head, expected) in [
++                    ("set x", vec![(0, tcl_registry::ArgRole::VarWrite)]),
++                    ("incr n", vec![(0, tcl_registry::ArgRole::VarWrite)]),
++                    ("puts $x", vec![]),
++                ] {
++                    let offset = u32::try_from(source.find(head).unwrap()).unwrap();
++                    let words =
++                        source_registry_words_at(source, &analysis, offset).unwrap_or_else(|| {
++                            panic!("conditional original schema absent: {dialect} {head}")
++                        });
++                    let roles = words
++                        .with_source_schema(&context, |schema| {
++                            schema.authored_source_variable_name_arguments()
++                        })
++                        .unwrap();
++                    assert_eq!(roles, expected, "{dialect} {head}");
++                    assert!(
++                        words.matches_source(&tcl_lexer::SourceImage::document(source), config)
++                    );
++                }
++            }
++        }
++        for source in [
++            "proc set args {}; proc f {} {set x 1}",
++            "rename set saved; proc f {} {set x 1}",
++        ] {
++            let analysis = original_selector_analysis(source);
++            let offset = u32::try_from(source.rfind("set x").unwrap()).unwrap();
++            assert!(source_registry_words_at(source, &analysis, offset).is_none());
++        }
++    }
++
+     #[test]
+     fn original_source_schema_keeps_named_selector_and_handler_argument_shape() {
+         // naming.source.original-registry-header-advice
+diff --git a/rust/tcl-lsp-core/src/diagnostic_subject.rs b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+index b1122ef83..0506b4960 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_subject.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject.rs
+@@ -337,6 +337,7 @@ enum RegisteredInstanceObligationDescription {
+     DeferredLogicalBodyApplicability,
+     ConditionalLogicalBodyApplicability,
+     ConditionalMemberBodyCatalogueApplicability,
++    ConditionalOriginalBodyCatalogueApplicability,
+     ConditionalCNamespaceApplicability,
+     ConditionalCBodyApplicability,
+     UnretainedCSourcePathProviderApplicability,
+@@ -383,6 +384,9 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
+             Obligation::ConditionalMemberBodyCatalogueApplicability => {
+                 Self::ConditionalMemberBodyCatalogueApplicability
+             }
++            Obligation::ConditionalOriginalBodyCatalogueApplicability => {
++                Self::ConditionalOriginalBodyCatalogueApplicability
++            }
+             Obligation::ConditionalCNamespaceApplicability => {
+                 Self::ConditionalCNamespaceApplicability
+             }
+diff --git a/rust/tcl-compiler/src/command_binding/source_read_scope.rs b/rust/tcl-compiler/src/command_binding/source_read_scope.rs
+new file mode 100644
+index 000000000..1323a60cb
+--- /dev/null
++++ b/rust/tcl-compiler/src/command_binding/source_read_scope.rs
+@@ -0,0 +1,227 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Source-read schemas from the shared original body/transition catalogue.
++
++use super::source_transition_advice::{
++    OriginalSourceCataloguePurpose, OriginalSourceTransitionAdviceLookup,
++    OriginalSourceTransitionAdviceTape, OriginalSourceTransitionSeed,
++};
++use super::{CommandAllocationSite, OriginalSourceCommandTransitionAdvice};
++use std::sync::{Arc, Mutex};
++use tcl_registry::model::ContextRegistry;
++
++type CatalogueMemoEntry = (
++    OriginalSourceTransitionSeed,
++    Option<Arc<SourceReadCatalogue>>,
++);
++#[derive(Debug, Default)]
++pub(super) struct SourceReadCatalogueMemo(Mutex<Vec<CatalogueMemoEntry>>);
++impl SourceReadCatalogueMemo {
++    pub(super) fn get_or_prepare(
++        &self,
++        seed: &OriginalSourceTransitionSeed,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<Arc<SourceReadCatalogue>> {
++        seed.matches_registry(registry).then_some(())?;
++        let find = |entries: &[CatalogueMemoEntry]| {
++            entries
++                .iter()
++                .find(|(owned, _)| owned == seed)
++                .map(|(_, value)| value.clone())
++        };
++        if let Some(value) = find(
++            &self
++                .0
++                .lock()
++                .unwrap_or_else(std::sync::PoisonError::into_inner),
++        ) {
++            return value;
++        }
++        let prepared = SourceReadCatalogue::prepare(seed, registry).map(Arc::new);
++        let mut entries = self
++            .0
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner);
++        if let Some(value) = find(&entries) {
++            return value;
++        }
++        if entries.len() < 4 {
++            entries.push((seed.clone(), prepared.clone()));
++        }
++        prepared
++    }
++}
++
++#[derive(Debug)]
++pub(super) struct SourceReadCatalogue {
++    context: Arc<ContextRegistry>,
++    tape: OriginalSourceTransitionAdviceTape,
++}
++impl SourceReadCatalogue {
++    pub(super) fn prepare(
++        seed: &OriginalSourceTransitionSeed,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<Self> {
++        let context = seed.source_context(registry)?;
++        let tape = seed.prepare_for(&context, OriginalSourceCataloguePurpose::CompletePrefix)?;
++        Some(Self { context, tape })
++    }
++
++    /// A conditional source schema inside its genuine declared body. The body
++    /// and exact argv do not supply a reached lookup, frame or current store.
++    pub(super) fn scope(
++        &self,
++        site: &CommandAllocationSite,
++        tokens: &crate::ir::CommandTokens,
++        body: tcl_lexer::Span,
++        config: tcl_lexer::LexerConfig,
++    ) -> Option<SourceReadScope> {
++        if tokens.synthetic.is_some() || self.tape.blocks_registry_source(site.offset) {
++            return None;
++        }
++        let advice = if let Some(advice) = self.tape.body_catalogue(site.offset) {
++            advice
++        } else {
++            match self.tape.lookup(site.offset) {
++                OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
++                OriginalSourceTransitionAdviceLookup::Refused
++                | OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
++            }
++        };
++        if advice.site() != site
++            || !advice.matches_source(site.source.source_image(), config)
++            || !advice.matches_context(&self.context)
++        {
++            return None;
++        }
++        let parent_matches = if let Some(parent) = advice.original_catalogue_source_body() {
++            parent.content_span() == body
++                && parent.matches_context(&self.context)
++                && parent.matches_source(site.source.source_image(), config)
++        } else {
++            let parent = advice
++                .original_procedure_source_body()
++                .or_else(|| advice.logical_source_body())?;
++            parent.content_span() == body
++                && parent.matches_context(&self.context)
++                && parent.matches_source(site.source.source_image(), config)
++        };
++        if !parent_matches {
++            return None;
++        }
++        let original = crate::registry_invocation::original_native_compiler_words(
++            site.source.source_image(),
++            tokens.words(),
++            site.offset,
++            config,
++        )?;
++        if original.as_slice() != advice.original_words() {
++            return None;
++        }
++        if let Some(binding) = &tokens.source_binding {
++            if binding.lookup_state.is_some() {
++                binding
++                    .original_invocation_metadata_at_point(tokens, self.context.commands())
++                    .ok()?;
++            }
++            if !source_targets_match_advice(&self.context, binding, advice) {
++                return None;
++            }
++        }
++        Some(SourceReadScope {
++            context: Arc::clone(&self.context),
++            advice: advice.clone(),
++            config,
++        })
++    }
++}
++
++/// An original source-reading purpose, distinct from invocation/compiler entry.
++pub(crate) struct SourceReadScope {
++    context: Arc<ContextRegistry>,
++    advice: OriginalSourceCommandTransitionAdvice,
++    config: tcl_lexer::LexerConfig,
++}
++impl SourceReadScope {
++    pub(crate) fn context(&self) -> &ContextRegistry {
++        &self.context
++    }
++    pub(crate) fn advice(&self) -> &OriginalSourceCommandTransitionAdvice {
++        &self.advice
++    }
++    pub(crate) const fn config(&self) -> tcl_lexer::LexerConfig {
++        self.config
++    }
++}
++
++/// Conditional original source advice cannot override an actually selected target.
++pub(crate) fn source_targets_match_advice(
++    context: &ContextRegistry,
++    binding: &crate::command_binding::SourceInvocationBinding,
++    advice: &OriginalSourceCommandTransitionAdvice,
++) -> bool {
++    if binding.lookup_state.is_some() && !binding.unknown && binding.targets.is_empty() {
++        return false;
++    }
++    let prefix = advice
++        .arguments()
++        .iter()
++        .filter(|word| {
++            matches!(
++                word.origin,
++                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
++            )
++        })
++        .map(|word| word.value.as_deref())
++        .collect::<Option<Vec<_>>>();
++    let Some(prefix) = prefix else {
++        return false;
++    };
++    let Some(descriptor) = context
++        .context()
++        .resolve_spec(context.commands(), advice.command())
++    else {
++        return false;
++    };
++    for target in &binding.targets {
++        if !target.registry_backed
++            || !context
++                .context()
++                .resolve_spec(context.commands(), &target.command)
++                .is_some_and(|selected| std::ptr::eq(selected, descriptor))
++            || target
++                .prepended
++                .iter()
++                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
++                .collect::<Option<Vec<_>>>()
++                .as_deref()
++                != Some(prefix.as_slice())
++        {
++            return false;
++        }
++        if !prefix.is_empty() {
++            let Some(inputs) = target.original_prepended_name_inputs() else {
++                return false;
++            };
++            let captured = advice.arguments().iter().filter(|word| {
++                matches!(
++                    word.origin,
++                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
++                )
++            });
++            if inputs.len() != prefix.len()
++                || inputs.iter().zip(captured).any(|(input, word)| {
++                    word.input
++                        .as_ref()
++                        .and_then(crate::command_binding::SourceAdviceNameInput::native_input)
++                        != Some(input)
++                })
++            {
++                return false;
++            }
++        }
++    }
++    true
++}

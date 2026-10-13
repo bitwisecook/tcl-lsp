@@ -1,0 +1,58 @@
+[
+  {
+    "path": "rust/tcl-syntax/src/naming/script_name_query.rs",
+    "before_sha256": null,
+    "after_sha256": "b3c1e526e2e288f030b22f028d94e85649b9f186b977240672e278dc5894588f",
+    "current_after_sha256": "b3c1e526e2e288f030b22f028d94e85649b9f186b977240672e278dc5894588f",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_inventory.rs",
+    "before_sha256": null,
+    "after_sha256": "7ce730156ba3007895649f12c7157c967091fd55095ecb628173c018d8f52696",
+    "current_after_sha256": "7ce730156ba3007895649f12c7157c967091fd55095ecb628173c018d8f52696",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_presence.rs",
+    "before_sha256": "33d1034da37e6d0546118da87fcdd8b32560292861a6ca3844f8f11ecba999c9",
+    "after_sha256": "80e3b8a700610f19c2407baabd5ed636d29fcd70ab98e9a644f720f882bf4200",
+    "current_after_sha256": "80e3b8a700610f19c2407baabd5ed636d29fcd70ab98e9a644f720f882bf4200",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec_test.rs",
+    "before_sha256": "02731fb833dfa874c64412aa1d8207589677eb4a446b9f6fedeb52e81a7627b1",
+    "after_sha256": "9b13cb5e2c14704ce638fa88a637e6448ee78cb8ed34658bbae60d47d7522e89",
+    "current_after_sha256": "9b13cb5e2c14704ce638fa88a637e6448ee78cb8ed34658bbae60d47d7522e89",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec_probe.rs",
+    "before_sha256": "f571a562e9eaebcbe482ff3dd81869aeaff68d41af32a00072426a1a07f3b0e7",
+    "after_sha256": "a94161e1b415773a1bd6424266da571ff6a0d100cb75a3bdd0045a8dc8a15191",
+    "current_after_sha256": "2c371e84e7a674bcbc62117386b2785ff039243c7869ee359af484f4a4cbd401",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec.rs",
+    "before_sha256": "21278e61f348ae01b1f063cd0db75c04a362b126bac24a706032392fad7afb33",
+    "after_sha256": "3a79e1b7db0d09cae7f2b9b34d0b9fd5c6a21d2d1f784bc70308884cc8a4e998",
+    "current_after_sha256": "3a79e1b7db0d09cae7f2b9b34d0b9fd5c6a21d2d1f784bc70308884cc8a4e998",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+    "before_sha256": "a5fe472428ce7bf8cfb34f8f6a0cbd97d66360c9f8f755a3d6f4ddf16cfff8d3",
+    "after_sha256": "4e8b25cafe643232a59c7fc2f94089537dfa20071fe45a5bc60ed63ecde5f1fd",
+    "current_after_sha256": "4e8b25cafe643232a59c7fc2f94089537dfa20071fe45a5bc60ed63ecde5f1fd",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming.rs",
+    "after_sha256": "97e756ab48ac017a3652f16958d754170cc9cdc835f6724e5e91c26b9ff8e1cc",
+    "integration": "additive 4-line new module/export; preserve independent naming exports",
+    "current_after_sha256": "97e756ab48ac017a3652f16958d754170cc9cdc835f6724e5e91c26b9ff8e1cc",
+    "scope": "Current isolated source sample; not renewal of original application or capture seals"
+  }
+]

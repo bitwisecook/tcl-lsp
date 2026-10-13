@@ -212,14 +212,14 @@ impl NativeImports {
 #[derive(Clone, Copy)]
 pub(super) struct EntryTable<'a> {
     /// Slot ordinal within the window, per bound procedure.
-    pub(super) slots: &'a BTreeMap<String, u32>,
+    pub(super) slots: &'a BTreeMap<crate::ir::ProcedureId, u32>,
     /// Index of the module global holding the window's base.
     pub(super) base_global: u32,
 }
 
 impl EntryTable<'_> {
-    fn slot(self, qualified_name: &str) -> Option<u32> {
-        self.slots.get(qualified_name).copied()
+    fn slot(self, id: &crate::ir::ProcedureId) -> Option<u32> {
+        self.slots.get(id).copied()
     }
 }
 
@@ -1715,8 +1715,8 @@ impl Emitter<'_, '_> {
     /// The `entry` argument of a proc definition: the module's own table
     /// index for a body it compiled and installed, or `0` — the ABI's
     /// "source body only" — for one it did not.
-    fn push_entry_index(&mut self, qualified_name: &str) {
-        match self.table.slot(qualified_name) {
+    fn push_entry_index(&mut self, id: &crate::ir::ProcedureId) {
+        match self.table.slot(id) {
             Some(slot) => {
                 self.body.push(WasmInstruction::with_operands(
                     WasmOp::GlobalGet,

@@ -1,0 +1,13 @@
+{
+  "selector": "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "analyser::diagnostics::tests::tcltest_import_is_namespace_scoped",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 5.081276109001919,
+  "timed_out": false
+}

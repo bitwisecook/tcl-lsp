@@ -39,7 +39,7 @@
 // existing `tcl_runtime_api::{Code, Completion, NsId, …}` consumers are unaffected.
 pub use tcl_core_types::{
     ByteNamespacePath, Code, CommandId, CommandSlot, Completion, FrameId, GLOBAL_FRAME, NameBytes,
-    NsId, OoId, ROOT_NS, VarId,
+    NsId, OoId, ProcedureId, ProcedureIdIssuer, ROOT_NS, VarId,
 };
 
 /// Original native script bytes with explicit source-channel semantics.

@@ -1393,3 +1393,42 @@ fn original_typed_wasm_host_failure_isolated_across_instances_and_real_destructi
         "STILL_INDEPENDENT"
     );
 }
+
+#[test]
+fn actual_extension_host_load_keeps_original_colon_and_bracket_operands() {
+    let Some(built) = built() else { return };
+    let source = written(
+        "original-inventory-names.c",
+        r#"
+#include "tcl.h"
+static int Exact(ClientData data, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)data; (void)objc; (void)objv;
+    Tcl_SetObjResult(interp, Tcl_NewStringObj("EXACT", -1));
+    return TCL_OK;
+}
+int OriginalInventory_Init(Tcl_Interp *interp) {
+    Tcl_CreateObjCommand(interp, ":lost", Exact, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "lost", Exact, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "::N[0]::p*", Exact, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "::N0::pZ", Exact, NULL, NULL);
+    return TCL_OK;
+}
+"#,
+    );
+    let module = side_module(&source, "OriginalInventory");
+    let host = WasmExtensionHost::new(&built.runtime);
+    let loaded = host
+        .load(&module, "OriginalInventory")
+        .expect("actual original C extension load");
+    assert_eq!(loaded.commands, [":lost", "N0::pZ", "N[0]::p*", "lost"]);
+    let budget = ImplementationBudget {
+        value_bytes: Some(1024),
+        ..ImplementationBudget::default()
+    };
+    for operand in &loaded.commands {
+        assert_eq!(
+            host.evaluate(loaded.hash, &[operand.clone()], &budget),
+            Ok("EXACT".to_owned())
+        );
+    }
+}

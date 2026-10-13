@@ -1,0 +1,43 @@
+[
+  {
+    "path": "rust/tcl-syntax/src/naming/script_name_query.rs",
+    "before_sha256": null,
+    "after_sha256": "b3c1e526e2e288f030b22f028d94e85649b9f186b977240672e278dc5894588f"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_inventory.rs",
+    "before_sha256": null,
+    "after_sha256": "7ce730156ba3007895649f12c7157c967091fd55095ecb628173c018d8f52696"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_presence.rs",
+    "before_sha256": "33d1034da37e6d0546118da87fcdd8b32560292861a6ca3844f8f11ecba999c9",
+    "after_sha256": "80e3b8a700610f19c2407baabd5ed636d29fcd70ab98e9a644f720f882bf4200"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec_test.rs",
+    "before_sha256": "02731fb833dfa874c64412aa1d8207589677eb4a446b9f6fedeb52e81a7627b1",
+    "after_sha256": "9b13cb5e2c14704ce638fa88a637e6448ee78cb8ed34658bbae60d47d7522e89"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec_probe.rs",
+    "before_sha256": "f571a562e9eaebcbe482ff3dd81869aeaff68d41af32a00072426a1a07f3b0e7",
+    "after_sha256": "2c371e84e7a674bcbc62117386b2785ff039243c7869ee359af484f4a4cbd401"
+  },
+  {
+    "path": "rust/tcl-cli/src/commands/spec.rs",
+    "before_sha256": "21278e61f348ae01b1f063cd0db75c04a362b126bac24a706032392fad7afb33",
+    "after_sha256": "3a79e1b7db0d09cae7f2b9b34d0b9fd5c6a21d2d1f784bc70308884cc8a4e998"
+  },
+  {
+    "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+    "before_sha256": "a5fe472428ce7bf8cfb34f8f6a0cbd97d66360c9f8f755a3d6f4ddf16cfff8d3",
+    "after_sha256": "4e8b25cafe643232a59c7fc2f94089537dfa20071fe45a5bc60ed63ecde5f1fd"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming.rs",
+    "before_sha256": "9120ea39842bd77c6416d4a669e9e0161fa3ccf724718828540742d043ab2d63",
+    "after_sha256": "8714c27af97c42090f68ba12fa128f088b8f0b8872d8c2c0d64e94eced1a52d9",
+    "integration": "Only additive new module exports preserving independent Main API"
+  }
+]

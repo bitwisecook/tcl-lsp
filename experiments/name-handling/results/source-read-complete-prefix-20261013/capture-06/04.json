@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.9166777009995712,
+  "timed_out": false
+}

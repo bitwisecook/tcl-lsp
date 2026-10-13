@@ -56,6 +56,10 @@ mod command_geometry;
 mod reporting;
 mod root_source;
 pub use root_source::native_command_root_source_spelling;
+mod script_name_query;
+pub use script_name_query::original_script_name_query_support;
+mod script_command_inventory;
+pub use script_command_inventory::original_script_command_inventory_support;
 mod script_command_presence;
 pub use script_command_presence::{
     ScriptRootCommandPresencePlan, original_command_presence_support,

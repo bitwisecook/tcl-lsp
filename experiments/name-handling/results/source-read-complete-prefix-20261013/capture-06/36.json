@@ -1,0 +1,13 @@
+{
+  "selector": "ssa::tests::structural_body_indices_tcltest_via_registry",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "ssa::tests::structural_body_indices_tcltest_via_registry",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.2650871010009723,
+  "timed_out": false
+}

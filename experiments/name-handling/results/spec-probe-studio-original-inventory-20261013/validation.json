@@ -1,0 +1,190 @@
+{
+  "scope": "Original executable script forms only; CLI/Studio Rust controls authored/unexecuted. No Runtime Native admission, F5, tcltest or WASM acceptance.",
+  "checks": [
+    {
+      "provider": "c84",
+      "selector": "package original root operands",
+      "expected": [
+        "::N0::pZ",
+        "::N[0]::p*",
+        ":lost",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "c84",
+      "selector": "ambiguous namespace original context",
+      "expected": "C whole-inventory explicit refusal",
+      "passed": true
+    },
+    {
+      "provider": "c84",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "c84",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    },
+    {
+      "provider": "c85",
+      "selector": "package original root operands",
+      "expected": [
+        "::N0::pZ",
+        "::N[0]::p*",
+        ":lost",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "c85",
+      "selector": "ambiguous namespace original context",
+      "expected": "C whole-inventory explicit refusal",
+      "passed": true
+    },
+    {
+      "provider": "c85",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "c85",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    },
+    {
+      "provider": "c86",
+      "selector": "package original root operands",
+      "expected": [
+        "::N0::pZ",
+        "::N[0]::p*",
+        ":lost",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "c86",
+      "selector": "ambiguous namespace original context",
+      "expected": "C whole-inventory explicit refusal",
+      "passed": true
+    },
+    {
+      "provider": "c86",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "c86",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    },
+    {
+      "provider": "c90",
+      "selector": "package original root operands",
+      "expected": [
+        "::N0::pZ",
+        "::N[0]::p*",
+        ":lost",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "c90",
+      "selector": "ambiguous namespace original context",
+      "expected": "C whole-inventory explicit refusal",
+      "passed": true
+    },
+    {
+      "provider": "c90",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "c90",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    },
+    {
+      "provider": "c91",
+      "selector": "package original root operands",
+      "expected": [
+        "::N0::pZ",
+        "::N[0]::p*",
+        ":lost",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "c91",
+      "selector": "ambiguous namespace original context",
+      "expected": "C whole-inventory explicit refusal",
+      "passed": true
+    },
+    {
+      "provider": "c91",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "c91",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    },
+    {
+      "provider": "jim",
+      "selector": "package original root operands",
+      "expected": [
+        ":lost",
+        "N0::pZ",
+        "N[0]::p*",
+        "__spec_probeOther"
+      ],
+      "passed": true
+    },
+    {
+      "provider": "jim",
+      "selector": "ambiguous namespace original context",
+      "expected": "Jim flat callable N:::x",
+      "passed": true
+    },
+    {
+      "provider": "jim",
+      "selector": "presence original selected shared-family script forms",
+      "observations": 14,
+      "passed": true
+    },
+    {
+      "provider": "jim",
+      "selector": "existing root presence regressions",
+      "observations": 8,
+      "passed": true
+    }
+  ],
+  "raw_capture_dirs": [
+    "shared-family-controls",
+    "shared-family-ambiguous-controls",
+    "shared-family-planned-source-controls",
+    "shared-family-root-regression-controls"
+  ],
+  "older_failures_preserved": [
+    "ordinary/jim",
+    "ambiguous/jim"
+  ],
+  "all_immutable_binary_linked_library_and_init_seals_unchanged": true
+}

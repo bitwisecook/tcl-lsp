@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::declared_aliases_and_terminal_paths_keep_distinct_read_occurrences",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::declared_aliases_and_terminal_paths_keep_distinct_read_occurrences",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.3648536580003565,
+  "timed_out": false
+}

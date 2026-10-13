@@ -956,13 +956,17 @@ pub fn converge_summaries_with(
     _dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> HashMap<String, ProcTaintSummary> {
-    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    let mut proc_names: Vec<&String> = cu.ir_module.procedures.unique_displays().collect();
     proc_names.sort();
 
     // Seed summaries (all scenarios untainted).
     let mut summaries: HashMap<String, ProcTaintSummary> = HashMap::new();
     for qname in &proc_names {
-        let proc = &cu.ir_module.procedures[*qname];
+        let proc = &*cu
+            .ir_module
+            .procedures
+            .get_unique_display(qname)
+            .expect("unambiguous summary label");
         summaries.insert(
             (*qname).clone(),
             ProcTaintSummary::untainted(qname, &proc.params),
@@ -991,7 +995,7 @@ pub fn converge_summaries_with(
             }
         }
         for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(*qname) else {
+            let Some(fu) = cu.function(qname) else {
                 continue;
             };
             for callee in resolved_callees(fu, &known, fu.source_lexer_config()) {
@@ -1023,10 +1027,14 @@ pub fn converge_summaries_with(
                 if !dirty.contains(qname.as_str()) {
                     continue;
                 }
-                let Some(fu) = cu.procedures.get(*qname) else {
+                let Some(fu) = cu.function(qname) else {
                     continue;
                 };
-                let proc = &cu.ir_module.procedures[*qname];
+                let proc = &*cu
+                    .ir_module
+                    .procedures
+                    .get_unique_display(qname)
+                    .expect("unambiguous summary label");
                 let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
                 let inferred = if source.metadata_context().is_some() {
                     infer_fn(qname, &proc.params, fu, &known, &summaries)
@@ -1059,10 +1067,14 @@ pub fn converge_summaries_with(
         // fixpoint because the worklist's `callers` map missed an inbound edge.
         let mut moved: HashSet<&str> = HashSet::new();
         for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(*qname) else {
+            let Some(fu) = cu.function(qname) else {
                 continue;
             };
-            let proc = &cu.ir_module.procedures[*qname];
+            let proc = &*cu
+                .ir_module
+                .procedures
+                .get_unique_display(qname)
+                .expect("unambiguous summary label");
             let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
             let inferred = if source.metadata_context().is_some() {
                 infer_fn(qname, &proc.params, fu, &known, &summaries)
@@ -1095,8 +1107,12 @@ pub fn converge_summaries_with(
     // false-negative risk). Zero cost in release; proven clean over the tcllib corpus.
     #[cfg(debug_assertions)]
     for qname in &proc_names {
-        if let Some(fu) = cu.procedures.get(*qname) {
-            let proc = &cu.ir_module.procedures[*qname];
+        if let Some(fu) = cu.function(qname) {
+            let proc = &*cu
+                .ir_module
+                .procedures
+                .get_unique_display(qname)
+                .expect("unambiguous summary label");
             let reinferred = infer_proc_summary_with_source(ProcSummaryInputs {
                 qname,
                 params: &proc.params,
@@ -1243,7 +1259,7 @@ fn solve_interprocedural_taints_with_context(
 
     // Procedures in deterministic (sorted) order, and the name set — both consumed
     // by the entry-taint worklist below.
-    let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
+    let mut proc_names: Vec<&String> = cu.ir_module.procedures.unique_displays().collect();
     proc_names.sort();
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
@@ -1307,7 +1323,7 @@ fn solve_interprocedural_taints_with_context(
 
     while let Some(qname) = queue.pop_front() {
         queued.remove(&qname);
-        let Some(fu) = cu.procedures.get(&qname) else {
+        let Some(fu) = cu.function(&qname) else {
             continue;
         };
         let mut entry = entry_taints.get(&qname).cloned().unwrap_or_default();

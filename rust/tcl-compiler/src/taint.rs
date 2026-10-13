@@ -3156,7 +3156,12 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             )
         },
     );
-    let proc_qnames: HashSet<&str> = cu.procedures.keys().map(String::as_str).collect();
+    let proc_qnames: HashSet<&str> = cu
+        .ir_module
+        .procedures
+        .unique_displays()
+        .map(String::as_str)
+        .collect();
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,

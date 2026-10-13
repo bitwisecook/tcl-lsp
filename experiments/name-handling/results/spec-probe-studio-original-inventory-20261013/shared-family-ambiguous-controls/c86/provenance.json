@@ -1,0 +1,24 @@
+{
+  "provider": "c86",
+  "expected_release": "8.6.18",
+  "captured_utc": "2026-10-13T20:25:48.202447+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/tmp/name-spec-probe-studio-20261013/shared-family-ambiguous-controls/input.tcl"
+  ],
+  "cwd": "/tmp/name-spec-probe-studio-20261013/shared-family-ambiguous-controls",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "7e6b8731d5b238f6315dcb56a26e7ded73d30e6f52c4c2b601e3312cb64c0cfc",
+  "runner_sha256": "28eca43f2a1de1523b42f0224198ee89173527fdfc87a5dc15d7546fd1d6e7d2",
+  "exit_code": 0,
+  "stdout_sha256": "a37898a68fd685f87096da52020e11f63226520068b6bc2b558ff4f1fed94193",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable SpecProbe shared script inventory source forms; Rust renderer and Studio assertions unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

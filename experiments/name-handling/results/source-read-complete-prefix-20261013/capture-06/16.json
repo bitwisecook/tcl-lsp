@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::conditional_missing_read_warning_keeps_first_entry_and_rejects_unknown_prefixes",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::conditional_missing_read_warning_keeps_first_entry_and_rejects_unknown_prefixes",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.6159146429999964,
+  "timed_out": false
+}

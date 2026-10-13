@@ -252,7 +252,7 @@ pub(crate) struct ModuleInputs<'a> {
 pub(crate) struct ModuleProcedures<'a> {
     /// Actual lowered source owner for fresh CFGs and procedure reruns.
     ir: &'a crate::ir::Module,
-    procedures: &'a HashMap<String, crate::ir::Procedure>,
+    procedures: &'a crate::ir::ProcedureInventory,
     redefined: &'a HashSet<String>,
     mutations: &'a ModuleCommandMutations,
     projection: &'a ProcBindingTrustProjection,
@@ -277,7 +277,7 @@ pub(crate) struct ModuleProcedures<'a> {
     analysis_context: Option<&'a crate::value_transfer::AnalysisContextKey>,
     /// The built unit's procedures, once there is a unit: their flow graphs
     /// and SSA are what a re-run solves.
-    units: Option<&'a HashMap<String, crate::compilation_unit::FunctionUnit>>,
+    units: Option<&'a HashMap<crate::ir::ProcedureId, crate::compilation_unit::FunctionUnit>>,
     /// Each procedure's SSA, built or borrowed once for its re-runs.
     ssa: RefCell<HashMap<String, Rc<SsaFunction>>>,
     /// Each re-run made: by callee, seeds and whole-module trust.
@@ -558,7 +558,7 @@ impl<'a> ModuleProcedures<'a> {
     ) -> ParameterDefault {
         let Some(declared) = self
             .resolve_name(procedure, function, trust)
-            .and_then(|qname| self.procedures.get(&qname))
+            .and_then(|qname| self.procedures.get_unique_display(&qname))
         else {
             return ParameterDefault::Unknown;
         };
@@ -828,10 +828,13 @@ impl<'a> ModuleProcedures<'a> {
         if source_metadata_input.is_none() && !cfg.metadata_context.is_standalone() {
             return None;
         }
-        let config = self.units.and_then(|units| units.get(callee)).map_or(
-            self.config,
-            crate::compilation_unit::FunctionUnit::source_lexer_config,
-        );
+        let config = self
+            .units
+            .and_then(|units| units.get(self.procedures.unique_display(callee)?.0))
+            .map_or(
+                self.config,
+                crate::compilation_unit::FunctionUnit::source_lexer_config,
+            );
         let callee_folds = BuiltinFoldInputs {
             source_metadata_input,
             dialect: source_metadata_input
@@ -943,7 +946,7 @@ impl<'a> ModuleProcedures<'a> {
     ) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
         match self.units {
             Some(units) => units
-                .get(callee)?
+                .get(self.procedures.unique_display(callee)?.0)?
                 .invocation_metadata_context_for_module(self.registry, self.ir)?
                 .source_analysis_input(),
             None => crate::registry_invocation::InvocationMetadataContext::for_module(
@@ -958,11 +961,16 @@ impl<'a> ModuleProcedures<'a> {
     /// else the module's flow graph with its SSA built once. `None` for a
     /// body the complexity guard stops.
     fn flow_of(&self, callee: &str) -> Option<(&'a CfgFunction, Rc<SsaFunction>)> {
-        let declared = self.procedures.get(callee)?;
-        let unit = self.units.and_then(|units| units.get(callee));
+        let declared = self.procedures.get_unique_display(callee)?;
+        let unit = self
+            .units
+            .and_then(|units| units.get(self.procedures.unique_display(callee)?.0));
         let cfg = match unit {
             Some(unit) => &unit.cfg,
-            None => self.cfg.procedures.get(callee)?,
+            None => self
+                .cfg
+                .procedures
+                .get(self.procedures.unique_display(callee)?.0)?,
         };
         if crate::ssa::is_complexity_guarded(cfg)
             || unit.is_some_and(|unit| unit.complexity_guarded)
@@ -1012,7 +1020,12 @@ impl<'a> ModuleProcedures<'a> {
         if self.source.is_none() || inputs.mutations.rebinds_builtins() {
             return;
         }
-        let mut names: Vec<&str> = inputs.cfg.procedures.keys().map(String::as_str).collect();
+        let mut names: Vec<&str> = inputs
+            .ir
+            .procedures
+            .unique_displays()
+            .map(String::as_str)
+            .collect();
         names.sort_unstable();
         let mut calls: HashMap<&str, BTreeSet<String>> = names
             .iter()
@@ -1046,7 +1059,10 @@ impl<'a> ModuleProcedures<'a> {
     /// when it reaches code or a frame the module cannot see, names a
     /// variable it computes, or is too large to analyse.
     fn local_calls(&self, qname: &str, inputs: &ModuleInputs<'_>) -> Option<BTreeSet<String>> {
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let cfg = inputs
+            .cfg
+            .procedures
+            .get(inputs.ir.procedures.unique_display(qname)?.0)?;
         let source = self.source.as_ref()?;
         let declared = source.procedure(qname)?;
         // Count/formal syntax is not an activation. This conditional scalar
@@ -1140,7 +1156,10 @@ impl<'a> ModuleProcedures<'a> {
         qname: &str,
         inputs: &ModuleInputs<'_>,
     ) -> Option<Vec<OuterArgument>> {
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let cfg = inputs
+            .cfg
+            .procedures
+            .get(inputs.ir.procedures.unique_display(qname)?.0)?;
         let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         let source = self.source.as_ref()?;
         let linked = linked_locals(cfg, namespace, qname, source)?;
@@ -1321,7 +1340,7 @@ impl<'a> ModuleProcedures<'a> {
             return;
         };
         for (index, qname) in component.iter().enumerate() {
-            let Some(declared) = inputs.ir.procedures.get(*qname) else {
+            let Some(declared) = inputs.ir.procedures.get_unique_display(*qname) else {
                 continue;
             };
             let (params, completion) = if !settled {
@@ -1529,8 +1548,11 @@ impl<'a> ModuleProcedures<'a> {
     /// `qname`'s parameter roles under the summaries in hand: `None` when no
     /// normal exit of its body is reached.
     fn roles(&self, qname: &str, inputs: &ModuleInputs<'_>) -> Option<Vec<ParamRole>> {
-        let declared = inputs.ir.procedures.get(qname)?;
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let declared = inputs.ir.procedures.get_unique_display(qname)?;
+        let cfg = inputs
+            .cfg
+            .procedures
+            .get(inputs.ir.procedures.unique_display(qname)?.0)?;
         let links = links_of(declared, inputs);
         if links.is_empty() {
             return Some(value_roles(declared, inputs));
@@ -1599,7 +1621,11 @@ impl<'a> ModuleProcedures<'a> {
         entry: Existence,
         inputs: &ModuleInputs<'_>,
     ) -> SccpResult {
-        let declared = &inputs.ir.procedures[qname];
+        let declared = inputs
+            .ir
+            .procedures
+            .get_unique_display(qname)
+            .expect("the selected analytical summary retains an unambiguous declaration");
         let places = CallerPlaces::each(owned, entry);
         let trace = inputs.trace;
         crate::sccp::sccp_in_module(&SolveInputs {
@@ -1977,7 +2003,12 @@ fn destroys_a_variable(source: &SourceSummaryContext<'_>, qname: &str) -> Option
 /// graph/frame/dynamic-name guards close the summary; a missing graph cannot
 /// establish that a parameter is unused.
 fn value_roles(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<ParamRole> {
-    let Some(cfg) = inputs.cfg.procedures.get(&declared.qualified_name) else {
+    let Some(cfg) = inputs
+        .ir
+        .procedures
+        .unique_display(&declared.qualified_name)
+        .and_then(|(id, _)| inputs.cfg.procedures.get(id))
+    else {
         return vec![ParamRole::Value; declared.params.len()];
     };
     let ssa = crate::ssa::build_ssa_with_context_for_entry_and_metadata(
@@ -2278,10 +2309,10 @@ fn procedure_binding(qname: &str) -> BindingIdentity {
 fn revision_of(ir: &crate::ir::Module, mutations: &ModuleCommandMutations) -> u64 {
     let mut hasher = rustc_hash::FxHasher::default();
     mutations.snapshot().hash(&mut hasher);
-    let mut names: Vec<&String> = ir.procedures.keys().collect();
+    let mut names: Vec<&crate::ir::ProcedureId> = ir.procedures.keys().collect();
     names.sort_unstable();
     for name in names {
-        let declared = &ir.procedures[name];
+        let declared = ir.procedures.get(name).expect("body inventory key");
         name.hash(&mut hasher);
         declared.params_raw.hash(&mut hasher);
         declared.body_source.hash(&mut hasher);

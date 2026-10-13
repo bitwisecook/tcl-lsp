@@ -1,0 +1,24 @@
+{
+  "provider": "c85",
+  "expected_release": "8.5.19",
+  "captured_utc": "2026-10-13T20:16:36.994710+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/tmp/name-spec-probe-studio-20261013/ambiguous/input.tcl"
+  ],
+  "cwd": "/tmp/name-spec-probe-studio-20261013/ambiguous",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "afb5f0b4c62417255c9fd1d9c91e5cc72175e2ecc13104754747e7ecf4bb6519",
+  "runner_sha256": "339ce59523a31e81f0d9ec46a19c67cc18abd13672ff43de90e9005eba33bd67",
+  "exit_code": 0,
+  "stdout_sha256": "a37898a68fd685f87096da52020e11f63226520068b6bc2b558ff4f1fed94193",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable SpecProbe shared script inventory source forms; Rust renderer and Studio assertions unexecuted; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

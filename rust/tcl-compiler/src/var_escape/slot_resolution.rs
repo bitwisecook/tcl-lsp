@@ -395,7 +395,7 @@ where
     let mut out: std::collections::HashMap<String, ProcEscapeSummary> =
         std::collections::HashMap::with_capacity(summaries.len());
     for (qname, summary) in summaries {
-        if let Some(proc) = module.procedures.get(qname) {
+        if let Some(proc) = module.procedures.get_unique_display(qname) {
             let slots = assign_local_slots(&proc.body, summary, &proc.params);
             if slots.is_empty() {
                 out.insert(qname.clone(), summary.clone());

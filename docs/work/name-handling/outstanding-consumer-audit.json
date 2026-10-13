@@ -1,5 +1,5 @@
 {
-  "head": "f625a604ebd6decf0542cab91174cf40686b6b50",
+  "head": "92d6363920a3b2406b45f116431a00eb62f0b97b",
   "original_snapshot_pattern_probe": "/tmp/name-snapshot-pattern-oracles-20261013/observations.json",
   "spec_test_snapshot_purpose_audit": "/tmp/spec-test-snapshot-name-purpose-audit.md",
   "final_trace_cleanup_census": "/tmp/name-trace-cleanup-audit.json",
@@ -231,7 +231,7 @@
       "entry_sources": [
         {
           "path": "rust/tcl-runtime-api/src/lib.rs",
-          "sha256": "d00d8a46607175d40d04e2d4a781d591f87a637ad8976e23aa7c05c1cd782c5d",
+          "sha256": "5807c51f91bcb7170c83916f03b90d0ddb5a0553b3eb6f4b1a42614f641b040e",
           "shared_crate_seams": [
             "tcl_bytecode",
             "tcl_cmd_core",
@@ -430,7 +430,7 @@
       "entry_sources": [
         {
           "path": "rust/tcl-engine-api/src/lib.rs",
-          "sha256": "fd346d854b77f3ef2306099beccf68055c0d2089c672e913b19fa3ae5a98776d",
+          "sha256": "28ab3c2d4c5a6708dff570f2390998c166dbc7cd9948b4df6766302a3d9a11ba",
           "shared_crate_seams": [
             "tcl_core_types",
             "tcl_runtime_api"
@@ -473,7 +473,7 @@
       "entry_sources": [
         {
           "path": "rust/tcl-engine-wasm/src/lib.rs",
-          "sha256": "3ee013acfc4b77bdfd2892c26f1858de00359a158a1845f878cb321e7cded859",
+          "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
           "shared_crate_seams": [
             "tcl_engine_api",
             "tcl_registry"
@@ -1414,7 +1414,7 @@
     },
     "lookup_migration": {
       "worktree": "/workspace/name-implementation-worktrees/codegen",
-      "source_state": "Primary typed ProcedureId/Issuer migration now authored in isolated core-types/RuntimeAPI, Compiler ProcedureInventory ctor IDs plus declaration_site/kind, CFG/CompilationUnit procedure/bodyunit maps, Bytecode provenance maps, Native DefineProc entry-key join, WASM plan/table maps. UNCOMPILED. Interproc/call-site/effect/report joins and DB/Explorer/Diagram/VM provenance adapters pending; original Native table authority unaccepted. BPF typed source/descriptor adapters separately accepted.",
+      "source_state": "Main BPF88 scoped accepted and publication carrier applied. Primary ProcedureId Compiler/codegen slice remains isolated; strict06 Compiler library typecheck PASS0errors12warnings under fresh owner source/closure seal. No tests, Runtime/WASM or Native table acceptance. Syntax helper ingress compiled through dependency boundary, no CLI assertion acceptance.",
       "receipt": "/workspace/name-implementation-worktrees/codegen/experiments/name-handling/results/codegen-bpf-source-selection/validation-03/validation.json",
       "receipt_sha256": "2751e9a89d716e4996b7cabcbd886fbe814d474363bbfb4c4dfc5f438cee88d8",
       "execution_state": "BPF03 real IR60 plus codegen28 controls accepted in its unchanged-source scope; prior failures retained. Two original general-WASM argv/head positives accepted earlier. Current typed-ID migration UNCOMPILED/UNACCEPTED; genuine native dispatcher/table acceptance is pending."
@@ -1446,11 +1446,12 @@
     },
     "registry_naming": {
       "worktree": "/workspace/name-implementation-worktrees/codegen",
-      "source_state": "SpecTest snapshot keys retain namespace plus original simple word through shared Syntax script_namespace_snapshot support. Exact subtree exclusions and root error metadata filters replace trim/prefix merging. Ambiguous namespace reports refuse; rooted original operations avoid namespace command shadows. Four original-oracle Rust controls authored. Main-safe integration preserves parent two-argument presence/literal-pattern fix.",
-      "execution_state": "Sixteen original source-form controls PASS with executable/library/input before-after seals: C5 mutation/refusal/shadow plus latestJim explicit unavailable-enumeration. Rust renderer and four authored Rust assertions UNEXECUTED; Cargo build lease pending.",
+      "source_state": "Isolated CLI SpecProbe/Studio/shared query-family slice source-applied, parent Main-safe patch available. Original shared-family C5/Jim captures accepted24 bounded groups including132 presence observations; CLI/Studio Rust controls authored/unexecuted. Runtime/Engine7 genuine inventory controls prepared scratch only, original C5 C API callback scope measured; no compiled Runtime/WASM acceptance.",
+      "execution_state": "Sixteen original source-form controls PASS with executable/library/input before-after seals: C5 mutation/refusal/shadow plus latestJim explicit unavailable-enumeration. Rust renderer and four authored Rust assertions UNEXECUTED; Cargo build lease pending. Separate /tmp/name-command-presence-20261013/validation.json seals132 selected source-form presence observations, including rerun original48 root controls; both new compiled presence selectors remain UNEXECUTED.",
       "manifests": [
         "/tmp/spec-snapshot-address-design/integration-manifest.json",
-        "/tmp/spec-snapshot-address-design/sealed-original-controls-tclsetup/validation.json"
+        "/tmp/spec-snapshot-address-design/sealed-original-controls-tclsetup/validation.json",
+        "/tmp/name-command-presence-20261013/integration-manifest.json"
       ]
     }
   },
@@ -1909,16 +1910,16 @@
           {
             "path": "rust/tcl-compiler/src/ir.rs",
             "function": "executable_script_roots",
-            "line": 3220,
-            "sha256": "0c53bf6e2523ea96ba07406ebfa0ab23b140cd9b1a2e7eb72b3f1ceeb08df1d6",
+            "line": 3222,
+            "sha256": "c917c2fb4d7c31a91dc1d09f793ecaeee93e885ae23c88ab1579bc17b39f83f2",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-compiler/src/compilation_unit.rs",
             "function": "build_procedure_units",
-            "line": 2759,
-            "sha256": "26e68677dfe860f6db3f96b620934fa5cad724936cc831254be26beea3de7e2e",
+            "line": 2775,
+            "sha256": "2020cbc8eee6f9f9b3f711da5b4b0400050410f4e4af204672247dde0aff4ff7",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
@@ -1926,7 +1927,7 @@
             "path": "rust/tcl-compiler/src/interprocedural.rs",
             "function": "resolve_internal_call_with",
             "line": 630,
-            "sha256": "c2b153ebb6a2a6bb2db080a9c1608e09cd011fe1c25cb2b5571e4b7b26acfe84",
+            "sha256": "21917aaccfc24e3c5240cafd35106e128f1ec28323a346519a7e7cafb85a7f34",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
@@ -1942,16 +1943,16 @@
             "path": "rust/tcl-compiler/src/interprocedural/eager.rs",
             "function": "of",
             "line": 60,
-            "sha256": "19642c565adbabee7765862a671de282da2c2af4d50717516e3a3a908d5ccb1a",
-            "same_as_sampled_main": true,
+            "sha256": "00da05792b5aab4b8b2fbd3d434d94af781c281de0cd138ef4020e3bfb241ade",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
             "function": "select",
             "line": 167,
-            "sha256": "a658ffa411c0be3a4eaec6290563afb36347bc02466b10d9fde455409334da12",
-            "same_as_sampled_main": true,
+            "sha256": "90eb7070259e1cf15d1e2447e6e257d8f755f30fe5b08eecde82e2824c91d12e",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
@@ -2024,17 +2025,17 @@
           {
             "path": "rust/tcl-compiler/src/gvn.rs",
             "function": "is_pure_with_procs_core",
-            "line": 536,
-            "sha256": "5e9d4ff7345cdd136e7e2cecffbb10fbd2fd5d32181e81205c09d066b4bc15ba",
-            "same_as_sampled_main": true,
+            "line": 552,
+            "sha256": "f1932212d30133a91e6e6ae7c9a3e1c94d63f1896fad73aa2eda6fc0ca93ca5f",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-compiler/src/gvn.rs",
             "function": "is_worth_reporting_with_procs",
-            "line": 576,
-            "sha256": "5e9d4ff7345cdd136e7e2cecffbb10fbd2fd5d32181e81205c09d066b4bc15ba",
-            "same_as_sampled_main": true,
+            "line": 592,
+            "sha256": "f1932212d30133a91e6e6ae7c9a3e1c94d63f1896fad73aa2eda6fc0ca93ca5f",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
@@ -2048,9 +2049,9 @@
           {
             "path": "rust/tcl-compiler/src/deferred_writes.rs",
             "function": "frame_reach",
-            "line": 655,
-            "sha256": "1a0af959696eab75bcfe528abaaa3fa92d73d8c3489b9c73d9f514368dcd3099",
-            "same_as_sampled_main": true,
+            "line": 658,
+            "sha256": "1cc06080271b618f3716dfa317e24a35dc395f5ea1f1a94c5cc70786f21f18cf",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
@@ -2065,7 +2066,7 @@
             "path": "rust/tcl-compiler/src/unit_scope.rs",
             "function": "record_unresolved_word_dispatch",
             "line": 1418,
-            "sha256": "639a84ca35e3935e99a6d282f0e3410c1593691d83ac46100238db199c3f40a4",
+            "sha256": "3579010217a78fddc3158078de58585b3450c24e77a39c280750b3496b1b7e64",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
@@ -2129,7 +2130,7 @@
             "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
             "function": "initial_procedure_bindings",
             "line": 1600,
-            "sha256": "15ea0dcbcc5bee296b0f647ee4e0d302003fef15d52c4068debbb9a0a9f1d038",
+            "sha256": "a2d7e8f2af40f913f5189d84587c0dd7574a1576d45f5195f758fe0f87c488df",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
@@ -2295,25 +2296,25 @@
           "path": "runtime/rust/src/namespace.rs",
           "function": "register_at",
           "line": 1923,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         },
         {
           "path": "runtime/rust/src/namespace.rs",
           "function": "restore_with_original_key_checked",
           "line": 2110,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         },
         {
           "path": "runtime/rust/src/namespace.rs",
           "function": "command_home_ns",
           "line": 2601,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         },
         {
           "path": "runtime/rust/src/namespace.rs",
           "function": "ensure_command_owned_namespace",
           "line": 2641,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "input_purpose": "Mixed bootstrap/root registration, visibility restoration, original proc/OO holder creation",
@@ -2343,7 +2344,7 @@
             "path": "runtime/rust/src/namespace.rs",
             "function": "register_at",
             "line": 1923,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
@@ -2351,23 +2352,23 @@
             "path": "runtime/rust/src/namespace.rs",
             "function": "restore_with_original_key_checked",
             "line": 2110,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "runtime/rust/src/namespace.rs",
             "function": "command_home_ns",
-            "line": 2598,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "line": 2601,
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "runtime/rust/src/namespace.rs",
             "function": "ensure_command_owned_namespace",
-            "line": 2638,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "line": 2641,
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
@@ -2383,13 +2384,13 @@
           "path": "runtime/rust/src/namespace.rs",
           "function": "destination_of",
           "line": 2382,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         },
         {
           "path": "runtime/rust/src/namespace.rs",
           "function": "rehome_command",
           "line": 2319,
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "input_purpose": "Original rename destination and actual command through-window placement",
@@ -2418,16 +2419,16 @@
           {
             "path": "runtime/rust/src/namespace.rs",
             "function": "destination_of",
-            "line": 2379,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "line": 2382,
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "runtime/rust/src/namespace.rs",
             "function": "rehome_command",
-            "line": 2326,
-            "sha256": "0d835763c3c2f402bf5ae5cfea80879b297f0730f10ce02136752854d001f26a",
+            "line": 2319,
+            "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
@@ -2442,14 +2443,14 @@
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "import_commands",
-          "line": 12142,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 12144,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         },
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "forget_imports",
-          "line": 12807,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 12809,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         }
       ],
       "input_purpose": "Actual original namespace import/forget patterns under current token",
@@ -2470,7 +2471,7 @@
       "status": "isolated-applied; scoped-controls-reported-pass",
       "action": "Replace projected-pattern tail/qualifier/source_path reconstruction with owner parts; keep graph/origin generations and refusal.",
       "owner_report_reference": "oracle_audit",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/registry_vm",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -2478,17 +2479,17 @@
           {
             "path": "rust/tcl-vm/src/interp.rs",
             "function": "import_commands",
-            "line": 12142,
-            "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
-            "same_as_sampled_main": true,
+            "line": 12293,
+            "sha256": "e7b4575d82be30613806f59381098b7e9d1011f7290a8782d773dbfd0d4cb9f7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-vm/src/interp.rs",
             "function": "forget_imports",
-            "line": 12807,
-            "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
-            "same_as_sampled_main": true,
+            "line": 12958,
+            "sha256": "e7b4575d82be30613806f59381098b7e9d1011f7290a8782d773dbfd0d4cb9f7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
@@ -2502,20 +2503,20 @@
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "intern_ns",
-          "line": 9971,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 9973,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         },
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "namespace_path_from_written",
-          "line": 9977,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 9979,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         },
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "declare_namespace",
-          "line": 11721,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 11723,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         }
       ],
       "input_purpose": "Authored/bootstrap written namespace names and token declaration",
@@ -2534,7 +2535,7 @@
       "status": "assigned-purpose-review-untouched",
       "action": "Audit remaining wrapper caller purposes; direct namespace path construction is adapter only after owner input selection.",
       "owner_report_reference": "oracle_audit",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/registry_vm",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -2542,25 +2543,25 @@
           {
             "path": "rust/tcl-vm/src/interp.rs",
             "function": "intern_ns",
-            "line": 9971,
-            "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
-            "same_as_sampled_main": true,
+            "line": 10122,
+            "sha256": "e7b4575d82be30613806f59381098b7e9d1011f7290a8782d773dbfd0d4cb9f7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-vm/src/interp.rs",
             "function": "namespace_path_from_written",
-            "line": 9977,
-            "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
-            "same_as_sampled_main": true,
+            "line": 10128,
+            "sha256": "e7b4575d82be30613806f59381098b7e9d1011f7290a8782d773dbfd0d4cb9f7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-vm/src/interp.rs",
             "function": "declare_namespace",
-            "line": 11721,
-            "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0",
-            "same_as_sampled_main": true,
+            "line": 11872,
+            "sha256": "e7b4575d82be30613806f59381098b7e9d1011f7290a8782d773dbfd0d4cb9f7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
@@ -2618,25 +2619,25 @@
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "lookup_var_in_logical_scope",
           "line": 1881,
-          "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef"
+          "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "global_vars_needing_qualification",
-          "line": 2366,
-          "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef"
+          "line": 2373,
+          "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "visible_variable_names",
-          "line": 2342,
-          "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef"
+          "line": 2349,
+          "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         },
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "qualified_variable_cell_at",
-          "line": 2031,
-          "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef"
+          "line": 1998,
+          "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         }
       ],
       "input_purpose": "Positively Logical source lexical frame/uplevel visibility",
@@ -2668,31 +2669,31 @@
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "lookup_var_in_logical_scope",
             "line": 1881,
-            "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+            "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "global_vars_needing_qualification",
-            "line": 2366,
-            "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+            "line": 2373,
+            "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "visible_variable_names",
-            "line": 2342,
-            "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+            "line": 2349,
+            "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "qualified_variable_cell_at",
-            "line": 2031,
-            "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+            "line": 1998,
+            "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           }
@@ -2957,14 +2958,14 @@
         {
           "path": "rust/tcl-lsp-core/src/definition.rs",
           "function": "class_declaration_at",
-          "line": 2719,
-          "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef"
+          "line": 2726,
+          "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c"
         },
         {
           "path": "rust/tcl-lsp-core/src/refactor/extract_proc.rs",
           "function": "unique_proc_name",
           "line": 1070,
-          "sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532"
+          "sha256": "92541248aa8773b833f429625df50ac7143bcbced5dcbb739b6e655977780693"
         },
         {
           "path": "rust/tcl-lsp-core/src/minify.rs",
@@ -2976,7 +2977,7 @@
           "path": "rust/tcl-lsp-core/src/rename.rs",
           "function": "qualified_and_decl_text",
           "line": 1901,
-          "sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26"
+          "sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f"
         },
         {
           "path": "rust/tcl-lsp-core/src/workspace_index.rs",
@@ -3004,7 +3005,7 @@
       "status": "named-call-report-gates-reviewed; class-fallback-gate-review-pending",
       "action": "No demonstrated missing Native delegation at named helper String comparison. Preserve actual caller gates; only migrate IDs where retained Compiler/DB source model needs them. Display rendering itself is not a resolver. Additional exact dispositions: minify child_scope_label owns compaction label domain, do not qualify; workspace raw rooted alternatives are report/test API only. ExtractProc guaranteed generated-bare root construction queued Syntax::root_unrooted_key. Rename declaration edit formatting is authoring, preserve safe-identifier/caller guards. class_declaration_at actual definition_with423 and indirect_definition_target519 fall-through still need current Logical eligibility/Original-tier termination review; do not conflate with already guarded incoming_calls reporting. No new executed Native failure claimed.",
       "owner_report_reference": "consumer_audit",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/lsp_scope",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -3036,8 +3037,8 @@
           {
             "path": "rust/tcl-lsp-core/src/definition.rs",
             "function": "class_declaration_at",
-            "line": 2719,
-            "sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+            "line": 2726,
+            "sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
@@ -3046,7 +3047,7 @@
             "function": "unique_proc_name",
             "line": 1070,
             "sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
-            "same_as_sampled_main": true,
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
@@ -3061,7 +3062,7 @@
             "path": "rust/tcl-lsp-core/src/rename.rs",
             "function": "qualified_and_decl_text",
             "line": 1901,
-            "sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+            "sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
             "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
@@ -3235,13 +3236,13 @@
     },
     {
       "id": "cli-spec-oracle-presence",
-      "implementation_owner": "registry_naming (snapshot); root-tooling (presence)",
+      "implementation_owner": "registry_naming (shared snapshot/provider presence); root-tooling (Main integration)",
       "sites": [
         {
           "path": "rust/tcl-cli/src/commands/spec_test.rs",
           "function": "render_script",
-          "line": 375,
-          "sha256": "38fe32dcf94baac753e9dacdf70cd435d9c27d0494f3bdd10220733f0b948df6"
+          "line": 404,
+          "sha256": "02731fb833dfa874c64412aa1d8207589677eb4a446b9f6fedeb52e81a7627b1"
         },
         {
           "path": "rust/tcl-cli/src/commands/spec_probe.rs",
@@ -3251,7 +3252,7 @@
         }
       ],
       "input_purpose": "Authored exact command presence separately from original namespace/simple-word variable snapshot coordinates and display-only reporting",
-      "shared_owner_api": "Syntax original_namespace_variable_snapshot_support; parent presence uses original name plus literal_pattern",
+      "shared_owner_api": "Syntax original_script_name_query_support + original_script_command_inventory_support + ScriptRootCommandPresencePlan + original_namespace_variable_snapshot_support; original provider/context words, no FQN inverse",
       "required_preconditions": [
         "Package require/auto_load/argument effects and done-line protocol retained; raw reporting display grants no slot identity"
       ],
@@ -3265,8 +3266,8 @@
         "distinct exact report labels without root-trim collision"
       ],
       "related_issues": [],
-      "status": "parent-presence-plus-isolated-shared-snapshot-applied; source16-accepted-Rust-unexecuted",
-      "action": "See /tmp/spec-test-snapshot-name-purpose-audit.md and /tmp/name-snapshot-pattern-oracles-20261013/observations.json. Presence uses original command operand plus shared literal-pattern projection. Snapshot exclusion ours must not root-trim or broadly hide __spec_testOther/:errorInfo; exact own namespace is already pruned. shown must retain exact reporting labels or selected enumeration context. Original C5 info-vars/commands qualified namespace prefix is literal; whole-prefix escaping was measured wrong and is not a fix. Namespace-children optional fullpattern and Jim queries have independent measured behavior. All6 controlled :errorInfo versus report reuse demonstrates address loss, without granting Native cell identity.",
+      "status": "Main snapshot/presence adapters integrated; isolated SpecProbe/Studio query owner applied; Rust controls pending",
+      "action": "Main presence/snapshot/current qualifier purpose delegates separately scoped. Isolated SpecProbe returns checked original root operands through retained C simple/context or original Jim flat table; whole unavailable C namespace refuses. Studio literal C registration inputs stay exact and independently retained with explicit unresolved publication context, never optional-root descriptor-normalized. Fresh common-family originals132 presence plus6 ordinary and6 provider-distinct ambiguous inventories accepted only script forms; new CLI3 and Studio controls unexecuted. Patch/manifest /tmp/name-spec-probe-studio-20261013/main-safe-consumers.patch.",
       "owner_report_reference": "registry_naming",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3276,8 +3277,8 @@
           {
             "path": "rust/tcl-cli/src/commands/spec_test.rs",
             "function": "render_script",
-            "line": 400,
-            "sha256": "2f9c926e03175b8a353c421b1ccf2db1b4abd1cc2d9d66963d36dc8eef7f2fae",
+            "line": 404,
+            "sha256": "9b13cb5e2c14704ce638fa88a637e6448ee78cb8ed34658bbae60d47d7522e89",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
@@ -3285,13 +3286,34 @@
             "path": "rust/tcl-cli/src/commands/spec_probe.rs",
             "function": "render_script",
             "line": 37,
-            "sha256": "f571a562e9eaebcbe482ff3dd81869aeaff68d41af32a00072426a1a07f3b0e7",
-            "same_as_sampled_main": true,
+            "sha256": "2c371e84e7a674bcbc62117386b2785ff039243c7869ee359af484f4a4cbd401",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
-      }
+      },
+      "additional_actual_ingress_sites": [
+        {
+          "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+          "function": "merge_probe",
+          "line": 164,
+          "sha256": "a5fe472428ce7bf8cfb34f8f6a0cbd97d66360c9f8f755a3d6f4ddf16cfff8d3"
+        },
+        {
+          "path": "rust/tcl-spec-studio/src/infer/extension.rs",
+          "function": "normalised",
+          "line": 464,
+          "sha256": "a5fe472428ce7bf8cfb34f8f6a0cbd97d66360c9f8f755a3d6f4ddf16cfff8d3"
+        },
+        {
+          "path": "rust/tcl-cli/src/commands/spec.rs",
+          "function": "probe_package",
+          "line": 817,
+          "sha256": "21278e61f348ae01b1f063cd0db75c04a362b126bac24a706032392fad7afb33"
+        }
+      ],
+      "fresh_original_evidence": "/tmp/name-spec-probe-studio-20261013/validation.json"
     },
     {
       "id": "runtime-rename-window-slot",
@@ -3349,7 +3371,7 @@
       "status": "five-shared-guards-applied; scalar-literalstore-purpose-pending",
       "action": "contains(::)1652/1657/1768/1902/1906 are local qualification guards; contains(open-parenthesis)2396 is a strict scalar eligibility guard. Central source/formal purpose can own them after tracing; do not weaken while fixing correspondence. Current confirmed stall is diagnostic performance, not a new name-owner refusal.",
       "owner_report_reference": "issues",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/source_flow",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -3357,9 +3379,9 @@
           {
             "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
             "function": "evaluate",
-            "line": 2034,
-            "sha256": "b43d94fd8d5b055f1ddd61744f97d9ba8dbd7ee70eedb225807b53230e184dce",
-            "same_as_sampled_main": true,
+            "line": 2145,
+            "sha256": "5d1a13ae8cc2f8e6533615441fb4bb52c906a0e131060d9cee10ba6e38f4e3d7",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           }
         ],
@@ -3401,7 +3423,7 @@
       "status": "shared-purpose-boundary-reviewed",
       "action": "No namespace-lookup migration: retain dedicated list-path purpose and actual arena topology. Issue acceptance requires the actual original-path controls, not reusing C namespace geometry.",
       "owner_report_reference": "runtime_variables",
-      "main_vs_isolated_source_state": "all recorded source files match isolated bytes",
+      "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
         "worktree": "/workspace/name-implementation-worktrees/runtime",
         "head": "7aa200ed1da6b663da67c688e53839a20f19f052",
@@ -3410,8 +3432,8 @@
             "path": "runtime/rust/src/cmd_alias.rs",
             "function": "interp_path",
             "line": 668,
-            "sha256": "8c487caae90d8b9df686baaa9c5c99d3ccf7884ecef730ec1e133ed1a4e4fd5d",
-            "same_as_sampled_main": true,
+            "sha256": "e399886f547d77372e98e4216ac7abffc9bc35d3df67363978df212a9ba72935",
+            "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
@@ -3528,31 +3550,31 @@
           "path": "rust/tcl-engine-wasm/src/lib.rs",
           "function": "apply",
           "line": 288,
-          "sha256": "3ee013acfc4b77bdfd2892c26f1858de00359a158a1845f878cb321e7cded859"
+          "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd"
         },
         {
           "path": "rust/tcl-engine-wasm/src/lib.rs",
           "function": "replay",
-          "line": 338,
-          "sha256": "3ee013acfc4b77bdfd2892c26f1858de00359a158a1845f878cb321e7cded859"
+          "line": 332,
+          "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd"
         },
         {
           "path": "rust/tcl-engine-wasm/src/host_call.rs",
           "function": "define_command_bytes",
-          "line": 282,
-          "sha256": "9e07ebe687339ab3d781bc8d2383df901a8c61ef6e1f250f5456670c677b0b4e"
+          "line": 297,
+          "sha256": "93aa4994c514d71de0578f720db5e46fe32f67e2d2283221fc71bd46e611f13e"
         },
         {
           "path": "rust/tcl-engine-wasm/src/command_receipts.rs",
           "function": "current",
-          "line": 259,
-          "sha256": "0486b631f886c6ddf73eeb8ff8708b1c55260d781908ab2572598261b7f654df"
+          "line": 377,
+          "sha256": "adade575dedc6ea39b66d84f797194c4da173f9ccc46e019b10b106f2aed83a0"
         },
         {
           "path": "rust/tcl-engine-wasm/src/extension_host.rs",
-          "function": "command_names",
-          "line": 159,
-          "sha256": "fc72c93df4d6060bc33801a093019528fdba32bc0e18d2b780d8a89cc8788af5"
+          "function": "command_inventory",
+          "line": 153,
+          "sha256": "931f619e3fd62e0952f46e12584245ebb9ba03bf71a9696843ac1f892feebd2e"
         }
       ],
       "input_purpose": "Authentic live runtime receipt transport versus fresh-instance replay address data",
@@ -3573,8 +3595,8 @@
         1778,
         1755
       ],
-      "status": "live-shared; replay-and-extension-roster-purpose-review-assigned",
-      "action": "apply and callback define replace original authored registration input with receipt.qualified in Setup/Defined; rebuild creates/deletes through actual owner in a fresh instance. Existing general trap control and live receipt controls do not by themselves certify ambiguous rendered-address replay. No new measured behavior failure claimed. extension_host LIST_COMMANDS trims namespace trailing colons before glob query and all command leading colons before reporting. LoadedExtension.commands is reporting metadata, not admission; preserve exact one-purpose label projection and measured original query route, plus existing opaque refusal; C qualified namespace prefixes must not receive full-pattern glob escaping. CLI SpecProbe has same raw dynamic namespace-prefix concern without root trim.",
+      "status": "Main counted inventory/shared checked root bridge applied; actual Runtime/Engine controls scratch authored-unexecuted",
+      "action": "Root integrated bounded11-owner replacement of LIST_COMMANDS with actual visible namespace/generation/byte slot inventory plus producer actual lookup/generation/root-operand equality and counted RuntimeAPI transport. Unicode catalogue whole-refuses opaque or unaddressable rows. Includes visible imports/aliases and replacement generations; no decoded-data Native receipt. Seven genuine controls scratch-only; Runtime3 now use actual selected Native core/NativeHost, exact word transport; C5 original C API callback measured bare x root and relative qualified child::y entered N:/child, root joins miss. Old C84/85 proc publication observations remain separate. Replay callback purpose independently owned.",
       "owner_report_reference": "runtime_variables",
       "main_vs_isolated_source_state": "recorded source files differ or replacement is pending; inspect per-site hashes",
       "isolated_source_snapshot": {
@@ -3586,7 +3608,7 @@
             "function": "apply",
             "line": 288,
             "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
@@ -3594,36 +3616,41 @@
             "function": "replay",
             "line": 332,
             "sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
-            "same_as_sampled_main": false,
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-engine-wasm/src/host_call.rs",
             "function": "define_command_bytes",
-            "line": 282,
-            "sha256": "6080492093f256434594339e58d1a4cd0c5ce85a5e281618bc01bf382dbac274",
-            "same_as_sampled_main": false,
+            "line": 297,
+            "sha256": "93aa4994c514d71de0578f720db5e46fe32f67e2d2283221fc71bd46e611f13e",
+            "same_as_sampled_main": true,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-engine-wasm/src/command_receipts.rs",
             "function": "current",
-            "line": 362,
-            "sha256": "de9831cc60269f47998efd6934f6a057dd3cca9d60b7b6c258b30c6c51ecc8b9",
+            "line": 377,
+            "sha256": "7c575bb0341778f40e3e48dc84a30a98e6fc059e111ec57ef71480c7ad5acc8b",
             "same_as_sampled_main": false,
             "function_removed_or_replaced": false
           },
           {
             "path": "rust/tcl-engine-wasm/src/extension_host.rs",
-            "function": "command_names",
-            "line": 159,
+            "function": "command_inventory",
+            "line": null,
             "sha256": "fc72c93df4d6060bc33801a093019528fdba32bc0e18d2b780d8a89cc8788af5",
-            "same_as_sampled_main": true,
-            "function_removed_or_replaced": false
+            "same_as_sampled_main": false,
+            "function_removed_or_replaced": true
           }
         ],
         "scope": "Read-only source identity plus owner report, not execution evidence; removed function requires the typed replacement owner, never a guessed same-name function."
-      }
+      },
+      "inventory_proposal_manifest": "/tmp/name-extension-command-inventory-20261013/proposal-manifest.json",
+      "consumer_plan": "/tmp/name-extension-command-inventory-20261013/consumer-plan.md",
+      "active_consumer_owner": "Root Main integration; registry_naming controls scratch; Runtime replay owner independently coordinated",
+      "original_CAPI_evidence": "/tmp/name-extension-command-inventory-20261013/original-capi-qualified-context/validation.json",
+      "authored_controls": "/tmp/name-extension-command-inventory-20261013/meaningful-controls-manifest.json"
     },
     {
       "id": "debugger-snapshot-label-selection",
@@ -3638,8 +3665,8 @@
         {
           "path": "rust/tcl-vm/src/interp.rs",
           "function": "debug_snapshot",
-          "line": 4383,
-          "sha256": "d00a3e85845dcddec8236b8145572aa46886c88f1138006149f9ddae126cd9d0"
+          "line": 4385,
+          "sha256": "104ad930b6643162e7967335a9ea92641da544d3a802ba6edf2503a63a6c1406"
         }
       ],
       "input_purpose": "Current-frame captured variable reporting label and limited replay expression grammar",
@@ -4164,9 +4191,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "class_declaration_at",
-      "current_line": 2719,
+      "current_line": 2726,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [
@@ -4180,7 +4207,7 @@
       "function": "command_indirection",
       "current_line": 1566,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4192,7 +4219,7 @@
       "function": "definition_with",
       "current_line": 209,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4204,7 +4231,7 @@
       "function": "ensemble_subcommand_target",
       "current_line": 1637,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4214,9 +4241,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "export_verdict_for_slot",
-      "current_line": 2994,
+      "current_line": 3001,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4226,9 +4253,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "exported_original_slot_at_import",
-      "current_line": 3698,
+      "current_line": 3705,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4238,9 +4265,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "forced_import_shadows",
-      "current_line": 2856,
+      "current_line": 2863,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4250,9 +4277,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "forced_import_shadows_call",
-      "current_line": 2893,
+      "current_line": 2900,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4262,9 +4289,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "import_hop",
-      "current_line": 3170,
+      "current_line": 3177,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4276,7 +4303,7 @@
       "function": "indirect_definition_target",
       "current_line": 481,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4288,7 +4315,7 @@
       "function": "indirection_pending_at",
       "current_line": 1608,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4298,9 +4325,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "innermost_namespace_at",
-      "current_line": 2415,
+      "current_line": 2422,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4312,7 +4339,7 @@
       "function": "instance_method_at_cursor",
       "current_line": 1390,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4322,9 +4349,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "itcl_class_proc_at_in_registry",
-      "current_line": 2615,
+      "current_line": 2622,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4334,9 +4361,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "itcl_self_qualified_candidate",
-      "current_line": 2694,
+      "current_line": 2701,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4346,9 +4373,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "live_import_over_candidates",
-      "current_line": 3195,
+      "current_line": 3202,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4360,7 +4387,7 @@
       "function": "lookup_var_in_scope_chain",
       "current_line": 1866,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4370,9 +4397,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "lookup_var_read_at",
-      "current_line": 2161,
+      "current_line": 2168,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4382,9 +4409,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "namespace_context_at",
-      "current_line": 2440,
+      "current_line": 2447,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4394,9 +4421,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "namespace_exports_observable",
-      "current_line": 3042,
+      "current_line": 3049,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4408,7 +4435,7 @@
       "function": "object_dispatch_mask_at_command",
       "current_line": 920,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4418,9 +4445,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "only_route_is_a_dead_import",
-      "current_line": 3903,
+      "current_line": 3910,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4430,9 +4457,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "original_export_command",
-      "current_line": 3055,
+      "current_line": 3062,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4444,7 +4471,7 @@
       "function": "original_internal_dispatch",
       "current_line": 1090,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4456,7 +4483,7 @@
       "function": "original_object_configuration_anchor",
       "current_line": 1044,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4468,7 +4495,7 @@
       "function": "original_self_receiver_head",
       "current_line": 1110,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4478,9 +4505,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "original_variable_cursor_retained",
-      "current_line": 2079,
+      "current_line": 2086,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4490,9 +4517,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "original_variable_occurrence_at",
-      "current_line": 2107,
+      "current_line": 2114,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4502,9 +4529,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "proc_visible_from_namespace",
-      "current_line": 2488,
+      "current_line": 2495,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4514,9 +4541,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "proc_visible_via_wildcard_import",
-      "current_line": 2822,
+      "current_line": 2829,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4526,9 +4553,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "qualified_var_name",
-      "current_line": 4161,
+      "current_line": 4168,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4538,9 +4565,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "qualified_variable_cell_at",
-      "current_line": 2031,
+      "current_line": 1998,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [
@@ -4552,9 +4579,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "resolve_called_proc",
-      "current_line": 3777,
+      "current_line": 3784,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4564,9 +4591,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "resolve_class_target_at",
-      "current_line": 4059,
+      "current_line": 4066,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4576,9 +4603,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "resolve_proc_target_at",
-      "current_line": 3970,
+      "current_line": 3977,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4588,9 +4615,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "resolved_command_name",
-      "current_line": 2543,
+      "current_line": 2550,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4600,9 +4627,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "same_namespace",
-      "current_line": 3952,
+      "current_line": 3959,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4612,9 +4639,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "slot_events",
-      "current_line": 3513,
+      "current_line": 3520,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -4624,9 +4651,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "substituting_var_at_position",
-      "current_line": 2194,
+      "current_line": 2201,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -4636,9 +4663,9 @@
     {
       "path": "rust/tcl-lsp-core/src/definition.rs",
       "function": "wildcard_import_source_namespace",
-      "current_line": 3119,
+      "current_line": 3126,
       "baseline_sha256": "205c1bb5c090a762d7e8d62248eda618db88c79771ec7aeac09ccd9b1169276c",
-      "current_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "current_sha256": "c9877151e8aac436d9b3e7200f1923e5ecf967e5bbc0587452c0e1420c7cb51c",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -5696,9 +5723,9 @@
     {
       "path": "rust/tcl-lsp-core/src/original_declaration.rs",
       "function": "literal_name_matches_slot",
-      "current_line": 987,
+      "current_line": 992,
       "baseline_sha256": "2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e",
-      "current_sha256": "2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e",
+      "current_sha256": "9969ec4c2e3b05a02ecd21a47fae6a3857c65f8c74747c0eba6bc6da2353e2b8",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -5710,7 +5737,7 @@
       "function": "select",
       "current_line": 620,
       "baseline_sha256": "2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e",
-      "current_sha256": "2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e",
+      "current_sha256": "9969ec4c2e3b05a02ecd21a47fae6a3857c65f8c74747c0eba6bc6da2353e2b8",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6022,7 +6049,7 @@
       "function": "original_extraction_plan",
       "current_line": 269,
       "baseline_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
-      "current_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
+      "current_sha256": "92541248aa8773b833f429625df50ac7143bcbced5dcbb739b6e655977780693",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6034,8 +6061,8 @@
       "function": "unique_proc_name",
       "current_line": 1070,
       "baseline_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
-      "current_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
-      "baseline_matched_sources_retained": true,
+      "current_sha256": "92541248aa8773b833f429625df50ac7143bcbced5dcbb739b6e655977780693",
+      "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [
         "lsp-named-logical-reporting"
@@ -6048,7 +6075,7 @@
       "function": "var_ref",
       "current_line": 1036,
       "baseline_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
-      "current_sha256": "f8adbc1bf25328cb4c92478431d5877e0065b042e3e7d9d6c0294ff38545e532",
+      "current_sha256": "92541248aa8773b833f429625df50ac7143bcbced5dcbb739b6e655977780693",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6444,9 +6471,9 @@
     {
       "path": "rust/tcl-lsp-core/src/rename.rs",
       "function": "build_var_ref_replacement",
-      "current_line": 2241,
+      "current_line": 2247,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6456,9 +6483,9 @@
     {
       "path": "rust/tcl-lsp-core/src/rename.rs",
       "function": "build_var_replacement_in_analysis",
-      "current_line": 2274,
+      "current_line": 2280,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6468,9 +6495,9 @@
     {
       "path": "rust/tcl-lsp-core/src/rename.rs",
       "function": "namespace_prefix_of",
-      "current_line": 2325,
+      "current_line": 2331,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6482,7 +6509,7 @@
       "function": "namespace_variable_rename_edits",
       "current_line": 2105,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6494,7 +6521,7 @@
       "function": "prepare_rename_in_program",
       "current_line": 139,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6506,7 +6533,7 @@
       "function": "qualified_and_decl_text",
       "current_line": 1901,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [
@@ -6520,7 +6547,7 @@
       "function": "rename_class",
       "current_line": 1705,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6532,7 +6559,7 @@
       "function": "rename_in_program",
       "current_line": 416,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6544,7 +6571,7 @@
       "function": "rename_proc",
       "current_line": 1608,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "classification-or-private-policy-review",
       "actionable_ids": [],
@@ -6556,7 +6583,7 @@
       "function": "rename_var",
       "current_line": 1472,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": false,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6566,9 +6593,9 @@
     {
       "path": "rust/tcl-lsp-core/src/rename.rs",
       "function": "source_name_qualifier",
-      "current_line": 2307,
+      "current_line": 2313,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -6578,9 +6605,9 @@
     {
       "path": "rust/tcl-lsp-core/src/rename.rs",
       "function": "split_array_suffix",
-      "current_line": 2316,
+      "current_line": 2322,
       "baseline_sha256": "f6be4a9c30d636b8f260ed1da3cffac1621ccb497afc9e0eb1d5a4726d50ddad",
-      "current_sha256": "f5bf813ea81e92fb5034a7740fc0ab147551c0a72f6390130aee67ae41a98b26",
+      "current_sha256": "645325321749465cf032f7c73da122314bc7dc8b0ae6bdc04aa8f0be67a8942f",
       "baseline_matched_sources_retained": true,
       "visible_owner_route": "shared-adapter-candidate",
       "actionable_ids": [],
@@ -8048,7 +8075,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/command_descriptor_key.rs",
-          "sha256": "c961ed7ba46d5375716542ecf7bd36c6952faf5723df0ef2e9528e14dce584e7"
+          "sha256": "be37ecf7d1d200b0d349ca845e27143f22e15f94eccf2ca0362055c93c877d08"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -8208,7 +8235,7 @@
       "current_sources": [
         {
           "path": "rust/tcl-registry/src/native_jim_lookup.rs",
-          "sha256": "7c99218ff0987c360cdec4789032d343944f12ac363465c593fd8afe0dd00503"
+          "sha256": "db1ac173550d87753b25f6a9882d961ddba2c25c047404a33dfa8a4598d2302f"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9227,7 +9254,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9249,7 +9276,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/interp/native_command_names.rs",
-          "sha256": "6d963d0d35459bae1fc18cd4ed6e8716b3d1c76822270c00d3cc26e184115a92"
+          "sha256": "9e91ceeaa33d7dd599da398c243c6bd06e2dd66d1e86d7be894e4c072d069877"
         },
         {
           "path": "runtime/rust/src/interp.rs",
@@ -9278,7 +9305,7 @@
         },
         {
           "path": "runtime/rust/src/cmd_namespace.rs",
-          "sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848"
+          "sha256": "66b2fe3cec7facfad70605dc707d5b1c89b7181e05c6828949bf5a710bdc3e55"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9297,7 +9324,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9525,7 +9552,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9573,7 +9600,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/cmd_namespace.rs",
-          "sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848"
+          "sha256": "66b2fe3cec7facfad70605dc707d5b1c89b7181e05c6828949bf5a710bdc3e55"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9592,7 +9619,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9614,7 +9641,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9636,7 +9663,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9658,7 +9685,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/namespace.rs",
-          "sha256": "816a239faeee21306337d87ccdaa427d4c3ee9952644cf1c3acbeacaa76c1e5e"
+          "sha256": "f15c51e96f5c90a9b1b57670e2f47fd7c20c906a7f2d72aeb30013fe69fb5669"
         },
         {
           "path": "runtime/rust/src/interp.rs",
@@ -9706,7 +9733,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/cmd_namespace.rs",
-          "sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848"
+          "sha256": "66b2fe3cec7facfad70605dc707d5b1c89b7181e05c6828949bf5a710bdc3e55"
         }
       ],
       "shorthand_or_unresolved_mentions": [],
@@ -9725,7 +9752,7 @@
       "current_sources": [
         {
           "path": "runtime/rust/src/cmd_namespace.rs",
-          "sha256": "30205110ad5af6f4ffdd69f2d6fb86cad40c66a1c6353d321e264badfe478848"
+          "sha256": "66b2fe3cec7facfad70605dc707d5b1c89b7181e05c6828949bf5a710bdc3e55"
         }
       ],
       "shorthand_or_unresolved_mentions": [],

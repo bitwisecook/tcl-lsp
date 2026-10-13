@@ -35,6 +35,11 @@ pub use tcl_registry::value_transfer::HandlerMatch;
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
 
+mod procedure_identity;
+pub use procedure_identity::{
+    ProcedureBodyKind, ProcedureId, ProcedureIdIssuer, ProcedureInventory,
+};
+
 // Command tokens
 
 /// A stable, function-local identity for a semantic IR node.
@@ -2422,6 +2427,10 @@ pub struct Procedure {
     pub qualified_name: String,
     /// Original source publication geometry; no Native binding or body admission.
     pub publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+    /// Original allocating instruction; source bytes and display labels cannot replace it.
+    pub declaration_site: Option<crate::command_binding::CommandAllocationSite>,
+    /// Body frame purpose, independent of the reporting label.
+    pub body_kind: ProcedureBodyKind,
     /// Parameter names.
     pub params: Vec<String>,
     /// Source span of the definition.
@@ -2757,12 +2766,12 @@ pub struct Module {
     /// Full allocation/source identity groups their retention limits; neither
     /// the tag nor the body unit installs a callable or licenses compilation.
     pub installed_procedure_body_units:
-        std::collections::BTreeMap<String, crate::command_binding::CommandAllocation>,
+        std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
     /// Analysis-only units for original procedure declarations, independent
-    /// of current installation or actual entry. Labels index internal units;
-    /// allocation, original source and namespace context retain their identity.
+    /// of current installation or actual entry. Allocation, original source
+    /// and namespace context retain their identity independently of the ID.
     pub original_declaration_body_units:
-        std::collections::BTreeMap<String, crate::command_binding::CommandAllocation>,
+        std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
     /// Original body metadata for exact procedure implementations, including
     /// retired incarnations. This does not select a callable or grant entry,
     /// completion, compilation or an executable replacement.
@@ -2806,33 +2815,18 @@ pub struct Module {
     /// Top-level script (code outside any procedure).
     pub top_level: Script,
     /// Named procedures.
-    pub procedures: std::collections::HashMap<String, Procedure>,
+    pub procedures: ProcedureInventory,
+    /// Shared body-ID owner for declarations and analysis-only units.
+    pub procedure_ids: ProcedureIdIssuer,
     /// Sealed actual event-declaration bodies. Internal procedure labels do
     /// not create an event frame or select a hosted execution context.
     pub irules_event_bodies:
-        std::collections::HashMap<String, std::sync::Arc<SourceIrulesEventBody>>,
+        std::collections::HashMap<ProcedureId, std::sync::Arc<SourceIrulesEventBody>>,
     /// Named methods (keyed by `class::method`).
     pub methods: std::collections::HashMap<String, MethodDef>,
-    /// Synthetic *body units* — the bodies of commands that run their script
-    /// argument in a fresh frame but are **not** real named procedures:
-    /// `apply` lambdas, `namespace eval` bodies and installed procedure
-    /// bodies retained only for analysis (keyed by a synthetic
-    /// qualified name like `::apply#0`, or `::NS::namespace-eval#0` — `NS`
-    /// *prefixes* the marker, matching every other qname's "everything
-    /// before the last `::` is the enclosing namespace" convention, so a
-    /// bare call inside the body resolves against the namespace it actually
-    /// targets rather than always the global namespace).
-    ///
-    /// These are lowered into [`Procedure`]s purely so the static-analysis
-    /// pipeline (CFG → SSA → SCCP → taint) reaches *inside* the body — the
-    /// same coverage a real `proc` gets. They are held in a **separate** map
-    /// from [`Self::procedures`] so codegen (which emits `procedures`) never
-    /// materialises them as callable procs, and from [`Self::methods`] so the
-    /// TclOO-specific consumers (interproc method purity, the O126 optimiser
-    /// gate) never mistake them for methods. The body still executes at
-    /// runtime via its command's own `Statement::Barrier`, so bytecode is
-    /// byte-identical whether or not a body unit is recorded.
-    pub body_units: std::collections::HashMap<String, Procedure>,
+    /// Analysis bodies of lambdas, namespace scripts and retained declarations.
+    /// Their IDs identify bodies; these rows do not publish callable commands.
+    pub body_units: ProcedureInventory,
     /// The subset of [`Self::body_units`] that are **lambda** frames — an
     /// `apply` literal's body, whose parameter list binds real locals exactly
     /// as a `proc`'s does.
@@ -2843,7 +2837,7 @@ pub struct Module {
     /// elsewhere.  The read-before-set family (`W210`) therefore runs over
     /// this subset only — a lambda body is a closed frame and an unwritten
     /// read in it is a genuine error.
-    pub lambda_body_units: std::collections::BTreeSet<String>,
+    pub lambda_body_units: std::collections::BTreeSet<ProcedureId>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
     /// `TclOO` methods defined more than once (a later `oo::define` /
@@ -2995,6 +2989,49 @@ fn execution_namespace_for_qname(qname: &str) -> String {
 }
 
 impl Module {
+    pub(crate) fn source_procedure_for_target(
+        &self,
+        target: &crate::command_binding::SourceCommandTarget,
+    ) -> Option<(ProcedureId, &Procedure)> {
+        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+            return None;
+        }
+        let allocation = target.implementation_allocation.as_ref()?;
+        let (id, procedure) = self.source_procedure_for_allocation(allocation)?;
+        target
+            .matches_authored_implementation_image(&self.source, procedure.span.start())
+            .then_some((id, procedure))
+    }
+
+    pub(crate) fn source_procedure_for_allocation(
+        &self,
+        allocation: &crate::command_binding::CommandAllocation,
+    ) -> Option<(ProcedureId, &Procedure)> {
+        let mut matching =
+            self.procedures
+                .at_declaration(&allocation.site)
+                .filter(|(_, procedure)| {
+                    allocation
+                        .matches_source_declaration_image(&self.source, procedure.span.start())
+                });
+        let (id, procedure) = matching.next()?;
+        matching.next().is_none().then_some((*id, procedure))
+    }
+
+    /// Issue a fresh body ID and retain this declaration without name-key overwrites.
+    pub fn retain_procedure(&mut self, procedure: Procedure) -> ProcedureId {
+        let id = self.procedure_ids.allocate();
+        self.procedures.insert(id, procedure);
+        id
+    }
+
+    /// Retain an independent executable body under the same Module issuer.
+    pub fn retain_body_unit(&mut self, procedure: Procedure) -> ProcedureId {
+        let id = self.procedure_ids.allocate();
+        self.body_units.insert(id, procedure);
+        id
+    }
+
     /// Checked analytical namespace key. Native component boundaries must
     /// round-trip through the constructed-key owner before advice can use it.
     #[must_use]
@@ -3142,9 +3179,7 @@ impl Module {
                 &procedure.body,
                 procedure
                     .body
-                    .execution_namespace(ExecutionNamespace::exact(execution_namespace_for_qname(
-                        qname,
-                    ))),
+                    .execution_namespace(ExecutionNamespace::RuntimeSelected),
             )
         }));
 
@@ -3181,9 +3216,8 @@ impl Module {
     /// Whole-module semantic scans use this inventory instead of each keeping
     /// a partial copy of the procedure/method/body-unit map traversal. The
     /// ordering is deterministic so monotone state replays and memo inputs do
-    /// not depend on `HashMap` seeds. Earlier bodies of a redefined procedure
-    /// are not retained; consumers that need them must widen when
-    /// [`Self::redefined_procedures`] is non-empty.
+    /// follows the module's body allocation order. Every retained definition
+    /// contributes its original body and independently retained namespace.
     #[must_use]
     pub fn executable_script_roots(&self) -> Vec<(&Script, ExecutionNamespace)> {
         let mut roots = self.independent_executable_script_roots();
@@ -3197,12 +3231,11 @@ impl Module {
                     !self.installed_procedure_body_units.contains_key(*qname)
                         && !self.original_declaration_body_units.contains_key(*qname)
                 })
-                .map(|(qname, unit)| {
+                .map(|(_, unit)| {
                     (
                         &unit.body,
-                        unit.body.execution_namespace(ExecutionNamespace::exact(
-                            execution_namespace_for_qname(qname),
-                        )),
+                        unit.body
+                            .execution_namespace(ExecutionNamespace::RuntimeSelected),
                     )
                 }),
         );
@@ -3943,6 +3976,8 @@ mod tests {
             name: "greet".into(),
             qualified_name: "::greet".into(),
             publication: None,
+            declaration_site: None,
+            body_kind: ProcedureBodyKind::Named,
             params: vec!["name".into()],
             span: Span::new(0, 50),
             body: Script::from_statements(vec![Statement::Call {

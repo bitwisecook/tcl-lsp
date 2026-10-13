@@ -1,0 +1,13 @@
+{
+  "selector": "command_binding::declaration_flow::tests::source_read_scope_preserves_reached_owner_refusal_after_loop",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "command_binding::declaration_flow::tests::source_read_scope_preserves_reached_owner_refusal_after_loop",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 0.46574657700330135,
+  "timed_out": false
+}

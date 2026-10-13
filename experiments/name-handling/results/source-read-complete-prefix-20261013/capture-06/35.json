@@ -1,0 +1,13 @@
+{
+  "selector": "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+  "command": [
+    "/tmp/name-agent-target-source-flow/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "script_binds::tests::selected_formal_read_scope_follows_original_factory_aliases_and_replacements",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "seconds": 5.583376305999991,
+  "timed_out": false
+}
