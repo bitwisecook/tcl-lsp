@@ -1,0 +1,7 @@
+{
+  "stage": "provider provenance collection before any probe runs",
+  "error": "FileNotFoundError: tmp/tcl8.4.20/generic/tclTrace.c absent",
+  "runner": "run-first-attempt.py",
+  "stdout": "",
+  "probe_questions_reached": 0
+}

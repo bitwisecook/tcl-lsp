@@ -1,0 +1,34 @@
+{
+  "provider": "tcl8.4.20",
+  "case_id": "package-shadow-reader",
+  "source_sha256": "0b4c472d6d46bd72d26009eaaebc6e43e04d5c9596c93fc6fb085b32fcabccd9",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.4.20/probes/package-shadow-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.4.20/probes/package-shadow-reader.driver",
+  "driver_sha256": "f0f2296575ccd3aaf15808c696a810e96d9c331cefeec374c113699d2024961f",
+  "process_exit_code": 0,
+  "stdout_sha256": "56660e6e9234cfb7721a886d130b58e9b29f7d066b0e1fd3504b9c7ee64af6a1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.4.20/probes/package-shadow-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.4.20/package-shadow-reader",
+  "setup_sha256": "1dc4372fad8989c72580a26d10484dfd6fc0ff97da746f03ee90c32bd82e3f83",
+  "question_sha256": "5b6e64a7c757fb16d36241f88c21b2e21140768a9eb64cfd0db162fa13e3ec8b",
+  "channel": "authored caller around unchanged pinned package",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"package require ?-exact? package ?version?\"",
+  "setup_options": "",
+  "setup_error_code": "NONE",
+  "setup_error_info": "wrong # args: should be \"package require ?-exact? package ?version?\"\n    while executing\n\"package require Tcl 8.5 9\"\n    (file \"/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.4.20/probes/../upstream/lazyset.tcl\" line 3)\n    invoked from within\n\"source [file join [file dirname [info script]] .. upstream lazyset.tcl]\"",
+  "question_code": "unreached",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "setup-refused-question-unreached"
+}

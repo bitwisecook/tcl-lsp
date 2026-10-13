@@ -1,0 +1,2 @@
+PATCHLEVEL 8.5.19
+LIBRARY /workspace/tcl-lsp/tmp/tcl8.5.19/library

@@ -1,0 +1,1210 @@
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 1m 56s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 1 test
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(158) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(158) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(158) passed=false
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(158) passed=true
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_WORDS offset=Some(158) variant=Selected command=namespace control_kind=Some(Dynamic) control_literal_length=None origin=Some(Written(2))
+CALLBACK_SOURCE_CONTROL offset=Some(158) original_ascii_length=None projected_matches_original=false
+CALLBACK_SOURCE_GUARD stage=projection.resolved offset=Some(158) passed=true
+CALLBACK_SOURCE_SCHEMA offset=Some(158) command=namespace subcommand_kind=Some(Indeterminate) subcommand=None argument_offset=0 wraps=false body_kind=Plain
+CALLBACK_SOURCE_GUARD stage=entry.config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.realm offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.input offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.registry offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.image_config offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.binding offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=entry.scoped offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.logical offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.vendor offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.selected offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=entry.retained_metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.not_blocked offset=Some(211) passed=true
+CALLBACK_SOURCE_GUARD stage=metadata.positioned_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.future_candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=metadata.candidate offset=Some(211) passed=false
+CALLBACK_SOURCE_GUARD stage=native.metadata offset=Some(211) passed=false
+CALLBACK_SOURCE_BINDING offset=Some(211) reached=true unknown=true targets_empty=true synthetic=false
+CALLBACK_SOURCE_GUARD stage=transition.advice offset=Some(211) passed=false
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (258854) panicked at rust/tcl-lsp-core/src/references.rs:6385:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... FAILED
+
+failures:
+
+failures:
+    references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.14s
+
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

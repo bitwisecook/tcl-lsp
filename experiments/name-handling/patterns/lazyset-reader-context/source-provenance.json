@@ -1,0 +1,44 @@
+{
+  "reviewed_at_utc": "2026-10-13T00:55:54.536277+00:00",
+  "source_family": "tcllib lazyset read-trace producer",
+  "corpus": {
+    "manifest": "scripts/perf/MANIFEST.toml",
+    "manifest_sha256": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58",
+    "revision": "8a2e288fa02363639784c2f0a8ea6245896c2884",
+    "source_path": "modules/lazyset/lazyset.tcl",
+    "pinned_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/modules/lazyset/lazyset.tcl#L38",
+    "full_file_sha256": "95ddc4f441298a115c5062d74a5570453e8501f3a8f77dc38c1281629461767d",
+    "selected_physical_lines": [
+      38,
+      83
+    ],
+    "selected_range_sha256": "7de3e122f1464270b85be3d6bf2abe7eea1eb6fe4ca5655bb8219927688a429b",
+    "retained_original": "upstream/lazyset.tcl",
+    "retained_original_sha256": "95ddc4f441298a115c5062d74a5570453e8501f3a8f77dc38c1281629461767d",
+    "licence_source": "license.terms",
+    "licence_sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c",
+    "licence_url": "https://github.com/tcltk/tcllib/blob/8a2e288fa02363639784c2f0a8ea6245896c2884/license.terms",
+    "copyright_source": "modules/lazyset/lazyset.man:4",
+    "copyright_source_sha256": "eb937b75c35f9cae039c5878b407bb3a747d0c62863a5d281bcab0b590f0f292",
+    "existing_checkout_provenance": "../corpus-provenance.json; maintained corpus pin reused without changing checkout"
+  },
+  "wiki": {
+    "url": "https://wiki.tcl-lang.org/page/trace",
+    "retrieved_at_utc": "2026-10-13T00:55:54.536385+00:00",
+    "channel": "web open rendered source text",
+    "selected_tool_source_lines": [
+      91,
+      114,
+      124,
+      126
+    ],
+    "retained_excerpt": "wiki-trace-excerpt.txt",
+    "retained_excerpt_sha256": "14265644bb6620846768004674828b4c21b34bfb76275d4c575f375eb46b1434",
+    "displayed_updated": "2026-02-17 19:49:52",
+    "revision": "unverified; displayed date is not a revision",
+    "html_sha256": null,
+    "licence": "not inspected; no licence claim",
+    "direct_http_attempt": "HTTP403; supplies no page content; successful web-rendered excerpt has its own exact content hash"
+  },
+  "consumer_scope": "Supplemental provider observations only; no canonical proof registration or measured Rust consumer accuracy."
+}

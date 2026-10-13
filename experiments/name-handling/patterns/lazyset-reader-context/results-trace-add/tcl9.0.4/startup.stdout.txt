@@ -1,0 +1,2 @@
+PATCHLEVEL 9.0.4
+LIBRARY /workspace/tcl-lsp/tmp/tcl9.0.4/library

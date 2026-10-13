@@ -1,0 +1,34 @@
+{
+  "provider": "tcl9.0.4",
+  "case_id": "package-shadow-reader",
+  "source_sha256": "0b4c472d6d46bd72d26009eaaebc6e43e04d5c9596c93fc6fb085b32fcabccd9",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl9.0.4/probes/package-shadow-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl9.0.4/probes/package-shadow-reader.driver",
+  "driver_sha256": "23365664966d7c0467be929cf5cea289ab84f086661a6f177a771decf184cab5",
+  "process_exit_code": 0,
+  "stdout_sha256": "6669c18980011d38697ac54953f613a4172a5e2234cc16241edbb4bec8a15074",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl9.0.4/probes/package-shadow-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl9.0.4/package-shadow-reader",
+  "setup_sha256": "1dc4372fad8989c72580a26d10484dfd6fc0ff97da746f03ee90c32bd82e3f83",
+  "question_sha256": "5b6e64a7c757fb16d36241f88c21b2e21140768a9eb64cfd0db162fa13e3ec8b",
+  "channel": "authored caller around unchanged pinned package",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "question_code": "0",
+  "question_result": "reader {a b} {reader alias}",
+  "question_options": "-code 0 -level 0",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "returned"
+}

@@ -1,0 +1,4 @@
+/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/startup.tcl:2: Error: info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/startup.tcl", line 2
+    info library

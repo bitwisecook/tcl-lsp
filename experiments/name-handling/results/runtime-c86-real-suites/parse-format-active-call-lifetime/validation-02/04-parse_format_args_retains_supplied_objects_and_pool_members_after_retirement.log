@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_clock::bootstrap_tests::parse_format_args_retains_supplied_objects_and_pool_members_after_retirement ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2100 filtered out; finished in 1.52s
+

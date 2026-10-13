@@ -1,0 +1,4267 @@
+[
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 158,
+    "passed": false
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "projection.resolved",
+    "offset": 158,
+    "passed": true
+  },
+  {
+    "stage": "entry.config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.realm",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.input",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.registry",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.image_config",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.binding",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "entry.scoped",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.logical",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.vendor",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.selected",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "entry.retained_metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.not_blocked",
+    "offset": 211,
+    "passed": true
+  },
+  {
+    "stage": "metadata.positioned_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.future_candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "metadata.candidate",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "native.metadata",
+    "offset": 211,
+    "passed": false
+  },
+  {
+    "stage": "transition.advice",
+    "offset": 211,
+    "passed": false
+  }
+]

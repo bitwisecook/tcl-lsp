@@ -1,0 +1,63 @@
+{
+  "completed_utc": "2026-10-13T00:49:09.492295+00:00",
+  "exit_code": 101,
+  "exact_test": "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+  "observed_test_output": [
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3002 filtered out; finished in 1.14s"
+  ],
+  "diagnostic_binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "diagnostic_binary_sha256": "9abbee7ab24cbd1feb10a940d7485194178be33a5f02686a63d958476aa13e86",
+  "binary_currency_after_restore": "noncurrent: compiled with one temporary source_structure.rs instrumentation now restored byte-exact; no production validation claim",
+  "changed_instrumented_scope_inputs": [],
+  "changed_production_scope_inputs_after_restore": [],
+  "restored_source_sha256": {
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": "6a132935c7016cc2af026d34309f796a8fe1c1bf8f060324ddee160da30cb55a"
+  },
+  "assertions_or_original_inputs_changed": false,
+  "logical_or_all_four": "not run",
+  "classification": "Namespace158 parent descriptor is reprojected with a selected effective argv whose selector has already been removed: first argument maps to Written2 and is Dynamic, so subcommand resolution is Indeterminate. After211 independently has no positioned/future catalogue candidate or transition advice.",
+  "binary_before_sha256": "6203dca82cab6104deed2f2669de04896fbd70ff17bff78831982ea75272e1d5",
+  "enospc_observed": false,
+  "tests": {
+    "matched": 1,
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered_out": 3002
+  },
+  "actual_case": "First Tcl8.6 original public positive references with declaration included; later assertions unreached",
+  "namespace158": {
+    "source_variant": "Selected",
+    "canonical_command": "namespace",
+    "effective_argument0_kind": "Dynamic",
+    "effective_argument0_origin": "Written(2)",
+    "effective_control_literal_length": null,
+    "original_control_ascii_length": null,
+    "projected_subcommand": "Indeterminate",
+    "selected_subcommand": null,
+    "projected_argument_offset": 0,
+    "wrapper_trait": false,
+    "expected_original_code_control": "Written(1), independent of shifted handler argument vector"
+  },
+  "after211": {
+    "entry_current_image_config_registry_context": "pass",
+    "not_blocked": true,
+    "source_binding_present": true,
+    "scoped": false,
+    "logical": false,
+    "vendor": false,
+    "selected": false,
+    "retained_metadata": false,
+    "positioned_catalogue_candidate": false,
+    "future_catalogue_candidate": false,
+    "native_metadata": false,
+    "fallback_binding_reached": true,
+    "fallback_binding_unknown": true,
+    "fallback_binding_targets_empty": true,
+    "synthetic": false,
+    "transition_advice": false
+  },
+  "code_inspection": "registry_invocation.rs effective_words_for_target composes then discards named-selection Written ordinals <= arguments_from; original_registry_invocation_assistance prefers unanimous reached assistance from that path. SourceStructure projects its canonical parent descriptor with the resulting shifted argv. Preserve selectors for original-source assistance separately from Native private-handler argv. The numeric named arguments_from and private after tape state were not directly measured.",
+  "unreached": "After catalogue metadata projection, private transition-tape refusal reason, future Produced parent, consumption, later public/private/release assertions",
+  "semantic_fix_or_rerun": "none"
+}

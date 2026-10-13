@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "cwd": "/workspace/tcl-lsp",
+  "environment_selectors": {
+    "CARGO_HOME": "/workspace/tcl-lsp/tmp/name-tools/cargo",
+    "RUSTUP_HOME": "/workspace/tcl-lsp/tmp/name-tools/rustup",
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime"
+  },
+  "status": "completed",
+  "started_utc": "2026-10-13 00:54:59 UTC",
+  "exit_code": 0,
+  "finished_utc": "2026-10-13 00:56:07 UTC",
+  "messages_sha256": "22b9be96dbcb79ef6820f4819485c5372c8e83396df313d75ad2ef823aa97020",
+  "stderr_sha256": "39e9a255a36e53fa06372b5f7c5ac0efb6413dbf8e1893682bb03e2fc1f93748"
+}

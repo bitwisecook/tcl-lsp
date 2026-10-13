@@ -1,0 +1,33 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "core-qualified-fixed",
+  "source_sha256": "825c762530d6b92cc6db939ebbc815a041aa65364376ecc9df73049ea350eb67",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/core-qualified-fixed.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/core-qualified-fixed.driver",
+  "driver_sha256": "8097815411c32eff078949eeb9bce7019f81b6715325dcc31d91a0ff8f32f990",
+  "process_exit_code": 0,
+  "stdout_sha256": "077a6056c4e1b3a397312b6fefc19ee675ca39d723f904ea7dc8d681d8e9c2ed",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/core-qualified-fixed.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/core-qualified-fixed",
+  "setup_sha256": "dc09598b9a07a5fdb79b4948b2eb265f09ee9fd9a499b2ed78049800b49d0d9d",
+  "question_sha256": "5b6e64a7c757fb16d36241f88c21b2e21140768a9eb64cfd0db162fa13e3ec8b",
+  "channel": "separately authored core trace control; no package adaptation",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"trace\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 23 {}} -errorcode NONE",
+  "setup_error_code": "NONE",
+  "setup_error_info": "",
+  "question_code": "unreached",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "setup-refused-question-unreached"
+}

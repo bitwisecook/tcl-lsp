@@ -1,0 +1,34 @@
+{
+  "provider": "tcl8.6.18",
+  "case_id": "package-install-reader",
+  "source_sha256": "bcd5ef28634bb5eebd74bdb82fd3578f266168f5e9533b90ac1df6d3c80e5b3c",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.6.18/probes/package-install-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.6.18/probes/package-install-reader.driver",
+  "driver_sha256": "2e2b5014cee5f5e0659b242471306213a70de99286d36869d5892253eae48abc",
+  "process_exit_code": 0,
+  "stdout_sha256": "0dda8b474cd435c345e1a99d2103f4e4950cae8ca64063638d60789b46487901",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.6.18/probes/package-install-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/tcl8.6.18/package-install-reader",
+  "setup_sha256": "1dc4372fad8989c72580a26d10484dfd6fc0ff97da746f03ee90c32bd82e3f83",
+  "question_sha256": "4a7c85f9f8c5b41cfce5d7f1bc921a49a5e1f8891df7647559fdeb97e23db7fc",
+  "channel": "authored caller around unchanged pinned package",
+  "setup_code": "0",
+  "setup_result": "",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "question_code": "0",
+  "question_result": "install {a b} {reader alias}",
+  "question_options": "-code 0 -level 0",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "returned"
+}

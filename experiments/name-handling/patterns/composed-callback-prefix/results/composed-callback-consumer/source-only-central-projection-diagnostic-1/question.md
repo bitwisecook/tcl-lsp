@@ -1,0 +1,1 @@
+Why does the actual current original public Tcl8.6 references path lose namespace-code wrapper traits at158 and refuse after callback source words at211? Observe the actual selected source variant/effective control/subcommand and source-entry branch predicates without changing original fixtures, assertions or semantic guards.

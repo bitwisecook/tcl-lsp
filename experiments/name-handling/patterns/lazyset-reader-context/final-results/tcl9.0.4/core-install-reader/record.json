@@ -1,0 +1,34 @@
+{
+  "provider": "tcl9.0.4",
+  "case_id": "core-install-reader",
+  "source_sha256": "30328dfcc3e7a986757316faeab7786a9636c3ed8c710b10b8c18beb119147e9",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/final-results/tcl9.0.4/probes/core-install-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/final-results/tcl9.0.4/probes/core-install-reader.driver",
+  "driver_sha256": "6dcd8d6d1432fd35538debf77ee5645a4880c06577d39bc970ea1245007a0f6b",
+  "process_exit_code": 0,
+  "stdout_sha256": "30a5f63033352eba9779493125f1880b4ad9942f9b780c2f4e9d5093203c89ba",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/final-results/tcl9.0.4/probes/core-install-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/final-results/tcl9.0.4/core-install-reader",
+  "setup_sha256": "a7893354acc7bab0a68867da16d912bb746c000c5b94c2868d4b004b6e367181",
+  "question_sha256": "4a7c85f9f8c5b41cfce5d7f1bc921a49a5e1f8891df7647559fdeb97e23db7fc",
+  "channel": "separately authored core trace control; no package adaptation",
+  "setup_code": "1",
+  "setup_result": "bad option \"variable\": must be add, info, or remove",
+  "setup_options": "-code 1 -level 0 -errorstack {INNER {invokeStk1 trace variable cell w {::trace_callback {produce {a b}}}} CALL {namespace eval ::install {\n    trace variable cell w [list ::trace_callback [list produce {a b}]]\n}}} -errorcode {TCL LOOKUP INDEX option variable} -errorinfo {bad option \"variable\": must be add, info, or remove\n    while executing\n\"trace variable cell w [list ::trace_callback [list produce {a b}]]\"\n    (in namespace eval \"::install\" script line 2)\n    invoked from within\n\"namespace eval ::install {\n    trace variable cell w [list ::trace_callback [list produce {a b}]]\n}\"} -errorline 22",
+  "setup_error_code": "TCL LOOKUP INDEX option variable",
+  "setup_error_info": "bad option \"variable\": must be add, info, or remove\n    while executing\n\"trace variable cell w [list ::trace_callback [list produce {a b}]]\"\n    (in namespace eval \"::install\" script line 2)\n    invoked from within\n\"namespace eval ::install {\n    trace variable cell w [list ::trace_callback [list produce {a b}]]\n}\"",
+  "question_code": "unreached",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "setup-refused-question-unreached"
+}

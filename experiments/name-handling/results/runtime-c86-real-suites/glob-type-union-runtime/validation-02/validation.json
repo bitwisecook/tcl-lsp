@@ -1,0 +1,96 @@
+{
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "cwd": "/workspace/tcl-lsp",
+    "environment_selectors": {
+      "CARGO_HOME": "/workspace/tcl-lsp/tmp/name-tools/cargo",
+      "RUSTUP_HOME": "/workspace/tcl-lsp/tmp/name-tools/rustup",
+      "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime"
+    },
+    "status": "completed",
+    "started_utc": "2026-10-13 00:54:59 UTC",
+    "exit_code": 0,
+    "finished_utc": "2026-10-13 00:56:07 UTC",
+    "messages_sha256": "22b9be96dbcb79ef6820f4819485c5372c8e83396df313d75ad2ef823aa97020",
+    "stderr_sha256": "39e9a255a36e53fa06372b5f7c5ac0efb6413dbf8e1893682bb03e2fc1f93748",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-afb8fab0a00ba570",
+    "binary_sha256": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf",
+    "cargo_test_artifact_fresh": false,
+    "test_list_exit_code": 0
+  },
+  "checks": [
+    {
+      "name": "cmd_fs::tests::glob_type_regular_file_directory_unions_match_original_c86_rows",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-afb8fab0a00ba570",
+        "cmd_fs::tests::glob_type_regular_file_directory_unions_match_original_c86_rows",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "01-glob_type_regular_file_directory_unions_match_original_c86_rows.log",
+      "log_sha256": "c1ce866977db73dc586222f4c247265c878d7ae80059f9954d6be9a780fcfca0",
+      "binary_sha256_before": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf",
+      "binary_sha256_after": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf"
+    },
+    {
+      "name": "cmd_fs::tests::glob_type_original_tcltest_selector_keeps_supported_kind_alternatives",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-afb8fab0a00ba570",
+        "cmd_fs::tests::glob_type_original_tcltest_selector_keeps_supported_kind_alternatives",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "02-glob_type_original_tcltest_selector_keeps_supported_kind_alternatives.log",
+      "log_sha256": "a66a7ee02f57a83a308b03d3aa1405e66574a09eb4c0187d81574460e9b8061a",
+      "binary_sha256_before": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf",
+      "binary_sha256_after": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf"
+    },
+    {
+      "name": "cmd_fs::tests::glob_type_kind_union_still_requires_executable_qualification",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-afb8fab0a00ba570",
+        "cmd_fs::tests::glob_type_kind_union_still_requires_executable_qualification",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "03-glob_type_kind_union_still_requires_executable_qualification.log",
+      "log_sha256": "c8145791b9da9958a0e565b91e65ea1cd1ba8812e935225dbbe71d02a53059bd",
+      "binary_sha256_before": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf",
+      "binary_sha256_after": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf"
+    },
+    {
+      "name": "cmd_fs::tests::glob_type_readable_writable_executable_qualifiers_remain_conjunctive",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-afb8fab0a00ba570",
+        "cmd_fs::tests::glob_type_readable_writable_executable_qualifiers_remain_conjunctive",
+        "--exact",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "04-glob_type_readable_writable_executable_qualifiers_remain_conjunctive.log",
+      "log_sha256": "1a272324103a5ee602534ca8de333d7504ce4265e9c25ff5162e9af3e314cdd7",
+      "binary_sha256_before": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf",
+      "binary_sha256_after": "f56c2d3eef896939e9d4123947f43e951b0bd533cfeeb4dc155629c96060b8cf"
+    }
+  ],
+  "unexecuted_names": [],
+  "status": "PASS: all selected exact controls each executed once from the same fresh Runtime binary.",
+  "comparison_scope": "Software Runtime control execution; original oracle fixtures reused without oracle reruns."
+}

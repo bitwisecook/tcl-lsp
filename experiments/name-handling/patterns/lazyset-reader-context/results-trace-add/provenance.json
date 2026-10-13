@@ -1,0 +1,109 @@
+{
+  "captured_at_utc": "2026-10-13T00:55:03.814568+00:00",
+  "runner_sha256": "6b4721cd8d5b5d93445c5fbfca36ee1f624454e2035ac92947b636d0166dc272",
+  "references": [
+    {
+      "provider": "tcl8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "environment_selectors": {
+        "LC_ALL": "C",
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.4.20\nLIBRARY /workspace/tcl-lsp/tmp/tcl8.4.20/library\n",
+      "startup_stderr": "",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "library/init.tcl_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "generic/tclNamesp.c_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "generic/tclTrace.c_sha256": "absent in this release tree"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "environment_selectors": {
+        "LC_ALL": "C",
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.5.19\nLIBRARY /workspace/tcl-lsp/tmp/tcl8.5.19/library\n",
+      "startup_stderr": "",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "library/init.tcl_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "generic/tclNamesp.c_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "generic/tclTrace.c_sha256": "d974ce7d57afd060edbc9a858975e17c9577c7905f5dfaf6df477fa409ef89e6"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "environment_selectors": {
+        "LC_ALL": "C",
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.6.18\nLIBRARY /workspace/tcl-lsp/tmp/tcl8.6.18/library\n",
+      "startup_stderr": "",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "library/init.tcl_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "generic/tclNamesp.c_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "generic/tclTrace.c_sha256": "8034d0a6da9f529bebeedfa4ab8af88f944bf858ad8c498719a972ac81d503a9"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "environment_selectors": {
+        "LC_ALL": "C",
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 9.0.4\nLIBRARY /workspace/tcl-lsp/tmp/tcl9.0.4/library\n",
+      "startup_stderr": "",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "library/init.tcl_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "generic/tclNamesp.c_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "generic/tclTrace.c_sha256": "b091fe603d801002a17d6d4c18de08f43e7aa7851abc64849ab2b1f7aac52904"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "environment_selectors": {
+        "LC_ALL": "C",
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 9.1.0\nLIBRARY /workspace/tcl-lsp/tmp/tcl9.1.0/library\n",
+      "startup_stderr": "",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "library/init.tcl_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "generic/tclNamesp.c_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "generic/tclTrace.c_sha256": "b39de1869c493f1405355c9f92537bdd5d9839a42a10da78b18a725309d71847"
+    },
+    {
+      "provider": "jim-5bac7c9",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "environment_selectors": {
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 1,
+      "startup_stdout": "PATCHLEVEL 0.84-9-g5bac7c9\n",
+      "startup_stderr": "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/startup.tcl:2: Error: info, unknown command \"library\": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version\nTraceback (most recent call last):\n  File \"/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/startup.tcl\", line 2\n    info library\n",
+      "startup_sha256": "b7ca584dd432f279a8cb42ae1dc03548dc6588bcebc259869592783f7d12e3a8",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "describe": "0.84-9-g5bac7c9",
+      "revision_scope": "Binary matches retained pinned-Jim provenance; no new remote HEAD assertion",
+      "initjimsh.tcl_sha256": "8e0cf2dee783435d849882f6f0cfa1917d4ceeee3b60e1d53d9eb361017a601a",
+      "_initjimsh.c_sha256": "23644c8ddef5f094a163ff8a6eeed5590dbe513564424cab1887f5e86c4fd359",
+      "jim-config.h_sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "jimautoconf.h_sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+      "Makefile_sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "case_count": 36,
+  "scope": "Fresh native processes; exact preceding lines as setup and final line as question. No Tcltest wrapper, subject-engine capture, static-consumer result or canonical proof registration.",
+  "F5": "not run; all native context questions unanswered"
+}

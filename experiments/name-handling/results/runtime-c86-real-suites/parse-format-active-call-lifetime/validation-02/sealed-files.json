@@ -1,0 +1,29 @@
+{
+  "status": "Sealed PASS: clean Runtime rebuild and selected exact controls, executed once.",
+  "sha256": {
+    "01-parse_format_conflict_pool_lease_survives_all_three_real_worker_deletions.log": "52e5f9c0581a6a435f69d2337234834e8a705f1a20670df6547cd5a70ec3260c",
+    "02-parse_format_success_pool_lease_survives_all_three_real_worker_deletions.log": "f8564e2bcb9ad26554b179478c416a7ac5ea3d7917c9f71aa64cccb80bb74492",
+    "03-active_call_pool_lease_survives_all_three_real_worker_deletions.log": "365951470238bebb9ffcfe3c3649955fd2a1a31130a9eaa16bdd9a288372f0b3",
+    "04-parse_format_args_retains_supplied_objects_and_pool_members_after_retirement.log": "845e83fb1a8496a564b01b7ebd85780ea34dfb2ed55a35e765b7e61d53962f2a",
+    "05-deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement.log": "2379c7f1168b4499fc92b464394afdf0faa4872c3950bacc44257af8e1a30b20",
+    "build-invocation.json": "1ef5f245c1f4150dae3b19a4b1e8393251c5268ef02e002e057b8eb8180c50c6",
+    "capture-validation.py": "dd717c3abb6a6b08695016c828ab3e8bd0edaa5636f79d82631dfa5b35c4edc1",
+    "compiler-diagnostics.txt": "28c07c9f23c3b10469e6ad9828c5240585ec411c88fa29a66126fa69286f8640",
+    "metadata.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rebuild-basis.json": "b2a1141385b5d6695d26f568989e4757fb7a4c58751a7a41d67eff9b5862ae8f",
+    "root-clean-receipt.json": "60f3b96d620481fd027d7f5984c7b06774e9222bf481486cfa1c67796e67ffdb",
+    "runtime--rust--src--cmd_clock.rs.gz": "03cca72f8929be89b11eb1f82f33c581104b03a7ce139a4769bfa75e5876d68b",
+    "runtime--rust--src--cmd_fs.rs.gz": "dd572d92c783f2dc8751292b2d39c4346478f06351e44ea825a983e36eb2e87f",
+    "runtime-build-messages.jsonl": "22b9be96dbcb79ef6820f4819485c5372c8e83396df313d75ad2ef823aa97020",
+    "runtime-build.stderr.txt": "39e9a255a36e53fa06372b5f7c5ac0efb6413dbf8e1893682bb03e2fc1f93748",
+    "runtime-cargo-metadata.json.gz": "6ad5f7d43a0405f937d509e30f214e90e0ba073027391ca80ba88e171009b2c5",
+    "runtime-dependency-source-after.json.gz": "8c4faaed18d484733a26540a0c66bedf841f91c399b72199de387032b48a2caa",
+    "runtime-dependency-source-before.json.gz": "8c4faaed18d484733a26540a0c66bedf841f91c399b72199de387032b48a2caa",
+    "runtime-tests-list.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime-tests-list.stdout.txt": "f6f631858c910b5d75b283781a5e592a685738ee1e7ea6b431109a877cd12c53",
+    "scope.json": "7cc17913d3cbcb654d252cfb4da7a1c978e193ec907220b65c24b23588f742d2",
+    "source-comparison-after-build.json": "aec723b6cfdbc5864a91eaa417f3ed5448cc536c43313fa84dd00b7121275cbf",
+    "source-comparison.json": "bf7ce136a4b84214fab92cbe667393d41d1efeecaa06f061f4cd51c0c8b1e47e",
+    "validation.json": "3fbc61256a6099bf70561a0a5c2eaa5cf353e2a12125a7f7779c3a16d5306df0"
+  }
+}

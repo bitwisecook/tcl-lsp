@@ -1,0 +1,33 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "core-shadow-reader",
+  "source_sha256": "9ec67a657a281e0f013e021d4cf46906dde12d97f6e2adf6702f9c483353d517",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/probes/core-shadow-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/probes/core-shadow-reader.driver",
+  "driver_sha256": "a9dd1e22a1a052aa091bd1c54560a9ba643a259406490878ed9f7591324e0490",
+  "process_exit_code": 0,
+  "stdout_sha256": "077a6056c4e1b3a397312b6fefc19ee675ca39d723f904ea7dc8d681d8e9c2ed",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/probes/core-shadow-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/results-trace-add/jim-5bac7c9/core-shadow-reader",
+  "setup_sha256": "64e54ccc339600526426228f2c9ad8f2ffe8cf2e060482402a64fc86e335798f",
+  "question_sha256": "5b6e64a7c757fb16d36241f88c21b2e21140768a9eb64cfd0db162fa13e3ec8b",
+  "channel": "separately authored core trace control; no package adaptation",
+  "setup_code": "1",
+  "setup_result": "invalid command name \"trace\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 23 {}} -errorcode NONE",
+  "setup_error_code": "NONE",
+  "setup_error_info": "",
+  "question_code": "unreached",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "setup-refused-question-unreached"
+}

@@ -1,0 +1,34 @@
+{
+  "metadata_argv": [
+    "/workspace/tcl-lsp/tmp/name-tools/rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+    "metadata",
+    "--offline",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--format-version=1"
+  ],
+  "metadata_exit_code": 0,
+  "metadata_sha256": "e28be139edabddf2ed120ab1b862165faa844583e898e1797037f16115a44e8c",
+  "packages": [
+    "tcl-bytecode",
+    "tcl-cmd-core",
+    "tcl-core-types",
+    "tcl-dialect",
+    "tcl-host-c-abi",
+    "tcl-host-native",
+    "tcl-lexer",
+    "tcl-platform",
+    "tcl-regex",
+    "tcl-registry",
+    "tcl-runtime",
+    "tcl-runtime-api",
+    "tcl-syntax",
+    "tcl-test-support"
+  ],
+  "count": 13843,
+  "scope": "Standalone Runtime default-feature lib-test graph: root all dependency kinds; non-root normal/build edges. Local rs/c/h/tcl/txt/json and manifests/locks conservatively captured, plus exact test fixtures. Command Core and Registry INCLUDED; LSP Core, Compiler, IRules, MCP and xtask EXCLUDED. Not a whole-workspace or all-target freshness claim.",
+  "frozen_ready_sha256": {
+    "runtime/rust/src/cmd_clock.rs": "668d1f282cc3ed8d94a84da72b1cbc8ab41bbe258c917b95ba83f53f36cde711",
+    "runtime/rust/src/cmd_fs.rs": "23e477126275515b9ce5fcf0384cdeb8fc657cce895888c720262daaa4187c73"
+  }
+}

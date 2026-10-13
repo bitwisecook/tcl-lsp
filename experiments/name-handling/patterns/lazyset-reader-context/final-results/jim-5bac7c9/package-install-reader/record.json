@@ -1,0 +1,33 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "package-install-reader",
+  "source_sha256": "bcd5ef28634bb5eebd74bdb82fd3578f266168f5e9533b90ac1df6d3c80e5b3c",
+  "source": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/package-install-reader.tcl",
+  "driver": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/package-install-reader.driver",
+  "driver_sha256": "2e2b5014cee5f5e0659b242471306213a70de99286d36869d5892253eae48abc",
+  "process_exit_code": 0,
+  "stdout_sha256": "a7759344581e109478bdcdea09a819c699995886e6093f03e8812928e0cf73fe",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/package-install-reader.driver"
+  ],
+  "environment_selectors": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/package-install-reader",
+  "setup_sha256": "1dc4372fad8989c72580a26d10484dfd6fc0ff97da746f03ee90c32bd82e3f83",
+  "question_sha256": "4a7c85f9f8c5b41cfce5d7f1bc921a49a5e1f8891df7647559fdeb97e23db7fc",
+  "channel": "authored caller around unchanged pinned package",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"package require name ?version?\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} /workspace/tcl-lsp/experiments/name-handling/patterns/lazyset-reader-context/final-results/jim-5bac7c9/probes/../upstream/lazyset.tcl 3 {package require Tcl 8.5 9}} -errorcode NONE",
+  "setup_error_code": "NONE",
+  "setup_error_info": "",
+  "question_code": "unreached",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "status": "setup-refused-question-unreached"
+}

@@ -1,0 +1,27 @@
+L91:     proc traceHandler {name _ op} {  ;# we ignore name2 for a non-array trace
+L92:         puts "trace: variable {$name} $op"
+L93:     }
+L94:     unset -nocomplain x y
+L95:     trace add variable x {write} traceHandler
+L96:     trace add variable y {write} traceHandler
+L97:     incr x
+L98:     #  trace: variable {x} write
+L99:     incr y
+L100:     #  trace: variable {y} write
+L101: So far, so good, but look what happens when the variable is 【23†aliased†en.wikipedia.org】 with upvar:
+L102: 
+L103:     proc loop {_var first limit script} { ;# https://wiki.tcl-lang.org/2025
+L104:         upvar 1 $_var var
+L105:         for {set var $first} {$var < $limit} {incr var} {
+L106:             uplevel 1 $script
+L107:         }
+L108:     }
+L109:     loop x 0 2 {
+L110:       ;# no loop body - we just want to see what happens to x
+L111:     }
+L112:     #  trace: variable {var} write
+L113:     #  trace: variable {var} write
+L114:     #  trace: variable {var} write
+L124:     trace add variable x write [
+L125:         list apply [
+L126:             list {varname args} {traceHandler $varname} [namespace current]] x]

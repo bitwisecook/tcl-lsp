@@ -1,0 +1,10 @@
+OBS setup_code 30
+OBS setup_result {}
+OBS setup_options {}
+OBS setup_error_code {}
+OBS setup_error_info {}
+OBS question_code 30
+OBS question_result 696e7374616c6c207b6120627d207b72656164657220616c6961737d
+OBS question_options {}
+OBS question_error_code {}
+OBS question_error_info {}

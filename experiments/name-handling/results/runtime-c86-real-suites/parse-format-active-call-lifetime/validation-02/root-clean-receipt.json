@@ -1,0 +1,16 @@
+{
+  "purpose": "Recover the selected Runtime package after ENOSPC before a new build",
+  "working_directory": "/workspace/tcl-lsp",
+  "environment_setup": "source /tmp/name-env.sh",
+  "command": "CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-runtime cargo clean --manifest-path runtime/rust/Cargo.toml --package tcl-runtime",
+  "observed_clean_output": "Removed 1134 files, 2.9GiB total",
+  "exit_code": 0,
+  "cache_cleanup": {
+    "scope": "obsolete versioned Compiler/Registry rlibs and excluded Compiler/Core/VM/BIGIP integration artifacts in ignored build caches",
+    "removed_files": 31,
+    "removed_bytes": 2819876564
+  },
+  "observed_df_after": "overlay 32G 25G 5.6G 82% /workspace",
+  "provenance": "Root transcription of actual exec output; not a separate raw shell capture",
+  "source_or_experiment_files_removed": false
+}

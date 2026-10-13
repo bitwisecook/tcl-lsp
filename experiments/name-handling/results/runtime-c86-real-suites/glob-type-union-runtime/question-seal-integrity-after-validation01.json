@@ -1,0 +1,17 @@
+{
+  "status": "Both original question seals unchanged after failed Runtime build. No oracle rerun.",
+  "checks": [
+    {
+      "path": "glob-type-union-question",
+      "sealed_file_count": 24,
+      "seal_sha256": "677969735ae15a8f9ec9a90e96d377fa7c044bd2ab6be639f2c534dc06d04617",
+      "changed": []
+    },
+    {
+      "path": "glob-type-union-rwx-question",
+      "sealed_file_count": 22,
+      "seal_sha256": "2bc83d385ca2ae292dc93c2ff2836142d615f2a94f5d8caabad5f4b67310fb15",
+      "changed": []
+    }
+  ]
+}

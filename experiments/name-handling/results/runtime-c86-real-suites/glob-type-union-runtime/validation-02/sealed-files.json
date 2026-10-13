@@ -1,0 +1,28 @@
+{
+  "status": "Sealed PASS: clean Runtime rebuild and selected exact controls, executed once.",
+  "sha256": {
+    "01-glob_type_regular_file_directory_unions_match_original_c86_rows.log": "c1ce866977db73dc586222f4c247265c878d7ae80059f9954d6be9a780fcfca0",
+    "02-glob_type_original_tcltest_selector_keeps_supported_kind_alternatives.log": "a66a7ee02f57a83a308b03d3aa1405e66574a09eb4c0187d81574460e9b8061a",
+    "03-glob_type_kind_union_still_requires_executable_qualification.log": "c8145791b9da9958a0e565b91e65ea1cd1ba8812e935225dbbe71d02a53059bd",
+    "04-glob_type_readable_writable_executable_qualifiers_remain_conjunctive.log": "1a272324103a5ee602534ca8de333d7504ce4265e9c25ff5162e9af3e314cdd7",
+    "build-invocation.json": "1ef5f245c1f4150dae3b19a4b1e8393251c5268ef02e002e057b8eb8180c50c6",
+    "capture-validation.py": "dd717c3abb6a6b08695016c828ab3e8bd0edaa5636f79d82631dfa5b35c4edc1",
+    "compiler-diagnostics.txt": "28c07c9f23c3b10469e6ad9828c5240585ec411c88fa29a66126fa69286f8640",
+    "metadata.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rebuild-basis.json": "7acf9ebae6398a0888a87c08ef18857cc8780d7acb29553b875e4b914167b7fd",
+    "root-clean-receipt.json": "60f3b96d620481fd027d7f5984c7b06774e9222bf481486cfa1c67796e67ffdb",
+    "runtime--rust--src--cmd_clock.rs.gz": "03cca72f8929be89b11eb1f82f33c581104b03a7ce139a4769bfa75e5876d68b",
+    "runtime--rust--src--cmd_fs.rs.gz": "dd572d92c783f2dc8751292b2d39c4346478f06351e44ea825a983e36eb2e87f",
+    "runtime-build-messages.jsonl": "22b9be96dbcb79ef6820f4819485c5372c8e83396df313d75ad2ef823aa97020",
+    "runtime-build.stderr.txt": "39e9a255a36e53fa06372b5f7c5ac0efb6413dbf8e1893682bb03e2fc1f93748",
+    "runtime-cargo-metadata.json.gz": "6ad5f7d43a0405f937d509e30f214e90e0ba073027391ca80ba88e171009b2c5",
+    "runtime-dependency-source-after.json.gz": "8c4faaed18d484733a26540a0c66bedf841f91c399b72199de387032b48a2caa",
+    "runtime-dependency-source-before.json.gz": "8c4faaed18d484733a26540a0c66bedf841f91c399b72199de387032b48a2caa",
+    "runtime-tests-list.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runtime-tests-list.stdout.txt": "f6f631858c910b5d75b283781a5e592a685738ee1e7ea6b431109a877cd12c53",
+    "scope.json": "7cc17913d3cbcb654d252cfb4da7a1c978e193ec907220b65c24b23588f742d2",
+    "source-comparison-after-build.json": "aec723b6cfdbc5864a91eaa417f3ed5448cc536c43313fa84dd00b7121275cbf",
+    "source-comparison.json": "bf7ce136a4b84214fab92cbe667393d41d1efeecaa06f061f4cd51c0c8b1e47e",
+    "validation.json": "f889826e5589895d35878260e95c5ba36376e4b7dc3f3e963d9d4d7e6a2bd5aa"
+  }
+}

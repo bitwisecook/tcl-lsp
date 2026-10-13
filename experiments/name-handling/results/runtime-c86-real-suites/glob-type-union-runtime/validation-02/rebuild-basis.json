@@ -1,0 +1,27 @@
+{
+  "prior_attempt": "../validation-01/validation.json",
+  "basis": "Root repaired disk capacity and cleaned selected Runtime package outputs after prior ENOSPC. Rebuild uses unchanged toolchain/environment/profile and frozen owners.",
+  "clean_command_reported_by_root": [
+    "cargo",
+    "clean",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--package",
+    "tcl-runtime"
+  ],
+  "clean_environment_reported_by_root": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime"
+  },
+  "clean_outcome_reported_by_root": {
+    "removed_files": 1134,
+    "removed_bytes_description": "2.9 GiB",
+    "status": "completed"
+  },
+  "other_cleanup_reported_by_root": "31 exact obsolete versioned cache files/excluded Runtime packages; no source/evidence removed.",
+  "disk_free_bytes_observed_before_rebuild": 5990428672,
+  "root_reported_disk_free": "5.6 GB",
+  "status": "Selected Runtime package clean rebuild passed; selected controls each passed once. Prior ENOSPC attempt remains sealed separately.",
+  "root_clean_receipt": "root-clean-receipt.json",
+  "root_clean_receipt_sha256": "60f3b96d620481fd027d7f5984c7b06774e9222bf481486cfa1c67796e67ffdb",
+  "root_clean_receipt_provenance": "Root transcription of actual exec output; not a separately captured raw shell stream."
+}
