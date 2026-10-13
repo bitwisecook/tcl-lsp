@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "-p",
+    "tcl-irules",
+    "--lib",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "start_utc": "2026-10-13T01:45:21.516078+00:00",
+  "end_utc": "2026-10-13T01:46:40.118208+00:00",
+  "elapsed_seconds": 78.60213679300068,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2573955072
+}

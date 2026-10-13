@@ -1,0 +1,36 @@
+{
+  "artifact": {
+    "reason": "compiler-artifact",
+    "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+    "manifest_path": "/workspace/tcl-lsp/rust/tcl-irules/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_irules",
+      "src_path": "/workspace/tcl-lsp/rust/tcl-irules/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "features": [],
+    "filenames": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-3340446c2ec578c1"
+    ],
+    "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-3340446c2ec578c1",
+    "fresh": false
+  },
+  "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-3340446c2ec578c1",
+  "sha256": "e6f792e11a318031914d2bcfeb19b2a9a8887be8a431c89dc6ed0f8dd5b6b47d"
+}

@@ -1,0 +1,67 @@
+{
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "-p",
+      "tcl-irules",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "start_utc": "2026-10-13T01:45:21.516078+00:00",
+    "end_utc": "2026-10-13T01:46:40.118208+00:00",
+    "elapsed_seconds": 78.60213679300068,
+    "exit_code": 0,
+    "abort": null,
+    "disk_minimum_free_bytes": 2573955072
+  },
+  "control": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-3340446c2ec578c1",
+      "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+      "--exact",
+      "--nocapture"
+    ],
+    "start_utc": "2026-10-13T01:46:42.374231+00:00",
+    "end_utc": "2026-10-13T01:46:42.875179+00:00",
+    "elapsed_seconds": 0.500950070003455,
+    "exit_code": 101,
+    "abort": null,
+    "disk_minimum_free_bytes": 2465648640,
+    "test": "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+    "test_result": {
+      "status": "FAILED",
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 71
+    },
+    "environment_gate": "TCL_LSP_TRACE_BRACED_SOURCE",
+    "instrumented_source_unchanged": true,
+    "binary_sha256_after": "e6f792e11a318031914d2bcfeb19b2a9a8887be8a431c89dc6ed0f8dd5b6b47d"
+  },
+  "abort": null,
+  "conservative_packages": 25,
+  "baseline_files": 11764,
+  "instrumented_source_changes": [
+    "rust/tcl-compiler/src/analyser/commands.rs",
+    "rust/tcl-irules/src/source_context.rs"
+  ],
+  "restored_byte_exact": true,
+  "changes_after_restore": [],
+  "binary_current_after_restore": false,
+  "binary_sha256": "e6f792e11a318031914d2bcfeb19b2a9a8887be8a431c89dc6ed0f8dd5b6b47d",
+  "artifacts": 61,
+  "observed_owned_packages": 12,
+  "assertion_controls_executed": 1,
+  "passive_expr_issuer_newly_called": true,
+  "expr_children_newly_enqueued": false,
+  "original_fixture_assertions_unchanged": true,
+  "semantic_fix": false,
+  "cache_released": true,
+  "full_suite_or_oracle": false
+}

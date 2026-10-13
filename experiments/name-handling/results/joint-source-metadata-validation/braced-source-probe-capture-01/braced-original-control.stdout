@@ -1,0 +1,11 @@
+
+running 1 test
+test walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference ... FAILED
+
+failures:
+
+failures:
+    walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.39s
+

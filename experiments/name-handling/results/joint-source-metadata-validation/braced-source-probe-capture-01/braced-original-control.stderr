@@ -1,0 +1,40 @@
+braced-source compiler vector head=Some(Span { start: 0, end: 4 }) words=3 body_origin=false retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 0, end: 4 }) roles=Some([(1, Body)]) retained_input=true expr_issuer=Some(0)
+braced-source compiler syntax child=Span { start: 19, end: 92 } queued=1 fatal_tail=false
+braced-source compiler vector head=Some(Span { start: 20, end: 22 }) words=3 body_origin=true retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 20, end: 22 }) roles=Some([(0, Expr), (1, Body)]) retained_input=true expr_issuer=Some(1)
+braced-source compiler expr child=Span { start: 25, end: 74 } container=Span { start: 23, end: 76 } source=true context=true vendor_origin=true queued=false
+braced-source compiler syntax child=Span { start: 78, end: 90 } queued=1 fatal_tail=false
+braced-source compiler vector head=Some(Span { start: 79, end: 82 }) words=3 body_origin=true retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 79, end: 82 }) roles=Some([(0, VarWrite)]) retained_input=true expr_issuer=Some(0)
+braced-source compiler vector head=Some(Span { start: 20, end: 22 }) words=3 body_origin=true retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 20, end: 22 }) roles=Some([(0, Expr), (1, Body)]) retained_input=true expr_issuer=Some(1)
+braced-source compiler expr child=Span { start: 25, end: 74 } container=Span { start: 23, end: 76 } source=true context=true vendor_origin=true queued=false
+braced-source compiler syntax child=Span { start: 78, end: 90 } queued=1 fatal_tail=false
+braced-source compiler vector head=Some(Span { start: 79, end: 82 }) words=3 body_origin=true retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 79, end: 82 }) roles=Some([(0, VarWrite)]) retained_input=true expr_issuer=Some(0)
+braced-source compiler vector head=Some(Span { start: 79, end: 82 }) words=3 body_origin=true retained=Some(true)
+braced-source compiler schema head=Some(Span { start: 79, end: 82 }) roles=Some([(0, VarWrite)]) retained_input=true expr_issuer=Some(0)
+braced-source context vector head=Span { start: 0, end: 4 } original_head=false
+braced-source context vector head=Span { start: 0, end: 4 } original_head=false
+braced-source context vector head=Span { start: 20, end: 22 } source_registry_words=true source=true registry=true context=true
+braced-source context vector span=Span { start: 20, end: 91 } admitted=true
+braced-source context vector head=Span { start: 20, end: 22 } original_head=false
+braced-source context vector head=Span { start: 0, end: 4 } source_registry_words=true source=true registry=true context=true
+braced-source context vector span=Span { start: 0, end: 93 } admitted=true
+braced-source context vector head=Span { start: 0, end: 4 } original_head=false
+braced-source context vector head=Span { start: 79, end: 82 } original_head=false
+braced-source context vector head=Span { start: 79, end: 82 } original_head=false
+braced-source context vector head=Span { start: 20, end: 22 } original_head=false
+braced-source context vector head=Span { start: 20, end: 22 } original_head=false
+braced-source context vector head=Span { start: 20, end: 22 } original_head=false
+braced-source context vector head=Span { start: 79, end: 82 } source_registry_words=true source=true registry=true context=true
+braced-source context vector span=Span { start: 79, end: 89 } admitted=true
+braced-source context command span=Span { start: 20, end: 91 } body=Span { start: 19, end: 92 } event=0 through_call=false admitted=true
+braced-source context command span=Span { start: 79, end: 89 } body=Span { start: 19, end: 92 } event=0 through_call=false admitted=true
+
+thread 'walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference' (275160) panicked at rust/tcl-irules/src/walker.rs:424:9:
+assertion `left == right` failed
+  left: []
+ right: ["/Common/braced_dg"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,27 @@
+{
+  "syntax_full_hash": {
+    "rust/tcl-syntax/src/naming/native.rs": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb"
+  },
+  "initial_frozen_stdout_syntax_field": null,
+  "syntax_field_explanation": "Runner looked up wrong path semantic/operators.rs; full native.rs814ce9 hash was captured correctly in baseline and instrumented/restored inventories. Raw stdout unchanged.",
+  "actual_selected_cargo_roots": [
+    "tcl-irules"
+  ],
+  "actual_owned_artifact_packages": 12,
+  "broader_frozen_baseline_packages": 25,
+  "baseline_extra_root_dev_dependencies": [
+    "tcl-registry"
+  ],
+  "preflight_guard": {
+    "observed_selected_root_closure": 12,
+    "expected_previous_broader_scope": [
+      25,
+      26
+    ],
+    "production_changes": 0,
+    "cargo_builds": 0,
+    "assertion_controls": 0,
+    "classification": "selection mismatch, not compile failure"
+  },
+  "current_files_match_restored_preimages": true
+}

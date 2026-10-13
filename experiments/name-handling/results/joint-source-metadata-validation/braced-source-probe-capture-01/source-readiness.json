@@ -1,0 +1,16 @@
+{
+  "preimages": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "1990e4e137c55d2261926a6be4ebed599dbdbae5318b21d5aa659220bc901887",
+    "rust/tcl-irules/src/source_context.rs": "ae087950d2efa1e96b5e247d5dd8ab45e48e4a35b9b615c23c424c9db83ac47f"
+  },
+  "scratch_images": {
+    "rust/tcl-compiler/src/analyser/commands.rs": "5c822f027a4b8f6665a32ab2a4779abc4428a6dba96882ef5268d0aac7ef83e8",
+    "rust/tcl-irules/src/source_context.rs": "a4688f5d5e11d446164bdb974d66a9a6afc0ac689c8239218fcb5e5741e8c8e6"
+  },
+  "original_control": "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+  "environment_gate": "TCL_LSP_TRACE_BRACED_SOURCE",
+  "production_applied": false,
+  "builds": 0,
+  "tests_executed": 0,
+  "expression_children_enqueued": false
+}

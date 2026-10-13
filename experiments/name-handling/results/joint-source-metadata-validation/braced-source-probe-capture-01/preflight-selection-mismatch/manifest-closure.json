@@ -1,0 +1,20 @@
+{
+  "selected_roots": [
+    "tcl-irules"
+  ],
+  "package_dirs": {
+    "tcl-bytecode": "rust/tcl-bytecode",
+    "tcl-cmd-core": "rust/tcl-cmd-core",
+    "tcl-compiler": "rust/tcl-compiler",
+    "tcl-core-types": "rust/tcl-core-types",
+    "tcl-dialect": "rust/tcl-dialect",
+    "tcl-irules": "rust/tcl-irules",
+    "tcl-lexer": "rust/tcl-lexer",
+    "tcl-platform": "rust/tcl-platform",
+    "tcl-regex": "rust/tcl-regex",
+    "tcl-registry": "rust/tcl-registry",
+    "tcl-runtime-api": "rust/tcl-runtime-api",
+    "tcl-syntax": "rust/tcl-syntax"
+  },
+  "scope": "Actual conservative local normal/build and selected-root dev, all target/optional manifest paths; not a compiled graph."
+}

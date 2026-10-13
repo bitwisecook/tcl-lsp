@@ -1,0 +1,10 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling serde_json v1.0.151
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+    Finished `test` profile [unoptimized] target(s) in 1m 18s
