@@ -5,6 +5,7 @@
 //! Live interpreter entry facts supplied to runtime compilation.
 
 use tcl_core_types::{ByteNamespacePath, NameBytes, NativeByteCommandSlot};
+use tcl_syntax::naming::CommandLookupBase;
 
 /// A never-reused interpreter identity within one runtime owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -584,19 +585,13 @@ pub struct NativeCommandLookupCandidate {
     pub slot: NativeByteCommandSlot,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum NativeLookupBase {
-    Token(u64),
-    Root,
-}
-
 /// Stop-aware native lookup traversal over an immutable original namespace
 /// context. Advancing validates only the candidate now reached by lookup.
 pub struct NativeCommandLookupCursor<'a> {
     entry: &'a NativeCompilationEntry,
     original: &'a [u8],
     protocol: tcl_syntax::naming::NativeNameProtocol,
-    bases: std::vec::IntoIter<NativeLookupBase>,
+    bases: std::vec::IntoIter<CommandLookupBase<u64>>,
     jim_keys: Option<std::vec::IntoIter<NameBytes>>,
     visited: Vec<u64>,
 }
@@ -627,8 +622,8 @@ impl NativeCommandLookupCursor<'_> {
         }
         for base in self.bases.by_ref() {
             let namespace = match base {
-                NativeLookupBase::Token(token) => self.entry.namespace_by_token(token)?,
-                NativeLookupBase::Root => self
+                CommandLookupBase::Context(token) => self.entry.namespace_by_token(token)?,
+                CommandLookupBase::Root => self
                     .entry
                     .visible_namespace_by_path(&ByteNamespacePath::root())?
                     .ok_or(NativeCommandLookupUnavailable::Namespace)?,
@@ -784,7 +779,7 @@ impl NativeCompilationEntry {
         lookup_namespace: u64,
         original: &'a [u8],
     ) -> Result<NativeCommandLookupCursor<'a>, NativeCommandLookupUnavailable> {
-        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
+        use tcl_syntax::naming::NativeNameContext;
         if !self.closed {
             return Err(NativeCommandLookupUnavailable::OpenTable);
         }
@@ -807,26 +802,12 @@ impl NativeCompilationEntry {
             (Vec::new(), Some(keys.into_iter()))
         } else {
             let projection = protocol
-                .command_lookup_input(NativeNameContext::new(&context.path), original)
+                .command_lookup_projection(NativeNameContext::new(&context.path), original)
                 .map_err(|_| NativeCommandLookupUnavailable::NamePolicy)?;
-            let absolute = projection.qualification() == NativeNameQualification::Absolute;
-            let mut bases = Vec::new();
-            if !absolute {
-                bases.push(NativeLookupBase::Token(context.token));
-                if matches!(protocol, NativeNameProtocol::C(version) if version.has_namespace_path())
-                {
-                    bases.extend(
-                        context
-                            .command_path
-                            .iter()
-                            .copied()
-                            .map(NativeLookupBase::Token),
-                    );
-                }
-            }
-            // The root row is checked only after all earlier candidates permit
-            // fallback; a malformed later row cannot spoil an earlier hit.
-            bases.push(NativeLookupBase::Root);
+            let bases = projection
+                .lookup_bases(context.token, &context.command_path)
+                .map_err(|_| NativeCommandLookupUnavailable::NamePolicy)?
+                .collect();
             (bases, None)
         };
         Ok(NativeCommandLookupCursor {

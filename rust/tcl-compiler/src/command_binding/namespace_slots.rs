@@ -504,12 +504,14 @@ impl ModuleCommandBindings {
         tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable,
     > {
         use tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable as Unavailable;
-        use tcl_syntax::naming::{NativeNameProtocol, NativeNameQualification};
+        use tcl_syntax::naming::CommandLookupBase;
         let current_path = current.exact_native_path().ok_or(Unavailable::Namespace)?;
         let projection = protocol
-            .command_lookup_input(NativeNameContext::new(current_path), name)
+            .command_lookup_projection(NativeNameContext::new(current_path), name)
             .map_err(|_| Unavailable::NamePolicy)?;
-        let absolute = projection.qualification() == NativeNameQualification::Absolute;
+        let uses_paths = projection
+            .lookup_uses_namespace_path()
+            .map_err(|_| Unavailable::NamePolicy)?;
         let empty = BTreeSet::from([Vec::new()]);
         let paths = self.namespace_paths.get(current).unwrap_or(&empty);
         let mut results = Vec::new();
@@ -517,55 +519,39 @@ impl ModuleCommandBindings {
             let mut result = Vec::new();
             let mut absent = None;
             let mut stopped = false;
-            if !absolute {
-                if let Some(key) = self.source_candidate_at_bytes(protocol, current, name)? {
-                    stopped = self.retain_source_lookup_candidate(
-                        key,
-                        &mut result,
-                        &mut absent,
-                        retain_missing,
-                    );
-                }
-                if !stopped
-                    && matches!(protocol, NativeNameProtocol::C(version) if version.has_namespace_path())
-                    && self.unknown_namespace_paths.contains(current)
-                {
+            let mut current_reached = false;
+            let bases = projection
+                .lookup_bases(current.clone(), path)
+                .map_err(|_| Unavailable::NamePolicy)?;
+            for base in bases {
+                if current_reached && uses_paths && self.unknown_namespace_paths.contains(current) {
                     return Err(Unavailable::Namespace);
                 }
-                if !stopped
-                    && matches!(protocol, NativeNameProtocol::C(version) if version.has_namespace_path())
-                {
-                    for base in path {
-                        // A deleted path entry is ignored by native lookup. Its
-                        // replacement at the same display path is a different base.
-                        if !self.namespaces.contains(base) {
+                let namespace = match base {
+                    CommandLookupBase::Context(namespace) => {
+                        let first = !current_reached;
+                        current_reached = true;
+                        // Retained current tokens remain usable; deleted path
+                        // tokens cannot borrow a same-display replacement.
+                        if !first && !self.namespaces.contains(&namespace) {
                             continue;
                         }
-                        if let Some(key) = self.source_candidate_at_bytes(protocol, base, name)? {
-                            stopped = self.retain_source_lookup_candidate(
-                                key,
-                                &mut result,
-                                &mut absent,
-                                retain_missing,
-                            );
-                            if stopped {
-                                break;
-                            }
-                        }
+                        namespace
                     }
-                }
-            }
-            if !stopped {
-                let root = self
-                    .native_root_namespace_key()
-                    .ok_or(Unavailable::Namespace)?;
-                if let Some(key) = self.source_candidate_at_bytes(protocol, &root, name)? {
+                    CommandLookupBase::Root => self
+                        .native_root_namespace_key()
+                        .ok_or(Unavailable::Namespace)?,
+                };
+                if let Some(key) = self.source_candidate_at_bytes(protocol, &namespace, name)? {
                     stopped = self.retain_source_lookup_candidate(
                         key,
                         &mut result,
                         &mut absent,
                         retain_missing,
                     );
+                    if stopped {
+                        break;
+                    }
                 }
             }
             if !stopped

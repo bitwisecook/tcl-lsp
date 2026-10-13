@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Command qualifier routing retains its purpose independently of display paths.
 
+use super::super::{CommandLookupBase, command_lookup_bases};
 use super::{
     NameProjectionUnavailable, NativeNameContext, NativeNameProjection, NativeNameProtocol,
     NativeNamePurpose, NativeNameQualification, TclVersion, ends_with_separator,
@@ -59,6 +60,41 @@ impl NativeCommandSlotProjection {
     pub const fn purpose(&self) -> NativeNamePurpose {
         self.purpose
     }
+    /// Ordered lookup bases retain supplied coordinates without checking their
+    /// liveness. Original C 8.4 lookup excludes namespace-path entries.
+    ///
+    /// # Errors
+    /// Refuses projections for another purpose or Jim's independent flat table.
+    pub fn lookup_bases<'a, T: Clone + 'a>(
+        &self,
+        current: T,
+        path: &'a [T],
+    ) -> Result<impl Iterator<Item = CommandLookupBase<T>> + 'a, NameProjectionUnavailable> {
+        let path = if self.lookup_uses_namespace_path()? {
+            path
+        } else {
+            &[]
+        };
+        Ok(command_lookup_bases(
+            self.namespace_route == NativeCommandNamespaceRoute::Root,
+            current,
+            path.iter().cloned(),
+        ))
+    }
+    /// Whether lookup can reach namespace-path state after a current miss.
+    ///
+    /// # Errors
+    /// Refuses projections for another purpose or Jim's independent flat table.
+    pub fn lookup_uses_namespace_path(&self) -> Result<bool, NameProjectionUnavailable> {
+        if self.purpose != NativeNamePurpose::CommandLookup {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        let NativeNameProtocol::C(version) = self.protocol else {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        };
+        Ok(self.namespace_route != NativeCommandNamespaceRoute::Root
+            && version.has_namespace_path())
+    }
     /// Discard token routing when a consumer requires only pure geometry.
     #[must_use]
     pub fn into_slot(self) -> ByteCommandSlot {
@@ -67,8 +103,8 @@ impl NativeCommandSlotProjection {
 }
 
 impl NativeNameProtocol {
-    /// First C lookup candidate, including its original qualifier anchor.
-    /// Namespace-path and global fallback traversal remain consumer operations.
+    /// Project original C qualifiers with their retained namespace anchor.
+    /// The projection's `lookup_bases` supplies release-selected fallback order.
     ///
     /// # Errors
     /// Refuses Jim's distinct flat command-table lookup model.
@@ -329,6 +365,41 @@ pub(super) fn command_slot_projection(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_lookup_bases_select_release_path_and_original_extent() {
+        use super::*;
+        for version in TclVersion::ALL {
+            let protocol = NativeNameProtocol::C(version);
+            for (original, absolute) in [
+                (b"p".as_slice(), false),
+                (b"p\0::foreign".as_slice(), false),
+                (b"::p".as_slice(), true),
+            ] {
+                let selected = protocol
+                    .command_lookup_projection(NativeNameContext::root(), original)
+                    .unwrap();
+                let observed: Vec<_> = selected.lookup_bases(11_u64, &[22, 33]).unwrap().collect();
+                let wanted = if absolute {
+                    vec![CommandLookupBase::Root]
+                } else if version == TclVersion::V8_4 {
+                    vec![CommandLookupBase::Context(11), CommandLookupBase::Root]
+                } else {
+                    vec![
+                        CommandLookupBase::Context(11),
+                        CommandLookupBase::Context(22),
+                        CommandLookupBase::Context(33),
+                        CommandLookupBase::Root,
+                    ]
+                };
+                assert_eq!(observed, wanted, "{version:?}: {original:?}");
+            }
+            let publication = protocol
+                .command_c_api_publication_projection(NativeNameContext::root(), b"p")
+                .unwrap();
+            assert!(publication.lookup_bases(11_u64, &[22]).is_err());
+        }
+    }
+
     use super::*;
 
     #[test]

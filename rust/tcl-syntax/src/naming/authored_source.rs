@@ -52,15 +52,14 @@ pub fn authored_source_command_candidates(
 ) -> Option<Vec<ByteCommandSlot>> {
     // naming.source.original-declared-command-word-contract
     // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
-    if written.starts_with(b"::") {
-        return Some(vec![authored_source_command_slot(current, written)?]);
-    }
+    source_units(current, written)?;
     let mut result = Vec::new();
     let root = ByteNamespacePath::root();
-    for namespace in std::iter::once(current)
-        .chain(path)
-        .chain(std::iter::once(&root))
-    {
+    for base in super::command_lookup_bases(written.starts_with(b"::"), current, path) {
+        let namespace = match base {
+            super::CommandLookupBase::Context(namespace) => namespace,
+            super::CommandLookupBase::Root => &root,
+        };
         let key = authored_source_command_slot(namespace, written)?;
         if !result.contains(&key) {
             result.push(key);

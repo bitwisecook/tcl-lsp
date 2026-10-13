@@ -11339,22 +11339,21 @@ impl InterpState {
             .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
         let simple = projected.slot().simple.clone();
         let qualifiers = projected.qualifiers();
-        let absolute =
-            projected.namespace_route() == tcl_syntax::naming::NativeCommandNamespaceRoute::Root;
-        let mut bases = if absolute { vec![ROOT_NS] } else { vec![cxt] };
-        if !absolute && self.runtime_version.has_namespace_path() {
-            let paths = self
-                .retained_record_of(cxt)
-                .and_then(|record| record.paths.get(&cxt).cloned())
-                .or_else(|| self.name_world.borrow().ns_paths.get(&cxt).cloned());
-            if let Some(paths) = paths {
-                bases.extend(paths);
-            }
-        }
-        if !absolute && !bases.contains(&ROOT_NS) {
-            bases.push(ROOT_NS);
-        }
+        // Copying path IDs reaches no namespace or callback; the shared iterator
+        // selects which retained tokens lookup actually visits.
+        let paths = self
+            .retained_record_of(cxt)
+            .and_then(|record| record.paths.get(&cxt).cloned())
+            .or_else(|| self.name_world.borrow().ns_paths.get(&cxt).cloned())
+            .unwrap_or_default();
+        let bases = projected
+            .lookup_bases(cxt, &paths)
+            .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
         for base in bases {
+            let base = match base {
+                tcl_syntax::naming::CommandLookupBase::Context(token) => token,
+                tcl_syntax::naming::CommandLookupBase::Root => ROOT_NS,
+            };
             let Some(namespace) = self.namespace_descendant_token(base, qualifiers) else {
                 continue;
             };

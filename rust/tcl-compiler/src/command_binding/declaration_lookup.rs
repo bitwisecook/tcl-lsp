@@ -27,7 +27,10 @@ impl super::ModuleCommandBindings {
         input: &crate::signature_scan::scope::SignatureSourceNameInput,
         namespace: &super::SourceNamespaceKey,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
-        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
+        use tcl_syntax::naming::{
+            CommandLookupBase, NativeNameContext, NativeNameProtocol, NativeNameQualification,
+            command_lookup_bases,
+        };
         let policy = input.policy();
         let recipe = policy.recipe();
         let scope = self.original_command_world.scope(namespace, policy)?;
@@ -64,32 +67,24 @@ impl super::ModuleCommandBindings {
                 let empty = std::collections::BTreeSet::from([Vec::new()]);
                 for path in self.namespace_paths.get(namespace).unwrap_or(&empty) {
                     let mut candidates = Vec::new();
-                    if !absolute {
-                        candidates.push(
-                            recipe
-                                .command_lookup_slot(scope.context()?, input.bytes())
-                                .ok()?,
-                        );
-                        if version.has_namespace_path() {
-                            for base in path {
-                                if !self.namespaces.contains(base) {
-                                    continue;
-                                }
+                    let available_path = path.iter().filter(|base| {
+                        version.has_namespace_path() && self.namespaces.contains(*base)
+                    });
+                    for base in command_lookup_bases(absolute, namespace, available_path) {
+                        let slot = match base {
+                            CommandLookupBase::Context(base) => {
                                 let selected = self.original_command_world.scope(base, policy)?;
-                                let slot = recipe
+                                recipe
                                     .command_lookup_slot(selected.context()?, input.bytes())
-                                    .ok()?;
-                                if !candidates.contains(&slot) {
-                                    candidates.push(slot);
-                                }
+                                    .ok()?
                             }
+                            CommandLookupBase::Root => recipe
+                                .command_lookup_slot(NativeNameContext::root(), input.bytes())
+                                .ok()?,
+                        };
+                        if !candidates.contains(&slot) {
+                            candidates.push(slot);
                         }
-                    }
-                    let root = recipe
-                        .command_lookup_slot(NativeNameContext::root(), input.bytes())
-                        .ok()?;
-                    if !candidates.contains(&root) {
-                        candidates.push(root);
                     }
                     paths.push(candidates);
                 }

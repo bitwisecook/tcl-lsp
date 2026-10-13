@@ -30,7 +30,8 @@ use std::rc::{Rc, Weak};
 use tcl_cmd_core::namespace::TclStringHashOrder;
 use tcl_core_types::{ByteNamespacePath, NameBytes, NsId, ROOT_NS};
 use tcl_syntax::naming::{
-    NameProjectionUnavailable, NativeCommandNamespaceRoute, NativeNameContext, NativeNameProtocol,
+    CommandLookupBase, NameProjectionUnavailable, NativeCommandNamespaceRoute, NativeNameContext,
+    NativeNameProtocol,
 };
 
 use super::{CommandIdentityIndex, CommandSlot, NamespaceDeferral};
@@ -374,32 +375,21 @@ impl NativeNameWorld {
         }
         let projected = protocol
             .command_lookup_projection(self.namespace_context(context, protocol)?, original)?;
-        let absolute = projected.namespace_route() == NativeCommandNamespaceRoute::Root;
-        let mut bases = if absolute {
-            vec![ROOT_NS]
-        } else {
-            vec![context]
-        };
-        if !absolute
-            && protocol
-                .tcl_version()
-                .is_some_and(tcl_dialect::TclVersion::has_namespace_path)
-        {
-            let paths = self
-                .ns_deferral
-                .owners
-                .get(&context)
-                .and_then(|root| self.ns_deferral.retained.get(root))
-                .and_then(|record| record.paths.get(&context))
-                .or_else(|| self.ns_paths.get(&context));
-            if let Some(paths) = paths {
-                bases.extend(paths.iter().copied());
-            }
-        }
-        if !absolute && !bases.contains(&ROOT_NS) {
-            bases.push(ROOT_NS);
-        }
+        let paths = self
+            .ns_deferral
+            .owners
+            .get(&context)
+            .and_then(|root| self.ns_deferral.retained.get(root))
+            .and_then(|record| record.paths.get(&context))
+            .or_else(|| self.ns_paths.get(&context))
+            .cloned()
+            .unwrap_or_default();
+        let bases = projected.lookup_bases(context, &paths)?;
         for base in bases {
+            let base = match base {
+                CommandLookupBase::Context(token) => token,
+                CommandLookupBase::Root => ROOT_NS,
+            };
             if !self.namespace_available(base) {
                 continue;
             }

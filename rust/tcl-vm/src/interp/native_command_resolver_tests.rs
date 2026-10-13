@@ -11,6 +11,101 @@ fn opaque_handler(_vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
     panic!("capturing lookup state must not execute a handler")
 }
 
+fn declare_vector_namespace(vm: &mut Vm, key: &str) -> NsId {
+    let path = NamespacePath::from_segments(tcl_syntax::naming::key_segments(key));
+    vm.declare_namespace_path_with_origin(path.clone(), true);
+    vm.name_world.borrow().ns_intern[&path]
+}
+
+#[test]
+fn live_lookup_matches_shared_oracle_command_vectors() {
+    use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, key_holder_and_tail};
+
+    for release in tcl_dialect::TclVersion::ALL {
+        let mut compared = 0;
+        let mut setup_boundaries = Vec::new();
+        for vector in tcl_syntax::naming::conformance::vectors() {
+            if vector.wants.get(release) == "!ERROR" {
+                let reason = if !release.has_namespace_path() && !vector.path.is_empty() {
+                    "namespace path is unavailable"
+                } else {
+                    "original command-definition setup is rejected"
+                };
+                setup_boundaries.push((vector.line, reason));
+                continue;
+            }
+            let profile = crate::environment::profile_for_dialect(&format!(
+                "tcl{}",
+                release.version_string()
+            ));
+            let mut vm = crate::native_fixture::core(profile);
+            let context = declare_vector_namespace(&mut vm, &vector.ns);
+            let mut declared = HashMap::new();
+            let mut slots = HashSet::new();
+            for definition in &vector.defs {
+                let (holder, simple) = key_holder_and_tail(definition);
+                let namespace = declare_vector_namespace(&mut vm, holder);
+                let slot = CommandSlot::new(namespace, NameBytes::from(simple));
+                let key =
+                    vm.register_command_in_slot(slot.clone(), Command::Builtin(opaque_handler));
+                let registered = vm.command_slot(&key).expect("the actual registered slot");
+                assert_eq!(registered, slot);
+                assert!(
+                    slots.insert(registered.clone()),
+                    "fixture slots must be distinct"
+                );
+                assert!(
+                    declared.insert(definition.clone(), registered).is_none(),
+                    "fixture definition labels must be unique"
+                );
+            }
+            let context_path = vm.ns_path(context);
+            let path = vector
+                .path
+                .iter()
+                .map(|written| {
+                    NativeNameProtocol::C(release)
+                        .namespace_address_path(
+                            NativeNameContext::new(&context_path),
+                            written.as_bytes(),
+                        )
+                        .expect("the oracle vector has a valid namespace path")
+                })
+                .map(|path| {
+                    vm.declare_namespace_path_with_origin(path.clone(), true);
+                    vm.name_world.borrow().ns_intern[&path]
+                })
+                .collect();
+            vm.push_ns_token(vm.ns_name_bytes(context), context);
+            vm.ns_path_set(path);
+            let actual = vm
+                .resolve_command_bytes_checked(context, vector.call.as_bytes(), true)
+                .expect("the actual core owns command lookup")
+                .and_then(|key| vm.command_slot(&key));
+            let expected = vector.want_for(release).map(|label| {
+                declared
+                    .get(&label)
+                    .expect("an oracle winner must select an original fixture label")
+                    .clone()
+            });
+            assert_eq!(
+                actual,
+                expected,
+                "vector {} on Tcl {}",
+                vector.line,
+                release.version_string()
+            );
+            compared += 1;
+        }
+        assert!(compared > 0, "each C release must compare live lookup rows");
+        eprintln!(
+            "live command lookup Tcl {}: {compared} compared, {} unreached setup rows: {setup_boundaries:?}",
+            release.version_string(),
+            setup_boundaries.len()
+        );
+    }
+}
+
 #[test]
 fn native_command_resolver_inventory_requires_exact_entry_and_no_target_donation() {
     // Implementation proof: naming.compiler.native-command-resolver-inventory

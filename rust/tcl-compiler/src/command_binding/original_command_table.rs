@@ -1796,7 +1796,7 @@ impl ModuleCommandBindings {
         bytes: &[u8],
         policy: tcl_syntax::naming::NamePolicyProtocol,
     ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
-        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol, NativeNameQualification};
+        use tcl_syntax::naming::{NativeNameContext, NativeNameProtocol};
         #[cfg(any(test, debug_assertions))]
         let geometry_timing = OriginalGeometryTiming::at_query(1);
         let query = self.original_command_world.query_view(self);
@@ -1828,18 +1828,21 @@ impl ModuleCommandBindings {
                         .collect::<Vec<_>>(),
                 );
             }
-            NativeNameProtocol::C(version) => {
-                let absolute = recipe
-                    .command_lookup_input(scope.context()?, bytes)
-                    .ok()?
-                    .qualification()
-                    == NativeNameQualification::Absolute;
+            NativeNameProtocol::C(_) => {
+                use tcl_syntax::naming::{CommandLookupBase, NativeCommandNamespaceRoute};
+                #[derive(Clone)]
+                enum LookupScope<'a> {
+                    Current(&'a SignatureNamespaceScope),
+                    Path(&'a SourceNamespaceKey),
+                }
+                let selected = recipe
+                    .command_lookup_projection(scope.context()?, bytes)
+                    .ok()?;
+                let absolute = selected.namespace_route() == NativeCommandNamespaceRoute::Root;
                 if !absolute && self.unknown_lookup_namespaces.contains(current) {
                     return None;
                 }
-                let local = (!absolute)
-                    .then(|| recipe.command_lookup_slot(scope.context()?, bytes).ok())
-                    .flatten();
+                let local = (!absolute).then(|| selected.slot().clone());
                 let occupied = |slot: &tcl_core_types::ByteCommandSlot| {
                     self.original_command_key_for_slot(slot, policy)
                         .and_then(|key| self.original_bindings_for_key(&key))
@@ -1847,28 +1850,32 @@ impl ModuleCommandBindings {
                             !bindings.is_empty() && !bindings.contains(&MayBinding::Missing)
                         })
                 };
-                // Later namespace-path uncertainty is consulted only after a
-                // genuine current cell permits fallback. It cannot spoil an
-                // independently occupied earlier cell.
+                // An occupied current cell stops lookup before path uncertainty.
                 if let Some(local) = &local
                     && occupied(local)
                 {
                     return Some(vec![vec![local.clone()]]);
                 }
-                if !absolute
-                    && version.has_namespace_path()
-                    && self.unknown_namespace_paths.contains(current)
-                {
+                let uses_paths = selected.lookup_uses_namespace_path().ok()?;
+                if uses_paths && self.unknown_namespace_paths.contains(current) {
                     return None;
                 }
                 let empty = BTreeSet::from([Vec::new()]);
                 for path in self.namespace_paths.get(current).unwrap_or(&empty) {
+                    let path_scopes: Vec<_> = path.iter().map(LookupScope::Path).collect();
                     let mut slots = Vec::new();
-                    let mut stopped = false;
-                    if let Some(local) = &local {
-                        slots.push(local.clone());
-                        if version.has_namespace_path() {
-                            for namespace in path {
+                    for base in selected
+                        .lookup_bases(LookupScope::Current(&scope), &path_scopes)
+                        .ok()?
+                    {
+                        let (slot, stopped) = match base {
+                            CommandLookupBase::Context(LookupScope::Current(selected)) => (
+                                recipe
+                                    .command_lookup_slot(selected.context()?, bytes)
+                                    .ok()?,
+                                false,
+                            ),
+                            CommandLookupBase::Context(LookupScope::Path(namespace)) => {
                                 if !self.namespaces.contains(namespace) {
                                     continue;
                                 }
@@ -1876,22 +1883,21 @@ impl ModuleCommandBindings {
                                 let slot = recipe
                                     .command_lookup_slot(selected.context()?, bytes)
                                     .ok()?;
-                                stopped = occupied(&slot);
-                                if !slots.contains(&slot) {
-                                    slots.push(slot);
-                                }
-                                if stopped {
-                                    break;
-                                }
+                                let stopped = occupied(&slot);
+                                (slot, stopped)
                             }
+                            CommandLookupBase::Root => (
+                                recipe
+                                    .command_lookup_slot(NativeNameContext::root(), bytes)
+                                    .ok()?,
+                                false,
+                            ),
+                        };
+                        if !slots.contains(&slot) {
+                            slots.push(slot);
                         }
-                    }
-                    if !stopped {
-                        let root = recipe
-                            .command_lookup_slot(NativeNameContext::root(), bytes)
-                            .ok()?;
-                        if !slots.contains(&root) {
-                            slots.push(root);
+                        if stopped {
+                            break;
                         }
                     }
                     paths.push(slots);

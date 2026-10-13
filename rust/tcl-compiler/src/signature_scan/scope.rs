@@ -627,17 +627,20 @@ impl SignatureSourceLookup {
         let context = self.namespace.context_for_policy(self.policy)?;
         match recipe {
             NativeNameProtocol::C(_) => {
-                let mut slots = vec![
-                    recipe
-                        .command_lookup_slot(context, self.written.as_bytes())
-                        .ok()?,
-                ];
-                if !self.written.as_bytes().starts_with(b"::") {
-                    let global = recipe
-                        .command_lookup_slot(NativeNameContext::root(), self.written.as_bytes())
+                let projection = recipe
+                    .command_lookup_projection(context, self.written.as_bytes())
+                    .ok()?;
+                let mut slots = Vec::new();
+                for base in projection.lookup_bases(context, &[]).ok()? {
+                    let base = match base {
+                        tcl_syntax::naming::CommandLookupBase::Context(context) => context,
+                        tcl_syntax::naming::CommandLookupBase::Root => NativeNameContext::root(),
+                    };
+                    let slot = recipe
+                        .command_lookup_slot(base, self.written.as_bytes())
                         .ok()?;
-                    if !slots.contains(&global) {
-                        slots.push(global);
+                    if !slots.contains(&slot) {
+                        slots.push(slot);
                     }
                 }
                 Some(slots)

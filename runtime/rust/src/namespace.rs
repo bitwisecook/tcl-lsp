@@ -3764,27 +3764,8 @@ impl Namespaces {
 
     // helpers
 
-    /// Locate the namespace + simple name that *holds* the binding `name`
-    /// resolves to, following C Tcl's full command-resolution order
-    /// (`Tcl_FindCommand`, `generic/tclNamesp.c`). The shared core of
-    /// `resolve`/`delete`/`rename`.
-    ///
-    /// Structural mirror of the canonical
-    /// [`tcl_syntax::naming::resolve_command_with`] rule (this table is a
-    /// namespace tree, not a flat string map, so the loop walks base
-    /// namespaces instead of joining candidate strings — conformance is
-    /// pinned by the shared vector suite,
-    /// `rust/tcl-syntax/tests/data/command_resolution_vectors.txt`):
-    ///
-    /// * An absolute name resolves from the global namespace only.
-    /// * Any relative name — bare (`helper`) *or* qualifier-carrying
-    ///   (`inner::p`) — tries the current namespace, then each
-    ///   `namespace path` entry in order, then global, dispatching the
-    ///   first base under which the **command exists**.  A qualifier
-    ///   namespace merely existing does not commit resolution: `inner::p`
-    ///   from `::outer` reaches `::inner::p` even when the namespace
-    ///   `::outer::inner` exists but holds no `p` (tclsh 8.6/9.0
-    ///   confirmed).
+    /// Select the first existing command slot through shared original-name
+    /// lookup bases, retaining this arena's namespace tokens and dying children.
     pub(crate) fn home_of(&self, current: NsId, name: &[u8]) -> Option<(NsId, Vec<u8>)> {
         if let Some(protocol) = self
             .variable_name_protocol
@@ -3827,20 +3808,16 @@ impl Namespaces {
                 None
             }
         };
-        if selected.namespace_route() == tcl_syntax::naming::NativeCommandNamespaceRoute::Root {
-            return find_under(GLOBAL).map(|ns| (ns, simple.to_vec()));
-        }
-        if let Some(ns) = find_under(current) {
-            return Some((ns, simple.to_vec()));
-        }
-        for &p in &self.arena[current].path {
-            if let Some(ns) = find_under(p) {
-                return Some((ns, simple.to_vec()));
-            }
-        }
-        if current != GLOBAL {
-            if let Some(ns) = find_under(GLOBAL) {
-                return Some((ns, simple.to_vec()));
+        for base in selected
+            .lookup_bases(current, &self.arena[current].path)
+            .ok()?
+        {
+            let namespace = match base {
+                tcl_syntax::naming::CommandLookupBase::Context(namespace) => namespace,
+                tcl_syntax::naming::CommandLookupBase::Root => GLOBAL,
+            };
+            if let Some(namespace) = find_under(namespace) {
+                return Some((namespace, simple.to_vec()));
             }
         }
         None

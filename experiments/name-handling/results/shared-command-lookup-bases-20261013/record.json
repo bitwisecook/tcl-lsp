@@ -1,0 +1,103 @@
+{
+  "git_commit": "1c6e273bdbfd200ab4b64a7fda78a9f521d49d5b",
+  "source_hashes_after": {
+    "rust/tcl-syntax/src/naming.rs": "ff4b23d0f40412708daac73540ac175885463125068250c6d49e6d78ab48fa73",
+    "rust/tcl-syntax/src/naming/native/routing.rs": "6206f6d88982eae4abc3aa10c674a3b6aef0a0de1bc772d1b1551597d5ce43b4",
+    "rust/tcl-syntax/src/naming/authored_source.rs": "b36bd4c0300846f8a9ca1305bd776f0037028c4e9420715d31fc12c200dc6bbe",
+    "rust/tcl-runtime-api/src/native_compilation.rs": "001192e22d5494fb017c5975b0075bd668fe24b7f46a6cc2341ccd1f418f3841",
+    "rust/tcl-compiler/src/command_binding/namespace_slots.rs": "684246b368d009b8c2d536fb272c7beff93b4038e66ce06abed8c3f18158e546",
+    "rust/tcl-compiler/src/signature_scan/scope.rs": "88ca4761209ff706c0fefa58d835f96bdcb6ed978c5d81df8b6942919ab677d3",
+    "runtime/rust/src/namespace.rs": "81325df1b3717f5b87439eda3dfdad8f13f14b8b701fbd705283fb2861818652",
+    "runtime/rust/tests/native_command_lookup_bases.rs": "19ab156578d9508f670106c032b2ad5ff3fa170b0875b9fa1a30bde5868f10fe",
+    "rust/tcl-syntax/tests/data/command_resolution_vectors.txt": "f817ad0d63dff84328e1763cac0c9e1cc1291b6e73edb29298adab0b0fe4be1d",
+    "rust/tcl-syntax/tests/command_resolution_conformance.rs": "458dac58d546d236dcb0e99566c5f9732a5933e861e67ce3b063f320040a2def",
+    "rust/tcl-syntax/tests/jim_name_resolution_conformance.rs": "33b3fe3648d93422ec04be840240e12f10b9b8fd9a8332ed0b218ad8bb25222a"
+  },
+  "scope": "Shared command base-order owner and adapters; no new namespace/command lifetime authority. Source freeze coordinated with root; Runtime test-only array borrow correction preserved separately.",
+  "commands": [
+    "cargo test -p tcl-syntax --lib command_lookup",
+    "cargo test -p tcl-syntax --lib lookup_bases",
+    "cargo test -p tcl-syntax --lib naming::",
+    "cargo test -p tcl-syntax --test command_resolution_conformance --test jim_name_resolution_conformance",
+    "cargo test --manifest-path runtime/rust/Cargo.toml --test native_command_lookup_bases -- --nocapture"
+  ],
+  "configuration": {
+    "environment": "source /tmp/name-env.sh",
+    "syntax_target": "tmp/name-target-names",
+    "runtime_target": "tmp/name-target-runtime",
+    "runtime_progress": "TCL_LSP_ORACLE_PROGRESS=1"
+  },
+  "results": {
+    "owner_distinct_new_tests": 3,
+    "owner_naming_tests_passed": 133,
+    "c_command_conformance_tests_passed": 3,
+    "jim_name_conformance_tests_passed": 5,
+    "runtime_primary_tests_passed": 1,
+    "runtime_started_by_provider": {
+      "tcl8.4": 23,
+      "tcl8.5": 23,
+      "tcl8.6": 23,
+      "tcl9.0": 23,
+      "tcl9.1": 23
+    },
+    "runtime_completed_by_provider": {
+      "tcl8.4": 23,
+      "tcl8.5": 23,
+      "tcl8.6": 23,
+      "tcl9.0": 23,
+      "tcl9.1": 23
+    },
+    "runtime_compile_error": "Initial new test passed TclVersion::ALL array by value; corrected only to borrow &TclVersion::ALL before successful test execution."
+  },
+  "c_providers": {
+    "8.4.20": {
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "identity_exit_code": 0,
+      "identity_stdout": "8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/library\n",
+      "identity_stderr": "",
+      "original_library_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    "8.5.19": {
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "identity_exit_code": 0,
+      "identity_stdout": "8.5.19 /workspace/tcl-lsp/tmp/tcl8.5.19/library\n",
+      "identity_stderr": "",
+      "original_library_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    "8.6.18": {
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "identity_exit_code": 0,
+      "identity_stdout": "8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/library\n",
+      "identity_stderr": "",
+      "original_library_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    "9.0.4": {
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "identity_exit_code": 0,
+      "identity_stdout": "9.0.4 //zipfs:/app/tcl_library\n",
+      "identity_stderr": "",
+      "original_library_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    "9.1.0": {
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "identity_exit_code": 0,
+      "identity_stdout": "9.1.0 //zipfs:/app/tcl_library\n",
+      "identity_stderr": "",
+      "original_library_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  },
+  "unexecuted": "Compiler same-identity/lazy/retained controls and VM vectors owned by separate captures; required whole-repository gates unrun in this receipt. F5 unexecuted. Currentness is scoped to these captured hashes.",
+  "jim_provider": {
+    "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "executable_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "identity_exit_code": 0,
+    "identity_stdout": "0.84-9-g5bac7c9\n",
+    "identity_stderr": "",
+    "upstream_currency": "Root independently confirmed configured revision against upstream ls-remote on 2026-10-13; this receipt captures actual configured executable identity."
+  }
+}

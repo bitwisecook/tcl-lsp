@@ -765,60 +765,49 @@ fn original_authored_candidates(
     input: &SignatureSourceNameInput,
     scope: &SignatureNamespaceScope,
 ) -> Option<Vec<Vec<ByteCommandSlot>>> {
-    use tcl_syntax::naming::{NativeNameProtocol, NativeNameQualification};
+    use tcl_syntax::naming::{CommandLookupBase, NativeCommandNamespaceRoute, NativeNameProtocol};
     let policy = input.policy();
     let recipe = policy.recipe();
     if recipe == NativeNameProtocol::Jim084 {
-        // Jim's flat current/global candidates are a distinct lookup purpose;
-        // even an absolute name has no C namespace-table slot projection.
+        // Jim retains its independently selected flat table keys.
         return Some(vec![
             SignatureSourceLookup::from_input(scope.clone(), input)?.candidates()?,
         ]);
     }
     let selected = recipe
-        .command_lookup_input(scope.context()?, input.bytes())
+        .command_lookup_projection(scope.context()?, input.bytes())
         .ok()?;
-    if selected.qualification() == NativeNameQualification::Absolute {
-        return Some(vec![vec![
-            recipe
-                .command_lookup_slot(scope.context()?, input.bytes())
-                .ok()?,
-        ]]);
+    if selected.namespace_route() == NativeCommandNamespaceRoute::Root {
+        return Some(vec![vec![selected.slot().clone()]]);
     }
     let state = &row.snapshot.state;
-    let uses_paths =
-        matches!(recipe, NativeNameProtocol::C(version) if version.has_namespace_path());
+    let uses_paths = selected.lookup_uses_namespace_path().ok()?;
     if uses_paths && state.unknown_namespace_paths.contains(&row.namespace) {
         return None;
     }
     let mut result = Vec::new();
     let paths = state.namespace_paths.get(&row.namespace);
     for path in paths.into_iter().flatten() {
-        let mut candidates = vec![
-            recipe
-                .command_lookup_slot(scope.context()?, input.bytes())
-                .ok()?,
-        ];
-        if uses_paths {
-            for namespace in path {
-                if !state.namespaces.contains(namespace) {
-                    continue;
-                }
-                let path_scope = state.original_command_world.scope(namespace, policy)?;
-                let candidate = recipe
-                    .command_lookup_slot(path_scope.context()?, input.bytes())
-                    .ok()?;
-                if !candidates.contains(&candidate) {
-                    candidates.push(candidate);
-                }
+        let path_scopes = if uses_paths {
+            path.iter()
+                .filter(|namespace| state.namespaces.contains(*namespace))
+                .map(|namespace| state.original_command_world.scope(namespace, policy))
+                .collect::<Option<Vec<_>>>()?
+        } else {
+            Vec::new()
+        };
+        let mut candidates = Vec::new();
+        for base in selected.lookup_bases(scope.clone(), &path_scopes).ok()? {
+            let candidate_scope = match base {
+                CommandLookupBase::Context(context) => context,
+                CommandLookupBase::Root => SignatureNamespaceScope::root(Some(policy)),
+            };
+            let candidate = recipe
+                .command_lookup_slot(candidate_scope.context()?, input.bytes())
+                .ok()?;
+            if !candidates.contains(&candidate) {
+                candidates.push(candidate);
             }
-        }
-        let root = SignatureNamespaceScope::root(Some(policy));
-        let global = recipe
-            .command_lookup_slot(root.context()?, input.bytes())
-            .ok()?;
-        if !candidates.contains(&global) {
-            candidates.push(global);
         }
         result.push(candidates);
     }

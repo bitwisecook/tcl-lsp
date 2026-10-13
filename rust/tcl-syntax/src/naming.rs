@@ -1292,6 +1292,33 @@ pub fn unroot_rooted_key(key: &str) -> Option<&str> {
     key.strip_prefix("::")
 }
 
+/// A command lookup base supplied by a consumer's context owner.
+/// Coordinates carry no namespace liveness or binding evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandLookupBase<T> {
+    /// The current namespace or an ordered namespace-path entry.
+    Context(T),
+    /// The interpreter's actual global namespace, resolved when reached.
+    Root,
+}
+
+/// Visit current/path/root bases for a relative command, or root alone for
+/// an absolute command. Consumers project their own coordinate representation.
+pub fn command_lookup_bases<T>(
+    absolute: bool,
+    current: T,
+    path: impl IntoIterator<Item = T>,
+) -> impl Iterator<Item = CommandLookupBase<T>> {
+    let mut contexts = std::iter::once(current).chain(path).fuse();
+    let mut root_pending = true;
+    std::iter::from_fn(move || {
+        if !absolute && let Some(context) = contexts.next() {
+            return Some(CommandLookupBase::Context(context));
+        }
+        std::mem::take(&mut root_pending).then_some(CommandLookupBase::Root)
+    })
+}
+
 /// Candidate qualified names for Tcl's real bareword command/procedure
 /// resolution, in priority order: the current namespace first, then global.
 ///
@@ -1375,54 +1402,40 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     path: &[S],
     cmd_name: &str,
 ) -> Vec<String> {
-    // Canonicalise the *written* command word once (colon-run rule):
-    // `a:::b` names `a::b`, a lone `:` is an ordinary character, and a
-    // trailing separator names the `{}` command in the qualified namespace.
-    // An absolute word is complete after canonicalisation (`:::` → `::`, the
-    // global `{}` command).
-    if cmd_name.starts_with("::") {
-        return vec![canonical_written_command(cmd_name)];
-    }
+    let absolute = cmd_name.starts_with("::");
     let canonical_cmd = canonical_written_command(cmd_name);
-    let mut out: Vec<String> = Vec::with_capacity(path.len() + 2);
-    // `base` is a *constructed* namespace key: root it with one exact `::`,
-    // never re-parse it — a `::`-run inside the key is a legitimately
-    // colon-named segment (`namespace eval :`), not a collapsible separator.
-    let push_base = |base: &str, out: &mut Vec<String>| {
-        let candidate = if base.is_empty() || base == "::" {
-            format!("::{canonical_cmd}")
-        } else if base.starts_with("::") {
-            format!("{base}::{canonical_cmd}")
-        } else {
-            format!("::{base}::{canonical_cmd}")
-        };
-        if !out.contains(&candidate) {
-            out.push(candidate);
-        }
-    };
-    push_base(namespace, &mut out);
-    for entry in path {
-        // A path entry is a *written* namespace name: canonicalise it (runs
-        // collapse; a trailing separator run drops — `namespace path c:::`
-        // names `::c`, never a namespace named `c::`).
+    let selected_path = path.iter().map(|entry| {
         let entry = entry.as_ref();
         if entry.starts_with("::") {
-            push_base(&normalise_qualified_name(entry), &mut out);
+            normalise_qualified_name(entry)
         } else {
-            // Relative entry: current-namespace-relative only (see above).
-            let segs = qualifier_segments_owned(entry);
-            let canonical_entry = segs.join("::");
-            let based = if namespace.is_empty() || namespace == "::" {
+            let canonical_entry = qualifier_segments_owned(entry).join("::");
+            if namespace.is_empty() || namespace == "::" {
                 format!("::{canonical_entry}")
             } else if namespace.starts_with("::") {
                 format!("{namespace}::{canonical_entry}")
             } else {
                 format!("::{namespace}::{canonical_entry}")
-            };
-            push_base(&based, &mut out);
+            }
+        }
+    });
+    let mut out = Vec::with_capacity(path.len() + 2);
+    for base in command_lookup_bases(absolute, namespace.to_owned(), selected_path) {
+        let candidate = match base {
+            CommandLookupBase::Root if absolute => canonical_cmd.clone(),
+            CommandLookupBase::Root => format!("::{canonical_cmd}"),
+            CommandLookupBase::Context(base) if base.is_empty() || base == "::" => {
+                format!("::{canonical_cmd}")
+            }
+            CommandLookupBase::Context(base) if base.starts_with("::") => {
+                format!("{base}::{canonical_cmd}")
+            }
+            CommandLookupBase::Context(base) => format!("::{base}::{canonical_cmd}"),
+        };
+        if !out.contains(&candidate) {
+            out.push(candidate);
         }
     }
-    push_base("::", &mut out);
     out
 }
 
@@ -1437,21 +1450,20 @@ pub fn command_resolution_candidates_from_namespace_keys<S: AsRef<str>>(
     path: &[S],
     cmd_name: &str,
 ) -> Vec<String> {
-    if cmd_name.starts_with("::") {
-        return vec![canonical_written_command(cmd_name)];
-    }
+    let absolute = cmd_name.starts_with("::");
     let command = canonical_written_command(cmd_name);
     let mut candidates = Vec::with_capacity(path.len() + 2);
-    for context in std::iter::once(namespace)
-        .chain(path.iter().map(AsRef::as_ref))
-        .chain(std::iter::once("::"))
-    {
-        let key = if context.is_empty() || context == "::" {
-            format!("::{command}")
-        } else if context.starts_with("::") {
-            format!("{context}::{command}")
-        } else {
-            format!("::{context}::{command}")
+    for base in command_lookup_bases(absolute, namespace, path.iter().map(AsRef::as_ref)) {
+        let key = match base {
+            CommandLookupBase::Root if absolute => command.clone(),
+            CommandLookupBase::Root => format!("::{command}"),
+            CommandLookupBase::Context(context) if context.is_empty() || context == "::" => {
+                format!("::{command}")
+            }
+            CommandLookupBase::Context(context) if context.starts_with("::") => {
+                format!("{context}::{command}")
+            }
+            CommandLookupBase::Context(context) => format!("::{context}::{command}"),
         };
         if !candidates.contains(&key) {
             candidates.push(key);
@@ -1929,6 +1941,34 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn command_lookup_bases_visit_path_only_after_current() {
+        use super::{CommandLookupBase, command_lookup_bases};
+        let reached = std::cell::Cell::new(0);
+        let path = [20, 30]
+            .into_iter()
+            .inspect(|_| reached.set(reached.get() + 1));
+        let mut bases = command_lookup_bases(false, 10, path);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(10)));
+        assert_eq!(reached.get(), 0);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(20)));
+        assert_eq!(reached.get(), 1);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Context(30)));
+        assert_eq!(bases.next(), Some(CommandLookupBase::Root));
+        assert_eq!(bases.next(), None);
+        assert_eq!(bases.next(), None);
+    }
+
+    #[test]
+    fn absolute_command_lookup_never_visits_context_or_path() {
+        use super::{CommandLookupBase, command_lookup_bases};
+        let path = std::iter::once(20).inspect(|_| panic!("absolute lookup reached path"));
+        let mut bases = command_lookup_bases(true, 10, path);
+        assert_eq!(bases.next(), Some(CommandLookupBase::Root));
+        assert_eq!(bases.next(), None);
+        assert_eq!(bases.next(), None);
+    }
+
     #[test]
     fn scalar_parentheses_share_the_closed_element_partition() {
         // Implementation contract: naming.expression.selected-reference-root

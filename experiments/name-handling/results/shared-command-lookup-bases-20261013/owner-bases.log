@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (tmp/name-target-names/debug/deps/tcl_syntax-88fc50aa79bbd375)
+
+running 2 tests
+test naming::tests::command_lookup_bases_visit_path_only_after_current ... ok
+test naming::native::routing::tests::native_lookup_bases_select_release_path_and_original_extent ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 665 filtered out; finished in 0.00s
+

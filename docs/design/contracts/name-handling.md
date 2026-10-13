@@ -51,7 +51,7 @@ existence of a structured type does not establish a consumer's ownership.
 | Parse colon runs and written command names | `tcl_syntax::naming::{qualifier_segments, canonical_written_command, written_command_tail}` |
 | UTF-8 compatibility qualification | `naming::qualify`; only with its documented constructed-prefix precondition |
 | Namespace-name canonicalisation | `naming::normalise_qualified_name`; unsuitable as a universal command/variable identity normaliser |
-| Logical command candidate order | `naming::{command_resolution_candidates, resolve_command_with}`; results are reporting candidates, with a path-free wrapper only when the path is proven absent |
+| Command lookup base order | `naming::command_lookup_bases` supplies current/path/root coordinates; `NativeCommandSlotProjection::{lookup_bases, lookup_uses_namespace_path}` selects original C extent and path availability. Logical candidate renderers, authored source geometry, native compilation snapshots and live runtime adapters reuse that order; source consumers retain separate path alternatives and stop before later uncertainty when an earlier binding settles lookup. Coordinates grant no live namespace, command binding or closed-world evidence. |
 | Shared static slot projection | `tcl_runtime_api::command_identity::{StaticCommandSlot, display_namespace, display_command, encode_command_slot}` |
 | Original name recipes | `NativeNameProtocol` and the selected operation's checked object/input facade; C, Jim and hosted issuers remain independent |
 | Native source text materialisation | `tcl_syntax::backslash::native_arena_text`, over retained `ExecutablePartArena` source/channel/config; runtime admission and operation currency belong to `Interp`, not decoded lexical bytes |
@@ -82,7 +82,12 @@ Command lookup needs the current namespace, ordered namespace path, selected
 release/dialect, live command existence and interpreter domain. Absolute
 names search globally. Relative names, including `inner::p`, use
 current/path/global candidate order, with command existence deciding the
-winner. There is no implicit ancestor search. Tcl 8.4 lacks `namespace path`.
+winner. Native adapters pass retained namespace tokens to the shared base
+iterator and resolve the global token only when reached. They keep their own
+physical child traversal, liveness and generation checks; equal displayed paths
+do not merge tokens. Snapshot lookup validates later namespace rows only after
+an earlier binding is absent. There is no implicit ancestor search. Tcl 8.4
+excludes namespace-path entries under its original naming protocol.
 See [command-resolution.md](command-resolution.md).
 
 Variable lookup needs the frame kind, selected release, lookup operation,
