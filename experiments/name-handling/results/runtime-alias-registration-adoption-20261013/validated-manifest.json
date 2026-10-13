@@ -1,0 +1,37 @@
+{
+  "owned": {
+    "runtime/rust/src/interp.rs": {
+      "before": "d0387cb1bd585da702c22b4eeb7bc6172dee85140a807fab7728481a61049cc9",
+      "proposed": "f14977b661dcd98bfffb4852f5a440242d5d6f7bed733334d6e733595cbfdc36"
+    },
+    "runtime/rust/src/cmd_alias.rs": {
+      "before": "8c487caae90d8b9df686baaa9c5c99d3ccf7884ecef730ec1e133ed1a4e4fd5d",
+      "proposed": "e399886f547d77372e98e4216ac7abffc9bc35d3df67363978df212a9ba72935"
+    },
+    "runtime/rust/src/interp/native_command_retirement.rs": {
+      "before": "b2c417bb26f95a94065850c5db742e669999a53ecdc03dc804520e1a839db930",
+      "proposed": "46167500fb123646b7b3210c21b5276a5408d291491fb2d53e468790c4cb0552"
+    },
+    "runtime/rust/src/interp/native_alias_registration.rs": {
+      "before": null,
+      "proposed": "9be297fd8d234e1b8b4da3aaee03cf319ae87513ec2220d557ccb4b223bc5c13"
+    },
+    "runtime/rust/tests/native_namespace_command_query.rs": {
+      "before": "428047dd20a3cd15c8babde5712ef47471ecae094277f14e272406ec8bee2ad6",
+      "proposed": "7891b79f17e8885cf8bb40032acaa6ca7bb3ab89d258316cb480ae9bf4d21bd2"
+    }
+  },
+  "patch_sha256": "2dba1fd700bf75c69007f08b814011ef389e96830672c6f7dfb928ad87c0f816",
+  "shared_dependency": "/tmp/registry-vm-alias-registration-owner-final.patch",
+  "shared_dependency_sha256": "97bff3d8735c31487be25a589ca70c194159ca9e68ba273a0044644d7f2f9aa1",
+  "status": "COMPILED in frozen Runtime68: C84 ASCII origin lifecycle original37+observer37 PASS; 68 attempted57PASS11FAIL including separate guestNUL aliasregistrationquery and retainedimport failures",
+  "scope": "C84 original registration coordinate\u2192actual generation; retries original String getter; receipt survives traces and forgotten only at implementation; no report inverse",
+  "additional_controls": "6 genuine original18row guest-NUL controls +6 exact existing retained-import source comparisons. Both unexecuted; C/Jim outputs remain separate.",
+  "separate_pending": "C85+ registration return/inventory/query tokens; actual retained-import existing failingcontrol",
+  "patch": "/tmp/runtime-alias-registration-adoption-20261013/implementation-after-main-trace.patch",
+  "dependency": "Root exact5fa 3production owners + genuine trace test applied separately; alias before-image adjusted only by exact Root interp hunk",
+  "acceptance_seal": "/tmp/runtime-naming-final-capture-20261013/runtime-validation-seal.json",
+  "acceptance_seal_sha256": "eb3734e42772e3422c38f707a63877594d748673100945cf345109d4376ffabb",
+  "shared_dependency_public_test": "/tmp/registry-vm-alias-registration-owner-public-test.patch",
+  "shared_dependency_public_test_sha256": "12229d298db9ca446d22bfbb93230ecc5ddb1bb0bf3b44a224eaffcda83a57d8"
+}

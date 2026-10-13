@@ -142,13 +142,15 @@ impl ExplorerResult {
             kind: FunctionSnapshotKind::TopLevel,
             unit: &self.unit.top_level,
         }];
-        let mut qnames: Vec<&String> = self.unit.procedures.keys().collect();
-        qnames.sort();
-        for qname in qnames {
+        let mut procedures: Vec<_> = self.unit.procedures.iter().collect();
+        procedures.sort_by(|(left_id, left), (right_id, right)| {
+            left.name.cmp(&right.name).then(left_id.cmp(right_id))
+        });
+        for (_, unit) in procedures {
             out.push(FunctionSnapshot {
-                name: qname,
+                name: &unit.name,
                 kind: FunctionSnapshotKind::Procedure,
-                unit: &self.unit.procedures[qname],
+                unit,
             });
         }
         out
@@ -176,14 +178,19 @@ impl ExplorerResult {
                 self.unit
                     .body_units
                     .iter()
-                    .map(|(name, unit)| FunctionSnapshot {
-                        name,
+                    .map(|(_, unit)| FunctionSnapshot {
+                        name: &unit.name,
                         kind: FunctionSnapshotKind::BodyUnit,
                         unit,
                     }),
             )
             .collect();
-        extra.sort_by(|a, b| a.name.cmp(b.name).then(a.kind.rank().cmp(&b.kind.rank())));
+        extra.sort_by(|a, b| {
+            a.name
+                .cmp(b.name)
+                .then(a.kind.rank().cmp(&b.kind.rank()))
+                .then(a.unit.body_id.cmp(&b.unit.body_id))
+        });
         out.extend(extra);
         out
     }
@@ -383,7 +390,12 @@ mod tests {
             );
             assert!(snapshot.unit.semantic_facts.context().is_none());
         }
-        let procedure = &result.unit.procedures["::p"];
+        let procedure = result
+            .unit
+            .procedures
+            .values()
+            .find(|unit| unit.name == "::p")
+            .unwrap();
         assert!(
             procedure
                 .semantic_facts
@@ -391,6 +403,49 @@ mod tests {
                 .world_state_ssa()
                 .is_some()
         );
+    }
+
+    #[test]
+    fn snapshots_retain_duplicate_procedures_and_named_top_separately() {
+        let result = run_pipeline(
+            "proc p {} {return FIRST}; proc p {} {return LAST}; proc ::top {} {return NAMED}",
+            "tcl8.6",
+        );
+        let snapshots = result.snapshots();
+        let procedure_rows: Vec<_> = snapshots
+            .iter()
+            .filter(|row| row.kind == FunctionSnapshotKind::Procedure)
+            .collect();
+        assert_eq!(procedure_rows.len(), 3);
+        assert_eq!(
+            procedure_rows
+                .iter()
+                .filter(|row| row.name == "::p")
+                .count(),
+            2
+        );
+        assert_eq!(
+            procedure_rows
+                .iter()
+                .filter(|row| row.name == "::top")
+                .count(),
+            1
+        );
+        assert!(snapshots[0].unit.body_id.is_none());
+        let ids: std::collections::HashSet<_> = procedure_rows
+            .iter()
+            .map(|row| row.unit.body_id.expect("retained procedure body"))
+            .collect();
+        assert_eq!(ids.len(), 3);
+        for row in procedure_rows {
+            let original = result
+                .unit
+                .ir_module
+                .procedures
+                .get(&row.unit.body_id.unwrap())
+                .unwrap();
+            assert_eq!(original.qualified_name, row.name);
+        }
     }
 
     #[test]

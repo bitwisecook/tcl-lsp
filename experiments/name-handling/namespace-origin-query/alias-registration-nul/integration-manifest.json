@@ -1,0 +1,89 @@
+{
+  "directory": "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/alias-registration-nul",
+  "files": {
+    "8.4.20/record.json": {
+      "sha256": "d8e3adf044b0889ecf75acd2f08c585d8b92867f75935c7b10ea76293aafe6a9",
+      "bytes": 21462
+    },
+    "8.4.20/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "8.4.20/stdout.bin": {
+      "sha256": "bb300de666c8b0e6c89594e929a2d00dba546fdb49805e483821d6e08596f81a",
+      "bytes": 1056
+    },
+    "8.5.19/record.json": {
+      "sha256": "11b213ce9c139747299b130479dc188876c41fe09b9a451aacb8c4f649e0b7f1",
+      "bytes": 162932
+    },
+    "8.5.19/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "8.5.19/stdout.bin": {
+      "sha256": "6c674bf1ddbce79f70b5509f088c351df82ca41185d177bf684fa04c663e4d25",
+      "bytes": 1056
+    },
+    "8.6.18/record.json": {
+      "sha256": "88e3bcbe9e651549aab840806d08afe5c682ea2c8b045ed0696a45d46110e2ee",
+      "bytes": 164106
+    },
+    "8.6.18/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "8.6.18/stdout.bin": {
+      "sha256": "d7c3aa36bfda7dc3e7cbb1d96c491cf71ffb53144212b1ff2313b32017072ec3",
+      "bytes": 1108
+    },
+    "9.0.4/record.json": {
+      "sha256": "8358af334c10d2490900df0bd08c66a0a31baab326010b35b11198640e2cf22b",
+      "bytes": 165624
+    },
+    "9.0.4/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "9.0.4/stdout.bin": {
+      "sha256": "7cde8f241c698cca508ce70fb76ee432ec8479990dd8da6d9f097028082d56d6",
+      "bytes": 1107
+    },
+    "9.1.0/record.json": {
+      "sha256": "449dfcd45cffa267bf69f298c77c0d8cb2bdf32c73bc7011c56f85d14da68b2d",
+      "bytes": 165808
+    },
+    "9.1.0/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "9.1.0/stdout.bin": {
+      "sha256": "852cac269049621c3b0f53737b000fb4df18e1efa6ffb8022619e9533178e058",
+      "bytes": 1107
+    },
+    "README.md": {
+      "sha256": "3fe0b956815367cd42e0128f79db4e29512e2e95dd90cc7fc8895fec528b5eb2",
+      "bytes": 1552
+    },
+    "input.tcl": {
+      "sha256": "27dd08e8dfb51a4d9b071ed19a5c10794404c9666be228906ac106b4ddc9fe0e",
+      "bytes": 1645
+    },
+    "jim/record.json": {
+      "sha256": "ad1f227f2f3ed1a7ea3196196d2e3012effa67a032213921d2397393b25a7a21",
+      "bytes": 1522
+    },
+    "jim/stderr.bin": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "jim/stdout.bin": {
+      "sha256": "1f422df52d4fed4f68b7d5c4e6f87ce4fa571f40ddeb90e01b9d24157b9e5b3e",
+      "bytes": 1791
+    },
+    "records.json": {
+      "sha256": "6c61e13b94aa789c40f76a4eca0fdf7bdb3325c5db6153186e1eabbfeb4bbd68",
+      "bytes": 695599
+    }
+  }
+}

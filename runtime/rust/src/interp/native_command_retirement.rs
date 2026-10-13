@@ -400,6 +400,9 @@ impl Interp {
                 registration_name,
                 ..
             } => {
+                self.native_alias_registrations
+                    .borrow_mut()
+                    .forget_deleted(|actual| *actual == generation);
                 let registration = registration_name.as_ref().and_then(|name| name.take_role());
                 drop(registration);
                 if let Err(error) = original.check(self) {

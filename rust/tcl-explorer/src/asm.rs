@@ -97,17 +97,20 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
         source,
     ));
 
-    let mut qnames: Vec<&String> = module.procedures.keys().collect();
-    qnames.sort();
-    for qname in qnames {
-        let asm = &module.procedures[qname];
+    let mut procedures: Vec<_> = module.procedures.iter().collect();
+    procedures.sort_by(|(left_id, left), (right_id, right)| {
+        left.name.cmp(&right.name).then(left_id.cmp(right_id))
+    });
+    for (id, asm) in procedures {
         let src_range = result
             .unit
             .ir_module
             .procedures
-            .get(qname)
+            .get(id)
             .map_or(Value::Null, |p| range_dict(p.span, li, source));
-        entries.push(function_explorer(asm, qname, "proc", src_range, li, source));
+        let mut entry = function_explorer(asm, &asm.name, "proc", src_range, li, source);
+        entry["bodyId"] = json!(id.ordinal());
+        entries.push(entry);
     }
     Value::Array(entries)
 }

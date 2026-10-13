@@ -21,7 +21,12 @@ fn compare(engine: &str, oracle: &[u8], input: &str, expected_rows: usize) {
         profile,
         Box::new(Output(Rc::clone(&output))),
     );
-    let completion = vm.try_eval_source(input).unwrap();
+    let completion = vm.try_eval_source(input).unwrap_or_else(|error| {
+        panic!(
+            "{engine}: {error:?}; output before refusal:\n{}",
+            String::from_utf8_lossy(&output.borrow())
+        )
+    });
     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
     assert!(vm.refused_completion().is_none(), "{engine}");
     let actual = output.borrow();
@@ -77,9 +82,17 @@ fn unbounded_original_jim_alias_cycle_refuses_without_a_guest_error_claim() {
         .try_eval_source("alias ::__no_cycle_a ::__no_cycle_b; alias ::__no_cycle_b ::__no_cycle_a")
         .unwrap();
     assert!(setup.code.is_ok());
-    let query = vm.try_eval_source("namespace origin ::__no_cycle_a");
-    assert!(query.is_err() || vm.refused_completion().is_some());
-    assert!(vm.execution_refusal.is_some());
+    let query = vm
+        .try_eval_source("namespace origin ::__no_cycle_a")
+        .unwrap_err();
+    assert_eq!(
+        query,
+        tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "unbounded Jim namespace origin alias cycle",
+            ),
+        )
+    );
 }
 
 #[test]

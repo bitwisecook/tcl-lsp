@@ -1,0 +1,14 @@
+{
+  "inputs_before": {
+    "rust/tcl-cli/gui/explorer-core.js": "093dbd3cae972048dd480d10dec8f4ccc5ab555515c899587905d00740c75004",
+    "rust/tcl-cli/gui/test/report-body-identity.mjs": "d158c325647781034da52ab214a0d93c2c1bfd295f8de0591eab6338f8d03d1d"
+  },
+  "inputs_after": {
+    "rust/tcl-cli/gui/explorer-core.js": "093dbd3cae972048dd480d10dec8f4ccc5ab555515c899587905d00740c75004",
+    "rust/tcl-cli/gui/test/report-body-identity.mjs": "d158c325647781034da52ab214a0d93c2c1bfd295f8de0591eab6338f8d03d1d"
+  },
+  "exit_code": 0,
+  "direct_tests": 8,
+  "status": "passed isolated exact JS consumer; report metadata fixtures, not Tcl semantic oracle acceptance",
+  "patch_sha256": "3015adc444314edffd79f11bfab5662d9792bb21a3fe7170eba90e0765841aa5"
+}

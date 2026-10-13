@@ -300,16 +300,23 @@ fn build_ir(d: &Value) -> Vec<ViewNode> {
         Some("cyan"),
     )];
     if let Some(procs) = ir["procedures"].as_object() {
-        let mut names: Vec<&String> = procs.keys().collect();
-        names.sort();
-        for name in names {
-            let proc = &procs[name];
+        let mut rows: Vec<_> = procs.values().collect();
+        rows.sort_by(|left, right| {
+            s(left, "name")
+                .cmp(&s(right, "name"))
+                .then(left["bodyId"].as_u64().cmp(&right["bodyId"].as_u64()))
+        });
+        for proc in rows {
+            let display = s(proc, "name");
             let params = arr_to_strings(&proc["params"]).join(" ");
-            let header = format!("{name} {{{params}}}");
+            let header = format!("{display} {{{params}}}");
             nodes.push(
                 ViewNode::branch(
                     header,
-                    vec![det("range", rng(&proc["range"]))],
+                    vec![
+                        det("body ID", proc["bodyId"].to_string()),
+                        det("range", rng(&proc["range"])),
+                    ],
                     ir_nodes(arr(proc, "body")),
                     Some("cyan"),
                 )

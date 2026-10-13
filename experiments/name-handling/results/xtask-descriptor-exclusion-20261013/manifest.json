@@ -1,0 +1,8 @@
+{
+  "path": "rust/xtask/src/gen_irule_test_data.rs",
+  "before_sha256": "6bdab246a5436316cdd73d5e733fdb34a7e8ec7e94ce89e3fa0eef55a2bb88a9",
+  "after_sha256": "66c052eef5acfaf6f3fb95e0a532bb66b0770b365a0fe739e235a13e6dcad515",
+  "patch_sha256": "ce0b90a3c02c539c99939ea0c0c06bd3bc1dd0fa8e0154d8806310d435dd5735",
+  "scope": "Main-based owned scratch afterimage; no source application/build",
+  "dependency": "Studio IA.procedures keyed by retained ProcedureId is lookup-owned planned producer, not yet applied; xtask requires current Main exact Registry descriptor roster owner"
+}

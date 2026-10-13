@@ -874,6 +874,8 @@ pub struct DeadStore {
     pub function: String,
     /// Retained owning body identity, independent of its display name.
     pub body_id: Option<crate::ir::ProcedureId>,
+    /// Whether the actual compilation root produced this row.
+    pub is_top_level: bool,
     /// The CFG block holding the dead store.
     pub block: String,
     /// The statement's index within its block.
@@ -1051,7 +1053,7 @@ fn emit_dead_stores_and_unused(
         });
     }
 
-    emit_dse_entries(ctx, fu, entries)
+    emit_dse_entries(ctx, fu, is_top_level, entries)
 }
 
 fn observed_element_stores(
@@ -1305,6 +1307,7 @@ fn dead_chain_code(
 fn emit_dse_entries(
     ctx: &mut PassContext<'_>,
     fu: &FunctionUnit,
+    is_top_level: bool,
     mut entries: Vec<DseEntry>,
 ) -> HashSet<(crate::var_resolve::VariableCellKey, u32)> {
     entries.sort_by_key(|e| e.span.start());
@@ -1317,6 +1320,7 @@ fn emit_dse_entries(
             ctx.dead_stores.push(DeadStore {
                 function: fu.name.clone(),
                 body_id: fu.body_id,
+                is_top_level,
                 block: e.block.clone(),
                 statement_index: e.statement_index,
                 variable: fu.ssa.cell_symbol(&e.key.0).map_or_else(

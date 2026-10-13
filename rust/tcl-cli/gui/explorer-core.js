@@ -306,7 +306,7 @@ function renderIR() {
   if (Object.keys(procs).length) {
     html += '<div class="section-header">procedures</div>';
     for (var _e of Object.entries(procs)) {
-      var name = _e[0], proc = _e[1];
+      var proc = _e[1], name = proc.name;
       var params = proc.params.length ? ' {' + proc.params.join(' ') + '}' : ' {}';
       html += '<div class="section-header" style="font-size:12px; color:var(--cyan); border:none; margin:8px 0 2px">' + esc(name) + esc(params) + ' <span style="color:var(--text-dim); font-size:10px">[' + spanLabel(proc.range) + ']</span></div>';
       html += '<div class="ir-tree">' + renderIRNodes(proc.body) + '</div>';
@@ -355,6 +355,7 @@ function setupIRToggle(container) {
 // CFG (pre-SSA)
 function renderCfgPre() {
   var pane = $('#pane-cfg-pre');
+  pane.cfgGraphRows = null;
   var optAvail = !!data.cfgPreSsaOptimised;
   var mode = optAvail ? (structOptState['pane-cfg-pre'] || 'off') : 'off';
   var toolbar = renderOptToolbar('pane-cfg-pre', optAvail);
@@ -386,7 +387,8 @@ function renderCfgPre() {
   pane.innerHTML = html || '<div class="empty-state">No functions</div>';
   setupHoverHighlighting(pane);
   setupOptToolbar(pane, 'pane-cfg-pre', renderCfgPre);
-  requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
+  pane.cfgGraphRows = funcs;
+  requestAnimationFrame(function() { drawAllCfgEdges(pane); });
 }
 function renderTerminator(t) {
   if (t.type === 'goto') return 'goto ' + esc(t.target);
@@ -410,12 +412,17 @@ function renderConstantBranch(b) {
 // The selection records the SCCP view carries for `func`: one per executable
 // opaque `switch` or `case`, naming the arm each member of the subject selects
 // and the arm whose body runs. They ride on `data.sccp`, beside the function of
-// the same name and kind, and describe the compiled source alone.
+// the same retained body coordinate, and describe the compiled source alone.
+function selectionRowsForFunction(func, rows) {
+  if (typeof func.bodyKey !== 'string' || !Array.isArray(rows)) return [];
+  var matches = rows.filter(function(row) { return row.bodyKey === func.bodyKey; });
+  return matches.length === 1 ? matches : [];
+}
+
 function renderSelections(func) {
   var html = '';
-  var rows = Array.isArray(data.sccp) ? data.sccp : [];
+  var rows = selectionRowsForFunction(func, data.sccp);
   for (var row of rows) {
-    if (row.name !== func.name || row.kind !== func.kind) continue;
     for (var sel of row.selections || []) {
       html += '<div class="analysis-entry" style="margin-left:12px; color:var(--blue)"' + sourceRangeAttrs(sel.range) + '>'
         + 'selection: <span class="val">' + esc(sel.selected.join(', ')) + '</span> '
@@ -428,6 +435,7 @@ function renderSelections(func) {
 // CFG (post-SSA)
 function renderCfgPost() {
   var pane = $('#pane-cfg-post');
+  pane.cfgGraphRows = null;
   if (!Array.isArray(data.cfgPostSsa)) { pane.innerHTML = explorerViewUnavailableHtml(); return; }
   var optAvail = !!data.cfgPostSsaOptimised;
   var mode = optAvail ? (structOptState['pane-cfg-post'] || 'off') : 'off';
@@ -496,7 +504,8 @@ function renderCfgPost() {
   setupHoverHighlighting(pane);
   setupVarTooltips(pane);
   setupOptToolbar(pane, 'pane-cfg-post', renderCfgPost);
-  requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
+  pane.cfgGraphRows = funcs;
+  requestAnimationFrame(function() { drawAllCfgEdges(pane); });
 }
 
 // Unit scope: who else can call this file's procedures.
@@ -902,8 +911,9 @@ function irToLines(ir) {
   lines.push('top-level');
   walk(ir.topLevel, 1);
   if (ir.procedures) for (var name of Object.keys(ir.procedures)) {
-    lines.push('proc ' + name);
-    walk(ir.procedures[name].body, 1);
+    var proc = ir.procedures[name];
+    lines.push('proc ' + proc.name);
+    walk(proc.body, 1);
   }
   return lines;
 }
@@ -1711,14 +1721,8 @@ function wasmHighlightSource(start, end) {
 
 function navigateToWasmFunction(pane, targetEntry) {
   if (!targetEntry) return;
-  // ``CSS.escape`` is the only correct way to quote a dynamic value
-  // inside an attribute selector (it handles every CSS special
-  // character, not just ``\`` and ``"``).  The manual regex
-  // fallback is kept for ancient environments that predate CSS.escape.
-  var nameSel = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
-    ? CSS.escape(targetEntry.name)
-    : targetEntry.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  var el = pane.querySelector('.wasm-function[data-func-name="' + nameSel + '"]');
+  if (!Number.isSafeInteger(targetEntry.funcIdx) || targetEntry.funcIdx < 0) return;
+  var el = pane.querySelector('.wasm-function[data-func-idx="' + targetEntry.funcIdx + '"]');
   if (el) {
     el.scrollIntoView({ block: 'start', behavior: 'smooth' });
     // Flash-highlight the function header briefly.
@@ -2035,26 +2039,42 @@ function clearOrthogonalEndpointHighlights(container) {
 // (comparing by label name instead).  Changes to named targets
 // (labels, call targets, literals, locals) surface as red/green rows.
 
+function pairDisassemblyEntries(original, optimised) {
+  var pairs = [];
+  var candidates = new Map();
+  for (var entry of original) {
+    if (entry.kind === 'module') continue;
+    var pair = { orig: entry };
+    pairs.push(pair);
+    if (typeof entry.bodyKey === 'string') {
+      if (!candidates.has(entry.bodyKey)) candidates.set(entry.bodyKey, []);
+      candidates.get(entry.bodyKey).push(pair);
+    }
+  }
+  var incoming = new Map();
+  for (var entry of optimised) {
+    if (entry.kind === 'module' || typeof entry.bodyKey !== 'string') continue;
+    incoming.set(entry.bodyKey, (incoming.get(entry.bodyKey) || 0) + 1);
+  }
+  for (var entry of optimised) {
+    if (entry.kind === 'module') continue;
+    var matches = typeof entry.bodyKey === 'string' ? candidates.get(entry.bodyKey) : null;
+    if (matches && matches.length === 1 && incoming.get(entry.bodyKey) === 1) {
+      matches[0].opt = entry;
+    } else {
+      pairs.push({ opt: entry });
+    }
+  }
+  return pairs;
+}
+
 function openOptDiffView(paneId, kind) {
   var pane = $('#' + paneId);
   if (!pane) return;
   var orig = kind === 'asm' ? data.asm : data.wasm;
   var opt = kind === 'asm' ? data.asmOptimised : data.wasmOptimised;
   if (!orig || !opt) return;
-  // Match entries by name; render one diff block per function that
-  // appears in either side.
-  var byName = {};
-  for (var e of orig) { if (e.kind !== 'module') byName[e.name] = { orig: e }; }
-  for (var e of opt) {
-    if (e.kind === 'module') continue;
-    if (!byName[e.name]) byName[e.name] = {};
-    byName[e.name].opt = e;
-  }
-  var ordered = [];
-  for (var e of orig) { if (e.kind !== 'module') ordered.push(e.name); }
-  for (var e of opt) {
-    if (e.kind !== 'module' && ordered.indexOf(e.name) < 0) ordered.push(e.name);
-  }
+  var pairs = pairDisassemblyEntries(orig, opt);
   var html = renderDisasmToolbar(paneId, kind, true, wasmOptState[paneId] === true);
   html += '<div class="disasm-diff-header">';
   html += '<div class="disasm-diff-title">Optimiser diff &mdash; original vs optimised</div>';
@@ -2066,9 +2086,9 @@ function openOptDiffView(paneId, kind) {
   html += '<button class="disasm-diff-close" data-disasm-diff-close>Close diff</button>';
   html += '</div><div class="disasm-body disasm-diff-body">';
   var anyDiff = false;
-  for (var name of ordered) {
-    var pair = byName[name];
-    var block = buildOptDiffBlockHtml(name, pair.orig, pair.opt, kind);
+  for (var pair of pairs) {
+    var entry = pair.orig || pair.opt;
+    var block = buildOptDiffBlockHtml(entry.name, pair.orig, pair.opt, kind);
     if (block.changed) anyDiff = true;
     html += block.html;
   }
@@ -2337,10 +2357,13 @@ function showVarTooltip(el,v){
 function hideVarTooltip(){if(activeTooltip){activeTooltip.remove();activeTooltip=null;}}
 
 // CFG edge arrows
-function drawAllCfgEdges(pane, funcs) {
+function drawAllCfgEdges(pane) {
+  var funcs = pane.cfgGraphRows;
   if (!Array.isArray(funcs)) return;
-  for (var func of funcs) {
-    var container = pane.querySelector('.cfg-edges-container[data-func="' + func.name + '"]');
+  var containers = pane.querySelectorAll('.cfg-edges-container');
+  for (var functionIndex = 0; functionIndex < funcs.length; functionIndex++) {
+    var func = funcs[functionIndex];
+    var container = containers[functionIndex];
     if (!container) continue;
     var blockEls = {};
     container.querySelectorAll('.cfg-block[data-block]').forEach(function(el) { blockEls[el.dataset.block] = el; });
@@ -2363,7 +2386,7 @@ function drawAllCfgEdges(pane, funcs) {
         lane: e.lane,
       });
     }
-    var fid = func.name.replace(/[^A-Za-z0-9]/g, '_');
+    var fid = pane.id + '-' + functionIndex;
     drawOrthogonalEdges(container, edges, {
       svgClass: 'cfg-edges-svg',
       edgeClass: 'cfg-edge',
@@ -2385,7 +2408,7 @@ function drawAllCfgEdges(pane, funcs) {
 
 // Redraw edges on resize
 var edgeRedrawTimer=null;
-function scheduleEdgeRedraw(){clearTimeout(edgeRedrawTimer);edgeRedrawTimer=setTimeout(function(){if(!data)return;var prePane=$('#pane-cfg-pre');if(prePane.classList.contains('active'))drawAllCfgEdges(prePane,data.cfgPreSsa);var postPane=$('#pane-cfg-post');if(postPane.classList.contains('active'))drawAllCfgEdges(postPane,data.cfgPostSsa);var optPane=$('#pane-opt');if(optPane.classList.contains('active')&&data.optimisedSource)drawOptBrackets(optPane);},100);}
+function scheduleEdgeRedraw(){clearTimeout(edgeRedrawTimer);edgeRedrawTimer=setTimeout(function(){if(!data)return;var prePane=$('#pane-cfg-pre');if(prePane.classList.contains('active'))drawAllCfgEdges(prePane);var postPane=$('#pane-cfg-post');if(postPane.classList.contains('active'))drawAllCfgEdges(postPane);var optPane=$('#pane-opt');if(optPane.classList.contains('active')&&data.optimisedSource)drawOptBrackets(optPane);},100);}
 
 // Selection for copy-to-Claude
 var selectedItems = new Map();

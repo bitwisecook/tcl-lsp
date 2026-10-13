@@ -1035,12 +1035,12 @@ pub fn diagram_data_for_dialect(
 
 /// Procedure cards from the selected original metadata and lowering geometry.
 fn source_procedure_nodes(
-    regular_procs: &[(&String, &Procedure)],
+    regular_procs: &[(&tcl_compiler::ir::ProcedureId, &Procedure)],
     module: &Module,
     context: &DiagramContext<'_>,
 ) -> Vec<Value> {
     if context.analysis.allows_lexical_declaration_advice() {
-        regular_procs.iter().map(|(_, procedure)| json!({ "name": procedure.name,
+        regular_procs.iter().map(|(id, procedure)| json!({ "bodyId": id.ordinal(), "name": procedure.name,
             "params": procedure.params, "flow": walk_script(&procedure.body, &procedure.qualified_name, context, 0) }))
             .collect::<Vec<_>>()
     } else if context.analysis.has_original_vendor_source_names() {
@@ -1058,27 +1058,28 @@ fn source_procedure_nodes(
                     && procedure.body_source.as_deref() == context.source.get(
                         metadata.body_span.start() as usize..metadata.body_span.end() as usize))
                 .collect::<Vec<_>>();
-            let flow = match body.as_slice() {
-                [(label, procedure)] => Some(walk_script(&procedure.body, label, context, 0)),
-                _ => None,
+            let (body_id, flow) = match body.as_slice() {
+                [(id, procedure)] => (Some(id.ordinal()), Some(walk_script(&procedure.body, &procedure.qualified_name, context, 0))),
+                _ => (None, None),
             };
             let name = tcl_syntax::native_string::resident_name_label(input.original_word().try_text().unwrap_or("").as_bytes());
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": input.span().start(), "end": input.span().end()},
                 "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(),
-                "flow": flow, "source_policy": "hosted" })
+                "bodyId": body_id, "flow": flow, "source_policy": "hosted" })
         }).collect::<Vec<_>>()
     } else {
         context.analysis.original_procedure_declarations().enumerate().map(|(ordinal, declaration)| {
             let metadata = declaration.metadata();
-            let flow = tcl_compiler::source_graph::procedure_body_for_declaration(context.source, context.analysis, module, declaration)
-                .map(|(label, procedure)| walk_script(&procedure.body, label, context, 0));
+            let body = tcl_compiler::source_graph::procedure_body_for_declaration(context.source, context.analysis, module, declaration);
+            let flow = body.map(|(_, procedure)| walk_script(&procedure.body, &procedure.qualified_name, context, 0));
+            let body_id = body.map(|(id, _)| id.ordinal());
             let name = declaration.name().source_spelling().unwrap_or_else(||
                 tcl_syntax::native_string::resident_name_label(declaration.name_input().bytes()));
             let span = declaration.name_input().span();
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": span.start(), "end": span.end()},
-                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(), "flow": flow })
+                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(), "bodyId": body_id, "flow": flow })
         }).collect::<Vec<_>>()
     }
 }
@@ -1120,7 +1121,7 @@ pub fn diagram_data_for_analysis(
     {
         return json!({ "events": [], "procedures": [], "unavailable": "current-source-context" });
     }
-    let mut items: Vec<(&String, &Procedure)> = module.procedures.iter().collect();
+    let mut items: Vec<_> = module.procedures.iter().collect();
     items.sort_by_key(|(_, procedure)| procedure.span.start());
     let regular_procs = items
         .iter()
@@ -1145,7 +1146,8 @@ pub fn diagram_data_for_analysis(
         availability,
     };
     let event_registry = EventRegistry::build();
-    let mut handlers_by_event: HashMap<String, Vec<&Procedure>> = HashMap::new();
+    let mut handlers_by_event: HashMap<String, Vec<(&tcl_compiler::ir::ProcedureId, &Procedure)>> =
+        HashMap::new();
     let mut unique_events = Vec::new();
     for (label, procedure) in &items {
         let Some(event) = tcl_compiler::source_graph::event_body_for_procedure(
@@ -1158,16 +1160,16 @@ pub fn diagram_data_for_analysis(
         if entry.is_empty() {
             unique_events.push(event);
         }
-        entry.push(procedure);
+        entry.push((*label, *procedure));
     }
     for handlers in handlers_by_event.values_mut() {
-        handlers.sort_by_key(|procedure| procedure.base_priority);
+        handlers.sort_by_key(|(_, procedure)| procedure.base_priority);
     }
     let mut events = Vec::new();
     'outer: for event in event_registry.order_events(&unique_events) {
         if let Some(handlers) = handlers_by_event.get(&event) {
-            for procedure in handlers {
-                events.push(json!({ "name": event,
+            for (id, procedure) in handlers {
+                events.push(json!({ "bodyId": id.ordinal(), "name": event,
                     "priority": (procedure.base_priority != 500).then_some(procedure.base_priority),
                     "multiplicity": event_registry.event_multiplicity(&event),
                     "flow": walk_script(&procedure.body, &procedure.qualified_name, &context, 0) }));

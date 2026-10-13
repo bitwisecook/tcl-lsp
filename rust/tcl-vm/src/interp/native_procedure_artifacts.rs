@@ -6,7 +6,7 @@
 
 use super::{CompiledUnit, CompilerProvenance, ModuleAsm, NamespacePath, NsId, Rc, Vm};
 use tcl_bytecode::ProcedureProvenance;
-use tcl_runtime_api::CompiledNamespaceContext;
+use tcl_runtime_api::{CompiledNamespaceContext, ProcedureId};
 
 /// Source identity partitions by exact body geometry, never a displayed holder.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,8 +33,8 @@ impl ProcedureCacheKey {
     }
 
     pub(super) fn from_module_entry(qname: &str, provenance: &ProcedureProvenance) -> Option<Self> {
-        let entry_name = qname.strip_prefix("::")?;
-        let provenance_name = provenance.name.strip_prefix("::")?;
+        let entry_name = tcl_syntax::naming::unroot_rooted_key(qname)?;
+        let provenance_name = tcl_syntax::naming::unroot_rooted_key(&provenance.name)?;
         (entry_name == provenance_name).then_some(())?;
         let context = provenance.namespace_context.as_ref()?;
         Some(Self::from_runtime_key(
@@ -45,6 +45,9 @@ impl ProcedureCacheKey {
         ))
     }
 }
+
+pub(super) type ProcedureArtifactCandidates =
+    std::collections::BTreeMap<ProcedureId, CachedProcedureArtifact>;
 
 pub(super) struct CachedProcedureArtifact {
     unit: CompiledUnit,
@@ -78,7 +81,13 @@ impl Vm {
             body,
             &self.namespace_path_for_token(selected),
         );
-        self.module_procs.get(&key)?.admitted_for(self, selected)
+        let mut candidates = self
+            .module_procs
+            .get(&key)?
+            .values()
+            .filter_map(|candidate| candidate.admitted_for(self, selected));
+        let unit = candidates.next()?;
+        candidates.next().is_none().then_some(unit)
     }
 
     /// Retain candidates without executing literal registrations or declaring a proc.
@@ -87,8 +96,8 @@ impl Vm {
         module: &ModuleAsm,
         compiler: CompilerProvenance,
     ) {
-        for (qname, asm) in &module.procedures {
-            let Some(provenance) = module.procedure_provenance.get(qname) else {
+        for (body_id, asm) in &module.procedures {
+            let Some(provenance) = module.procedure_provenance.get(body_id) else {
                 continue;
             };
             let Some(key) = ProcedureCacheKey::from_module_entry(&asm.name, provenance) else {
@@ -114,10 +123,8 @@ impl Vm {
             );
             unit.manifest = module.manifest.clone();
             unit.native_cache = native_owner.map(|owner| self.native_cache_stamp(owner));
-            // A newer compiler artifact replaces only the same source and exact
-            // geometry; another colliding display remains an independent entry.
-            self.module_procs.insert(
-                key,
+            self.module_procs.entry(key).or_default().insert(
+                *body_id,
                 CachedProcedureArtifact {
                     unit,
                     namespace_context: context.clone(),
@@ -158,6 +165,7 @@ mod tests {
 
     fn artifact(vm: &Vm, context: Option<CompiledNamespaceContext>) -> ModuleAsm {
         let name = "::a:::b::p".to_owned();
+        let body_id = tcl_runtime_api::ProcedureIdIssuer::default().allocate();
         ModuleAsm {
             profile: vm.source_profile(),
             manifest: None,
@@ -166,9 +174,15 @@ mod tests {
             plain_command_dispatch: false,
             top_level: FunctionAsm::default(),
             top_level_body: FunctionAsm::default(),
-            procedures: std::collections::HashMap::from([(name.clone(), FunctionAsm::default())]),
+            procedures: std::collections::HashMap::from([(
+                body_id,
+                FunctionAsm {
+                    name: name.clone(),
+                    ..FunctionAsm::default()
+                },
+            )]),
             procedure_provenance: std::collections::HashMap::from([(
-                name.clone(),
+                body_id,
                 ProcedureProvenance {
                     name,
                     namespace_context: context,
@@ -262,5 +276,31 @@ mod tests {
                 "{engine}"
             );
         }
+    }
+
+    #[test]
+    fn equal_artifact_coordinates_retain_distinct_bodies_and_decline_selection() {
+        let mut vm = native_vm("tcl8.6");
+        let namespace = declare(&mut vm, &NamespacePath::from_segments(["N"]));
+        let first = artifact(&vm, Some(context(&vm, namespace)));
+        let second = artifact(&vm, Some(context(&vm, namespace)));
+        let first_id = *first.procedures.keys().next().unwrap();
+        let second_id = *second.procedures.keys().next().unwrap();
+        assert_ne!(first_id, second_id);
+        vm.merge_procs(&first);
+        vm.merge_procs(&first);
+        assert!(
+            vm.module_proc("a:::b::p", "", "return SAME", namespace)
+                .is_some()
+        );
+        vm.merge_procs(&second);
+        let candidates = vm.module_procs.values().next().unwrap();
+        assert_eq!(candidates.len(), 2);
+        assert!(candidates.contains_key(&first_id));
+        assert!(candidates.contains_key(&second_id));
+        assert!(
+            vm.module_proc("a:::b::p", "", "return SAME", namespace)
+                .is_none()
+        );
     }
 }

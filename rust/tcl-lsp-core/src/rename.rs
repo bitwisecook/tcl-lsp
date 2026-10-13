@@ -5247,7 +5247,8 @@ mod tests {
     #[test]
     fn namespace_variable_rename_requires_the_retained_consumer_image() {
         let source = "namespace eval N {variable x 1}\nputs $::N::x\n";
-        let analysis = analyse(source);
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
         let edits = namespace_variable_rename_edits(source, &analysis, "::N::x", "total");
         assert_eq!(
             apply_edits(source, &edits),

@@ -409,3 +409,129 @@ fn namespace_helper_root_string_observer_jim() {
         include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
         include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/jim/stdout.bin"), 5);
 }
+
+#[test]
+fn alias_registration_guest_nul_original_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.4.20/stdout.bin"), 18);
+}
+
+#[test]
+fn alias_registration_guest_nul_original_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.5.19/stdout.bin"), 18);
+}
+
+#[test]
+fn alias_registration_guest_nul_original_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.6.18/stdout.bin"), 18);
+}
+
+#[test]
+fn alias_registration_guest_nul_original_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.0.4/stdout.bin"), 18);
+}
+
+#[test]
+fn alias_registration_guest_nul_original_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.1.0/stdout.bin"), 18);
+}
+
+#[test]
+fn alias_registration_guest_nul_original_jim() {
+    compare_reports("jim",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/jim/stdout.bin"), 18);
+}
+
+#[test]
+fn retained_import_original_c84() {
+    compare_reports(
+        "tcl8.4",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin"
+        ),
+        1,
+    );
+}
+
+#[test]
+fn retained_import_original_c85() {
+    compare_reports(
+        "tcl8.5",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin"
+        ),
+        1,
+    );
+}
+
+#[test]
+fn retained_import_original_c86() {
+    compare_reports(
+        "tcl8.6",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin"
+        ),
+        1,
+    );
+}
+
+#[test]
+fn retained_import_original_c90() {
+    compare_reports(
+        "tcl9.0",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin"
+        ),
+        1,
+    );
+}
+
+#[test]
+fn retained_import_original_c91() {
+    compare_reports(
+        "tcl9.1",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin"
+        ),
+        1,
+    );
+}
+
+#[test]
+fn retained_import_original_jim() {
+    compare_reports(
+        "jim",
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/runtime-retained-import-source/jim/stdout.bin"
+        ),
+        1,
+    );
+}

@@ -104,6 +104,7 @@ pub mod literal_validation;
 pub mod logical_core_simulation;
 pub mod mathfunc;
 pub mod model;
+pub mod native_alias_registration;
 pub mod native_argument_role_hook;
 pub mod native_array;
 pub mod native_array_compilation;

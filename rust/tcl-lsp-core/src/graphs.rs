@@ -437,7 +437,7 @@ fn find_call_sites_in_scope(
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
+    let Some(containing_body) = ir_module.procedures.get_unique_display(containing_proc) else {
         return Vec::new();
     };
     let original_callee = if analysis.allows_lexical_declaration_advice() {
@@ -535,7 +535,7 @@ fn build_nodes(
             let summary = &interproc.procedures[qname];
             let line = ir_module
                 .procedures
-                .get(qname)
+                .get_unique_display(qname)
                 .map(|p| line0(line_index, p.span.start()));
             let matched = analysis.allows_lexical_declaration_advice() || {
                 let mut rows = analysis.original_procedure_declarations().filter(|row|
@@ -985,8 +985,13 @@ fn dataflow_graph_for_input(
     let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
 
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
 
     // Interprocedural taint solve: colour-aware return summaries + parameter
     // entry taints. Its `top_taints` / `proc_taints` feed the warning
@@ -997,8 +1002,11 @@ fn dataflow_graph_for_input(
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(profile));
 
     // Taint warnings: top level first, then each procedure.
-    let shadow_proc_qnames: std::collections::HashSet<&str> =
-        cu.procedures.keys().map(String::as_str).collect();
+    let shadow_proc_qnames: std::collections::HashSet<&str> = cu
+        .procedures
+        .values()
+        .map(|unit| unit.name.as_str())
+        .collect();
     let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
@@ -1015,7 +1023,7 @@ fn dataflow_graph_for_input(
     let mut taint_warnings: Vec<Value> = Vec::new();
     collect_taint_warnings(
         &cu.top_level,
-        solved.taints_for(&cu.top_level.name, &cu.top_level.taints),
+        &solved.top_taints,
         taint_ctx,
         &mut taint_warnings,
     );
@@ -1023,7 +1031,7 @@ fn dataflow_graph_for_input(
         let fu = &cu.procedures[*qname];
         collect_taint_warnings(
             fu,
-            solved.taints_for(&fu.name, &fu.taints),
+            solved.proc_taints.get(&fu.name).unwrap_or(&fu.taints),
             taint_ctx,
             &mut taint_warnings,
         );
@@ -1036,7 +1044,7 @@ fn dataflow_graph_for_input(
     }
     for qname in &proc_names {
         for name in tainted_var_names(&cu.procedures[*qname]) {
-            tainted_variables.push(json!({ "scope": qname, "variable": name }));
+            tainted_variables.push(json!({ "bodyId": qname.ordinal(), "scope": cu.procedures[*qname].name, "variable": name }));
         }
     }
 
@@ -1144,6 +1152,8 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
         .collect();
     json!({
         "name": f.function_name,
+        "bodyId": f.body_id.map(|id| id.ordinal()),
+        "isTopLevel": f.is_top_level,
         "nodes": nodes,
         "edges": edges,
         "aliases": aliases,
@@ -1188,9 +1198,11 @@ fn def_use_graph_for_input(
     input: &ResolvedAnalysisInput,
 ) -> Value {
     let dialect = input.unit_profile();
-    fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
+    fn build_inputs(fu: &FunctionUnit, is_top_level: bool) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
+            body_id: fu.body_id,
+            is_top_level,
             ssa: &fu.ssa,
             du: &fu.def_use,
             sccp: Some(&fu.sccp),
@@ -1202,11 +1214,20 @@ fn def_use_graph_for_input(
     let profile = dialect;
     let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
 
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
 
-    let mut inputs: Vec<FunctionInputs<'_>> = vec![build_inputs(&cu.top_level)];
-    inputs.extend(proc_names.iter().map(|q| build_inputs(&cu.procedures[*q])));
+    let mut inputs: Vec<FunctionInputs<'_>> = vec![build_inputs(&cu.top_level, true)];
+    inputs.extend(
+        proc_names
+            .iter()
+            .map(|q| build_inputs(&cu.procedures[*q], false)),
+    );
 
     let graph = extract_dataflow_graph(&inputs);
     let mut functions: Vec<Value> = graph.functions.iter().map(function_dataflow_json).collect();
@@ -1243,11 +1264,13 @@ fn memory_location_str(loc: &tcl_compiler::memory_ssa::MemoryLocation) -> String
 
 /// Serialise one function's memory-SSA to the alias wire dict.
 fn memory_function_json(
-    name: &str,
+    fu: &FunctionUnit,
     mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>,
 ) -> Value {
+    let name = &fu.name;
+    let body_id = fu.body_id.map(|id| id.ordinal());
     let Some(mem) = mem else {
-        return json!({ "name": name, "alias_sets": [], "memory_ops": 0,
+        return json!({ "name": name, "bodyId": body_id, "alias_sets": [], "memory_ops": 0,
             "has_wildcard_aliasing": true });
     };
     let alias_sets: Vec<Value> = mem
@@ -1263,6 +1286,7 @@ fn memory_function_json(
         .collect();
     json!({
         "name": name,
+        "bodyId": body_id,
         "alias_sets": alias_sets,
         "has_wildcard_aliasing": mem.has_wildcard_aliasing,
         "memory_ops": mem.memory_ops.len(),
@@ -1311,14 +1335,19 @@ fn memory_alias_graph_for_input(
         .with_retained_memory_ssa(registry);
 
     let mut functions: Vec<Value> = vec![memory_function_json(
-        "::top",
+        &cu.top_level,
         cu.top_level.memory_ssa.as_ref(),
     )];
-    let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
-    proc_names.sort();
+    let mut proc_names: Vec<_> = cu.procedures.keys().collect();
+    proc_names.sort_by(|left, right| {
+        cu.procedures[*left]
+            .name
+            .cmp(&cu.procedures[*right].name)
+            .then(left.cmp(right))
+    });
     for qname in &proc_names {
         functions.push(memory_function_json(
-            qname,
+            &cu.procedures[*qname],
             cu.procedures[*qname].memory_ssa.as_ref(),
         ));
     }

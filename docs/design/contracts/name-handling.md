@@ -40,6 +40,30 @@ Independent root completion candidates require rooted insertion when the
 selected source scope cannot use their bare names. This source view supplies
 no entered activation, completed alias, current contents or Native capability.
 
+## Source-read and body selection
+
+The Compiler's `SourceReadScope` obtains declaration/read schemas from the
+original transition catalogue. `CompletePrefix` retains completed source
+commands before a fatal tail; it does not admit partial words or execution.
+The owner checks the exact allocating site, original argv, body issuer,
+source image/configuration, Registry/context and any actually selected target.
+Source-only catalogue rows cannot establish reached runtime applicability or
+current stores. Consumers must keep their independent execution/frame proofs.
+
+`Module::retain_procedure` and `retain_body_unit` issue shared `ProcedureId`
+values. Module clones retain existing IDs and share issuance state; separately
+built modules cannot join equal ordinals. Inventories retain every body,
+including repeated display names. Select original bodies through
+`source_procedure_for_target` or `source_procedure_for_allocation`, after genuine
+allocation and source correspondence agree. Never recover a body ID from a
+printed name. The ordinal is only a within-module presentation field.
+
+Function-unit and source-provenance joins retain that ID separately from their
+name. Neutral memo results require a fresh exact body join; cache reuse grants
+no Native entry or selected-command authority. A runtime artifact cache retains
+separate candidate IDs and declines when multiple current candidates agree
+only in name/body/namespace geometry.
+
 ## Representations
 
 A name's spelling, identity and presentation are different values:
@@ -213,6 +237,28 @@ proofs; source colon-run widths cannot be reconstructed from display names.
 Per-command roles and semantics come from the registry, including overlays
 and stubs, rather than spelling tests in consumers.
 
+## External inventory and authoring
+
+Syntax owns `original_script_name_query_support` and
+`original_script_command_inventory_support`. External query-family selection
+uses the real shell's observations and issues no Native identity. C inventories
+retain original simple words in their namespace context, exclude inherited
+global fallback, and verify each proposed root operand. Namespace reports are
+bounded traversal addresses, never inverse command keys. An ambiguous or opaque
+address makes the whole inventory unavailable. Jim uses its flat root table
+and original exact presence query independently of C namespace traversal.
+
+SpecProbe transports checked UTF-8 root operands. Studio uses exact original
+operands as authoring keys. Scanned C literals remain separately recorded
+`c_registration_operands` with unresolved publication context; literal spelling
+cannot identify the entered interpreter, namespace, API purpose or allocation.
+
+C8.4 alias registration uses the shared purpose-selected replacement coordinate
+and `NativeAliasRegistrationTable`. The backend retains the actual command
+token across relocation and removes the record only after actual deletion.
+Callbacks require a new read of the same original input and a current-token
+check before retry. Later C versions and Jim keep independent policies.
+
 ## Dynamic code and familiar naming patterns
 
 Tcl naming is executable behaviour. Definitions, command prefixes, aliases,
@@ -300,8 +346,11 @@ invocation preserves call-time lookup. WASM procedure definitions transport the
 existing evaluated original argv to the shared Runtime procedure owner; the
 internal compiled-body key supplies no Tcl name or namespace. See
 [original command arguments](../runtime/original-command-arguments.md#compiled-procedure-definitions).
-Procedure maps and compiled-entry tables still use reporting FQNs in parts of
-the compiler; these are not an injective replacement for structured slots.
+IR, CFG, compilation units, bytecode procedures and compiled-entry tables join
+by module-owned `ProcedureId`. Display names remain separate report fields.
+Read-only analytical adapters refuse ambiguous displays; they cannot select
+original implementations. Retained method and summary consumers preserve their
+independent source allocation and purpose boundaries.
 Audit all registered backends before claiming that every target delegates
 resolution. A restricted DSL such as BPF-Tcl reports unsupported
 namespace/procedure features at its boundary.

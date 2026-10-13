@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-spec-studio/src/infer.rs",
+  "before_sha256": "5ec25ebbb8cbdd866b79122e2f20cd451bb1dcb02946d51ba04a184390b3c4ee",
+  "after_sha256": "0036668018b1b0fc11f5c2674f0d97398522402345d67ab2e2f0a98998973140",
+  "patch_sha256": "32984e4814758230a65be385ff50601f60a85e3986ab52abd40d0b4a3ee82eac",
+  "scope": "Main-based owned scratch afterimage; no source application/build",
+  "dependency": "Studio IA.procedures keyed by retained ProcedureId is lookup-owned planned producer, not yet applied; xtask requires current Main exact Registry descriptor roster owner"
+}

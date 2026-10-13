@@ -53,6 +53,7 @@ mod container_access_tests;
 mod container_removal_tests;
 mod jim_local;
 mod jim_teardown;
+mod native_alias_registration;
 mod native_alias_roles;
 mod native_append;
 pub(crate) mod native_body_artifact;
@@ -1312,6 +1313,8 @@ pub struct InterpState {
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver.
     namespaces: RefCell<Namespaces>,
+    native_alias_registrations:
+        RefCell<tcl_registry::native_alias_registration::NativeAliasRegistrationTable<u64>>,
     /// Exact array bindings retained by nested `array` operations. The public
     /// runtime contract carries only the opaque `VarId`; this stack keeps the
     /// standalone table owner and slot private while callbacks re-enter Tcl.
@@ -1962,6 +1965,7 @@ impl Interp {
             jim_active_command_workers: RefCell::new(Vec::new()),
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
+            native_alias_registrations: RefCell::new(Default::default()),
             array_operation_targets: RefCell::new(Vec::new()),
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(OwnedGuardManager::new(guards)),
@@ -3975,6 +3979,7 @@ impl Interp {
         } else {
             None
         };
+        let retained_registration = Rc::clone(&registration_name);
         let registration_name = recipe
             .alias_record_retains_original_registration_name()
             .then_some(registration_name);
@@ -4005,6 +4010,12 @@ impl Interp {
         };
         let loops = self.alias_chain_loops_original(ns, &simple);
         if loops.as_ref().is_ok_and(|loops| !loops) {
+            self.complete_original_alias_registration(
+                name,
+                tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+                &retained_registration,
+                generation,
+            )?;
             return Ok(None);
         }
         // Reentrant getters may replace the slot. Retire only this actual

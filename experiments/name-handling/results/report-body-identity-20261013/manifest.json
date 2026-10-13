@@ -1,0 +1,597 @@
+{
+  "status": "formatted isolated source; unexecuted typecheck/tests",
+  "files": [
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "before_sha256": "2a4c7a3db00d1631269d872bec36216c936ec320a7e3785c95312e8f8c441f99",
+      "after_sha256": "619d19af0182219b0cd51c1d59ad4987459c488aedfcc3d6f448599e3a61dd7a",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-explorer/src/asm.rs",
+      "before_sha256": "db686b2a07e785f91ad60ef62a4756c3a9b573c45e2385e87f9780b2f9ed623e",
+      "after_sha256": "03f2fc2034f8ed722935ad40e451c6eadb2100f27e49683c578befa0e226bf85",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "before_sha256": "d11c9aeaf637f4951a7e95ed4b9fd0a2c26c14c0793d6eaf2d4cc47ca35dfc8b",
+      "after_sha256": "7c4fa22c0f096208ef0192176f89544cc8bfda5cad051ae6b5c11c4a93f3c4b0",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "before_sha256": "6830a7ccf685460347abedf6c9aaa00bff115cc47709130601fd2c7660de373f",
+      "after_sha256": "47c52e8ccc044ba861a2cbcb74b50b81a8c2eb9f40e92015e966707e72d9c25b",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "before_sha256": "3a86e28535634a31935862a71355d856f9a790c4f0f66b700bf85d61f219168b",
+      "after_sha256": "5b55019f21adf9ab4315eecd8f56063de9ee69c50a682246e36d1b547cd8cfba",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "before_sha256": "5feb01deacdd5e7b57c21ee2b63b84f43e01095cf67a17df15ebacc7eaac4199",
+      "after_sha256": "9a0f07a80bc1534279431e1d3cbce53d93bf04c6b2844ce96d124778a786f8fb",
+      "main_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "before_sha256": "e57951537fd7dd3f611e66cdce47a115784ca1940ea8c7e21c76dbec772c2e86",
+      "after_sha256": "c1776eb28eb7df8d6019ec3f994933d39b4be2b42f045b0190078f9df7301977",
+      "main_unchanged": true
+    }
+  ],
+  "tests": [
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "loop_nodes_carry_their_compiler_exit_reason"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "try_projection_carries_exact_completions_and_handler_fallthrough"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "return_projection_is_an_explicit_completion_not_a_renderer_guess"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "literal_return_options_and_exit_keep_distinct_try_outcomes"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "dynamic_return_forms_keep_their_distinct_possible_completions"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "exit_statuses_project_release_specific_errors_and_typed_dynamic_outcomes"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "literal_invalid_return_forms_project_as_catchable_errors"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "trailing_return_option_words_are_results_not_missing_values"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "invalid_known_terminator_arity_projects_as_catchable_error"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "return_completion_preserves_source_word_shape"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "numeric_return_codes_project_as_their_canonical_completions"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "exact_custom_return_codes_keep_their_integer_payload"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "handler_completion_codes_use_the_dialect_numeric_grammar"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "trap_patterns_are_projected_as_tcl_list_elements"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "trap_pattern_projection_preserves_the_dialect_escape_value"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "handler_number_release_vectors_share_tcl_numeric_owner"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "procedure_calls_resolve_qualified_names_in_the_callers_namespace"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "registry_actions_resolve_relative_names_in_the_callers_namespace"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "procedure_aliases_and_rebound_registry_heads_stay_source_sensitive"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "real_tcl_oracle_distinguishes_default_and_level_zero_return_codes"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "original_diagram_calls_use_retained_allocations_and_decline_missing_lookup"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "original_diagram_metadata_keeps_actual_availability_and_source_currency"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "original_diagram_events_require_actual_event_descriptors_instead_of_when_labels"
+    },
+    {
+      "path": "rust/tcl-diagram/src/data.rs",
+      "selector": "original_diagram_actions_keep_source_schema_separate_from_display_labels"
+    },
+    {
+      "path": "rust/tcl-explorer/src/asm.rs",
+      "selector": "instructions_carry_per_op_source_range"
+    },
+    {
+      "path": "rust/tcl-explorer/src/asm.rs",
+      "selector": "synthetic_ops_have_null_range"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "original_document_pipeline_keeps_root_and_later_bom_roles"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "original_document_pipeline_keeps_config_withdrawal_terminal"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "run_pipeline_top_level_only"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "run_pipeline_collects_procedures_in_order"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "deep_pipeline_preserves_the_actual_source_metadata_owner"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "snapshots_retain_duplicate_procedures_and_named_top_separately"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "selector": "unparseable_dialect_does_not_panic"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "ir_rows_keep_equal_names_and_distinct_source_bodies"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "completion_terminator_preserves_pending_native_return"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "native_lookup_decline_and_interpreter_world_domains_remain_distinct"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "meta_lists_all_dialects_views_and_severities"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimiser_passes_preserve_set_only_tk_profile"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "wasm_view_exposes_canonical_semantic_plan_and_serialised_output"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "wasm_view_exposes_common_native_i64_selection_evidence"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "aot_view_carries_the_plan_and_every_rejected_native_premise"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "semantic_optimisations_view_carries_every_pass_and_its_state"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "wasm_view_exposes_the_native_tier_lowering_record"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "wasm_view_exposes_typed_semantic_decline"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "wasm_view_serialises_multiple_mixed_regions_in_node_order"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "interproc_view_shows_the_param_constant_seed_and_its_withdrawal"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "world_ssa_view_keeps_versions_transitions_and_typed_availability"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "world_ssa_decline_preserves_transition_policy_evidence"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "serialise_result_includes_meta_and_ir"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "durable_compiler_views_are_present_and_cover_extra_units"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "ir_expands_if_clauses_and_collects_procs"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimised_source_reflects_constant_fold"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimised_source_null_when_unchanged"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimised_ir_and_cfg_present_when_source_changes"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "dead_stores_surface_from_o109"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "no_dead_stores_when_value_is_read"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "structural_index_reports_boundaries_and_balance"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "structural_index_flags_incomplete_script"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "source_map_maps_lines_to_byte_ranges"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimiser_passes_lists_every_pass_in_order"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "gvn_abstains_without_exact_common_invocation_provenance"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "irules_flow_empty_for_plain_tcl"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_empty_for_plain_tcl"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_orders_when_handlers_by_firing_order"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_tie_break_increments_offset"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_applies_outer_priority_until_it_changes"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_uses_rooted_normalised_top_level_handlers_only"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "event_order_ignores_non_braced_event_bodies"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "dataflow_emits_nodes_and_summary"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "loops_detects_for_loop_with_depth"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "loops_empty_for_straightline_code"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "bounds_emits_per_function_shape"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_each_statements_route_and_answer"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_each_statements_completion_paths"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_the_route_tally"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_the_selection"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_the_unreached_arms"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "sccp_reports_folded_types"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "cfg_post_ssa_has_phis_uses_defs_and_analysis"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "cfg_post_ssa_optimised_present_when_source_changes"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "stats_reports_function_and_block_counts"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "annotations_collect_callouts_and_group_by_line"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "asm_emits_structured_instructions_for_top_level"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "asm_resolves_jump_targets"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "taint_tracking_marks_exec_tainted_vars"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "taint_reports_eval_sink"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "shimmer_reports_intrep_conversion"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "optimisations_reports_constant_fold_with_range"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "rendered_properties_flags_slash_and_dash"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "intervals_reports_bounded_loop_counter"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "segments_reports_words_with_shape_flags"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "segments_marks_braced_words"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "types_reports_known_int_for_constant_assignments"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "interproc_summarises_procs_with_arity_and_return_shape"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "unit_scope_reports_uniform_literals_and_no_boundary"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "unit_scope_reports_a_registry_declared_boundary"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "cfg_pre_ssa_has_entry_block_and_branch_terminator"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "ir_widens_braced_condition_range_to_closer"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "original_structural_completeness_keeps_module_input_and_unknown_null"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "retained_explorer_source_keeps_actual_profiles_and_ignores_display_labels"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "retained_event_order_uses_the_custom_full_config_and_actual_command_store"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "retained_explorer_views_refuse_missing_changed_and_foreign_source_owners"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "rewritten_explorer_image_retains_metadata_without_reusing_old_source_ownership"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "remaining_actual_cu_views_retain_profiles_and_ignore_display_labels"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "remaining_source_range_consumers_refuse_foreign_source_arguments"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "retained_irules_warning_view_and_statistics_share_the_actual_count"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "selector": "bounds_withdraws_if_a_function_loses_its_actual_module_metadata"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "a_hint_only_optimisation_is_not_rendered_as_a_rewrite"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "an_applicable_optimisation_still_shows_its_replacement"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "rows_that_display_a_range_also_carry_the_structured_one"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "the_structured_range_matches_the_payload"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "tree_views_are_a_subset_of_view_meta"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "every_tree_descriptor_has_a_shared_builder"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "ir_view_has_top_level_and_proc_nodes"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "cfg_view_lists_blocks_with_entry_tag"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "world_ssa_view_explains_availability_and_transition_policy"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "loops_view_reports_a_loop"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "aot_view_names_a_selected_native_add"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "unknown_view_is_empty"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "empty_analysis_views_have_a_dim_note"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "original_structural_view_keeps_unknown_completeness_distinct_from_false"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "unavailable_source_fields_are_distinct_from_completed_empty_views"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "unavailable_event_section_preserves_independent_irules_warnings"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "actual_cu_null_fields_do_not_render_as_empty_analysis"
+    },
+    {
+      "path": "rust/tcl-explorer/src/view_tree.rs",
+      "selector": "unavailable_irules_warning_section_preserves_available_event_rows"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "selector": "original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "selector": "graph_calls_keep_consumed_names_as_references"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "selector": "graph_calls_use_terminal_alias_identity_without_borrowing_a_displaced_proc"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "selector": "deeply_nested_namespaces_survive_symbol_graph"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "selector": "original_summary_rows_join_source_allocations_after_display_collision"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "selector": "original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "selector": "original_graph_alias_edges_select_terminal_allocation_without_reporting_names"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "selector": "original_graph_summary_requires_body_allocation_even_when_ir_labels_agree"
+    }
+  ],
+  "remaining": [
+    "IA/taint/transfer/call-site strict ID producer follow-on required by strict-dependent.patch",
+    "Method units still require retained body IDs; unidentified None dead-store rows decline",
+    "Diagram lexical compatibility call classification still shared name resolver; original declaration path selects source allocations"
+  ],
+  "primary_sha256": "8a27e0c62721e5f89d45f336ccd48c515d8de9cacb111f20c6777901d17d76b2",
+  "strict-dependent_sha256": "dc6bafea84e64d5dc7210c92be28f37c954cbc9ab886b0bbec0b08a3f03111f2",
+  "implementation_sha256": "8efffc595e6e4340f987b7d90953f92ccbe517f0fcf63c5e651ceba42786d499"
+}

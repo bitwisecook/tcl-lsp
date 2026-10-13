@@ -924,7 +924,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // C creates the destination's hash entry before `TclPreventAliasLoop`
         // and deletes it again on a refusal, so the resize that transient entry
         // triggers outlives the rejected rename.
-        if let Err(completion) = check_renamed_alias_loop(vm, &key, &old_key, &cmd) {
+        if let Err(completion) = check_renamed_alias_loop(vm, &rename, &key, &old_key, &cmd) {
             return completion;
         }
         if let Err(error) = vm.install_renamed_command(&mut rename, &key, cmd) {
@@ -947,6 +947,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn check_renamed_alias_loop(
     vm: &mut Vm,
+    rename: &crate::interp::CommandRenameTransaction,
     key: &str,
     old_key: &str,
     cmd: &Command,
@@ -956,7 +957,7 @@ fn check_renamed_alias_loop(
         Command::Alias { .. } | Command::CallerAlias(_) | Command::CrossAlias { .. }
     );
     let loops = if is_alias {
-        match vm.alias_chain_loops_for_rename(key, cmd) {
+        match vm.alias_chain_loops_for_rename_transaction(rename, key, cmd) {
             Ok(loops) => loops,
             Err(error) => {
                 vm.forget_rename_destination(key);

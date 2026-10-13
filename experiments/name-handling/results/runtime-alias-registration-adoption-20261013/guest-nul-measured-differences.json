@@ -1,0 +1,67 @@
+[
+  {
+    "test": 57,
+    "differences": [
+      {
+        "guest": "OBSERVATION old-query-after-rename 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-rename 0 3a3a5f5f616e5f746172676574 {}"
+      },
+      {
+        "guest": "OBSERVATION old-query-after-new 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-new 0 3a3a5f5f616e5f746172676574 {}"
+      }
+    ]
+  },
+  {
+    "test": 58,
+    "differences": [
+      {
+        "guest": "OBSERVATION old-query-after-rename 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-rename 0 3a3a5f5f616e5f746172676574 {}"
+      },
+      {
+        "guest": "OBSERVATION old-query-after-new 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-new 0 3a3a5f5f616e5f746172676574 {}"
+      }
+    ]
+  },
+  {
+    "test": 59,
+    "differences": [
+      {
+        "guest": "OBSERVATION old-query-after-rename 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-rename 0 3a3a5f5f616e5f746172676574 {}"
+      },
+      {
+        "guest": "OBSERVATION old-query-after-new 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-new 0 3a3a5f5f616e5f746172676574 {}"
+      }
+    ]
+  },
+  {
+    "test": 60,
+    "differences": [
+      {
+        "guest": "OBSERVATION old-query-after-rename 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-rename 0 3a3a5f5f616e5f746172676574 {}"
+      },
+      {
+        "guest": "OBSERVATION old-query-after-new 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-new 0 3a3a5f5f616e5f746172676574 {}"
+      }
+    ]
+  },
+  {
+    "test": 61,
+    "differences": [
+      {
+        "guest": "OBSERVATION old-query-after-rename 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-rename 0 3a3a5f5f616e5f746172676574 {}"
+      },
+      {
+        "guest": "OBSERVATION old-query-after-new 1 616c69617320223a3a616c696173006f6c6422206e6f7420666f756e64 4e4f4e45",
+        "original": "OBSERVATION old-query-after-new 0 3a3a5f5f616e5f746172676574 {}"
+      }
+    ]
+  }
+]

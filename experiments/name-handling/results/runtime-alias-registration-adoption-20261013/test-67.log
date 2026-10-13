@@ -1,0 +1,17 @@
+
+running 1 test
+test retained_import_original_c91 ... 
+thread 'retained_import_original_c91' (144867) panicked at tests/native_namespace_command_query.rs:116:5:
+assertion `left == right` failed: tcl9.1: result=[]; refusal=Some(ValueAccessRefusal(CommandProtocolUnavailable("captured original command binding"))); stdout=[73, 68, 69, 78, 84, 73, 84, 89, 32, 57, 46, 49, 46, 48, 10]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    retained_import_original_c91
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 1.23s
+

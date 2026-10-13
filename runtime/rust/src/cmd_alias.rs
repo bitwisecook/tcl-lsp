@@ -1465,6 +1465,7 @@ fn interp_alias_original(
                     return interp.transport_host_refusal_from(&owner);
                 }
             };
+        let retained_registration = std::rc::Rc::clone(&registration_name);
         let installed = interp.install_parent_alias_objects(
             child,
             &original_name,
@@ -1499,6 +1500,18 @@ fn interp_alias_original(
             owner.refuse_native_execution(first);
             owner.retire_original_parent_alias(&name, &original_prefix, generation);
             return interp.transport_host_refusal_from(&owner);
+        }
+        if let Err(error) = owner.complete_original_alias_registration(
+            &original_name,
+            tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            &retained_registration,
+            generation,
+        ) {
+            owner.report_cmd_error(error);
+            return interp.transport_host_refusal_from(&owner);
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
         }
     } else {
         let installed =
@@ -1638,6 +1651,7 @@ pub(crate) fn child_alias_handle_original(
         };
     }
     let (registration_name, prefix) = captured.expect("actual child alias capture");
+    let retained_registration = registration_name.as_ref().map(Rc::clone);
     let installed =
         interp.install_parent_alias_objects(child, &name, registration_name, Rc::clone(&prefix));
     let generation = owner.original_parent_alias_generation(&name, &prefix);
@@ -1671,6 +1685,20 @@ pub(crate) fn child_alias_handle_original(
     if let Err(error) = arguments.check() {
         owner.retire_original_parent_alias(&name, &prefix, generation);
         return interp.report_cmd_error(error);
+    }
+    if let Some(registration) = retained_registration {
+        if let Err(error) = owner.complete_original_alias_registration(
+            &name,
+            tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+            &registration,
+            generation,
+        ) {
+            owner.report_cmd_error(error);
+            return interp.transport_host_refusal_from(&owner);
+        }
+        if let Err(error) = arguments.check() {
+            return interp.report_cmd_error(error);
+        }
     }
     if recipe.child_alias_returns_original_registration_name() {
         interp.set_result(argv[2]);

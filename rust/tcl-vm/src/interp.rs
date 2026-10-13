@@ -145,7 +145,7 @@ mod variable_container;
 mod variable_trace_outcomes;
 
 pub(crate) use jim_local::OriginalJimLocalCommand;
-use native_procedure_artifacts::{CachedProcedureArtifact, ProcedureCacheKey};
+use native_procedure_artifacts::ProcedureCacheKey;
 pub(crate) use selected_frame::SelectedFrameRestore;
 
 use crate::command::{
@@ -1277,6 +1277,8 @@ pub struct InterpState {
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
     commands: HashMap<String, Command>,
+    alias_registrations:
+        tcl_registry::native_alias_registration::NativeAliasRegistrationTable<CommandTokenIdentity>,
     /// Sole owned namespace/command-address authority, shared by weak native services.
     name_world: Rc<RefCell<NativeNameWorld>>,
     /// Structured slots, private storage projections, and stable command-token
@@ -1292,7 +1294,8 @@ pub struct InterpState {
     /// Pre-compiled proc bodies from modules, keyed by exact canonical source
     /// identity. Multiple definitions of one command name may coexist: module
     /// admission must not make a later valid body depend on merge order.
-    module_procs: HashMap<ProcedureCacheKey, CachedProcedureArtifact>,
+    module_procs:
+        HashMap<ProcedureCacheKey, native_procedure_artifacts::ProcedureArtifactCandidates>,
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
     /// top governs `proc`/command/variable name resolution. `namespace eval`
     /// and proc activation push/pop it.
@@ -3362,6 +3365,7 @@ impl InterpState {
             const_vars: HashSet::new(),
             commands: HashMap::new(),
             name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
+            alias_registrations: Default::default(),
             fixed_math: FixedMathTable::default(),
             module_procs: HashMap::new(),
             resolution_stacks: NamespaceResolutionStacks::default(),
@@ -6833,14 +6837,33 @@ impl Vm {
                 if src != target {
                     vm.note_alias_backref(&key, target);
                 }
-                Ok::<_, tcl_cmd_core::CmdError>(key)
+                let token = if selected
+                    .alias_registration_replacement_key()
+                    .map_err(|_| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original alias registration purpose",
+                        )
+                    })?
+                    .is_some()
+                {
+                    Some(
+                        vm.command_token_identity(&CommandSidecarKey::visible(&key))
+                            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias publication token",
+                            ))?,
+                    )
+                } else {
+                    None
+                };
+                Ok::<_, tcl_cmd_core::CmdError>((key, token))
             })();
             vm.original_name_finish(source, reached)?
         });
-        let src_key = match self.original_name_outcome(original_name_scope, src_key) {
-            Ok(key) => key,
-            Err(error) => return crate::command::completion_from_cmd_error(self, error),
-        };
+        let (src_key, published_token) =
+            match self.original_name_outcome(original_name_scope, src_key) {
+                Ok(key) => key,
+                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+            };
         if let Err(error) = original_name_scope.current_for_value(self, src_cmd) {
             return crate::command::completion_from_cmd_error(self, error);
         }
@@ -6884,6 +6907,116 @@ impl Vm {
             message.extend_from_slice(b"\": would create a loop");
             return err(message);
         }
+        if let Some(published_token) = published_token {
+            let registration = self.in_interp(src, |vm| {
+                let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                    vm,
+                    Some(ROOT_NS),
+                )?;
+                let reached = (|| {
+                    let selected = vm
+                        .name_policy_protocol()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "original alias registration issuer",
+                        ))?
+                        .recipe()
+                        .child_alias_publication_input(
+                            tcl_syntax::naming::NativeNameContext::root(),
+                            &original,
+                        )
+                        .map_err(|_| {
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias registration coordinate",
+                            )
+                        })?;
+                    if selected
+                        .alias_registration_replacement_key()
+                        .map_err(|_| {
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias registration purpose",
+                            )
+                        })?
+                        .is_none()
+                    {
+                        return Ok::<_, tcl_cmd_core::CmdError>(());
+                    }
+                    drop(selected);
+                    loop {
+                        scope.current_for_value(vm, src_cmd)?;
+                        let registration_name = vm.native_name_operand_bytes_checked(src_cmd)?;
+                        scope.check(vm)?;
+                        let selected = vm
+                            .name_policy_protocol()
+                            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "original alias registration retry issuer",
+                            ))?
+                            .recipe()
+                            .child_alias_publication_input(
+                                tcl_syntax::naming::NativeNameContext::root(),
+                                &registration_name,
+                            )
+                            .map_err(|_| {
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "original alias registration retry coordinate",
+                                )
+                            })?;
+                        let prior = vm
+                            .alias_registrations
+                            .prior(&selected)
+                            .map_err(|_| {
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "original alias registration collision",
+                                )
+                            })?
+                            .cloned();
+                        let Some(prior) = prior else {
+                            let live = vm
+                                .command_token_at_generation(published_token.generation)
+                                .ok_or(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "original alias registration token retired",
+                                ),
+                            )?;
+                            vm.alias_registrations
+                                .install(&selected, live)
+                                .map_err(|_| {
+                                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                        "original alias registration installation",
+                                    )
+                                })?;
+                            scope.check(vm)?;
+                            return Ok(());
+                        };
+                        drop(selected);
+                        drop(registration_name);
+                        scope.check(vm)?;
+                        if vm
+                            .name_world
+                            .borrow()
+                            .command_deletion_active
+                            .contains(&prior.generation)
+                        {
+                            return Err(vm.retain_name_query_refusal(
+                                "alias registration collision during actual token deletion",
+                            ));
+                        }
+                        if let Some(live) = vm.command_token_at_generation(prior.generation)
+                            && let Some(command) = vm.command_at_sidecar_key(&live.key)
+                        {
+                            vm.retire_registered_real_command(&live, &command);
+                            scope.check(vm)?;
+                        } else {
+                            vm.alias_registrations
+                                .forget_deleted(|token| token.generation == prior.generation);
+                        }
+                    }
+                })();
+                vm.original_name_finish(scope, reached)
+            });
+            if let Err(error) = self.original_name_outcome(original_name_scope, registration) {
+                return crate::command::completion_from_cmd_error(self, error);
+            }
+        }
         ok(src_cmd.clone())
     }
 
@@ -6901,12 +7034,14 @@ impl Vm {
         defining_interp: InterpId,
         defining_key: &str,
         first: &Command,
+        rename: Option<&CommandRenameTransaction>,
     ) -> Result<bool, tcl_cmd_core::CmdError> {
         let original = native_name_consumers::OriginalNameConsumerScope::enter(self)?;
         let reached = self.alias_chain_loops_from_in_original_name(
             defining_interp,
             defining_key,
             first,
+            rename,
             &original,
         );
         let reached = self.original_name_outcome(&original, reached);
@@ -6918,6 +7053,7 @@ impl Vm {
         defining_interp: InterpId,
         defining_key: &str,
         first: &Command,
+        rename: Option<&CommandRenameTransaction>,
         original: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<bool, tcl_cmd_core::CmdError> {
         use tcl_syntax::value::ValueError;
@@ -6939,11 +7075,14 @@ impl Vm {
         }
         let start = (defining_interp, defining_key.to_owned());
         let defining_slot = defining_state.command_slot(defining_key);
-        let defining_generation = defining_state
-            .visible_command_generation(defining_key)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original alias defining command generation",
-            ))?;
+        let owner_key = rename.map_or(defining_key, |transaction| transaction.old_key.as_str());
+        let owner_slot = defining_state.command_slot(owner_key);
+        let defining_generation = defining_state.visible_command_generation(owner_key).ok_or(
+            ValueError::CommandProtocolUnavailable("original alias defining command generation"),
+        )?;
+        if rename.is_some_and(|transaction| transaction.source_generation != defining_generation) {
+            return Err(self.retain_name_query_refusal("original alias rename source token"));
+        }
         let defining_world = Rc::clone(&defining_state.name_world);
         tcl_syntax::naming::alias_chain_loops(start.clone(), |(interp, key)| {
             original.check(self)?;
@@ -7012,7 +7151,8 @@ impl Vm {
             original.check(self)?;
             let defining_current = self.st_of(defining_interp).is_some_and(|state| {
                 Rc::ptr_eq(&state.name_world, &defining_world)
-                    && state.visible_command_generation(defining_key) == Some(defining_generation)
+                    && state.visible_command_generation(owner_key) == Some(defining_generation)
+                    && state.command_slot(owner_key) == owner_slot
                     && state.command_slot(defining_key) == defining_slot
             });
             if !defining_current {
@@ -7033,16 +7173,26 @@ impl Vm {
         else {
             return Ok(false);
         };
-        self.alias_chain_loops_from(defining_interp, defining_key, &first)
+        self.alias_chain_loops_from(defining_interp, defining_key, &first, None)
     }
 
-    /// Check a candidate alias against actual slots without publishing it.
+    /// Check the pending destination while retaining the actual source token.
+    pub(crate) fn alias_chain_loops_for_rename_transaction(
+        &mut self,
+        rename: &CommandRenameTransaction,
+        key: &str,
+        alias: &Command,
+    ) -> Result<bool, tcl_cmd_core::CmdError> {
+        self.alias_chain_loops_from(self.cur, key, alias, Some(rename))
+    }
+
+    #[cfg(test)]
     pub(crate) fn alias_chain_loops_for_rename(
         &mut self,
         key: &str,
         alias: &Command,
     ) -> Result<bool, tcl_cmd_core::CmdError> {
-        self.alias_chain_loops_from(self.cur, key, alias)
+        self.alias_chain_loops_from(self.cur, key, alias, None)
     }
 
     /// The names `info functions` exposes on the selected Tcl release.

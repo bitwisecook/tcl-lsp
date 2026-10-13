@@ -818,6 +818,96 @@ pub fn file_analysis(
     )
 }
 
+/// Complete current source owner for independently retained procedure headers.
+/// Declarations supply source correspondence, never loaded implementations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileOriginalProcedureFacts {
+    input: tcl_compiler::analyser::ResolvedAnalysisInput,
+    image: tcl_lexer::SourceImage,
+    declarations: Vec<
+        tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ProcDef,
+        >,
+    >,
+}
+
+impl FileOriginalProcedureFacts {
+    #[must_use]
+    pub fn input(&self) -> &tcl_compiler::analyser::ResolvedAnalysisInput {
+        &self.input
+    }
+
+    #[must_use]
+    pub fn image(&self) -> &tcl_lexer::SourceImage {
+        &self.image
+    }
+
+    #[must_use]
+    pub fn declarations(
+        &self,
+    ) -> &[tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ProcDef,
+    >] {
+        &self.declarations
+    }
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn file_original_procedure_facts(
+    db: &dyn TclDb,
+    file: SourceFile,
+    config: AnalyserConfig,
+) -> Option<Arc<FileOriginalProcedureFacts>> {
+    let input = document_analysis_input(db, file, config).ok()?;
+    let analysis = file_analysis(db, file, config);
+    let (image, source_config) =
+        tcl_compiler::source_graph::current_analysis(file.text(db), &analysis)?;
+    if analysis.resolved_input.as_ref() != Some(input.as_ref())
+        || source_config != input.lexer_config()
+    {
+        return None;
+    }
+    let context = input.context_registry();
+    tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+        context.commands(),
+        &input,
+        source_config,
+        Some(input.unit_profile()),
+    )?;
+    let declarations = analysis
+        .original_procedure_declarations()
+        .filter(|declaration| {
+            declaration.name_input().source_image() == &image
+                && declaration.name_input().lexer_config() == source_config
+        })
+        .cloned()
+        .collect();
+    Some(Arc::new(FileOriginalProcedureFacts {
+        input: (*input).clone(),
+        image,
+        declarations,
+    }))
+}
+
+/// Each configured file retains its own source declarations and input owner.
+/// Missing mappings remain unavailable beside the project's label roster.
+#[salsa::tracked(returns(clone))]
+pub fn project_original_procedure_facts(
+    db: &dyn TclDb,
+    project: Project,
+) -> Arc<Vec<(SourceFile, Arc<FileOriginalProcedureFacts>)>> {
+    Arc::new(
+        project
+            .files(db)
+            .iter()
+            .filter_map(|&file| {
+                let config = project_token_inputs::configuration_for_file(db, project, file)?;
+                Some((file, file_original_procedure_facts(db, file, config)?))
+            })
+            .collect(),
+    )
+}
+
 /// Explicit standalone item inventory, keyed by stable declaration name/kind.
 /// Configured document providers use [`item_tree_for_config`] so selected
 /// pack definitions, source grammar and available generations stay attached.
@@ -5299,6 +5389,90 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
+    fn original_test_body_id(
+        unit: &CompilationUnit,
+        offset: usize,
+    ) -> tcl_compiler::ir::ProcedureId {
+        let offset = u32::try_from(offset).expect("finite original fixture offset");
+        let mut bodies = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
+            procedure.declaration_site.as_ref().is_some_and(|site| {
+                site.offset == offset
+                    && site.source.source_image().bytes() == unit.source.as_bytes()
+            })
+        });
+        let (&id, _) = bodies.next().expect("actual original fixture declaration");
+        assert!(
+            bodies.next().is_none(),
+            "one body at the original fixture site"
+        );
+        id
+    }
+
+    #[test]
+    fn original_procedure_facts_retain_each_current_declaration_site() {
+        use salsa::Setter as _;
+        let mut db = TclDatabase::default();
+        let source = "proc repeated {} {return FIRST}\nproc repeated {} {return SECOND}";
+        let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+        let config = cfg(&db);
+        let first = file_original_procedure_facts(&db, file, config).unwrap();
+        assert_eq!(first.declarations().len(), 2);
+        assert_ne!(
+            first.declarations()[0].declaration_site(),
+            first.declarations()[1].declaration_site()
+        );
+        for declaration in first.declarations() {
+            assert_eq!(declaration.name_input().source_image(), first.image());
+            assert_eq!(
+                declaration.name_input().lexer_config(),
+                first.input().lexer_config()
+            );
+        }
+        assert!(Arc::ptr_eq(
+            &first,
+            &file_original_procedure_facts(&db, file, config).unwrap()
+        ));
+        file.set_text(&mut db).to(format!("{source}\n# new image"));
+        let changed = file_original_procedure_facts(&db, file, config).unwrap();
+        assert_ne!(first.image(), changed.image());
+        assert!(
+            changed
+                .declarations()
+                .iter()
+                .all(|declaration| { declaration.name_input().source_image() == changed.image() })
+        );
+    }
+
+    #[test]
+    fn project_procedure_facts_keep_missing_file_inputs_unavailable() {
+        let db = TclDatabase::default();
+        let first = SourceFile::new(
+            &db,
+            "proc first {} {return FIRST}".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let other = SourceFile::new(
+            &db,
+            "proc other {} {return OTHER}".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let config = cfg(&db);
+        let standalone = Project::new(&db, vec![first, other]);
+        assert!(project_original_procedure_facts(&db, standalone).is_empty());
+        let partial = Project::with_token_configurations(
+            &db,
+            vec![first, other],
+            Some(vec![(first, config)]),
+        );
+        let facts = project_original_procedure_facts(&db, partial);
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].0, first);
+        assert_eq!(facts[0].1.declarations().len(), 1);
+        assert!(facts.iter().all(|(file, _)| *file != other));
+    }
+
     /// A key that misses, installs, retires and misses again is reported each
     /// time it misses: the log keeps a miss once while it stands, and forgets
     /// it when the key installs.
@@ -5978,14 +6152,16 @@ p\uD801 ordinary";
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let first = compilation_unit(&db, file_a, cfg_key, 0).expect("no overlay always builds");
         let second = compilation_unit(&db, file_b, cfg_key, 0).expect("no overlay always builds");
-        for qname in ["::alpha", "::beta"] {
+        for (qname, offset) in [("::alpha", 0), ("::beta", SRC.find("proc beta").unwrap())] {
+            let first_id = original_test_body_id(&first, offset);
+            let second_id = original_test_body_id(&second, offset);
             let a = first
                 .procedures
-                .get(qname)
+                .get(&first_id)
                 .expect("procedure in first build");
             let b = second
                 .procedures
-                .get(qname)
+                .get(&second_id)
                 .expect("procedure in second build");
             assert!(
                 Arc::ptr_eq(&a.def_use, &b.def_use),
@@ -6018,9 +6194,10 @@ p\uD801 ordinary";
         let cfg_key = lexer_cfg_key(&db, "tcl8.4");
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.4".to_owned(), None);
         let unit = compilation_unit(&db, file, cfg_key, 0).expect("no overlay always builds");
+        let subject_id = original_test_body_id(&unit, SRC.find("proc subject").unwrap());
         let subject = unit
             .procedures
-            .get("::subject")
+            .get(&subject_id)
             .expect("subject procedure lattice");
 
         assert!(
@@ -6052,8 +6229,10 @@ p\uD801 ordinary";
             .expect("zero overlay selects the retained stock F5 Registry");
         let second = compilation_unit(&db, second_file, config, 0)
             .expect("zero overlay selects the retained stock F5 Registry");
-        let a = first.procedures.get("::when::HTTP_REQUEST").unwrap();
-        let b = second.procedures.get("::when::HTTP_REQUEST").unwrap();
+        let first_id = original_test_body_id(&first, 0);
+        let second_id = original_test_body_id(&second, 0);
+        let a = first.procedures.get(&first_id).unwrap();
+        let b = second.procedures.get(&second_id).unwrap();
         assert!(
             Arc::ptr_eq(&a.def_use, &b.def_use),
             "the sealed event participates in the lattice memo"
@@ -6107,8 +6286,9 @@ p\uD801 ordinary";
         let unit = compilation_unit(&db, file, config_key, 0)
             .expect("zero overlay selects the retained stock F5 Registry");
         let qname = "::when::HTTP_REQUEST";
-        let event = unit.ir_module.irules_event_bodies.get(qname).unwrap();
-        let procedure = unit.ir_module.procedures.get(qname).unwrap();
+        let body_id = original_test_body_id(&unit, 0);
+        let event = unit.ir_module.irules_event_bodies.get(&body_id).unwrap();
+        let procedure = unit.ir_module.procedures.get(&body_id).unwrap();
         assert_eq!(
             procedure.span.start(),
             0,
@@ -6842,8 +7022,9 @@ p\uD801 ordinary";
         }
 
         fn folds_mode(cu: &CompilationUnit) -> bool {
+            let body_id = original_test_body_id(cu, 0);
             !cu.procedures
-                .get("::helper")
+                .get(&body_id)
                 .expect("helper analysed")
                 .sccp
                 .constant_branches
@@ -6933,9 +7114,10 @@ p\uD801 ordinary";
             );
             ctl.set_external_call_sites(&mut db).to(Some(evidence));
             let cu = document_compilation_unit(&db, ctl);
+            let body_id = original_test_body_id(&cu, 0);
             assert!(
                 !cu.procedures
-                    .get("::helper")
+                    .get(&body_id)
                     .expect("helper analysed")
                     .sccp
                     .constant_branches

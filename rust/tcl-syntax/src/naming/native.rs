@@ -364,6 +364,24 @@ impl<'a> NativeNameProjection<'a> {
         })
     }
 
+    /// C8.4's alias-record coordinate, independent of the command's current slot.
+    /// Later C releases keep distinct registration tokens; Jim has no C table.
+    ///
+    /// # Errors
+    /// Refuses operands that were not selected for alias publication.
+    pub fn alias_registration_replacement_key(
+        &self,
+    ) -> Result<Option<&[u8]>, NameProjectionUnavailable> {
+        if !matches!(
+            self.purpose,
+            NativeNamePurpose::AliasPublication | NativeNamePurpose::ChildAliasPublication
+        ) {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        }
+        Ok((self.protocol == NativeNameProtocol::C(TclVersion::V8_4))
+            .then(|| c_string_extent(self.original)))
+    }
+
     #[must_use]
     pub const fn protocol(&self) -> NativeNameProtocol {
         self.protocol

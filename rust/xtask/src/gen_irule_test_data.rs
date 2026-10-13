@@ -280,8 +280,9 @@ fn unavailable_modern_commands(
 ) -> BTreeSet<String> {
     let tcl84 = crate::environment::context_for_dialect("tcl8.4");
     let mut commands: BTreeSet<_> = registry
-        .command_names()
-        .filter(|command| {
+        .command_descriptor_keys()
+        .filter(|descriptor| {
+            let command = descriptor.label();
             registry
                 .specs(command)
                 .iter()
@@ -289,7 +290,7 @@ fn unavailable_modern_commands(
                 && tcl84.resolve_spec(registry, command).is_none()
                 && context.resolve_spec(registry, command).is_none()
         })
-        .map(|command| tcl_syntax::naming::qualify("::", command))
+        .map(tcl_registry::CanonicalCommandDescriptorKey::rooted_binding_label)
         .collect();
     // TclOO definition members have a native namespace roster rather than
     // ordinary callable catalogue rows. The same owner seeds source lookup.

@@ -1,0 +1,21 @@
+{
+  "directory": "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/alias-registration-source",
+  "files": {
+    "8.4.20-tclInterp.c.txt": {
+      "sha256": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+      "bytes": 72213
+    },
+    "8.5.19-tclInterp.c.txt": {
+      "sha256": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+      "bytes": 126433
+    },
+    "README.md": {
+      "sha256": "087b4a9c8919a250d80ed9317bf71de7ba57dfd03d33ec61b32702556dc543e0",
+      "bytes": 1560
+    },
+    "provenance.json": {
+      "sha256": "e75af73ca4523583e94760b14818097798a3ea17f5270ea17209181614fc24d6",
+      "bytes": 1471
+    }
+  }
+}

@@ -229,7 +229,7 @@ pub(super) fn compiled_label<'a>(
         module,
         declaration,
     )
-    .map(|(label, _)| label)
+    .map(|(_, procedure)| procedure.qualified_name.as_str())
 }
 
 /// Source containment groups calls under a genuine braced original body word.

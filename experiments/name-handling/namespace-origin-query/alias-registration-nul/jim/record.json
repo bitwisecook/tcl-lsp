@@ -1,0 +1,26 @@
+{
+  "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "latest_verification_authority": "parent independently verified upstream HEAD 2026-10-13; raw measurement records its own binary/patchlevel only",
+  "engine": "jim",
+  "measurement_utc": "2026-10-13T19:57:41.941151+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"
+  ],
+  "TCL_LIBRARY": null,
+  "input_sha256": "27dd08e8dfb51a4d9b071ed19a5c10794404c9666be228906ac106b4ddc9fe0e",
+  "exit_code": 0,
+  "stdout_sha256": "1f422df52d4fed4f68b7d5c4e6f87ce4fa571f40ddeb90e01b9d24157b9e5b3e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 18,
+  "inputs_stable": true,
+  "before": {
+    "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "input_sha256": "27dd08e8dfb51a4d9b071ed19a5c10794404c9666be228906ac106b4ddc9fe0e"
+  },
+  "after": {
+    "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "input_sha256": "27dd08e8dfb51a4d9b071ed19a5c10794404c9666be228906ac106b4ddc9fe0e"
+  },
+  "scope": "Original public NUL-containing alias operands constructed by binary format; actual interp alias creation/result/query/inventory and moved command/origin. These are guest NULs, not evidence of native getter internal raw00 extent or Native allocation/cache identity."
+}

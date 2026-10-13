@@ -1,0 +1,16 @@
+✔ disassembly pairs use full body coordinates despite equal display names (0.988801ms)
+✔ different modules never pair through equal ordinals or names (0.128974ms)
+✔ unidentified root and helper rows remain separate (0.256647ms)
+✔ duplicate full keys on either side refuse arbitrary pairing (0.20538ms)
+✔ IR text renders retained labels while preserving equal-name rows (0.757172ms)
+✔ SCCP selections join exact body coordinates without borrowing equal names (0.162324ms)
+✔ CFG edge redraw uses only the retained current view and preserves equal-name containers (0.358961ms)
+✔ CFG edge redraw declines a pane with no current graph rows (0.122174ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12.471557

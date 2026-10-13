@@ -321,6 +321,12 @@ impl OriginalCommandCleanup {
         if let Command::Proc(procedure) = command {
             let _ = self.in_original(vm, |_| procedure.retire());
         }
+        if matches!(command, Command::Alias { .. } | Command::CrossAlias { .. }) {
+            let _ = self.in_original(vm, |vm| {
+                vm.alias_registrations
+                    .forget_deleted(|token| token.generation == source.generation)
+            });
+        }
         if let Command::Native(native) = command {
             let _ = self.in_original(vm, |vm| {
                 let completion = native.retire(vm);

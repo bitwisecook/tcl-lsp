@@ -749,17 +749,16 @@ fn argv_identity(argv: tcl_compiler::executable_ir::ExecutableArgvId) -> Value {
 }
 
 /// Serialise the `ir` view.:
-/// `{ topLevel: [...], procedures: { qname: { params, range, body } } }`.
+/// Procedure rows retain module body IDs independently of their display names.
 #[must_use]
 pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
     let mut procedures = Map::new();
-    let mut qnames: Vec<&String> = module.procedures.keys().collect();
-    qnames.sort();
-    for qname in qnames {
-        let proc = &module.procedures[qname];
+    for (id, proc) in module.procedures.iter() {
         procedures.insert(
-            qname.clone(),
+            format!("body:{}", id.ordinal()),
             json!({
+                "bodyId": id.ordinal(),
+                "name": proc.qualified_name,
                 "params": proc.params,
                 "range": range_dict(proc.span, li, source),
                 "body": serialise_script(&proc.body, li, source),
