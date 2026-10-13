@@ -184,6 +184,8 @@ pub enum Command {
         words: Rc<Vec<Value>>,
         /// Selected original C alias-record spelling, independent of lookup slots.
         publication_name: tcl_core_types::NameBytes,
+        /// Actual retained registration object, independent of command relocation.
+        registration_name: Value,
     },
     /// Jim's original prefix List header; target lookup retains the caller namespace.
     CallerAlias(Value),
@@ -203,6 +205,8 @@ pub enum Command {
         words: Rc<Vec<Value>>,
         /// Selected child registration report in the source interpreter's realm.
         publication_name: tcl_core_types::NameBytes,
+        /// Actual retained registration object, independent of command relocation.
+        registration_name: Value,
     },
     /// A child interpreter addressable as a command (`$child eval …`): the id
     /// addresses the child in the engine's interp arena. Invoking it dispatches
@@ -1506,22 +1510,22 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match sub {
         "create" => interp_create_cmd(vm, rest),
-        // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
         "alias" => match rest {
+            [path, name] => vm.interpreter_alias_query_original(path, name),
+            [path, name, empty] => vm.interpreter_alias_delete_original(path, name, empty),
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
-                // Routing (same-interp / parent→child / child→parent), the
-                // written-name → key qualification, and C's
-                // `TclPreventAliasLoop` walk all live on the Vm.
-                let res = vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec());
-                if res.code.is_ok() {
-                    ok(src_cmd.clone())
-                } else {
-                    res
-                }
+                vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec())
             }
             _ => native_wrong_arguments_message(
                 vm,
-                "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",
+                "wrong # args: should be \"interp alias srcPath srcCmd ?targetPath targetCmd ?arg ...??\"",
+            ),
+        },
+        "target" => match rest {
+            [path, name] => vm.interpreter_alias_target_original(path, name),
+            _ => native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"interp target path alias\"",
             ),
         },
         "aliases" => match rest {

@@ -398,7 +398,8 @@ pub fn run_all_checks_with_solved_and_patterns(
     // An unedited procedure's checks are a cache hit
     // instead of recomputed over the whole unit every edit.
     for fu in cu.analysable_body_function_units() {
-        for d in function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(&fu.name))
+        for d in
+            function_nontaint_checks(fu, registry, dialect, cu.method_instance_vars(fu.body_id))
         {
             out.push(shift(fu, d));
         }
@@ -551,7 +552,7 @@ pub fn push_taint_and_module_checks(
     // body — is still checked; see its doc comment.
     for fu in cu.analysable_body_function_units() {
         let taints = crate::taint::apply_module_variable_traces(
-            solved.taints_for(&fu.name, &fu.taints).clone(),
+            solved.taints_for_function(cu, fu).clone(),
             &fu.ssa,
             module_traces,
         );

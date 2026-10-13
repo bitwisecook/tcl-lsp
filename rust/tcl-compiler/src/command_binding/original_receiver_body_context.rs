@@ -64,6 +64,10 @@ impl OriginalReceiverBodyContext {
         })
     }
 
+    pub(crate) fn declaring_allocation(&self) -> Option<&super::CommandAllocation> {
+        self.provider.identity.as_ref()?.allocation.as_ref()
+    }
+
     pub(crate) fn context(&self) -> &ResolveContext {
         &self.context
     }

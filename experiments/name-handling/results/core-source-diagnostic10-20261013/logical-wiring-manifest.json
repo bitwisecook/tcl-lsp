@@ -1,0 +1,6 @@
+{
+  "patch_sha256": "655c790a530c287335b7118e5ee698bd26c2d6ec7038b4c776175964fd526281",
+  "dependency": "diagnostic.patch SHA 9f01ba493b76d97cbf9ae800f0524085a1a4724c0ce958ee3f4099763374d925 plus shared Logical API",
+  "rust_status": "unexecuted",
+  "change": "Three-line call to exact Logical word correspondence before Native-shaped query"
+}

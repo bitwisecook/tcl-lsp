@@ -515,6 +515,10 @@ pub struct WasmData {
 pub struct WasmModule {
     /// Defined functions, in declaration order.
     pub functions: Vec<WasmFunction>,
+    /// Actual source bodies by full function index, including the import offset.
+    /// Generated helpers have no entry; this is reporting provenance only.
+    pub source_function_ids:
+        std::collections::BTreeMap<u32, crate::native_lowering::NativeFunctionId>,
     /// Imported host functions (occupy function indices `0..imports.len()`).
     pub imports: Vec<WasmImport>,
     /// Data segments.

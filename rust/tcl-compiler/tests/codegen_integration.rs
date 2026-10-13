@@ -21,6 +21,10 @@
 //! Builds small CFG fixtures and runs them through `codegen_function`
 //! / `codegen_module` to verify the resulting `FunctionAsm` shape.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::cfg::{Block, BlockId, CfgModule, Function as CfgFunction, Terminator};
@@ -504,7 +508,10 @@ fn switch_glob_as_proc_tail_keeps_result_on_stack() {
     let ir = lower_to_ir("proc f {x} { switch -glob -- $x a* {set r 1} }", &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
-    let f = asm.procedures.get("::f").expect("proc ::f");
+    let f = asm
+        .procedures
+        .get(&fixture_id(&asm.procedures, "::f"))
+        .expect("proc ::f");
     let ops: Vec<Op> = f.instructions.iter().map(|i| i.op).collect();
     // The arm bodies are subsumed by the runtime invoke, so the only
     // command is the `switch` invoke. Its result flows straight to the
@@ -569,7 +576,10 @@ fn simple_foreach_command_completion_targets_the_paired_opcodes() {
     let ir = lower_to_ir_for_bytecode("proc p {} {foreach x {1 2} { $completion }}", &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry);
-    let function = &asm.procedures["::p"];
+    let function = asm
+        .procedures
+        .get(&fixture_id(&asm.procedures, "::p"))
+        .expect("authored fixture body");
 
     let step_offset = function
         .instructions

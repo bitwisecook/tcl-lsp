@@ -2095,18 +2095,13 @@ fn procedure_plan<'a>(
             .iter()
             .filter(|(id, procedure)| {
                 unit.procedures.get(id).is_some_and(|function| {
-                    // Existing direct-call facts address display names; ambiguity cannot grant a target.
-                    module
-                        .procedures
-                        .unique_display(&procedure.qualified_name)
-                        .is_some_and(|(unique, _)| unique == id)
-                        && direct_proc_eligible(
-                            module,
-                            procedure,
-                            function,
-                            registry,
-                            &unit.command_mutations,
-                        )
+                    direct_proc_eligible(
+                        module,
+                        procedure,
+                        function,
+                        registry,
+                        &unit.command_mutations,
+                    )
                 })
             })
             .map(|(id, _)| *id)
@@ -2383,6 +2378,10 @@ fn codegen_runtime_chunk(
         facts: FunctionFacts::default(),
     };
     if let Some(chunk) = chunk {
+        wasm.source_function_ids.insert(
+            top_index,
+            crate::native_lowering::NativeFunctionId::TopLevel,
+        );
         emitter.emit_command_image(&chunk.text);
     } else {
         emitter.refuse_native_compilation_admission();
@@ -2571,6 +2570,8 @@ fn codegen(
             );
             let install = table_install(&bound, &emitter.proc_indices, table_base_global);
             top.body.splice(0..0, install);
+            wasm.source_function_ids
+                .insert(top_idx, crate::native_lowering::NativeFunctionId::TopLevel);
             wasm.functions.push(top);
         }
         (lowered, _) => {
@@ -2589,6 +2590,8 @@ fn codegen(
                 module.lexer_config,
             );
             let top = emitter.finish_function("::top", "top", None);
+            wasm.source_function_ids
+                .insert(top_idx, crate::native_lowering::NativeFunctionId::TopLevel);
             wasm.functions.push(top);
         }
     }
@@ -2629,6 +2632,10 @@ fn codegen(
                         data: &mut emitter.data,
                         offset: &mut emitter.data_offset,
                     },
+                );
+                wasm.source_function_ids.insert(
+                    emitter.proc_indices[id],
+                    crate::native_lowering::NativeFunctionId::Procedure(*id),
                 );
                 wasm.functions.push(func);
                 continue;
@@ -2681,6 +2688,10 @@ fn codegen(
             module.lexer_config,
         );
         let func = emitter.finish_function(&proc.qualified_name, "proc", Some(proc));
+        wasm.source_function_ids.insert(
+            emitter.proc_indices[id],
+            crate::native_lowering::NativeFunctionId::Procedure(*id),
+        );
         wasm.functions.push(func);
     }
 
@@ -2702,6 +2713,10 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
         WasmEmissionMode::SemanticInvoke(plan) => {
             let imports = add_semantic_imports(wasm);
             let mut emitter = WasmEmitter::for_semantic_invoke(imports, data_base);
+            wasm.source_function_ids.insert(
+                u32::try_from(wasm.imports.len()).expect("import count fits u32"),
+                crate::native_lowering::NativeFunctionId::TopLevel,
+            );
             wasm.functions.push(emitter.finish_semantic_invoke(plan));
             wasm.memory_pages = required_pages(data_base, &emitter.data);
             wasm.data_segments = emitter.data;
@@ -2709,6 +2724,10 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
         WasmEmissionMode::GuardedIntrinsic { plan, evidence } => {
             let imports = add_guarded_intrinsic_imports(wasm);
             let mut emitter = WasmEmitter::for_guarded_intrinsic_invoke(imports, data_base);
+            wasm.source_function_ids.insert(
+                u32::try_from(wasm.imports.len()).expect("import count fits u32"),
+                crate::native_lowering::NativeFunctionId::TopLevel,
+            );
             wasm.functions
                 .push(emitter.finish_guarded_intrinsic_invoke(plan, evidence));
             wasm.memory_pages = required_pages(data_base, &emitter.data);
@@ -2725,6 +2744,14 @@ fn emit_native_i64_add(wasm: &mut WasmModule, data_base: i64, plan: &WasmNativeI
     let add_index = top_index
         .checked_add(1)
         .expect("native function index fits u32");
+    wasm.source_function_ids.insert(
+        top_index,
+        crate::native_lowering::NativeFunctionId::TopLevel,
+    );
+    wasm.source_function_ids.insert(
+        add_index,
+        crate::native_lowering::NativeFunctionId::Procedure(plan.callee.id),
+    );
     wasm.functions.push(WasmFunction {
         name: "::top".to_owned(),
         params: Vec::new(),

@@ -14,6 +14,7 @@ use tcl_registry::CommandRegistry;
 /// A selected source call and its same-owner effective operands. Neither the
 /// declaration nor this conditional join establishes Native Normal completion.
 pub(crate) struct ProcedureCall<'a> {
+    pub(crate) id: crate::ir::ProcedureId,
     pub(crate) procedure: &'a Procedure,
     pub(crate) arguments: EffectiveCommandWords,
 }
@@ -116,14 +117,13 @@ impl<'a> SourceSummaryContext<'a> {
         self.registry
     }
 
-    pub(super) fn procedure(&self, qname: &str) -> Option<&'a Procedure> {
-        let procedure = self.module.procedures.get_unique_display(qname)?;
-        (qname == procedure.qualified_name
-            && self
-                .module
-                .retained_source_bindings
-                .as_ref()?
-                .matches_original_procedure(procedure))
+    pub(super) fn procedure(&self, id: &crate::ir::ProcedureId) -> Option<&'a Procedure> {
+        let procedure = self.module.procedures.get(id)?;
+        (self
+            .module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_original_procedure(procedure))
         .then_some(procedure)
     }
 
@@ -175,8 +175,9 @@ impl<'a> SourceSummaryContext<'a> {
         )?;
         let mut selected: Option<ProcedureCall<'a>> = None;
         for call in calls {
-            let procedure = self.procedure(&call.procedure().qualified_name)?;
+            let procedure = self.procedure(&call.id())?;
             let next = ProcedureCall {
+                id: call.id(),
                 procedure,
                 arguments: call.effective_arguments().clone(),
             };
@@ -321,8 +322,8 @@ impl<'a> SourceSummaryContext<'a> {
         )?;
         let end = base.checked_add(u32::try_from(script.len()).ok()?)?;
         let mut selected: Option<Vec<CommandTokens>> = None;
-        for procedure in self.module.procedures.values() {
-            self.procedure(&procedure.qualified_name)?;
+        for (id, procedure) in self.module.procedures.iter() {
+            self.procedure(id)?;
             let mut pending = vec![&procedure.body];
             while let Some(body) = pending.pop() {
                 for statement in &body.statements {
@@ -393,18 +394,13 @@ impl<'a> SourceSummaryContext<'a> {
     /// statement cannot manufacture that owner from its reporting head or span.
     pub(super) fn statement_tokens(
         &self,
-        qname: &str,
+        body_id: Option<crate::ir::ProcedureId>,
         statement: &Statement,
     ) -> Option<CommandTokens> {
         let mut pending = Vec::new();
-        if let Some(procedure) = self.procedure(qname) {
-            pending.push(&procedure.body);
-        }
-        // This is the compilation unit's explicit top-level entry identity.
-        // A procedure also called ::top still needs its own genuine header;
-        // original statement extents and carriers distinguish the two roots.
-        if qname == "::top" {
-            pending.push(&self.module.top_level);
+        match body_id {
+            Some(id) => pending.push(&self.procedure(&id)?.body),
+            None => pending.push(&self.module.top_level),
         }
         if pending.is_empty() {
             return None;
@@ -433,7 +429,10 @@ impl<'a> SourceSummaryContext<'a> {
         found
     }
 
-    pub(super) fn body_commands(&self, qname: &str) -> Option<Vec<CommandTokens>> {
+    pub(super) fn body_commands(
+        &self,
+        qname: &crate::ir::ProcedureId,
+    ) -> Option<Vec<CommandTokens>> {
         let procedure = self.procedure(qname)?;
         let mut commands = Vec::new();
         let mut pending: Vec<&Script> = vec![&procedure.body];

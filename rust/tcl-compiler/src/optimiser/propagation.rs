@@ -1207,14 +1207,14 @@ fn oo_frame_for(
 fn oo_method_constants(
     ctx: &PassContext<'_>,
     cu: &CompilationUnit,
-    qname: &str,
+    body_id: &crate::ir::ProcedureId,
     frame: &OoFrame,
     allow_locals: bool,
 ) -> std::collections::HashMap<String, String> {
     if !allow_locals {
         return std::collections::HashMap::new();
     }
-    let (Some(fu), Some(registry)) = (cu.methods.get(qname), ctx.registry) else {
+    let (Some(fu), Some(registry)) = (cu.methods.get(body_id), ctx.registry) else {
         return std::collections::HashMap::new();
     };
     if fu.complexity_guarded {
@@ -1240,13 +1240,13 @@ fn oo_method_constants(
     let Some(facts) = fu.method_facts.as_deref() else {
         return std::collections::HashMap::new();
     };
-    let sccp = crate::sccp::sccp_with_builtin_folds(
-        &fu.cfg,
-        &fu.ssa,
-        None,
-        FoldPolicy::from_registry(registry),
-        &facts.instance_vars,
-        crate::sccp::TraceInputs {
+    let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+        cfg: &fu.cfg,
+        ssa: &fu.ssa,
+        param_constants: None,
+        policy: FoldPolicy::from_registry(registry),
+        extra_escaping: &facts.instance_vars,
+        trace: crate::sccp::TraceInputs {
             registry,
             source_metadata_input: fu
                 .invocation_metadata_context_for_module(registry, &cu.ir_module)
@@ -1259,7 +1259,7 @@ fn oo_method_constants(
             analysis_context: None,
             existence: None,
         },
-        Some(crate::sccp::BuiltinFoldInputs {
+        folds: Some(crate::sccp::BuiltinFoldInputs {
             registry,
             source_metadata_input: fu
                 .invocation_metadata_context_for_module(registry, &cu.ir_module)
@@ -1273,7 +1273,11 @@ fn oo_method_constants(
             trust: crate::sccp::FoldTrust::WholeModule,
             proven_pure_parameters: false,
         }),
-    );
+        module: crate::sccp::ModuleRun {
+            analysis_body: Some(Some(*body_id)),
+            ..crate::sccp::ModuleRun::NONE
+        },
+    });
     sccp_constants_from(&sccp, &fu.ssa, ctx.fold_policy())
 }
 
@@ -1302,7 +1306,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         .map(|registry| super::method_barrier::compute(&cu.ir_module, registry));
     // Sorted so the emitted rewrite order is deterministic across runs
     // (`ir_module.methods` is a `HashMap`).
-    let mut qnames: Vec<&String> = cu.ir_module.methods.keys().collect();
+    let mut qnames: Vec<&crate::ir::ProcedureId> = cu.ir_module.methods.keys().collect();
     qnames.sort();
     for qname in qnames {
         let Some(method) = cu.ir_module.methods.get(qname) else {
@@ -1311,7 +1315,7 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(frame) = oo_frame_for(method, &ctx.command_mutations) else {
             continue;
         };
-        let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(qname));
+        let allow_locals = barrier.as_ref().is_some_and(|b| b.allows_locals(*qname));
         let constants = oo_method_constants(ctx, cu, qname, &frame, allow_locals);
         walk_oo_script(ctx, cu, &method.body, &frame, &constants, 0);
     }
@@ -2002,6 +2006,7 @@ fn evaluate_proc_with_constants(
         // with (#2164).
         folds: Some(folds),
         module: crate::sccp::ModuleRun {
+            analysis_body: callee.body_id.map(Some),
             procedures: Some(&module),
             owned: None,
             level: crate::sccp::ModuleLevel::Results,
@@ -2017,7 +2022,7 @@ fn evaluate_proc_with_constants(
                 .source_lexer_config()
                 .grammar_over(source_metadata_input.unit_profile().grammar),
             folds,
-            module: Some((&module, callee.name.as_str())),
+            module: Some((&module, &callee.body_id?)),
         },
     )
 }
@@ -2096,6 +2101,7 @@ fn const_value_text(cv: &ConstValue, policy: FoldPolicy) -> Option<String> {
 /// namespaces could fold a call to the wrong one's constant return.
 ///
 /// Returns the first candidate that has a summary, else `None`.
+#[cfg(test)]
 fn resolve_proc_qname(
     command: &str,
     namespace: &str,
@@ -2105,7 +2111,11 @@ fn resolve_proc_qname(
         return None;
     }
     crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |qname| {
-        ia.procedures.contains_key(qname)
+        ia.procedures
+            .values()
+            .filter(|summary| summary.qualified_name == qname)
+            .count()
+            == 1
     })
 }
 
@@ -2118,21 +2128,35 @@ fn try_fold_static_proc_call(
     span: tcl_lexer::Span,
     command: &str,
     tokens: Option<&CommandTokens>,
-    namespace: &str,
+    _namespace: &str,
 ) {
     let Some(ia) = cu.interproc.as_ref() else {
         return;
     };
-    let Some(qname) = resolve_proc_qname(command, namespace, ia) else {
+    let Some(registry) = ctx.registry else {
         return;
     };
-    let Some(summary) = ia.procedures.get(&qname) else {
+    let Some(calls) = tokens.and_then(|tokens| {
+        crate::registry_invocation::original_source_procedure_calls_for_word_for_module(
+            tokens,
+            command,
+            &cu.ir_module,
+            registry,
+        )
+    }) else {
         return;
     };
+    let [call] = calls.as_slice() else {
+        return;
+    };
+    let Some(summary) = ia.procedures.get(&call.id()) else {
+        return;
+    };
+    let qname = &call.procedure().qualified_name;
     // A redefined proc has an ambiguous body — never fold its calls
     // (the flow-sensitive rename gate, mirroring the cmd-subst form and
     // `redefined_procedures` check).
-    if cu.ir_module.redefined_procedures.contains(&qname) {
+    if cu.ir_module.redefined_procedures.contains(qname) {
         return;
     }
     // Nor a proc whose bare name is later `rename`d over or `interp
@@ -2148,18 +2172,18 @@ fn try_fold_static_proc_call(
     if !summary.can_fold_static_calls {
         return;
     }
-    let literal_words = tokens.and_then(|tokens| {
-        let words = tokens.words().get(1..)?;
-        words
-            .iter()
-            .all(|word| {
-                matches!(
-                    word,
-                    crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
-                )
-            })
-            .then_some(words.len())
-    });
+    let literal_words = call
+        .effective_arguments()
+        .words
+        .iter()
+        .all(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        })
+        .then(|| call.argument_count())
+        .flatten();
     if !summary_answers(&summary.params, literal_words) {
         return;
     }
@@ -2615,12 +2639,11 @@ fn try_o103_proc_fold(
     }
     let qname = target.command.clone();
     let (declaration_id, declaration) = cu.ir_module.source_procedure_for_target(target)?;
-    (cu.ir_module.procedures.unique_display(&qname)?.0 == &declaration_id).then_some(())?;
     if !target.matches_authored_implementation_image(&cu.ir_module.source, declaration.span.start())
     {
         return None;
     }
-    let summary = ia.procedures.get(&qname)?;
+    let summary = ia.procedures.get(&declaration_id)?;
     // A redefined proc has an ambiguous body — never fold its calls.
     if cu.ir_module.redefined_procedures.contains(&qname) {
         return None;
@@ -2678,7 +2701,7 @@ fn try_o103_proc_fold(
     {
         render_proc_constant_return(ctx, cr)?
     } else if summary.pure
-        && let Some(callee) = cu.function(&qname)
+        && let Some(callee) = cu.procedures.get(&declaration_id)
         && let Some(value) = evaluate_proc_with_constants(
             (ctx, cu),
             callee,

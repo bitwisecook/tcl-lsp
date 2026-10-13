@@ -72,7 +72,8 @@ fn logical_procedure_is_pure(tokens: &CommandTokens, purity: PurityCtx<'_>) -> b
             // The source module keeps the first declaration when a later
             // declaration replaces it. A name-keyed summary cannot select
             // which declaration it describes across that lifecycle barrier.
-            !module.redefined_procedures.contains(name) && purity.interproc_pure.contains(name)
+            !module.redefined_procedures.contains(name)
+                && purity.interproc_pure.contains(&call.id())
         })
 }
 
@@ -114,7 +115,7 @@ mod tests {
     fn check_with_procedure_summary(
         unit: &CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-        pure: &HashSet<String>,
+        pure: &HashSet<crate::ir::ProcedureId>,
     ) -> bool {
         let function = &unit.top_level;
         let purity = PurityCtx {

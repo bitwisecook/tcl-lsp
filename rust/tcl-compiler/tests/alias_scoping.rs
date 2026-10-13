@@ -111,19 +111,16 @@ fn v(items: &[&str]) -> Vec<String> {
 /// module's `procedures` map.
 fn mem(source: &str, proc: &str) -> MemorySsaFunction {
     let module = build_cfg(&lower_to_ir(source, registry()), false);
-    let f: &Function = module
+    let mut matching = module
         .procedures
         .iter()
-        .find(|(qname, _)| qname.contains(proc))
-        .map_or_else(
-            || {
-                panic!(
-                    "proc {proc:?} not found in {:?}",
-                    module.procedures.keys().collect::<Vec<_>>()
-                )
-            },
-            |(_, f)| f,
-        );
+        .filter(|(_, function)| function.name.contains(proc));
+    let (id, _) = matching.next().expect("authored fixture procedure");
+    assert!(
+        matching.next().is_none(),
+        "ambiguous authored fixture procedure"
+    );
+    let f: &Function = module.procedures.get(id).expect("retained fixture body");
     build_memory_ssa(
         &build_ssa(f, registry()),
         registry(),

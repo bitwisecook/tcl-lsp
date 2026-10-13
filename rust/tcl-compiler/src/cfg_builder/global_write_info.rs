@@ -276,6 +276,86 @@ impl GlobalWriteInfo {
 /// Then closes the per-proc summaries transitively over the direct-call
 /// graph (a proc that calls a global-writing proc also "writes" those
 /// names, recursively) via a bounded fixpoint — monotonic set-union, so
+/// Outer-place MAY facts keyed by exact retained body, with source-selected edges.
+pub(crate) fn detect_global_write_bodies_with_registry(
+    module: &Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<crate::ir::ProcedureId, GlobalWriteInfo> {
+    let bindings = ModuleCommandBindings::analyse(module, registry);
+    let semantics = GlobalWriteSemantics::from_module(module, registry, &bindings);
+    let mut rows = HashMap::new();
+    let mut edges = HashMap::<crate::ir::ProcedureId, BTreeSet<crate::ir::ProcedureId>>::new();
+    for (id, procedure) in module.procedures.iter() {
+        let namespace = procedure
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+        let mut info = match (semantics.as_ref(), namespace) {
+            (Some(semantics), Some(namespace)) => {
+                own_body_global_writes(&procedure.body, semantics, &namespace)
+            }
+            _ => GlobalWriteInfo {
+                names: BTreeSet::new(),
+                opaque_global_frame: true,
+            },
+        };
+        crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+            let Statement::Call {
+                command, tokens, ..
+            } = statement
+            else {
+                return;
+            };
+            let Some(tokens) = tokens.as_ref() else {
+                info.opaque_global_frame = true;
+                return;
+            };
+            let Some(binding) = tokens.source_binding.as_ref() else {
+                info.opaque_global_frame = true;
+                return;
+            };
+            if binding
+                .original_invocation_metadata_for_module(tokens, module, registry)
+                .is_none()
+            {
+                info.opaque_global_frame = true;
+                return;
+            }
+            let lookup = binding.lookup_command_word(command);
+            info.opaque_global_frame |= lookup.unknown || lookup.may_be_absent;
+            for target in &lookup.targets {
+                if target.registry_backed {
+                    continue;
+                }
+                if let Some((callee, _)) = module.source_procedure_for_target(target) {
+                    edges.entry(*id).or_default().insert(callee);
+                } else {
+                    info.opaque_global_frame = true;
+                }
+            }
+        });
+        rows.insert(*id, info);
+    }
+    loop {
+        let prior = rows.clone();
+        for (id, callees) in &edges {
+            let row = rows.get_mut(id).expect("retained body row");
+            for callee in callees {
+                if let Some(facts) = prior.get(callee) {
+                    row.union_from(facts);
+                } else {
+                    row.opaque_global_frame = true;
+                }
+            }
+        }
+        if rows == prior {
+            break;
+        }
+    }
+    rows
+}
+
 /// recursive/mutually-recursive cycles terminate safely.
 #[must_use]
 pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWriteInfo> {

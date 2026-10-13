@@ -1,0 +1,29 @@
+{
+  "head": "a53dad52273f71004e101b73551a5c642e5cdd6d",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "before_sha256": null,
+      "after_sha256": "673f05d297d922a43bccd029e500ea08dfba0395ebb05ea4f79648b378773da9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lib.rs",
+      "before_sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+      "after_sha256": "0929e16466ecaf6f1b9a4ec18ad13189f7b0bb0dde2759f450b1388fb1990ec6"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "before_sha256": "abf1afb0d00c5771f030962d14b1e167faf5cc2af4b8395bdd8a1ef91c65edc3",
+      "after_sha256": "7c9f06b0ed8f08c3d781ceaa9712e9f38b454a5600392ca3e19aece6e1ef990e"
+    }
+  ],
+  "patch_sha256": "e8f37ad26b6d4a44a2f5ae860b62c15d42ed057c73d0ae5f00a9df47f89a3de9",
+  "validation": "not compiled, not applied; codegen remains frozen for strict-followon-04",
+  "obligations": [
+    "neutral certificate tests and all original memo/edit assertions",
+    "genuine external declaration/scanner configured input handoff",
+    "DB codegen/reports/corpus parity tests",
+    "capsule API deny(missing_docs) and clippy"
+  ],
+  "semantics": "real CU/Module/IA/FU/world/actual body-ID owners, existing NativeBodyTemplate-backed private correspondence only; unavailable certificate keeps owner-exact memo identity"
+}

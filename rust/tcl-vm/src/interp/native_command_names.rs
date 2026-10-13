@@ -364,9 +364,29 @@ impl Vm {
                 .unwrap_or(0),
             reference,
         };
+        let referencing_namespace = match reference {
+            Some(reference) => NsId(u32::try_from(reference.namespace_token).map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original command reference token")
+            })?),
+            None => ROOT_NS,
+        };
+        let current = self.native_command_name_lookup_state(&cache, referencing_namespace);
+        entered.require(
+            self,
+            protocol.selected_binding_is_current(&cache, &current),
+            "fresh original command binding",
+        )?;
+        let retained = cache.clone();
         let reached =
             original.install_native_command_name_cache_checked(cache, dialect, &mut || {
-                selected.check(self, entered)
+                selected.check(self, entered)?;
+                let current =
+                    self.native_command_name_lookup_state(&retained, referencing_namespace);
+                entered.require(
+                    self,
+                    protocol.selected_binding_is_current(&retained, &current),
+                    "fresh original command binding",
+                )
             });
         selected.check(self, entered)?;
         reached?;
@@ -729,6 +749,12 @@ impl Vm {
                 self.native_command_name_reference(namespace),
             ),
         };
+        let current = self.native_command_name_lookup_state(&cache, namespace);
+        if !protocol.selected_binding_is_current(&cache, &current) {
+            return Err(Error::unavailable(
+                "native command literal selected binding is stale",
+            ));
+        }
         original
             .prime_native_command_name_cache(cache, dialect)
             .map_err(|_| Error::unavailable("native command literal primary cache is unavailable"))

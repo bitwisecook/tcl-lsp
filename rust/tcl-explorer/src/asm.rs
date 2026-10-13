@@ -88,14 +88,20 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
     );
 
     let mut entries: Vec<Value> = Vec::new();
-    entries.push(function_explorer(
+    let mut top = function_explorer(
         &module.top_level,
         &module.top_level.name,
         "top",
         top_source_range(&result.unit.ir_module, li, source),
         li,
         source,
+    );
+    top["isTopLevel"] = json!(true);
+    top["bodyKey"] = json!(format!(
+        "{}:root",
+        result.unit.ir_module.procedure_ids.reporting_scope()
     ));
+    entries.push(top);
 
     let mut procedures: Vec<_> = module.procedures.iter().collect();
     procedures.sort_by(|(left_id, left), (right_id, right)| {
@@ -110,6 +116,7 @@ pub fn serialise_asm(result: &ExplorerResult, li: &LineIndex, source: &str) -> V
             .map_or(Value::Null, |p| range_dict(p.span, li, source));
         let mut entry = function_explorer(asm, &asm.name, "proc", src_range, li, source);
         entry["bodyId"] = json!(id.ordinal());
+        entry["bodyKey"] = json!(id.reporting_key());
         entries.push(entry);
     }
     Value::Array(entries)

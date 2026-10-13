@@ -50,13 +50,20 @@ source image/configuration, Registry/context and any actually selected target.
 Source-only catalogue rows cannot establish reached runtime applicability or
 current stores. Consumers must keep their independent execution/frame proofs.
 
-`Module::retain_procedure` and `retain_body_unit` issue shared `ProcedureId`
+`Module::retain_procedure`, `retain_method` and `retain_body_unit` issue shared `ProcedureId`
 values. Module clones retain existing IDs and share issuance state; separately
 built modules cannot join equal ordinals. Inventories retain every body,
 including repeated display names. Select original bodies through
 `source_procedure_for_target` or `source_procedure_for_allocation`, after genuine
 allocation and source correspondence agree. Never recover a body ID from a
 printed name. The ordinal is only a within-module presentation field.
+
+Interprocedural summaries, taint, escape facts, inlining and target code
+generation select bodies by these IDs. `BodyFrameId` distinguishes the actual
+module root from retained bodies. Method kind and declaring source owner are
+separate metadata, so a method named `<constructor>` cannot become a constructor
+through its label. Source calls select their independently retained allocation
+before joining an analysis; an equal display name cannot supply that join.
 
 Function-unit and source-provenance joins retain that ID separately from their
 name. Neutral memo results require a fresh exact body join; cache reuse grants
@@ -253,11 +260,20 @@ operands as authoring keys. Scanned C literals remain separately recorded
 `c_registration_operands` with unresolved publication context; literal spelling
 cannot identify the entered interpreter, namespace, API purpose or allocation.
 
-C8.4 alias registration uses the shared purpose-selected replacement coordinate
-and `NativeAliasRegistrationTable`. The backend retains the actual command
-token across relocation and removes the record only after actual deletion.
-Callbacks require a new read of the same original input and a current-token
-check before retry. Later C versions and Jim keep independent policies.
+C alias query, target selection, deletion and inventory use
+`NativeAliasRegistrationTable` at the original registration coordinate. The
+backend retains the actual command token across relocation and removes the
+record only after actual deletion. C8.4 replaces an occupied registration;
+later C releases allocate a unique original token by prepending `::` on a
+collision. Inventory retains the original objects in physical table order.
+Callbacks reread the same original input and check token currency before
+retry. Jim retains its separate command-object alias policy.
+
+`NativeCommandNameProtocol::selected_binding_is_current` validates a fresh
+lookup's selected token and generations. `cache_is_current` additionally
+applies the release's cached-reuse namespace gate. A fresh binding in a dying
+namespace cannot be rejected solely because a previous cached binding there
+was unsuitable for reuse.
 
 ## Dynamic code and familiar naming patterns
 

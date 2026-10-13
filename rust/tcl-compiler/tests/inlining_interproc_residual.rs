@@ -80,6 +80,10 @@
 //! no execution proof beyond the tclsh fact that the un-inlined program's value
 //! is unchanged.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::collections::HashSet;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -236,7 +240,12 @@ fn count_statements_block_recurses() {
     // inlining.rs — so `eval` is used to get a real recursable Block.)
     let m = module_for("proc f {} {\n eval { set a 1\nset b 2 }\n}\n");
     assert_eq!(
-        count_statements(&m.procedures["::f"].body),
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
         2,
         "Block counts its inner statements transitively"
     );
@@ -248,7 +257,12 @@ fn count_statements_upframe_recurses() {
     // counted (the UpFrame node itself is transparent to the count).
     let m = module_for("proc f {} {\n uplevel 1 { set a 1 }\n}\n");
     assert_eq!(
-        count_statements(&m.procedures["::f"].body),
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
         1,
         "UpFrame counts its body, not itself"
     );
@@ -260,7 +274,12 @@ fn count_statements_for_counts_all_subscripts() {
     // init `set i 0` (1) + 1 + next `incr i` (1) + body `set a 1` (1) = 4.
     let m = module_for("proc f {} {\n for {set i 0} {$i < 2} {incr i} { set a 1 }\n}\n");
     assert_eq!(
-        count_statements(&m.procedures["::f"].body),
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
         4,
         "For counts init + 1 + next + body"
     );
@@ -271,7 +290,12 @@ fn count_statements_while_counts_construct_plus_body() {
     // While = 1 + count(body). 1 + `set a 1` (1) = 2.
     let m = module_for("proc f {} {\n while {1} { set a 1 }\n}\n");
     assert_eq!(
-        count_statements(&m.procedures["::f"].body),
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
         2,
         "While counts 1 (itself) + its body"
     );
@@ -283,7 +307,12 @@ fn count_statements_if_with_else_counts_both_arms() {
     // clause: 1 + `set a 1` (1) = 2; else: `set b 2` (1) = 1; total 3.
     let m = module_for("proc f {} {\n if {1} { set a 1 } else { set b 2 }\n}\n");
     assert_eq!(
-        count_statements(&m.procedures["::f"].body),
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
         3,
         "If counts each clause (1 + body) plus the else body"
     );
@@ -293,7 +322,15 @@ fn count_statements_if_with_else_counts_both_arms() {
 fn count_statements_bare_call_is_one() {
     // The `_ => 1` fallback arm: a single leaf `Call` counts as 1.
     let m = module_for("proc f {} { puts hi }\n");
-    assert_eq!(count_statements(&m.procedures["::f"].body), 1);
+    assert_eq!(
+        count_statements(
+            m.procedures
+                .get(&fixture_id(&m.procedures, "::f"))
+                .expect("authored fixture body")
+                .body
+        ),
+        1
+    );
 }
 
 // rewrite_stmt — recursion into a nested control-flow body that produces a
@@ -941,19 +978,22 @@ fn direct_calls_excludes_transitive_edges() {
     // a → b → c. `a.calls` is the transitive closure {b, c}; `a.direct_calls` is
     // only {b}.
     let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { ::c }\nproc ::c {} { set x 1 }\n");
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
-        a.direct_calls.contains(&"::b".to_string()),
+        a.direct_calls.contains(&fixture_id(&ia.procedures, "::b")),
         "direct_calls includes the immediate callee b, got {:?}",
         a.direct_calls
     );
     assert!(
-        !a.direct_calls.contains(&"::c".to_string()),
+        !a.direct_calls.contains(&fixture_id(&ia.procedures, "::c")),
         "direct_calls excludes the transitive callee c, got {:?}",
         a.direct_calls
     );
     assert!(
-        a.calls.contains(&"::c".to_string()),
+        a.calls.contains(&fixture_id(&ia.procedures, "::c")),
         "calls (transitive) DOES include c, got {:?}",
         a.calls
     );
@@ -968,14 +1008,22 @@ fn writes_global_propagates_transitively() {
     // `a` itself writes nothing global, but it calls `b` which writes `::g`.
     // `a.writes_global` must be true via the transitive OR.
     let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { set ::g 1 }\n");
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
         a.writes_global,
         "writes_global propagates from a transitive callee"
     );
     // Control: a leaf that writes nothing global stays false.
     let ia2 = interproc("proc ::pure {} { return 1 }\n");
-    assert!(!ia2.procedures.get("::pure").unwrap().writes_global);
+    assert!(
+        !ia2.procedures
+            .get(&fixture_id(&ia2.procedures, "::pure"))
+            .unwrap()
+            .writes_global
+    );
 }
 
 #[test]
@@ -983,7 +1031,10 @@ fn has_unknown_calls_propagates_transitively() {
     // `a` calls `b`, and `b` calls an unknown command. `a.has_unknown_calls` is
     // true via the transitive OR.
     let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { nosuchcmd_xyz }\n");
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
         a.has_unknown_calls,
         "has_unknown_calls propagates from a transitive callee"
@@ -997,7 +1048,10 @@ fn upframe_body_marks_barrier_and_impure() {
     // A static-body `uplevel 1 { … }` lowers to an `UpFrame`, which the scanner
     // treats as a conservative barrier (it can touch any caller-scope variable).
     let ia = interproc("proc ::f {} { uplevel 1 { set x 1 } }\n");
-    let s = ia.procedures.get("::f").expect("::f summary");
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .expect("::f summary");
     assert!(s.has_barrier, "a static uplevel body is a barrier");
     assert!(!s.pure, "a barrier proc is impure");
     assert_eq!(
@@ -1014,7 +1068,10 @@ fn effect_writes_propagate_through_transitive_callee() {
     // `a.effect_writes` must include UNKNOWN_STATE via the callee union, even
     // though `a` itself has no local effect.
     let ia = interproc("proc ::a {} { ::b }\nproc ::b {} { eval $dyn }\n");
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
         a.effect_writes.contains(EffectRegion::UNKNOWN_STATE),
         "a's effect_writes unions b's UNKNOWN_STATE, got {:?}",
@@ -1023,7 +1080,10 @@ fn effect_writes_propagate_through_transitive_callee() {
     // Control: a leaf with no effects keeps NONE.
     let ia2 = interproc("proc ::pure {} { return 1 }\n");
     assert_eq!(
-        ia2.procedures.get("::pure").unwrap().effect_writes,
+        ia2.procedures
+            .get(&fixture_id(&ia2.procedures, "::pure"))
+            .unwrap()
+            .effect_writes,
         EffectRegion::NONE
     );
 }
@@ -1037,7 +1097,10 @@ fn effect_writes_propagate_through_transitive_callee() {
 fn constant_return_float_literal() {
     // tclsh (8.6, 9.0): `proc f {} { return 3.5 }; f` → 3.5.
     let ia = interproc("proc ::f {} { return 3.5 }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert!(s.returns_constant);
     assert_eq!(s.constant_return, Some(ConstantReturn::Float(3.5)));
 }
@@ -1048,7 +1111,10 @@ fn constant_return_bool_literal() {
     // written, are the spellings a boolean's text gives back.
     // tclsh (8.6, 9.0): `proc f {} { return true }; f` → "true".
     let ia = interproc("proc ::f {} { return true }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert!(s.returns_constant);
     assert_eq!(s.constant_return, Some(ConstantReturn::Bool(true)));
 }
@@ -1058,7 +1124,10 @@ fn constant_return_string_literal() {
     // A bare-word non-numeric, non-bool literal is a Str constant.
     // tclsh (8.6, 9.0): `proc f {} { return hello }; f` → "hello".
     let ia = interproc("proc ::f {} { return hello }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert!(s.returns_constant);
     assert_eq!(s.constant_return, Some(ConstantReturn::Str("hello".into())));
 }
@@ -1074,7 +1143,10 @@ fn constant_return_quoted_and_braced_multiword() {
         "proc ::f {} { return {a b c} }\n",
     ] {
         let ia = interproc(src);
-        let s = ia.procedures.get("::f").unwrap();
+        let s = ia
+            .procedures
+            .get(&fixture_id(&ia.procedures, "::f"))
+            .unwrap();
         assert!(s.returns_constant, "constant for {src}");
         assert_eq!(
             s.constant_return,
@@ -1115,7 +1187,10 @@ fn the_shapes_read_a_literal_return_exactly() {
     ];
     for (source, constant) in cases {
         let ia = interproc(source);
-        let s = ia.procedures.get("::f").unwrap();
+        let s = ia
+            .procedures
+            .get(&fixture_id(&ia.procedures, "::f"))
+            .unwrap();
         assert_eq!(s.constant_return, constant, "{source}");
         assert_eq!(s.return_passthrough_param, None, "{source}");
     }
@@ -1126,7 +1201,10 @@ fn passthrough_brace_form_param_detected() {
     // `return ${x}` is a passthrough of param `x` (the brace-form strip arm).
     // tclsh (8.6, 9.0): `proc id {x} { return ${x} }; id hello` → "hello".
     let ia = interproc("proc ::id {x} { return ${x} }\n");
-    let s = ia.procedures.get("::id").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::id"))
+        .unwrap();
     assert_eq!(s.return_passthrough_param.as_deref(), Some("x"));
     assert!(
         !s.returns_constant,
@@ -1139,7 +1217,10 @@ fn return_uses_param_records_depends_not_passthrough() {
     // `return [expr {$x + 1}]` USES param x but is not a plain passthrough —
     // it records `return_depends_on_params = [x]` with no passthrough param.
     let ia = interproc("proc ::f {x} { return [expr {$x + 1}] }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert_eq!(s.return_passthrough_param, None, "not a plain passthrough");
     assert_eq!(
         s.return_depends_on_params,
@@ -1154,7 +1235,10 @@ fn mixed_passthrough_params_is_depends_only() {
     // Two returns passing through *different* params → not a single passthrough;
     // the depends set is the union {x, y}.
     let ia = interproc("proc ::f {x y} { if {$x > 0} { return $x } else { return $y } }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert_eq!(s.return_passthrough_param, None);
     assert_eq!(
         s.return_depends_on_params,
@@ -1169,7 +1253,10 @@ fn no_return_proc_is_not_constant() {
     // A proc with no `return` (falls off the end) has an empty return list →
     // `summarise_returns` returns the `(false, None, …)` empty-case tuple.
     let ia = interproc("proc ::f {} { set x 1 }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert!(!s.returns_constant);
     assert_eq!(s.constant_return, None);
     assert!(s.return_depends_on_params.is_empty());
@@ -1185,9 +1272,12 @@ fn edge_via_assigned_value_substitution() {
     let ia = interproc(
         "proc ::double {n} { return [expr {$n * 2}] }\nproc ::a {x} { set y [double $x] }\n",
     );
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
-        a.calls.contains(&"::double".to_string()),
+        a.calls.contains(&fixture_id(&ia.procedures, "::double")),
         "a call inside an assigned value is a call-graph edge, got {:?}",
         a.calls
     );
@@ -1199,9 +1289,12 @@ fn edge_via_return_substitution() {
     let ia = interproc(
         "proc ::add {a b} { return [expr {$a + $b}] }\nproc ::a {x} { return [add $x $x] }\n",
     );
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
-        a.calls.contains(&"::add".to_string()),
+        a.calls.contains(&fixture_id(&ia.procedures, "::add")),
         "a call inside a return value is an edge, got {:?}",
         a.calls
     );
@@ -1213,9 +1306,12 @@ fn edge_via_incr_amount_substitution() {
     // call site (the `Statement::Incr { amount }` substitution scan).
     let ia =
         interproc("proc ::amount {} { return 3 }\nproc ::a {} { set acc 0\nincr acc [amount] }\n");
-    let a = ia.procedures.get("::a").expect("::a summary");
+    let a = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::a"))
+        .expect("::a summary");
     assert!(
-        a.calls.contains(&"::amount".to_string()),
+        a.calls.contains(&fixture_id(&ia.procedures, "::amount")),
         "a call inside an incr amount is an edge, got {:?}",
         a.calls
     );
@@ -1282,13 +1378,18 @@ fn method_calling_impure_proc_unions_its_effects() {
     let ia = interproc(
         "proc ::helper {} { set ::g 1 }\noo::class create C {\n method m {} { helper }\n}\n",
     );
-    let m = ia.methods.get("::C::m").expect("method summary");
+    let m = ia
+        .methods
+        .get(&fixture_id(&ia.methods, "::C::m"))
+        .expect("method summary");
     assert!(
         !m.base.pure,
         "a method calling a global-writing proc is impure"
     );
     assert!(
-        m.base.direct_calls.contains(&"::helper".to_string()),
+        m.base
+            .direct_calls
+            .contains(&fixture_id(&ia.procedures, "::helper")),
         "the method records the proc callee in direct_calls, got {:?}",
         m.base.direct_calls
     );
@@ -1299,7 +1400,10 @@ fn method_return_constant_and_arity_summarised() {
     // A method `get {a b}` returning a constant records the constant + the
     // exact arity (2 params); MRO/`my`/`next` tracking is left empty by design.
     let ia = interproc("oo::class create C {\n method get {a b} { return 7 }\n}\n");
-    let m = ia.methods.get("::C::get").expect("method summary");
+    let m = ia
+        .methods
+        .get(&fixture_id(&ia.methods, "::C::get"))
+        .expect("method summary");
     assert!(m.base.returns_constant, "constant return summarised");
     assert_eq!(m.base.constant_return, Some(ConstantReturn::Int(7)));
     assert_eq!(m.base.arity, Arity::exact(2), "two-param arity");
@@ -1322,7 +1426,10 @@ fn proc_arity_is_at_least_required_count_for_variadic_decl() {
     // formula `taint_interproc` already used, rather than naively
     // counting `args` itself as a required declared parameter.
     let ia = interproc("proc ::f {a b args} { return $a }\n");
-    let s = ia.procedures.get("::f").unwrap();
+    let s = ia
+        .procedures
+        .get(&fixture_id(&ia.procedures, "::f"))
+        .unwrap();
     assert_eq!(
         s.arity,
         Arity::at_least(2),

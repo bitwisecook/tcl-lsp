@@ -33,7 +33,7 @@
 //! known-command set (W123 suppression).
 
 use std::collections::{HashMap, HashSet};
-use tcl_core_types::DiagCode;
+use tcl_core_types::{BodyFrameId, DiagCode};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -64,11 +64,12 @@ impl From<&super::state::VarCommandSite> for W308DiagnosticSite {
 struct W307Ctx<'a> {
     all_constsets: &'a std::collections::HashMap<String, HashSet<String>>,
     func_ranges: &'a [W307FunctionRange<'a>],
-    factory_object_ranges: &'a [(u32, u32, HashSet<String>)],
+    factory_object_ranges: &'a [(BodyFrameId, u32, u32, HashSet<String>)],
     snit_var_ranges: &'a [(u32, u32, &'a Vec<String>)],
-    proc_body_ranges: &'a [(u32, u32, String, HashSet<String>)],
-    dispatch_counts: &'a FxHashMap<(String, String), usize>,
-    tainted_by_scope: &'a FxHashMap<String, HashSet<String>>,
+    proc_body_ranges: &'a [(u32, u32, BodyFrameId, HashSet<String>)],
+    top_scope: BodyFrameId,
+    dispatch_counts: &'a FxHashMap<(BodyFrameId, String), usize>,
+    tainted_by_scope: &'a FxHashMap<BodyFrameId, HashSet<String>>,
 }
 
 /// Exact declaration owner retained with its original range.
@@ -475,17 +476,17 @@ impl Analyser {
         // non-parameter local dispatched ≥2 times in the same scope, is
         // evidenced object usage — suppress unless the var is tainted.
         let idx = w307_enclosing_idx(ctx.proc_body_ranges, site.cmd_span.start());
-        let encl_qname = idx.map_or(W307_TOP_SCOPE, |i| ctx.proc_body_ranges[i].2.as_str());
+        let enclosing = idx.map_or(ctx.top_scope, |i| ctx.proc_body_ranges[i].2);
         let is_param = idx.is_some_and(|i| ctx.proc_body_ranges[i].3.contains(&site.var_name));
         let dispatch_count = ctx
             .dispatch_counts
-            .get(&(encl_qname.to_owned(), site.var_name.clone()))
+            .get(&(enclosing, site.var_name.clone()))
             .copied()
             .unwrap_or(0);
         let dispatcher_suppressed = is_param || dispatch_count >= 2;
         let tainted = ctx
             .tainted_by_scope
-            .get(encl_qname)
+            .get(&enclosing)
             .is_some_and(|s| s.contains(&site.var_name));
         let original_caller_absence = is_param && self.formal_caller_has_absence_advice(call_off);
         if dispatcher_suppressed && !tainted && !sccp_absence_advice && !original_caller_absence {
@@ -512,7 +513,12 @@ impl Analyser {
         if ctx
             .factory_object_ranges
             .iter()
-            .any(|(s, e, names)| *s <= call_off && call_off <= *e && names.contains(&site.var_name))
+            .any(|(owner, s, e, names)| {
+                *owner == enclosing
+                    && *s <= call_off
+                    && call_off <= *e
+                    && names.contains(&site.var_name)
+            })
         {
             return true;
         }
@@ -545,7 +551,8 @@ impl Analyser {
         word: &crate::ir::WordExpr,
         parent: Option<&crate::ir::CommandTokens>,
         registry: &tcl_registry::CommandRegistry,
-    ) -> (bool, Option<String>) {
+        module: &crate::ir::Module,
+    ) -> (bool, Option<BodyFrameId>) {
         let Some(commands) =
             crate::value_shapes::command_substitution_tokens(word, parent, self.lexer_config())
         else {
@@ -554,14 +561,15 @@ impl Analyser {
         let Some(tokens) = commands.last() else {
             return (false, None);
         };
-        self.nominal_tokens_object_result(tokens, registry)
+        self.nominal_tokens_object_result(tokens, registry, module)
     }
 
     fn nominal_tokens_object_result(
         &self,
         tokens: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
-    ) -> (bool, Option<String>) {
+        module: &crate::ir::Module,
+    ) -> (bool, Option<BodyFrameId>) {
         use crate::registry_invocation::registry_invocation_assistance_in_context;
         let context = self.analysis_context();
         let object_metadata = registry_invocation_assistance_in_context(&context, tokens)
@@ -586,16 +594,20 @@ impl Analyser {
                             && candidate.command == first.command
                     })
                 })
-                .map(|target| target.command.clone())
+                .and_then(|target| module.source_procedure_for_target(target))
+                .map(|(id, _)| BodyFrameId::Body(id))
         }
         .or_else(|| {
             let candidates = binding.declared_self_method_candidates(registry);
             let first = candidates.first()?;
-            let class = first.declaring_class()?;
             candidates
                 .iter()
-                .all(|entry| entry.declaration() == first.declaration())
-                .then(|| format!("{}::{}", class.command, first.name()))
+                .all(|entry| entry == first)
+                .then_some(())?;
+            module
+                .methods
+                .for_original_entry(first)
+                .map(|(id, _)| BodyFrameId::Body(id))
         });
         (object_metadata || object_class || dispatcher_name, callee)
     }
@@ -626,11 +638,24 @@ impl Analyser {
         {
             return FactoryObjectAdvice::default();
         }
-        // Original procedure and method units contribute possible result advice.
-        let units: Vec<(&str, &crate::compilation_unit::FunctionUnit)> =
-            std::iter::once(("::top", &cu.top_level))
-                .chain(cu.procedures.values().map(|fu| (fu.name.as_str(), fu)))
-                .chain(cu.methods.iter().map(|(q, fu)| (q.as_str(), fu)))
+        let top_scope = BodyFrameId::Top(cu.ir_module.procedure_ids.module_id());
+        let units: Vec<(BodyFrameId, &crate::compilation_unit::FunctionUnit)> =
+            std::iter::once((top_scope, &cu.top_level))
+                .chain(
+                    cu.procedures
+                        .iter()
+                        .map(|(id, function)| (BodyFrameId::Body(*id), function)),
+                )
+                .chain(
+                    cu.methods
+                        .iter()
+                        .map(|(id, function)| (BodyFrameId::Body(*id), function)),
+                )
+                .chain(
+                    cu.body_units
+                        .iter()
+                        .map(|(id, function)| (BodyFrameId::Body(*id), function)),
+                )
                 .collect();
 
         // Per-proc: factory-local vars (non-user-proc factory heads), the last
@@ -638,10 +663,10 @@ impl Analyser {
         let mut maps = FactoryMaps::default();
         for (qname, fu) in &units {
             seed_factory_maps(
-                qname,
+                *qname,
                 fu,
                 &context,
-                &|word, parent| self.nominal_object_result(word, parent, registry),
+                &|word, parent| self.nominal_object_result(word, parent, registry, &cu.ir_module),
                 &mut maps,
                 self.lexer_config(),
             );
@@ -662,34 +687,39 @@ impl Analyser {
             }
         }
 
-        // Bare-name → qualified-name index for resolving relative call heads.
-        let mut bare_to_qnames: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
-        for qname in cu.ir_module.procedures.unique_displays() {
-            let bare = crate::naming::key_tail(qname);
-            bare_to_qnames.entry(bare).or_default().push(qname.as_str());
-        }
-
         propagate_object_returning(
             &return_var,
             &returned_callees,
             &assigns,
-            &bare_to_qnames,
             &mut object_returning,
             &mut factory_locals,
         );
 
-        // Materialise ranges (top level spans the whole source).
         let mut ranges = Vec::new();
-        for (qname, names) in factory_locals {
+        for (owner, names) in factory_locals {
             if names.is_empty() {
                 continue;
             }
-            if qname == "::top" {
-                ranges.push((0, u32::MAX, names));
-            } else if let Some(p) = cu.ir_module.procedures.get_unique_display(&qname) {
-                ranges.push((p.span.start(), p.span.end(), names));
+            match owner {
+                BodyFrameId::Top(module) if module == cu.ir_module.procedure_ids.module_id() => {
+                    ranges.push((owner, 0, u32::MAX, names));
+                }
+                BodyFrameId::Body(id) => {
+                    let span = cu
+                        .ir_module
+                        .procedures
+                        .get(&id)
+                        .map(|body| body.span)
+                        .or_else(|| cu.ir_module.methods.get(&id).and_then(|body| body.span))
+                        .or_else(|| cu.ir_module.body_units.get(&id).map(|body| body.span));
+                    if let Some(span) = span {
+                        ranges.push((owner, span.start(), span.end(), names));
+                    }
+                }
+                BodyFrameId::Top(_) => {}
             }
         }
+
         FactoryObjectAdvice {
             ranges,
             object_returning,
@@ -804,31 +834,41 @@ impl Analyser {
         // user-controlled command name is an injection risk regardless of how
         // many times it appears).  `::top` is the sentinel for statements
         // outside any proc body.
-        let mut proc_body_ranges: Vec<(u32, u32, String, HashSet<String>)> = self
-            .result
-            .all_procs
+        let top_scope = BodyFrameId::Top(cu.ir_module.procedure_ids.module_id());
+        let mut proc_body_ranges: Vec<(u32, u32, BodyFrameId, HashSet<String>)> = cu
+            .ir_module
+            .procedures
             .iter()
-            .map(|(qname, pdef)| {
-                let params: HashSet<String> = pdef.params.iter().map(|p| p.name.clone()).collect();
+            .chain(cu.ir_module.body_units.iter())
+            .map(|(id, body)| {
                 (
-                    pdef.body_span.start(),
-                    pdef.body_span.end(),
-                    qname.clone(),
-                    params,
+                    body.span.start(),
+                    body.span.end(),
+                    BodyFrameId::Body(*id),
+                    body.params.iter().cloned().collect(),
                 )
             })
+            .chain(cu.ir_module.methods.iter().filter_map(|(id, method)| {
+                let span = method.span?;
+                Some((
+                    span.start(),
+                    span.end(),
+                    BodyFrameId::Body(*id),
+                    method.params.iter().cloned().collect(),
+                ))
+            }))
             .collect();
         // Innermost-enclosing wins: scan largest-start-first for a range that
         // contains the offset (procs don't nest, but `namespace eval` bodies
         // can wrap several, so this stays robust).  Returns the index into
         // `proc_body_ranges`, or `None` for the `::top` sentinel scope.
         proc_body_ranges.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
-        let mut dispatch_counts: FxHashMap<(String, String), usize> = FxHashMap::default();
+        let mut dispatch_counts: FxHashMap<(BodyFrameId, String), usize> = FxHashMap::default();
         for site in &sites {
             let idx = w307_enclosing_idx(&proc_body_ranges, site.cmd_span.start());
-            let qname = idx.map_or(W307_TOP_SCOPE, |i| proc_body_ranges[i].2.as_str());
+            let owner = idx.map_or(top_scope, |i| proc_body_ranges[i].2);
             *dispatch_counts
-                .entry((qname.to_owned(), site.var_name.clone()))
+                .entry((owner, site.var_name.clone()))
                 .or_insert(0) += 1;
         }
         // Per-scope tainted var names — any tainted SSA version of a name
@@ -841,6 +881,7 @@ impl Analyser {
             factory_object_ranges: &factory_object_ranges,
             snit_var_ranges: &snit_var_ranges,
             proc_body_ranges: &proc_body_ranges,
+            top_scope,
             dispatch_counts: &dispatch_counts,
             tainted_by_scope: &tainted_by_scope,
         };
@@ -857,7 +898,12 @@ impl Analyser {
         self.var_command_sites = sites;
 
         // ``[cmd] method`` sites — W307/W308 on command-substitution heads.
-        self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref(), &object_returning);
+        self.emit_cmd_command_diagnostics(
+            registry,
+            hierarchy.as_ref(),
+            &object_returning,
+            &cu.ir_module,
+        );
     }
 
     /// The diagnostic one recorded dispatch site draws, if any — the body of
@@ -943,7 +989,8 @@ impl Analyser {
         &mut self,
         registry: &tcl_registry::CommandRegistry,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
-        object_returning: &FxHashSet<String>,
+        object_returning: &FxHashSet<BodyFrameId>,
+        module: &crate::ir::Module,
     ) {
         let mut cmd_sites = std::mem::take(&mut self.cmd_command_sites);
         // A per-item body initially owns an isolated command world. Its
@@ -1107,7 +1154,7 @@ impl Analyser {
 
             // Nominal candidate metadata can suppress a type warning; it
             // cannot establish an object class or validate an outer method.
-            let (object, callee) = self.nominal_tokens_object_result(tokens, registry);
+            let (object, callee) = self.nominal_tokens_object_result(tokens, registry, module);
             if object || callee.is_some_and(|callee| object_returning.contains(&callee)) {
                 continue;
             }
@@ -2188,10 +2235,6 @@ fn harvest_dict_with_constants(
     }
 }
 
-/// Sentinel scope key for the W307 dispatcher-suppression maps covering
-/// statements outside any proc body.
-const W307_TOP_SCOPE: &str = "::top";
-
 /// The variable named by a single `$var` / `${var}` substitution, or `None`.
 ///
 /// The text must be exactly one bare or braced variable reference whose name
@@ -2227,7 +2270,7 @@ fn extract_dollar_var(value: &str) -> Option<String> {
 /// suppression.
 fn build_tainted_by_scope(
     cu: &crate::compilation_unit::CompilationUnit,
-) -> FxHashMap<String, HashSet<String>> {
+) -> FxHashMap<BodyFrameId, HashSet<String>> {
     let tainted_names_of = |fu: &crate::compilation_unit::FunctionUnit| -> HashSet<String> {
         fu.taints
             .iter()
@@ -2235,16 +2278,24 @@ fn build_tainted_by_scope(
             .map(|((sym, _ver), _)| fu.ssa.var_name(*sym).to_owned())
             .collect()
     };
-    let mut tainted_by_scope: FxHashMap<String, HashSet<String>> = FxHashMap::default();
+    let mut tainted_by_scope: FxHashMap<BodyFrameId, HashSet<String>> = FxHashMap::default();
     let top_tainted = tainted_names_of(&cu.top_level);
     if !top_tainted.is_empty() {
-        tainted_by_scope.insert(W307_TOP_SCOPE.to_owned(), top_tainted);
+        tainted_by_scope.insert(
+            BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()),
+            top_tainted,
+        );
     }
-    for (qname, fu) in &cu.procedures {
+    for (id, fu) in cu
+        .procedures
+        .iter()
+        .chain(&cu.methods)
+        .chain(&cu.body_units)
+    {
         let names = tainted_names_of(fu);
         if !names.is_empty() {
             tainted_by_scope
-                .entry(fu.name.clone())
+                .entry(BodyFrameId::Body(*id))
                 .or_default()
                 .extend(names);
         }
@@ -2298,17 +2349,17 @@ fn aggregate_constsets(
 /// set of procedures with a possible object result.
 #[derive(Default)]
 struct FactoryObjectAdvice {
-    ranges: Vec<(u32, u32, HashSet<String>)>,
-    object_returning: FxHashSet<String>,
+    ranges: Vec<(BodyFrameId, u32, u32, HashSet<String>)>,
+    object_returning: FxHashSet<BodyFrameId>,
 }
 
 #[derive(Default)]
 struct FactoryMaps {
-    factory_locals: FxHashMap<String, HashSet<String>>,
-    assigns: FxHashMap<String, FxHashMap<String, String>>,
-    return_var: FxHashMap<String, Option<String>>,
-    object_returning: FxHashSet<String>,
-    returned_callees: FxHashMap<String, FxHashSet<String>>,
+    factory_locals: FxHashMap<BodyFrameId, HashSet<String>>,
+    assigns: FxHashMap<BodyFrameId, FxHashMap<String, BodyFrameId>>,
+    return_var: FxHashMap<BodyFrameId, Option<String>>,
+    object_returning: FxHashSet<BodyFrameId>,
+    returned_callees: FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
 }
 
 /// Populate [`FactoryMaps`] for one analysable unit (`qname` / `fu`): record
@@ -2317,13 +2368,13 @@ struct FactoryMaps {
 /// retain possible factory returns independently of completion and dispatch
 /// closure. Unknown return paths never become strict result-type evidence.
 fn seed_factory_maps(
-    qname: &str,
+    qname: BodyFrameId,
     fu: &crate::compilation_unit::FunctionUnit,
     context: &tcl_registry::model::ContextRegistry,
     nominal_result: &impl Fn(
         &crate::ir::WordExpr,
         Option<&crate::ir::CommandTokens>,
-    ) -> (bool, Option<String>),
+    ) -> (bool, Option<BodyFrameId>),
     maps: &mut FactoryMaps,
     config: tcl_lexer::LexerConfig,
 ) {
@@ -2371,7 +2422,7 @@ fn seed_factory_maps(
                 returns.push(object);
                 if let Some(callee) = callee {
                     maps.returned_callees
-                        .entry(qname.to_owned())
+                        .entry(qname)
                         .or_default()
                         .insert(callee);
                 }
@@ -2396,7 +2447,7 @@ fn seed_factory_maps(
             returns.push(object);
             if let Some(callee) = callee {
                 maps.returned_callees
-                    .entry(qname.to_owned())
+                    .entry(qname)
                     .or_default()
                     .insert(callee);
             }
@@ -2404,8 +2455,8 @@ fn seed_factory_maps(
             returns.push(false);
         }
     }
-    maps.factory_locals.insert(qname.to_string(), names);
-    maps.assigns.insert(qname.to_string(), amap);
+    maps.factory_locals.insert(qname, names);
+    maps.assigns.insert(qname, amap);
     let advisory_variable = returned_variables
         .first()
         .cloned()
@@ -2416,11 +2467,11 @@ fn seed_factory_maps(
                 .all(|candidate| candidate.as_ref() == Some(first))
         });
     maps.return_var.insert(
-        qname.to_string(),
+        qname,
         advisory_variable.or_else(|| last_return_var_of(&fu.cfg)),
     );
     if returns.iter().any(|value| *value) {
-        maps.object_returning.insert(qname.to_string());
+        maps.object_returning.insert(qname);
     }
 }
 
@@ -2434,71 +2485,41 @@ fn seed_factory_maps(
 /// factory local too.  `bare_to_qnames` resolves relative call heads to the
 /// qualified names the analysis is keyed on.
 fn propagate_object_returning(
-    return_var: &FxHashMap<String, Option<String>>,
-    returned_callees: &FxHashMap<String, FxHashSet<String>>,
-    assigns: &FxHashMap<String, FxHashMap<String, String>>,
-    bare_to_qnames: &FxHashMap<&str, Vec<&str>>,
-    object_returning: &mut FxHashSet<String>,
-    factory_locals: &mut FxHashMap<String, HashSet<String>>,
+    return_var: &FxHashMap<BodyFrameId, Option<String>>,
+    returned_callees: &FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
+    assigns: &FxHashMap<BodyFrameId, FxHashMap<String, BodyFrameId>>,
+    object_returning: &mut FxHashSet<BodyFrameId>,
+    factory_locals: &mut FxHashMap<BodyFrameId, HashSet<String>>,
 ) {
-    let resolve_candidates = |head: &str| -> Vec<String> {
-        let mut c = vec![head.to_string(), format!("::{head}")];
-        if let Some(qs) = bare_to_qnames.get(head) {
-            c.extend(qs.iter().map(|s| (*s).to_string()));
-        }
-        c
-    };
-
-    // Fixpoint: a proc whose returned var is assigned `[other]` where
-    // `other` is a proven object-returning user proc is itself one.
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for (qname, callees) in returned_callees {
-            if !object_returning.contains(qname)
-                && callees.iter().any(|callee| {
-                    resolve_candidates(callee)
-                        .iter()
-                        .any(|candidate| object_returning.contains(candidate))
-                })
-            {
-                object_returning.insert(qname.clone());
-                changed = true;
-            }
-        }
-        for (qname, rv) in return_var {
-            let Some(rv) = rv else { continue };
-            if object_returning.contains(qname) {
-                continue;
-            }
-            let Some(rhs) = assigns.get(qname).and_then(|m| m.get(rv)) else {
-                continue;
-            };
-            if resolve_candidates(rhs)
+    loop {
+        let mut changed = false;
+        for (owner, callees) in returned_callees {
+            if callees
                 .iter()
-                .any(|c| object_returning.contains(c))
+                .any(|callee| object_returning.contains(callee))
             {
-                object_returning.insert(qname.clone());
-                changed = true;
+                changed |= object_returning.insert(*owner);
             }
+        }
+        for (owner, returned) in return_var {
+            if let Some(callee) = returned
+                .as_ref()
+                .and_then(|name| assigns.get(owner)?.get(name))
+                && object_returning.contains(callee)
+            {
+                changed |= object_returning.insert(*owner);
+            }
+        }
+        if !changed {
+            break;
         }
     }
-    // Extend factory locals: `set X [user_proc]` where the proc is now
-    // proven object-returning makes `X` a factory local too.
-    for (qname, amap) in assigns {
-        let mut add = FxHashSet::default();
-        for (var, head) in amap {
-            if factory_locals.get(qname).is_some_and(|s| s.contains(var)) {
-                continue;
-            }
-            if resolve_candidates(head)
-                .iter()
-                .any(|c| object_returning.contains(c))
-            {
-                add.insert(var.clone());
-            }
-        }
-        factory_locals.entry(qname.clone()).or_default().extend(add);
+    for (owner, assignments) in assigns {
+        let names = assignments
+            .iter()
+            .filter(|(_, callee)| object_returning.contains(callee))
+            .map(|(name, _)| name.clone());
+        factory_locals.entry(*owner).or_default().extend(names);
     }
 }
 
@@ -2565,7 +2586,7 @@ fn lattice_command_values(lv: &crate::analyses::LatticeValue) -> Option<Vec<Stri
 /// so the reverse scan finds the innermost enclosing range (procs don't nest,
 /// but `namespace eval` bodies can wrap several, so this stays robust).
 fn w307_enclosing_idx(
-    proc_body_ranges: &[(u32, u32, String, HashSet<String>)],
+    proc_body_ranges: &[(u32, u32, BodyFrameId, HashSet<String>)],
     off: u32,
 ) -> Option<usize> {
     proc_body_ranges
@@ -2828,7 +2849,7 @@ mod factory_metadata_context_tests {
                 advice
                     .ranges
                     .iter()
-                    .any(|(_, _, names)| names.contains("handle")),
+                    .any(|(_, _, _, names)| names.contains("handle")),
                 expected,
                 "{environment}"
             );

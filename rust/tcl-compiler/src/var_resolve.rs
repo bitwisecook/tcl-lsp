@@ -557,7 +557,7 @@ pub struct ResolveContext {
     pub untracked_traces: VariableCellSet,
     /// `TclOO` instance vars in scope.
     pub instance_vars: HashSet<String>,
-    /// Owning class/object FQ name for `instance_vars`.
+    /// Advisory declared-state scope for `instance_vars`; never an object token.
     pub instance_owner: String,
     /// Typed selection of the current variable table.
     pub frame_kind: VariableFrameKind,

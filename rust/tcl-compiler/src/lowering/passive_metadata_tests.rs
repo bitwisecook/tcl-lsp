@@ -90,7 +90,12 @@ fn passive_class_body_metadata_uses_original_selection_and_supplied_availability
         )
     };
     let current = lower(std::sync::Arc::clone(&context));
-    assert!(current.methods.contains_key("::C::run"));
+    assert!(
+        current
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::run")
+    );
     let older = std::sync::Arc::new(
         tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(context.commands())),
@@ -149,13 +154,46 @@ fn passive_member_layout_uses_actual_release_and_original_optional_word_shape() 
         )
     };
     let current_module = lower(std::sync::Arc::clone(&current));
-    assert!(current_module.methods.contains_key("::C::build"));
-    assert_eq!(current_module.methods["::C::run"].params, ["arg"]);
-    assert!(current_module.methods.contains_key("::C::plain"));
+    assert!(
+        current_module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::build")
+    );
+    assert_eq!(
+        current_module
+            .methods
+            .unique_display("::C::run")
+            .unwrap()
+            .1
+            .params,
+        ["arg"]
+    );
+    assert!(
+        current_module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::plain")
+    );
     let old_module = lower(older);
-    assert!(!old_module.methods.contains_key("::C::build"));
-    assert!(!old_module.methods.contains_key("::C::run"));
-    assert!(old_module.methods.contains_key("::C::plain"));
+    assert!(
+        !old_module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::build")
+    );
+    assert!(
+        !old_module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::run")
+    );
+    assert!(
+        old_module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::plain")
+    );
     assert!(old_module.oo_evidence.unretained_executable_roots);
     let dynamic = "oo::class create C {method run $option {arg} {return $arg}; method plain {} {return PLAIN}}";
     let module = lower_with(
@@ -164,7 +202,17 @@ fn passive_member_layout_uses_actual_release_and_original_optional_word_shape() 
             .with_context_registry(std::sync::Arc::clone(&current)),
         dynamic,
     );
-    assert!(!module.methods.contains_key("::C::run"));
-    assert!(module.methods.contains_key("::C::plain"));
+    assert!(
+        !module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::run")
+    );
+    assert!(
+        module
+            .methods
+            .values()
+            .any(|method| method.reporting_label() == "::C::plain")
+    );
     assert!(module.oo_evidence.unretained_executable_roots);
 }

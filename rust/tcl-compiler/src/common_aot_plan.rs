@@ -813,7 +813,7 @@ pub struct NativeDecline {
 pub struct CommonAotProofPlan {
     environment: CommonAotEnvironment,
     direct_calls: BTreeMap<DirectCallSiteId, DirectProcDecision>,
-    declined_direct_callees: BTreeSet<String>,
+    declined_direct_callees: BTreeSet<crate::ir::ProcedureId>,
     semantic_calls: BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     closed_program_coverage: ClosedProgramCoverageDecision,
     materialisable_slots: BTreeMap<SsaValueIdentity, MaterialisableSlotDecision>,
@@ -975,8 +975,8 @@ impl CommonAotProofPlan {
     /// must therefore treat a decline naming the same callee as proof that the
     /// selected sites do not exhaust its callers.
     #[must_use]
-    pub fn has_declined_direct_call_to(&self, callee: &str) -> bool {
-        self.declined_direct_callees.contains(callee)
+    pub fn has_declined_direct_call_to(&self, callee: crate::ir::ProcedureId) -> bool {
+        self.declined_direct_callees.contains(&callee)
     }
 
     /// Registry semantic-call decisions in stable CFG identity order.
@@ -1156,8 +1156,8 @@ struct DirectCollection {
     /// Callees named by at least one *declined* candidate — the set a consumer
     /// joining facts across selected sites must consult before treating those
     /// sites as the callee's complete caller set.
-    declined_callees: BTreeSet<String>,
-    propagated: HashMap<(String, usize), Option<TypeLattice>>,
+    declined_callees: BTreeSet<crate::ir::ProcedureId>,
+    propagated: HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
 }
 
 fn collect_direct_calls(
@@ -1165,16 +1165,10 @@ fn collect_direct_calls(
     registry: &tcl_registry::CommandRegistry,
     selection: AotMetadataSelection,
     config: SemanticOptimisationConfig,
-    escape: &HashMap<String, ProcEscapeSummary>,
+    escape: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
     mutations: &crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: &crate::command_binding::ProcBindingTrustProjection,
 ) -> DirectCollection {
-    let known: HashSet<String> = unit
-        .ir_module
-        .procedures
-        .unique_displays()
-        .cloned()
-        .collect();
     let mut direct_calls = BTreeMap::new();
     let mut declined_callees = BTreeSet::new();
     // `None` is a poison fact: at least one selected call supplied an actual
@@ -1182,7 +1176,8 @@ fn collect_direct_calls(
     // the declined-callee sweep below). `TypeLattice::Unknown` is lattice
     // bottom, so joining it directly would incorrectly preserve another call's
     // fact.
-    let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
+    let mut propagated: HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>> =
+        HashMap::new();
     for (caller_name, function) in function_units(unit) {
         for site in call_sites(caller_name, function, function.source_lexer_config()) {
             let binding = site
@@ -1195,13 +1190,11 @@ fn collect_direct_calls(
             let resolved = terminal
                 .and_then(|target| unit.ir_module.source_procedure_for_target(target))
                 .or_else(|| {
-                    let name = crate::interprocedural::resolve_internal_call(
-                        &site.command,
-                        caller_name,
-                        &known,
+                    let ids = crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                        site.tokens.as_deref()?, &site.command, &unit.ir_module, registry,
                     )?;
-                    let (id, procedure) = unit.ir_module.procedures.unique_display(&name)?;
-                    Some((*id, procedure))
+                    let [id] = ids.as_slice() else { return None; };
+                    Some((*id, unit.ir_module.procedures.get(id)?))
                 });
             let Some((callee_id, proc_def)) = resolved else {
                 continue;
@@ -1218,7 +1211,7 @@ fn collect_direct_calls(
                 callee_name: &callee_name,
                 callee_id,
                 proc_def,
-                summary: escape.get(&callee_name),
+                summary: escape.get(&tcl_core_types::BodyFrameId::Body(callee_id)),
                 mutations,
                 proc_binding_trust,
                 context: selection.standalone_context(),
@@ -1232,9 +1225,9 @@ fn collect_direct_calls(
                 native_integer_enabled: config
                     .is_enabled(SemanticOptimisationPassId::NativeInteger),
             });
-            propagate_actual_types(&mut propagated, &callee_name, &decision);
+            propagate_actual_types(&mut propagated, callee_id, &decision);
             if matches!(decision, DirectProcDecision::Declined(_)) {
-                declined_callees.insert(callee_name);
+                declined_callees.insert(callee_id);
             }
             direct_calls.insert(site.id, decision);
         }
@@ -1257,8 +1250,8 @@ fn collect_direct_calls(
 }
 
 fn propagate_actual_types(
-    propagated: &mut HashMap<(String, usize), Option<TypeLattice>>,
-    callee_name: &str,
+    propagated: &mut HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
+    callee_id: crate::ir::ProcedureId,
     decision: &DirectProcDecision,
 ) {
     let DirectProcDecision::Selected(evidence) = decision else {
@@ -1266,7 +1259,7 @@ fn propagate_actual_types(
     };
     for (index, ty) in evidence.actual_types.iter().enumerate() {
         propagated
-            .entry((callee_name.to_owned(), index))
+            .entry((callee_id, index))
             .and_modify(|current| match current {
                 Some(existing) if matches!(ty.kind(), TypeKind::Known | TypeKind::Shimmered) => {
                     *existing = type_join(existing, ty);
@@ -2289,8 +2282,8 @@ fn ssa_value_keys(function: &FunctionUnit, proc_def: Option<&Procedure>) -> BTre
 
 fn collect_materialisable_slots(
     unit: &CompilationUnit,
-    escape: &HashMap<String, ProcEscapeSummary>,
-    propagated: &HashMap<(String, usize), Option<TypeLattice>>,
+    escape: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+    propagated: &HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     config: SemanticOptimisationConfig,
     environment: CommonAotEnvironment,
     closed_program_coverage: &ClosedProgramCoverageDecision,
@@ -2301,8 +2294,16 @@ fn collect_materialisable_slots(
             .values()
             .map(|function| (&function.name, function)),
     ) {
-        let summary = escape.get(qname);
-        let sealed_cells = if qname == "::top" && environment == CommonAotEnvironment::SealedProgram
+        let frame = if std::ptr::eq(function, &unit.top_level) {
+            Some(tcl_core_types::BodyFrameId::Top(
+                unit.ir_module.procedure_ids.module_id(),
+            ))
+        } else {
+            function.body_id.map(tcl_core_types::BodyFrameId::Body)
+        };
+        let summary = frame.and_then(|frame| escape.get(&frame));
+        let sealed_cells = if std::ptr::eq(function, &unit.top_level)
+            && environment == CommonAotEnvironment::SealedProgram
         {
             let mut cells = Vec::new();
             if let ClosedProgramCoverageDecision::Selected(coverage) = closed_program_coverage {
@@ -2373,7 +2374,7 @@ struct MaterialisableInputs<'a> {
     summary: Option<&'a ProcEscapeSummary>,
     local_slots: &'a BTreeMap<String, u32>,
     sealed_cells: &'a [crate::var_resolve::VariableCellKey],
-    propagated: &'a HashMap<(String, usize), Option<TypeLattice>>,
+    propagated: &'a HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     intervals: &'a HashMap<ValueKey, Interval>,
     enabled: bool,
     environment: CommonAotEnvironment,
@@ -2386,7 +2387,7 @@ fn native_frame_slot_allocation(
     use crate::var_escape::original_slots::OriginalNativeFrameSlot;
     // The entry layout belongs only to the root's actual active frame.
     // It cannot be lent to a separately declared procedure.
-    if input.qname != input.unit.top_level.name {
+    if !std::ptr::eq(input.function, &input.unit.top_level) {
         return None;
     }
     let receipt = OriginalNativeFrameSlot::from_entry(&input.unit.ir_module, cell)?;
@@ -2427,12 +2428,12 @@ fn materialisable_slot_allocation(
     use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
     use crate::var_resolve::VariableCellKey;
     let cell = input.function.ssa.cell_key(input.key.0);
-    if input.qname == input.unit.top_level.name
+    if std::ptr::eq(input.function, &input.unit.top_level)
         && input.unit.ir_module.source_entry.native_entry.is_some()
     {
         return native_frame_slot_allocation(input, cell);
     }
-    if input.qname == input.unit.top_level.name
+    if std::ptr::eq(input.function, &input.unit.top_level)
         && input.environment == CommonAotEnvironment::SealedProgram
     {
         if !matches!(
@@ -2465,7 +2466,7 @@ fn materialisable_slot_allocation(
                 .unit
                 .ir_module
                 .procedures
-                .get_unique_display(input.qname)?;
+                .get(&input.function.body_id?)?;
             let declaration = OriginalDeclaredProcedureArgumentSlots::from_module(
                 &input.unit.ir_module,
                 procedure,
@@ -2513,7 +2514,9 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if input.function.requires_native_math_binding_validation() {
         return decline(MaterialisableSlotDecline::MathBindingPrerequisiteRequired);
     }
-    if input.qname == "::top" && input.environment == CommonAotEnvironment::Hosted {
+    if std::ptr::eq(input.function, &input.unit.top_level)
+        && input.environment == CommonAotEnvironment::Hosted
+    {
         return decline(MaterialisableSlotDecline::HostedTopLevelObservable);
     }
     if !input.function.cfg.exception_edges.is_empty() {
@@ -2541,11 +2544,8 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
     if input.key.1 == 0
-        && let Some(proc_def) = input
-            .unit
-            .ir_module
-            .procedures
-            .get_unique_display(input.qname)
+        && let Some(body_id) = input.function.body_id
+        && let Some(proc_def) = input.unit.ir_module.procedures.get(&body_id)
         && let Some(index) = match &authority {
             MaterialisableSlotAuthority::SourceFormal { .. } => usize::try_from(local_slot).ok(),
             MaterialisableSlotAuthority::Authored => {
@@ -2554,7 +2554,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
             MaterialisableSlotAuthority::SealedProgramCell { .. }
             | MaterialisableSlotAuthority::NativeFrame(_) => None,
         }
-        && let Some(propagated) = input.propagated.get(&(input.qname.to_owned(), index))
+        && let Some(propagated) = input.propagated.get(&(body_id, index))
     {
         let Some(propagated) = propagated else {
             // A missing actual type on one reached caller is a retained poison

@@ -1,0 +1,642 @@
+--- a/rust/tcl-vm/src/command.rs
++++ b/rust/tcl-vm/src/command.rs
+@@ -184,6 +184,8 @@
+         words: Rc<Vec<Value>>,
+         /// Selected original C alias-record spelling, independent of lookup slots.
+         publication_name: tcl_core_types::NameBytes,
++        /// Actual retained registration object, independent of command relocation.
++        registration_name: Value,
+     },
+     /// Jim's original prefix List header; target lookup retains the caller namespace.
+     CallerAlias(Value),
+@@ -203,6 +205,8 @@
+         words: Rc<Vec<Value>>,
+         /// Selected child registration report in the source interpreter's realm.
+         publication_name: tcl_core_types::NameBytes,
++        /// Actual retained registration object, independent of command relocation.
++        registration_name: Value,
+     },
+     /// A child interpreter addressable as a command (`$child eval …`): the id
+     /// addresses the child in the engine's interp arena. Invoking it dispatches
+@@ -1506,22 +1510,22 @@
+     };
+     match sub {
+         "create" => interp_create_cmd(vm, rest),
+-        // interp alias srcPath srcCmd targetPath targetCmd ?arg ...?
+         "alias" => match rest {
++            [path, name] => vm.interpreter_alias_query_original(path, name),
++            [path, name, empty] => vm.interpreter_alias_delete_original(path, name, empty),
+             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
+-                // Routing (same-interp / parent→child / child→parent), the
+-                // written-name → key qualification, and C's
+-                // `TclPreventAliasLoop` walk all live on the Vm.
+-                let res = vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec());
+-                if res.code.is_ok() {
+-                    ok(src_cmd.clone())
+-                } else {
+-                    res
+-                }
++                vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec())
+             }
+             _ => native_wrong_arguments_message(
+                 vm,
+-                "wrong # args: should be \"interp alias srcPath srcCmd targetPath targetCmd ?arg ...?\"",
++                "wrong # args: should be \"interp alias srcPath srcCmd ?targetPath targetCmd ?arg ...??\"",
++            ),
++        },
++        "target" => match rest {
++            [path, name] => vm.interpreter_alias_target_original(path, name),
++            _ => native_wrong_arguments_message(
++                vm,
++                "wrong # args: should be \"interp target path alias\"",
+             ),
+         },
+         "aliases" => match rest {
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -71,6 +71,9 @@
+ mod jim_table_keys;
+ mod jim_teardown;
+ mod namespace_stack;
++mod native_alias_registration;
++#[cfg(test)]
++mod native_alias_registration_tests;
+ mod native_append;
+ #[cfg(test)]
+ mod native_bootstrap;
+@@ -6702,27 +6705,10 @@
+             },
+             None => self.cur,
+         };
+-        let mut names = self.in_interp(id, |vm| {
+-            vm.commands
+-                .values()
+-                .filter_map(|command| match command {
+-                    Command::Alias {
+-                        publication_name, ..
+-                    }
+-                    | Command::CrossAlias {
+-                        publication_name, ..
+-                    } => Some(publication_name.clone()),
+-                    _ => None,
+-                })
+-                .collect::<Vec<_>>()
+-        });
+-        names.sort();
+-        ok(Value::list(
+-            names
+-                .into_iter()
+-                .map(|name| Value::from_native_string_bytes(name.as_bytes()))
+-                .collect(),
+-        ))
++        match self.in_interp(id, Vm::original_alias_registration_names) {
++            Ok(names) => ok(Value::list(names)),
++            Err(error) => crate::command::completion_from_cmd_error(self, error),
++        }
+     }
+ 
+     fn interp_alias_at(
+@@ -6806,12 +6792,14 @@
+                     Command::Alias {
+                         words: Rc::clone(&words),
+                         publication_name,
++                        registration_name: src_cmd.clone(),
+                     }
+                 } else {
+                     Command::CrossAlias {
+                         target,
+                         words: Rc::clone(&words),
+                         publication_name,
++                        registration_name: src_cmd.clone(),
+                     }
+                 };
+                 let report = vm
+@@ -6838,7 +6826,7 @@
+                     vm.note_alias_backref(&key, target);
+                 }
+                 let token = if selected
+-                    .alias_registration_replacement_key()
++                    .alias_registration_key()
+                     .map_err(|_| {
+                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                             "original alias registration purpose",
+@@ -6908,6 +6896,17 @@
+             return err(message);
+         }
+         if let Some(published_token) = published_token {
++            if producer.recipe()
++                != tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4)
++            {
++                let registered = self.in_interp(src, |vm| {
++                    vm.complete_modern_alias_registration(src_cmd, published_token.generation)
++                });
++                return match self.original_name_outcome(original_name_scope, registered) {
++                    Ok(name) => ok(name),
++                    Err(error) => crate::command::completion_from_cmd_error(self, error),
++                };
++            }
+             let registration = self.in_interp(src, |vm| {
+                 let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                     vm,
+@@ -9562,6 +9561,45 @@
+             Err(error) => return crate::command::completion_from_cmd_error(self, error),
+         };
+         match sub {
++            "alias" => match rest {
++                [alias] => self.alias_query_at(id, alias),
++                [alias, target, arguments @ ..] => {
++                    let bytes = match original_name_scope.read(self, target) {
++                        Ok(bytes) => bytes,
++                        Err(error) => {
++                            return crate::command::completion_from_cmd_error(self, error);
++                        }
++                    };
++                    let Some(recipe) = self.name_policy_protocol().map(|policy| policy.recipe())
++                    else {
++                        return self
++                            .refuse_host_command("original child alias target issuer".into());
++                    };
++                    if recipe.child_alias_pretested_target_is_empty(&bytes) == Some(true) {
++                        if arguments.is_empty() {
++                            self.alias_delete_at(id, alias)
++                        } else {
++                            self.child_wrong_arguments(
++                                name,
++                                b"alias aliasName ?targetName? ?arg ...?",
++                            )
++                        }
++                    } else {
++                        let mut words = vec![target.clone()];
++                        words.extend_from_slice(arguments);
++                        self.interp_alias_at(id, alias, self.cur, words)
++                    }
++                }
++                _ => self.child_wrong_arguments(name, b"alias aliasName ?targetName? ?arg ...?"),
++            },
++            "aliases" if rest.is_empty() => {
++                match self.in_interp(id, Vm::original_alias_registration_names) {
++                    Ok(names) => ok(Value::list(names)),
++                    Err(error) => crate::command::completion_from_cmd_error(self, error),
++                }
++            }
++            "aliases" => self.child_wrong_arguments(name, b"aliases"),
++
+             "eval" => self.eval_values_in_interp(id, rest),
+             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
+             "delete" => {
+--- a/rust/tcl-vm/src/interp/native_command_names.rs
++++ b/rust/tcl-vm/src/interp/native_command_names.rs
+@@ -364,9 +364,29 @@
+                 .unwrap_or(0),
+             reference,
+         };
++        let referencing_namespace = match reference {
++            Some(reference) => NsId(u32::try_from(reference.namespace_token).map_err(|_| {
++                ValueError::CommandProtocolUnavailable("original command reference token")
++            })?),
++            None => ROOT_NS,
++        };
++        let current = self.native_command_name_lookup_state(&cache, referencing_namespace);
++        entered.require(
++            self,
++            protocol.selected_binding_is_current(&cache, &current),
++            "fresh original command binding",
++        )?;
++        let retained = cache.clone();
+         let reached =
+             original.install_native_command_name_cache_checked(cache, dialect, &mut || {
+-                selected.check(self, entered)
++                selected.check(self, entered)?;
++                let current =
++                    self.native_command_name_lookup_state(&retained, referencing_namespace);
++                entered.require(
++                    self,
++                    protocol.selected_binding_is_current(&retained, &current),
++                    "fresh original command binding",
++                )
+             });
+         selected.check(self, entered)?;
+         reached?;
+@@ -729,6 +749,12 @@
+                 self.native_command_name_reference(namespace),
+             ),
+         };
++        let current = self.native_command_name_lookup_state(&cache, namespace);
++        if !protocol.selected_binding_is_current(&cache, &current) {
++            return Err(Error::unavailable(
++                "native command literal selected binding is stale",
++            ));
++        }
+         original
+             .prime_native_command_name_cache(cache, dialect)
+             .map_err(|_| Error::unavailable("native command literal primary cache is unavailable"))
+--- /dev/null
++++ b/rust/tcl-vm/src/interp/native_alias_registration.rs
+@@ -0,0 +1,330 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Alias-record lookup retains genuine VM command generations and name objects.
++
++use super::{
++    Command, CommandSidecarKey, InterpId, Vm, native_name_consumers::OriginalNameConsumerScope, ok,
++};
++use crate::{Completion, Value, command::completion_from_cmd_error};
++use tcl_cmd_core::CmdError;
++use tcl_core_types::NameBytes;
++use tcl_syntax::{naming::NativeNameContext, value::ValueError};
++
++impl Vm {
++    fn alias_registration_binding(
++        &mut self,
++        name: &Value,
++    ) -> Result<Option<(super::CommandTokenIdentity, Command)>, CmdError> {
++        let scope = OriginalNameConsumerScope::enter(self)?;
++        let reached = (|| {
++            let original = scope.read(self, name)?;
++            let recipe = self
++                .name_policy_protocol()
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "original alias query issuer",
++                ))?
++                .recipe();
++            let selected = recipe
++                .alias_registration_query_input(&original)
++                .map_err(|_| {
++                    ValueError::CommandProtocolUnavailable("original alias query coordinate")
++                })?;
++            let token = self
++                .alias_registrations
++                .query(&selected)
++                .map_err(|_| {
++                    ValueError::CommandProtocolUnavailable("original alias query purpose")
++                })?
++                .cloned();
++            scope.check(self)?;
++            let Some(token) = token else { return Ok(None) };
++            let live = self.command_token_at_generation(token.generation).ok_or(
++                ValueError::CommandProtocolUnavailable("original alias query live token"),
++            )?;
++            let command = self.command_at_sidecar_key(&live.key).ok_or(
++                ValueError::CommandProtocolUnavailable("original alias query implementation"),
++            )?;
++            if !matches!(command, Command::Alias { .. } | Command::CrossAlias { .. }) {
++                return Err(ValueError::CommandProtocolUnavailable(
++                    "original alias query implementation kind",
++                )
++                .into());
++            }
++            Ok(Some((live, command)))
++        })();
++        self.original_name_finish(scope, reached)?
++    }
++
++    pub(super) fn complete_modern_alias_registration(
++        &mut self,
++        original: &Value,
++        generation: u64,
++    ) -> Result<Value, CmdError> {
++        let scope = OriginalNameConsumerScope::enter(self)?;
++        let reached = (|| {
++            let recipe = self
++                .name_policy_protocol()
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "original alias registration issuer",
++                ))?
++                .recipe();
++            let mut current = original.clone();
++            loop {
++                let bytes = scope.read(self, &current)?;
++                let selected = recipe
++                    .child_alias_publication_input(NativeNameContext::root(), &bytes)
++                    .map_err(|_| {
++                        ValueError::CommandProtocolUnavailable(
++                            "original alias registration coordinate",
++                        )
++                    })?;
++                let occupied = self
++                    .alias_registrations
++                    .query(&selected)
++                    .map_err(|_| {
++                        ValueError::CommandProtocolUnavailable(
++                            "original alias registration purpose",
++                        )
++                    })?
++                    .is_some();
++                let live = self.command_token_at_generation(generation).ok_or(
++                    ValueError::CommandProtocolUnavailable("original alias registration token"),
++                )?;
++                let mut command = self.command_at_sidecar_key(&live.key).ok_or(
++                    ValueError::CommandProtocolUnavailable(
++                        "original alias registration implementation",
++                    ),
++                )?;
++                let (registration, report) = match &mut command {
++                    Command::Alias {
++                        registration_name,
++                        publication_name,
++                        ..
++                    }
++                    | Command::CrossAlias {
++                        registration_name,
++                        publication_name,
++                        ..
++                    } => (registration_name, publication_name),
++                    _ => {
++                        return Err(ValueError::CommandProtocolUnavailable(
++                            "original alias registration kind",
++                        )
++                        .into());
++                    }
++                };
++                if !registration.is_same_object(&current) {
++                    return Err(ValueError::CommandProtocolUnavailable(
++                        "original alias registration header owner",
++                    )
++                    .into());
++                }
++                if !occupied {
++                    self.alias_registrations
++                        .install_unique(&selected, live)
++                        .map_err(|_| {
++                            ValueError::CommandProtocolUnavailable(
++                                "original alias registration installation",
++                            )
++                        })?;
++                    scope.check(self)?;
++                    return Ok(current);
++                }
++                let token = recipe
++                    .alias_registration_collision_token(&bytes)
++                    .map_err(|_| {
++                        ValueError::CommandProtocolUnavailable("original alias collision policy")
++                    })?;
++                let replacement = Value::new_native_string_bytes(token.as_slice());
++                *registration = replacement.clone();
++                *report = NameBytes::from(token.as_slice());
++                match live.key {
++                    CommandSidecarKey::Hidden(key) => {
++                        self.hidden.commands.insert(key, command);
++                    }
++                    CommandSidecarKey::Visible(key) => {
++                        if let Some(root) = self.retained_root_for_visible_key(&key) {
++                            let mut world = self.name_world.borrow_mut();
++                            let record = world.ns_deferral.retained.get_mut(&root).ok_or(
++                                ValueError::CommandProtocolUnavailable(
++                                    "original alias retained owner",
++                                ),
++                            )?;
++                            record.commands.insert(key, command);
++                        } else {
++                            self.commands.insert(key, command);
++                        }
++                    }
++                }
++                drop(selected);
++                drop(bytes);
++                drop(current);
++                scope.check(self)?;
++                current = replacement;
++            }
++        })();
++        self.original_name_finish(scope, reached)?
++    }
++
++    pub(super) fn original_alias_registration_names(&mut self) -> Result<Vec<Value>, CmdError> {
++        let scope = OriginalNameConsumerScope::enter(self)?;
++        let reached = (|| {
++            let recipe = self
++                .name_policy_protocol()
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "original alias inventory issuer",
++                ))?
++                .recipe();
++            let abi = tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(None).ok_or(
++                ValueError::CommandProtocolUnavailable("original alias inventory ABI"),
++            )?;
++            self.alias_registrations.select_order(recipe, abi);
++            let tokens = self
++                .alias_registrations
++                .ordered_tokens()
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "original alias inventory order",
++                ))?
++                .into_iter()
++                .cloned()
++                .collect::<Vec<_>>();
++            tokens
++                .into_iter()
++                .map(|token| {
++                    let live = self.command_token_at_generation(token.generation).ok_or(
++                        ValueError::CommandProtocolUnavailable("original alias inventory token"),
++                    )?;
++                    let registration = match self.command_at_sidecar_key(&live.key) {
++                        Some(
++                            Command::Alias {
++                                registration_name, ..
++                            }
++                            | Command::CrossAlias {
++                                registration_name, ..
++                            },
++                        ) => registration_name,
++                        _ => {
++                            return Err(ValueError::CommandProtocolUnavailable(
++                                "original alias inventory implementation",
++                            )
++                            .into());
++                        }
++                    };
++                    scope.current_for_value(self, &registration)?;
++                    Ok(registration)
++                })
++                .collect()
++        })();
++        self.original_name_finish(scope, reached)?
++    }
++
++    pub(crate) fn interpreter_alias_query_original(
++        &mut self,
++        path: &Value,
++        name: &Value,
++    ) -> Completion<Value> {
++        let source = match self.resolve_interp_path_original(path) {
++            Ok(source) => source,
++            Err(error) => return error,
++        };
++        self.alias_query_at(source, name)
++    }
++
++    pub(super) fn alias_query_at(&mut self, source: InterpId, name: &Value) -> Completion<Value> {
++        match self.in_interp(source, |vm| vm.alias_registration_binding(name)) {
++            Ok(Some((_, Command::Alias { words, .. } | Command::CrossAlias { words, .. }))) => {
++                ok(Value::list(words.as_ref().clone()))
++            }
++            Ok(None) => ok(Value::new_native_string_bytes(b"".as_slice())),
++            Ok(Some(_)) => self.refuse_host_command("original alias query kind".into()),
++            Err(error) => completion_from_cmd_error(self, error),
++        }
++    }
++
++    pub(crate) fn interpreter_alias_delete_original(
++        &mut self,
++        path: &Value,
++        name: &Value,
++        empty: &Value,
++    ) -> Completion<Value> {
++        let bytes = match self.native_name_operand_bytes_checked(empty) {
++            Ok(bytes) => bytes,
++            Err(error) => return completion_from_cmd_error(self, error),
++        };
++        if !bytes.is_empty() {
++            return super::err(
++                "wrong # args: should be \"interp alias path alias ?targetPath targetCmd ?arg ...?\"",
++            );
++        }
++        let source = match self.resolve_interp_path_original(path) {
++            Ok(source) => source,
++            Err(error) => return error,
++        };
++        self.alias_delete_at(source, name)
++    }
++
++    pub(super) fn alias_delete_at(&mut self, source: InterpId, name: &Value) -> Completion<Value> {
++        let reached = self.in_interp(source, |vm| {
++            let scope = OriginalNameConsumerScope::enter(vm)?;
++            let reached = (|| {
++                let Some((token, command)) = vm.alias_registration_binding(name)? else {
++                    return Ok(());
++                };
++                scope.current_for_value(vm, name)?;
++                vm.retire_registered_real_command(&token, &command);
++                scope.check(vm)
++            })();
++            vm.original_name_finish(scope, reached)?
++        });
++        match reached {
++            Ok(()) => ok(Value::new_native_string_bytes(b"".as_slice())),
++            Err(error) => completion_from_cmd_error(self, error),
++        }
++    }
++
++    pub(crate) fn interpreter_alias_target_original(
++        &mut self,
++        path: &Value,
++        name: &Value,
++    ) -> Completion<Value> {
++        let source = match self.resolve_interp_path_original(path) {
++            Ok(source) => source,
++            Err(error) => return error,
++        };
++        let target = match self.in_interp(source, |vm| vm.alias_registration_binding(name)) {
++            Ok(Some((_, Command::Alias { .. }))) => source,
++            Ok(Some((_, Command::CrossAlias { target, .. }))) => target,
++            Ok(_) => {
++                let bytes = match self.native_name_operand_bytes_checked(name) {
++                    Ok(bytes) => bytes,
++                    Err(error) => return completion_from_cmd_error(self, error),
++                };
++                return super::err([b"alias \"".as_slice(), &bytes, b"\" not found"].concat());
++            }
++            Err(error) => return completion_from_cmd_error(self, error),
++        };
++        match self.original_descendant_interpreter_path(self.cur, target) {
++            Some(path) => ok(Value::list(path)),
++            None => super::err("target interpreter is not a descendant of current interpreter"),
++        }
++    }
++
++    fn original_descendant_interpreter_path(
++        &self,
++        source: InterpId,
++        target: InterpId,
++    ) -> Option<Vec<Value>> {
++        if source == target {
++            return Some(Vec::new());
++        }
++        for (name, child) in &self.st_of(source)?.children {
++            if !self.interp_alive(*child) {
++                continue;
++            }
++            if let Some(mut path) = self.original_descendant_interpreter_path(*child, target) {
++                path.insert(0, Value::new_native_string_bytes(name.as_bytes()));
++                return Some(path);
++            }
++        }
++        None
++    }
++}
+--- /dev/null
++++ b/rust/tcl-vm/src/interp/native_alias_registration_tests.rs
+@@ -0,0 +1,54 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Actual alias-record queries, relocation and physical order from original C Tcl.
++
++use std::{cell::RefCell, io::Write, rc::Rc};
++
++struct Output(Rc<RefCell<Vec<u8>>>);
++impl Write for Output {
++    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
++        self.0.borrow_mut().extend_from_slice(bytes);
++        Ok(bytes.len())
++    }
++    fn flush(&mut self) -> std::io::Result<()> {
++        Ok(())
++    }
++}
++
++fn compare(engine: &str, oracle: &[u8]) {
++    let profile = crate::environment::profile_for_dialect(engine);
++    let output = Rc::new(RefCell::new(Vec::new()));
++    let mut vm = crate::native_fixture::interpreter_with_output(
++        profile,
++        Box::new(Output(Rc::clone(&output))),
++    );
++    let input = include_str!(
++        "../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"
++    );
++    let completion = vm.try_eval_source(input).unwrap_or_else(|error| {
++        panic!(
++            "{engine}: {error:?}; output before refusal:\n{}",
++            String::from_utf8_lossy(&output.borrow())
++        )
++    });
++    assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
++    assert!(vm.refused_completion().is_none(), "{engine}");
++    assert_eq!(std::str::from_utf8(oracle).unwrap().lines().count(), 27);
++    assert_eq!(
++        *output.borrow(),
++        oracle,
++        "{engine}: all 26 original observations, including hidden generations, record collisions and unsorted growth/removal/reinsertion order"
++    );
++}
++macro_rules! records {
++    ($test:ident, $engine:literal, $provider:literal) => {
++        #[test]
++        fn $test() {
++            compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/", $provider, "/stdout.bin")));
++        }
++    };
++}
++records!(original_alias_records_c84, "tcl8.4", "8.4.20");
++records!(original_alias_records_c85, "tcl8.5", "8.5.19");
++records!(original_alias_records_c86, "tcl8.6", "8.6.18");
++records!(original_alias_records_c90, "tcl9.0", "9.0.4");
++records!(original_alias_records_c91, "tcl9.1", "9.1.0");
+--- a/rust/tcl-vm/src/interp/native_name_queries/tests.rs
++++ b/rust/tcl-vm/src/interp/native_name_queries/tests.rs
+@@ -225,6 +225,7 @@
+         Command::Alias {
+             words: Rc::clone(&words),
+             publication_name: "a".into(),
++            registration_name: Value::new_native_string_bytes(b"a".as_slice()),
+         },
+     );
+     let id = tcl_runtime_api::Namespaces::find_command_bytes(&vm, tcl_runtime_api::ROOT_NS, b"a")
+--- a/rust/tcl-vm/src/interp/original_name_residual_tests.rs
++++ b/rust/tcl-vm/src/interp/original_name_residual_tests.rs
+@@ -296,6 +296,7 @@
+     let candidate = Command::Alias {
+         words: Rc::new(vec![borrowed.into_value()]),
+         publication_name: NameBytes::from(b"self".as_slice()),
++        registration_name: Value::new_native_string_bytes(b"self".as_slice()),
+     };
+     assert!(!vm.alias_chain_loops_for_rename("self", &candidate).unwrap());
+     assert!(vm.execution_refusal.is_none());

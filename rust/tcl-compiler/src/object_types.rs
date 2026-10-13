@@ -51,8 +51,47 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::ir::Statement;
+use crate::ir::{MethodCoordinate, MethodKind, ProcedureId, Statement};
 use crate::value_shapes::parse_command_substitution_with_config;
+use tcl_core_types::BodyFrameId;
+
+/// Receiver side of an advisory class-state declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ObjectScopeReceiver {
+    /// State declared for instances of the class.
+    Instance,
+    /// State declared for the class object.
+    ClassObject,
+}
+
+/// Advisory scope coordinates, independent of runtime frames and object tokens.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ObjectFactOwner {
+    /// One retained analytical body or its module top level.
+    Frame(BodyFrameId),
+    /// Shared declarations in one independently retained definition script.
+    DefinitionScript {
+        /// Independent retained definition-script owner.
+        definition: ProcedureId,
+        /// Class-object state and instance state remain separate.
+        receiver: ObjectScopeReceiver,
+    },
+    /// A genuine original declaring class allocation.
+    OriginalClass {
+        /// Original declaring provider, separate from the current receiver.
+        allocation: crate::command_binding::CommandAllocation,
+        /// Advisory declared-state axis, without object allocation authority.
+        receiver: ObjectScopeReceiver,
+    },
+}
+
+fn frame_for_unit(cu: &CompilationUnit, fu: &FunctionUnit) -> Option<BodyFrameId> {
+    if std::ptr::eq(fu, &cu.top_level) {
+        Some(BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()))
+    } else {
+        fu.body_id.map(BodyFrameId::Body)
+    }
+}
 
 /// The source extent of one owning scope, plus the keys a
 /// advisory [`ObjectHandleFacts::by_scope`] candidate lookup may use.
@@ -68,6 +107,10 @@ pub struct OwnerSpan {
     pub span: Span,
     /// The [`FunctionUnit`] key that owns names written in this extent.
     pub unit: String,
+    /// Independent retained body coordinate; labels cannot issue it.
+    pub frame: BodyFrameId,
+    /// Shared state scope supplied by the actual retained declaration owner.
+    pub class_owner: Option<ObjectFactOwner>,
     /// The enclosing class qualified name, for a method/constructor body.
     pub class: Option<String>,
 }
@@ -93,6 +136,7 @@ pub struct PhysicalObjectTypeReadEvidence {
     source: crate::ir::SourceSite,
     evaluation: crate::command_binding::SourceVariableEvaluationOwner,
     unit: String,
+    frame: BodyFrameId,
     variable: String,
     place: crate::place::Place,
     value: crate::ssa::ValueKey,
@@ -116,6 +160,12 @@ impl PhysicalObjectTypeReadEvidence {
     #[must_use]
     pub fn unit(&self) -> &str {
         &self.unit
+    }
+
+    /// Independent retained analytical body of this SSA read.
+    #[must_use]
+    pub const fn frame(&self) -> BodyFrameId {
+        self.frame
     }
 
     /// Original variable reference normalised by its selected native grammar.
@@ -193,7 +243,7 @@ pub struct ObjectHandleFacts {
     /// variable read: a proc-return edge's source is the callee's return type,
     /// and a parameter edge resolves its argument in the caller before binding
     /// the parameter in the callee.
-    pub by_scope: HashMap<(String, String), HashSet<String>>,
+    pub by_scope: HashMap<(ObjectFactOwner, String), HashSet<String>>,
     /// Source-positioned runtime proofs, independent of advisory scope unions.
     pub proven_reads: Vec<ObjectHandleRead>,
     /// Physical SSA read receipts with explicit object-dispatch uncertainty.
@@ -236,12 +286,12 @@ impl ObjectHandleFacts {
     #[must_use]
     pub fn physical_type_read_at(
         &self,
-        unit: &str,
+        frame: BodyFrameId,
         source: &crate::ir::SourceSite,
         evaluation: &crate::command_binding::SourceVariableEvaluationOwner,
     ) -> Option<&PhysicalObjectTypeReadEvidence> {
         let mut proofs = self.physical_type_reads.iter().filter(|proof| {
-            proof.unit == unit && &proof.source == source && &proof.evaluation == evaluation
+            proof.frame == frame && &proof.source == source && &proof.evaluation == evaluation
         });
         let first = proofs.next()?;
         proofs.all(|proof| proof == first).then_some(first)
@@ -458,7 +508,7 @@ fn build_facts_gated(
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
     for fu in units {
-        harvest_unit(fu, registry, &mut sink);
+        harvest_unit(fu, frame_for_unit(cu, fu), registry, &mut sink);
     }
     // A generic compiler refusal can leave a genuine normal handler in the
     // retained IR without a FunctionUnit. Its nominal factory candidate is
@@ -467,7 +517,7 @@ fn build_facts_gated(
         if !cu.procedures.contains_key(name) {
             harvest_script_factories(
                 &procedure.body,
-                &procedure.qualified_name,
+                Some(BodyFrameId::Body(*name)),
                 registry,
                 &mut sink,
             );
@@ -475,7 +525,12 @@ fn build_facts_gated(
     }
     for (name, method) in &cu.ir_module.methods {
         if !cu.methods.contains_key(name) {
-            harvest_script_factories(&method.body, name, registry, &mut sink);
+            harvest_script_factories(
+                &method.body,
+                Some(BodyFrameId::Body(*name)),
+                registry,
+                &mut sink,
+            );
         }
     }
     sink.stats.seeds = sink.facts.any_scope.len();
@@ -523,7 +578,14 @@ fn build_facts_gated(
         (facts.proven_reads, facts.physical_type_reads) = proven_object_reads(cu, registry);
         facts.returns_object = returning_procs(cu)
             .into_iter()
-            .map(|(k, v)| (k.to_owned(), v.clone()))
+            .filter_map(|(id, value)| {
+                let procedure = cu.ir_module.procedures.get(&id)?;
+                cu.ir_module
+                    .procedures
+                    .unique_display(&procedure.qualified_name)
+                    .filter(|(unique, _)| **unique == id)
+                    .map(|_| (procedure.qualified_name.clone(), value))
+            })
             .collect();
         retain_normal_procedure_result_types(cu, registry, &mut facts);
         facts.collections = object_collection_classes(cu);
@@ -582,7 +644,13 @@ fn proven_object_reads(
                         && let Some(class) =
                             classes.as_ref().and_then(|classes| classes.iter().next())
                         && let Some(proof) = physical_object_type_read(
-                            access, read, &fu.name, &name, class, registry,
+                            access,
+                            read,
+                            &fu.name,
+                            frame_for_unit(cu, fu),
+                            &name,
+                            class,
+                            registry,
                         )
                         && !physical.contains(&proof)
                     {
@@ -636,6 +704,7 @@ fn physical_object_type_read(
     access: &crate::command_binding::SourceVariableAccess,
     reference: crate::ssa::SsaReadReference,
     unit: &str,
+    frame: Option<BodyFrameId>,
     variable: &str,
     class: &str,
     registry: &CommandRegistry,
@@ -672,6 +741,7 @@ fn physical_object_type_read(
         source: access.source.clone(),
         evaluation: access.owner.clone(),
         unit: unit.to_owned(),
+        frame: frame?,
         variable: variable.to_owned(),
         place: place.clone(),
         value: (reference.symbol, reference.version?),
@@ -683,21 +753,12 @@ fn physical_object_type_read(
 /// [`FunctionUnit`], plus the sorted span index consumers resolve an offset
 /// against.
 struct OwnerIndex {
-    /// Method [`FunctionUnit`] key → its class's qualified name.
-    method_class: HashMap<String, String>,
-    /// Class qualified name → the instance-variable names in scope for any of
-    /// its methods.  A name in this set is owned by the *class*, so a handle
-    /// stored in one method is visible to a dispatch in another.
-    class_instance_vars: HashMap<String, HashSet<String>>,
-    /// [`ObjectHandleFacts::owner_spans`], already sorted.
+    method_class: HashMap<BodyFrameId, ObjectFactOwner>,
+    class_instance_vars: HashMap<ObjectFactOwner, HashSet<String>>,
     spans: Vec<OwnerSpan>,
 }
 
 impl OwnerIndex {
-    /// A shared index that owns nothing — the scan context a
-    /// [`FactMode::AnyScopeOnly`] build carries, which never consults it.
-    /// Mirrors [`crate::compilation_unit::ModuleTraceFacts::none`]'s
-    /// "immutable empty, handed out for any lifetime" shape.
     fn shared_empty() -> &'static Self {
         static EMPTY: std::sync::OnceLock<OwnerIndex> = std::sync::OnceLock::new();
         EMPTY.get_or_init(|| Self {
@@ -708,87 +769,99 @@ impl OwnerIndex {
     }
 
     fn build(cu: &CompilationUnit, mode: FactMode) -> Self {
-        let mut method_class: HashMap<String, String> = HashMap::new();
-        let mut class_instance_vars: HashMap<String, HashSet<String>> = HashMap::new();
-        let mut spans: Vec<OwnerSpan> = Vec::new();
+        let mut index = Self {
+            method_class: HashMap::new(),
+            class_instance_vars: HashMap::new(),
+            spans: Vec::new(),
+        };
         if mode == FactMode::AnyScopeOnly {
-            return Self {
-                method_class,
-                class_instance_vars,
-                spans,
-            };
+            return index;
         }
-        for (mqname, m) in &cu.ir_module.methods {
-            method_class.insert(mqname.clone(), m.class_name.clone());
-            class_instance_vars
-                .entry(m.class_name.clone())
-                .or_default()
-                .extend(m.instance_vars.iter().cloned());
-            if let Some(span) = m.span {
-                spans.push(OwnerSpan {
+        for (id, method) in &cu.ir_module.methods {
+            let frame = BodyFrameId::Body(*id);
+            let receiver = if method.kind == MethodKind::ClassMethod {
+                ObjectScopeReceiver::ClassObject
+            } else {
+                ObjectScopeReceiver::Instance
+            };
+            let class_owner = method
+                .original_receiver_context
+                .as_deref()
+                .and_then(|context| context.declaring_allocation())
+                .cloned()
+                .map(|allocation| ObjectFactOwner::OriginalClass {
+                    allocation,
+                    receiver,
+                })
+                .or_else(|| {
+                    method
+                        .definition_scope
+                        .map(|definition| ObjectFactOwner::DefinitionScript {
+                            definition,
+                            receiver,
+                        })
+                });
+            if let Some(owner) = class_owner.as_ref() {
+                index.method_class.insert(frame, owner.clone());
+                index
+                    .class_instance_vars
+                    .entry(owner.clone())
+                    .or_default()
+                    .extend(method.instance_vars.iter().cloned());
+            }
+            if let Some(span) = method.span {
+                index.spans.push(OwnerSpan {
                     span,
-                    unit: mqname.clone(),
-                    class: Some(m.class_name.clone()),
+                    unit: method.reporting_label(),
+                    frame,
+                    class_owner,
+                    class: Some(method.class_name.clone()),
                 });
             }
         }
-        for p in cu.ir_module.procedures.values() {
-            spans.push(OwnerSpan {
-                span: p.span,
-                unit: p.qualified_name.clone(),
+        for (id, procedure) in &cu.ir_module.procedures {
+            index.spans.push(OwnerSpan {
+                span: procedure.span,
+                unit: procedure.qualified_name.clone(),
+                frame: BodyFrameId::Body(*id),
+                class_owner: None,
                 class: None,
             });
         }
-        // The top level owns everything no proc or method body covers.  Its
-        // span starts at 0, so it sorts first and `owner_at`'s
-        // greatest-start-that-contains walk still finds the enclosing proc for
-        // a byte inside one — but a top-level `set chart [Chart new]` now has
-        // an owner to resolve against instead of falling off the index.
-        //
-        // Synthetic *body units* (`apply` lambdas, `namespace eval` blocks)
-        // deliberately get **no** span: the harvest does not visit them
-        // (`build_facts_gated` iterates top level / procedures / methods), so a
-        // byte inside one resolves to its enclosing owner, which is where any
-        // knowledge about the name actually lives.
-        spans.push(OwnerSpan {
+        index.spans.push(OwnerSpan {
             span: Span::new(0, u32::try_from(cu.source.len()).unwrap_or(u32::MAX)),
             unit: cu.top_level.name.clone(),
+            frame: BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()),
+            class_owner: None,
             class: None,
         });
-        // Sorted by start ascending for the binary search, then by end
-        // *descending* so that when two scopes begin at the same byte — a proc
-        // written at offset 0 and the whole-file `::top` entry — the wider one
-        // sorts first and `owner_at`'s backward walk still reaches the narrower
-        // (innermost) one first.  The unit key is the final tie-break, so the
-        // vector is a deterministic function of the source rather than of
-        // `HashMap` iteration order (the per-item differential gate compares
-        // whole `AnalysisResult`s for equality).
-        spans.sort_by(|a, b| {
-            (a.span.start(), std::cmp::Reverse(a.span.end()), &a.unit).cmp(&(
-                b.span.start(),
-                std::cmp::Reverse(b.span.end()),
-                &b.unit,
-            ))
+        index.spans.sort_by(|a, b| {
+            (
+                a.span.start(),
+                std::cmp::Reverse(a.span.end()),
+                &a.unit,
+                a.frame,
+            )
+                .cmp(&(
+                    b.span.start(),
+                    std::cmp::Reverse(b.span.end()),
+                    &b.unit,
+                    b.frame,
+                ))
         });
-        Self {
-            method_class,
-            class_instance_vars,
-            spans,
-        }
+        index
     }
 
-    /// The owner key for `name` as written inside `unit`: the enclosing class
-    /// when `name` is one of its instance variables, else the unit itself.
-    fn owner_for<'a>(&'a self, unit: &'a str, name: &str) -> &'a str {
-        if let Some(class) = self.method_class.get(unit)
+    fn owner_for(&self, frame: BodyFrameId, name: &str) -> ObjectFactOwner {
+        if let Some(owner) = self.method_class.get(&frame)
             && self
                 .class_instance_vars
-                .get(class)
+                .get(owner)
                 .is_some_and(|vars| vars.contains(name))
         {
-            return class;
+            return owner.clone();
         }
-        unit
+        ObjectFactOwner::Frame(frame)
     }
 }
 
@@ -810,14 +883,16 @@ struct FactSink<'a> {
 
 impl FactSink<'_> {
     /// Record that `name`, written in `unit`, can hold `class`.
-    fn bind(&mut self, unit: &str, name: &str, class: &str) {
+    fn bind(&mut self, frame: Option<BodyFrameId>, name: &str, class: &str) {
         self.facts
             .any_scope
             .entry(name.to_owned())
             .or_default()
             .insert(class.to_owned());
-        if self.mode == FactMode::Full {
-            let owner = self.owners.owner_for(unit, name).to_owned();
+        if self.mode == FactMode::Full
+            && let Some(frame) = frame
+        {
+            let owner = self.owners.owner_for(frame, name);
             self.facts
                 .by_scope
                 .entry((owner, name.to_owned()))
@@ -942,14 +1017,14 @@ fn procedure_implementation_units(
     units
 }
 
-fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, String> {
+fn returning_procs(cu: &CompilationUnit) -> HashMap<ProcedureId, String> {
     cu.procedures
         .values()
         .filter_map(|unit| {
             (unit.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
                 .then_some(unit.return_type.class_name())
                 .flatten()
-                .map(|class| (unit.name.as_str(), class.to_owned()))
+                .and_then(|class| unit.body_id.map(|id| (id, class.to_owned())))
         })
         .collect()
 }
@@ -959,7 +1034,7 @@ fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, String> {
 fn returning_proc_candidates<'a>(
     cu: &'a CompilationUnit,
     registry: &CommandRegistry,
-) -> HashMap<&'a str, String> {
+) -> HashMap<ProcedureId, String> {
     let mut returns = returning_procs(cu);
     let Some(context) =
         crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
@@ -969,11 +1044,8 @@ fn returning_proc_candidates<'a>(
     let metadata = Some(context.as_ref().into());
     // A retained generic body can have original constructor evidence without
     // an executable FunctionUnit. This is a class candidate only.
-    for (name, procedure) in cu.ir_module.procedures.display_entries() {
-        if cu.ir_module.procedures.unique_display(name).is_none() {
-            continue;
-        }
-        if returns.contains_key(name.as_str()) {
+    for (id, procedure) in &cu.ir_module.procedures {
+        if returns.contains_key(id) {
             continue;
         }
         let Some(statement) = procedure.body.statements.last() else {
@@ -990,7 +1062,7 @@ fn returning_proc_candidates<'a>(
         for value in candidates {
             if let Some(class) = constructor_class(&value.legacy_text(), registry, tokens, metadata)
             {
-                returns.insert(name, class);
+                returns.insert(*id, class);
             }
         }
     }
@@ -1005,14 +1077,14 @@ fn returning_proc_candidates<'a>(
 /// method resolves nothing here (the lattice carries no MRO), so the edge
 /// abstains rather than guess — the module-wide "no evidence ≠ no object"
 /// contract.
-fn returning_methods(cu: &CompilationUnit) -> HashMap<&str, &str> {
+fn returning_methods(cu: &CompilationUnit) -> HashMap<ProcedureId, &str> {
     cu.methods
         .iter()
         .filter_map(|(key, fu)| {
             (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
                 .then_some(fu.return_type.class_name())
                 .flatten()
-                .map(|c| (key.as_str(), c))
+                .map(|c| (*key, c))
         })
         .collect()
 }
@@ -1027,27 +1099,35 @@ fn returning_methods(cu: &CompilationUnit) -> HashMap<&str, &str> {
 fn propagate_object_flow<'a>(
     cu: &'a CompilationUnit,
     registry: &CommandRegistry,
-    returns: &HashMap<&'a str, String>,
+    returns: &HashMap<ProcedureId, String>,
     sink: &mut FactSink,
 ) {
-    // Callee proc qualified name → parameter names.
-    let proc_params: HashMap<&str, &[String]> = cu
+    let proc_params: HashMap<ProcedureId, &[String]> = cu
         .ir_module
         .procedures
-        .values()
-        .map(|p| (p.qualified_name.as_str(), p.params.as_slice()))
-        .collect();
-    // Class qualified name → its constructor's `FunctionUnit` key + parameter
-    // names (the IR module keys a constructor `::Class::<constructor>`).
-    let ctor_params: HashMap<&str, (&str, &crate::ir::MethodDef)> = cu
-        .ir_module
-        .methods
         .iter()
-        .filter_map(|(k, m)| {
-            k.ends_with("::<constructor>")
-                .then_some((m.class_name.as_str(), (k.as_str(), m)))
-        })
+        .map(|(id, procedure)| (*id, procedure.params.as_slice()))
         .collect();
+    let ctor_params: HashMap<&str, Vec<(ProcedureId, &crate::ir::MethodDef)>> = {
+        let mut constructors: HashMap<&str, Vec<(ProcedureId, &crate::ir::MethodDef)>> =
+            HashMap::new();
+        for (id, method) in &cu.ir_module.methods {
+            if method.kind == MethodKind::Constructor {
+                constructors
+                    .entry(method.class_name.as_str())
+                    .or_default()
+                    .push((*id, method));
+            }
+        }
+        constructors
+    };
+    let mut method_coordinates: HashMap<MethodCoordinate, Vec<ProcedureId>> = HashMap::new();
+    for (id, method) in &cu.ir_module.methods {
+        method_coordinates
+            .entry(method.coordinate())
+            .or_default()
+            .push(*id);
+    }
     let method_returns = returning_methods(cu);
     if returns.is_empty()
         && proc_params.is_empty()
@@ -1059,6 +1139,8 @@ fn propagate_object_flow<'a>(
     let index = FlowIndex {
         returns: returns.clone(),
         method_returns,
+        method_coordinates,
+        module: &cu.ir_module,
         proc_params,
         ctor_params,
     };
@@ -1090,10 +1172,7 @@ fn propagate_object_flow<'a>(
                 changed |= entry.insert(c.clone());
             }
             if sink.mode == FactMode::Full && !binding.scoped_classes.is_empty() {
-                let owner = sink
-                    .owners
-                    .owner_for(&binding.owner, &binding.name)
-                    .to_owned();
+                let owner = sink.owners.owner_for(binding.owner, &binding.name);
                 let entry = sink
                     .facts
                     .by_scope
@@ -1117,14 +1196,16 @@ fn propagate_object_flow<'a>(
 /// The callee-side maps one fixpoint round resolves call edges against.
 struct FlowIndex<'a> {
     /// Proc qualified name → returned object class.
-    returns: HashMap<&'a str, String>,
+    returns: HashMap<ProcedureId, String>,
     /// Method [`FunctionUnit`] key (`::Class::method`) → returned object
     /// class, for the `set b [$a make]` method-return edge.
-    method_returns: HashMap<&'a str, &'a str>,
+    method_returns: HashMap<ProcedureId, &'a str>,
+    method_coordinates: HashMap<MethodCoordinate, Vec<ProcedureId>>,
+    module: &'a crate::ir::Module,
     /// Proc qualified name → parameter names.
-    proc_params: HashMap<&'a str, &'a [String]>,
+    proc_params: HashMap<ProcedureId, &'a [String]>,
     /// Class qualified name → (constructor unit key, constructor parameters).
-    ctor_params: HashMap<&'a str, (&'a str, &'a crate::ir::MethodDef)>,
+    ctor_params: HashMap<&'a str, Vec<(ProcedureId, &'a crate::ir::MethodDef)>>,
 }
 
 /// One type-propagation edge's product: the classes `name` gains, and the unit
@@ -1143,7 +1224,7 @@ struct FlowIndex<'a> {
 ///   must not read a same-named `x` bound in another: a false singleton in
 ///   the narrow map is a wrong rename, not a missed one.
 struct Binding {
-    owner: String,
+    owner: BodyFrameId,
     name: String,
     union_classes: HashSet<String>,
     scoped_classes: HashSet<String>,
@@ -1197,6 +1278,9 @@ fn scan_flow_edges(
     let owners: &OwnerIndex = scoped.unwrap_or_else(|| OwnerIndex::shared_empty());
     let by_scope = scoped.map(|_| &facts.by_scope);
     for fu in units {
+        let Some(frame) = frame_for_unit(cu, fu) else {
+            continue;
+        };
         let ctx = ScanContext {
             ctor_params,
             out: &facts.any_scope,
@@ -1204,7 +1288,7 @@ fn scan_flow_edges(
             owners,
             registry,
             metadata_context,
-            unit: &fu.name,
+            unit: frame,
             tokens: None,
         };
         for block in fu.cfg.blocks.values() {
@@ -1222,13 +1306,13 @@ fn scan_flow_edges(
         .procedures
         .iter()
         .filter(|(name, _)| !cu.procedures.contains_key(*name))
-        .map(|(_, procedure)| (procedure.qualified_name.as_str(), &procedure.body))
+        .map(|(id, procedure)| (BodyFrameId::Body(*id), &procedure.body))
         .chain(
             cu.ir_module
                 .methods
                 .iter()
                 .filter(|(name, _)| !cu.methods.contains_key(*name))
-                .map(|(name, method)| (name.as_str(), &method.body)),
+                .map(|(id, method)| (BodyFrameId::Body(*id), &method.body)),
         )
     {
         let mut pending = vec![script];
@@ -1282,6 +1366,8 @@ fn scan_flow_statement(
                 ReturnEdges {
                     procs: returns,
                     methods: method_returns,
+                    coordinates: &index.method_coordinates,
+                    module: index.module,
                 },
                 ctx,
                 bindings,
@@ -1304,6 +1390,8 @@ fn scan_flow_statement(
                     ReturnEdges {
                         procs: returns,
                         methods: method_returns,
+                        coordinates: &index.method_coordinates,
+                        module: index.module,
                     },
                     ctx,
                     bindings,
@@ -1316,7 +1404,8 @@ fn scan_flow_statement(
                 .and_then(|tokens| tokens.source_binding.as_ref())
                 .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
                 .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
-                && let Some((callee, params)) = proc_params.get_key_value(target.command.as_str())
+                && let Some((id, _)) = index.module.source_procedure_for_target(target)
+                && let Some(params) = proc_params.get(&id)
                 && let Some(effective) = ctx
                     .tokens
                     .and_then(crate::registry_invocation::effective_command_words)
@@ -1327,7 +1416,7 @@ fn scan_flow_statement(
                     .skip(1)
                     .map(crate::ir::WordExpr::legacy_text)
                     .collect::<Vec<_>>();
-                emit_proc_param_bindings(callee, params, &args, ctx, bindings);
+                emit_proc_param_bindings(id, params, &args, ctx, bindings);
             }
             // Constructor-parameter edge: `Class create NAME …`.
             emit_ctor_param_bindings(resolve_ctor_class, ctx, bindings);
@@ -1378,7 +1467,7 @@ fn scan_substitution_constructor_edges(
 /// One `set NAME VALUE` statement, with the unit it is written in.
 #[derive(Clone, Copy)]
 struct AssignSite<'a> {
-    unit: &'a str,
+    unit: BodyFrameId,
     name: &'a str,
     value: &'a str,
 }
@@ -1388,8 +1477,10 @@ struct AssignSite<'a> {
 /// [`FlowIndex::method_returns`].
 #[derive(Clone, Copy)]
 struct ReturnEdges<'a, 'b> {
-    procs: &'b HashMap<&'a str, String>,
-    methods: &'b HashMap<&'a str, &'a str>,
+    procs: &'b HashMap<ProcedureId, String>,
+    methods: &'b HashMap<ProcedureId, &'a str>,
+    coordinates: &'b HashMap<MethodCoordinate, Vec<ProcedureId>>,
+    module: &'a crate::ir::Module,
 }
 
 /// The edges an assignment can carry — aliasing (`set A $B`), proc return
@@ -1409,7 +1500,7 @@ fn scan_assign_edges(
         && let Some(classes) = ctx.out.get(src).filter(|s| !s.is_empty())
     {
         bindings.push(Binding {
-            owner: site.unit.to_owned(),
+            owner: site.unit,
             name: site.name.to_owned(),
             union_classes: classes.clone(),
             scoped_classes: ctx.scoped_classes(src),
@@ -1444,14 +1535,15 @@ fn scan_assign_edges(
     // of its written spelling or present command slot.
     if let Some(class) = target
         .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
-        .and_then(|target| returns.procs.get(target.command.as_str()))
+        .and_then(|target| returns.module.source_procedure_for_target(target))
+        .and_then(|(id, _)| returns.procs.get(&id))
     {
         // A legitimately cross-scope flow: the source is the *callee's* return
         // type, not a variable read, so there is no scope to confuse and both
         // facts take it.
         let classes = EdgeClasses::unscoped(class);
         bindings.push(Binding {
-            owner: site.unit.to_owned(),
+            owner: site.unit,
             name: site.name.to_owned(),
             union_classes: classes.union,
             scoped_classes: classes.scoped,
@@ -1474,7 +1566,18 @@ fn scan_assign_edges(
         let resolve = |classes: &HashSet<String>| -> HashSet<String> {
             classes
                 .iter()
-                .filter_map(|c| returns.methods.get(format!("{c}::{method}").as_str()))
+                .flat_map(|class| {
+                    returns
+                        .coordinates
+                        .get(&MethodCoordinate {
+                            class_label: class.clone(),
+                            member_label: method.to_owned(),
+                            kind: MethodKind::Method,
+                        })
+                        .into_iter()
+                        .flatten()
+                })
+                .filter_map(|id| returns.methods.get(id))
                 .map(|ret| (*ret).to_owned())
                 .collect()
         };
@@ -1482,7 +1585,7 @@ fn scan_assign_edges(
             let union_classes = resolve(recv_classes);
             if !union_classes.is_empty() {
                 bindings.push(Binding {
-                    owner: site.unit.to_owned(),
+                    owner: site.unit,
                     name: site.name.to_owned(),
                     union_classes,
                     scoped_classes: resolve(&ctx.scoped_classes(recv)),
@@ -1496,7 +1599,7 @@ fn scan_assign_edges(
 /// Bind `callee`'s parameters to the object classes of a call's arguments.
 /// Stops at `args` (a variadic tail is not positionally bindable).
 fn emit_proc_param_bindings(
-    callee: &str,
+    callee: ProcedureId,
     params: &[String],
     args: &[String],
     ctx: ScanContext,
@@ -1511,7 +1614,7 @@ fn emit_proc_param_bindings(
         // *caller* (`ctx.unit`) and the parameter is bound in the callee.
         if let Some(classes) = arg_classes(arg, ctx) {
             bindings.push(Binding {
-                owner: callee.to_owned(),
+                owner: BodyFrameId::Body(callee),
                 name: pname.clone(),
                 union_classes: classes.union,
                 scoped_classes: classes.scoped,
@@ -1530,13 +1633,13 @@ fn emit_proc_param_bindings(
 /// in — the scope a `$var` read in it resolves against.
 #[derive(Clone, Copy)]
 struct ScanContext<'a> {
-    ctor_params: &'a HashMap<&'a str, (&'a str, &'a crate::ir::MethodDef)>,
+    ctor_params: &'a HashMap<&'a str, Vec<(ProcedureId, &'a crate::ir::MethodDef)>>,
     out: &'a HashMap<String, HashSet<String>>,
-    by_scope: Option<&'a HashMap<(String, String), HashSet<String>>>,
+    by_scope: Option<&'a HashMap<(ObjectFactOwner, String), HashSet<String>>>,
     owners: &'a OwnerIndex,
     registry: &'a CommandRegistry,
     metadata_context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
-    unit: &'a str,
+    unit: BodyFrameId,
     tokens: Option<&'a crate::ir::CommandTokens>,
 }
 
@@ -1553,7 +1656,7 @@ impl ScanContext<'_> {
         };
         let owner = self.owners.owner_for(self.unit, var);
         by_scope
-            .get(&(owner.to_owned(), var.to_owned()))
+            .get(&(owner, var.to_owned()))
             .cloned()
             .unwrap_or_default()
     }
@@ -1593,9 +1696,26 @@ fn emit_ctor_param_bindings(
     let Some(class) = resolve_ctor_class(&target.command) else {
         return;
     };
-    let Some((ctor_unit, method)) = ctx.ctor_params.get(class.as_str()) else {
+    let Some(constructors) = ctx.ctor_params.get(class.as_str()) else {
         return;
     };
+    let mut matching = constructors.iter().filter(|(_, method)| {
+        method
+            .span
+            .is_some_and(|span| span.start() == entry.declaration().offset)
+            && method.body.executed_source.as_deref() == Some(entry.body())
+            && method
+                .params
+                .iter()
+                .map(String::as_str)
+                .eq(entry.formals().iter().map(|(name, _)| name.as_str()))
+    });
+    let Some((ctor_unit, method)) = matching.next() else {
+        return;
+    };
+    if matching.next().is_some() {
+        return;
+    }
     // The retained body entry chooses the unit. A document-final class name
     // cannot substitute a different constructor with equal parameter names.
     if method
@@ -1619,7 +1739,7 @@ fn emit_ctor_param_bindings(
         }
         if let Some(classes) = arg_classes(arg, ctx) {
             bindings.push(Binding {
-                owner: (*ctor_unit).to_owned(),
+                owner: BodyFrameId::Body(*ctor_unit),
                 name: pname.clone(),
                 union_classes: classes.union,
                 scoped_classes: classes.scoped,
@@ -1692,7 +1812,12 @@ pub fn object_collection_classes(cu: &CompilationUnit) -> HashMap<String, HashSe
     out
 }
 
-fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSink) {
+fn harvest_unit(
+    fu: &FunctionUnit,
+    frame: Option<BodyFrameId>,
+    registry: &CommandRegistry,
+    sink: &mut FactSink,
+) {
     // Syntactic constructor assignments (`set VAR [Class new|create …]`) and
     // naming object-factories (`struct::graph myG` — the created object command
     // is `myG`, not a `set` target the SSA lattice can carry).
@@ -1707,7 +1832,7 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
                         if let Some(class) =
                             constructor_class(value, registry, stmt.tokens(), sink.metadata_context)
                         {
-                            sink.bind(&fu.name, name, &class);
+                            sink.bind(frame, name, &class);
                         }
                         // The nested-constructor half of the fast-path gate:
                         // `set w [Wrap new [listbox .l]]` reaches `arg_classes`
@@ -1729,7 +1854,7 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
                         .and_then(|normal| normal.naming_factory_candidate())
                         && is_plain_object_name(&name)
                     {
-                        sink.bind(&fu.name, &name, class);
+                        sink.bind(frame, &name, class);
                     }
                     // Both parameter edges read a call's arguments through
                     // `arg_classes`, whose `[Factory new]` branch needs no
@@ -1747,14 +1872,14 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
             && let Some(class) = t.class_name()
         {
             let name = fu.ssa.var_name(*sym).to_owned();
-            sink.bind(&fu.name, &name, class);
+            sink.bind(frame, &name, class);
         }
     }
 }
 
 fn harvest_script_factories(
     script: &crate::ir::Script,
-    owner: &str,
+    owner: Option<BodyFrameId>,
     registry: &CommandRegistry,
     sink: &mut FactSink,
 ) {
@@ -1975,7 +2100,7 @@ mod tests {
         assert_eq!(proof.candidate_class(), "::Pin");
         assert!(proof.place().cell.is_some());
         assert_eq!(
-            facts.physical_type_read_at(proof.unit(), proof.source(), proof.evaluation()),
+            facts.physical_type_read_at(proof.frame(), proof.source(), proof.evaluation()),
             Some(proof)
         );
         let mut advisory = facts.clone();
@@ -1983,7 +2108,10 @@ mod tests {
             .any_scope
             .insert("y".to_owned(), HashSet::from(["::Pin".to_owned()]));
         advisory.by_scope.insert(
-            ("::top".to_owned(), "y".to_owned()),
+            (
+                ObjectFactOwner::Frame(BodyFrameId::Top(cu.ir_module.procedure_ids.module_id())),
+                "y".to_owned(),
+            ),
             HashSet::from(["::Pin".to_owned()]),
         );
         assert_eq!(advisory.physical_type_reads, facts.physical_type_reads);
@@ -2592,13 +2720,49 @@ mod tests {
     /// The classes `by_scope` binds for `(owner, var)`, sorted for a stable
     /// assertion message.
     fn scoped(facts: &ObjectHandleFacts, owner: &str, var: &str) -> Vec<String> {
-        let mut v: Vec<String> = facts
-            .by_scope
-            .get(&(owner.to_owned(), var.to_owned()))
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
-        v.sort();
-        v
+        let owners = facts
+            .owner_spans
+            .iter()
+            .filter_map(|span| {
+                if span.unit == owner {
+                    Some(ObjectFactOwner::Frame(span.frame))
+                } else if span.class.as_deref() == Some(owner) {
+                    span.class_owner.clone()
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<_>>();
+        let mut values = owners
+            .into_iter()
+            .flat_map(|owner| {
+                facts
+                    .by_scope
+                    .get(&(owner, var.to_owned()))
+                    .into_iter()
+                    .flatten()
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
+        values.sort();
+        values.dedup();
+        values
+    }
+
+    #[test]
+    fn colliding_method_reports_have_distinct_scoped_object_candidates() {
+        let source = "namespace eval A {}\noo::class create A::B {method c {} {set handle [Pin new]}}\noo::class create A {method B::c {} {set handle 0}}\n";
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&unit, &registry);
+        let scopes = facts
+            .owner_spans
+            .iter()
+            .filter(|scope| scope.unit == "::A::B::c")
+            .collect::<Vec<_>>();
+        assert_eq!(scopes.len(), 2);
+        assert_ne!(scopes[0].frame, scopes[1].frame);
+        assert_ne!(scopes[0].class_owner, scopes[1].class_owner);
     }
 
     #[test]
@@ -2696,8 +2860,20 @@ mod tests {
                 false,
                 registry.profile().unwrap(),
             );
-            unit.procedures.remove("::make");
-            unit.procedures.remove("::take");
+            unit.procedures.remove(
+                unit.ir_module
+                    .procedures
+                    .unique_display("::make")
+                    .unwrap()
+                    .0,
+            );
+            unit.procedures.remove(
+                unit.ir_module
+                    .procedures
+                    .unique_display("::take")
+                    .unwrap()
+                    .0,
+            );
             let facts = object_handle_facts(&unit, registry);
             assert_eq!(
                 facts
@@ -3119,11 +3295,40 @@ mod tests {
             None,
             std::sync::Arc::clone(&context),
         );
-        unit.procedures.remove("::make");
+        unit.procedures.remove(
+            unit.ir_module
+                .procedures
+                .unique_display("::make")
+                .unwrap()
+                .0,
+        );
         assert!(returning_procs(&unit).is_empty());
         let current = returning_proc_candidates(&unit, registry);
-        assert_eq!(current.get("::make").map(String::as_str), Some("::Pin"));
-        let original = unit.ir_module.procedures["::make"].body.clone();
+        assert_eq!(
+            current
+                .get(
+                    unit.ir_module
+                        .procedures
+                        .unique_display("::make")
+                        .unwrap()
+                        .0
+                )
+                .map(String::as_str),
+            Some("::Pin")
+        );
+        let original = unit
+            .ir_module
+            .procedures
+            .get(
+                unit.ir_module
+                    .procedures
+                    .unique_display("::make")
+                    .unwrap()
+                    .0,
+            )
+            .unwrap()
+            .body
+            .clone();
         let input = unit.ir_module.source_metadata_input.clone().unwrap();
         let older = std::sync::Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
@@ -3150,7 +3355,20 @@ mod tests {
         ] {
             unit.ir_module.source_metadata_input = withheld;
             assert!(returning_proc_candidates(&unit, registry).is_empty());
-            assert_eq!(unit.ir_module.procedures["::make"].body, original);
+            assert_eq!(
+                unit.ir_module
+                    .procedures
+                    .get(
+                        unit.ir_module
+                            .procedures
+                            .unique_display("::make")
+                            .unwrap()
+                            .0
+                    )
+                    .unwrap()
+                    .body,
+                original
+            );
         }
     }
 

@@ -937,6 +937,7 @@ pub fn sccp_with_builtin_folds(
 /// the function aliases them.
 #[derive(Clone, Copy)]
 pub(crate) struct ModuleRun<'a> {
+    pub(crate) analysis_body: Option<Option<crate::ir::ProcedureId>>,
     /// The module's procedures, where the caller holds them.
     pub(crate) procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
     /// Names the function links to a caller's place which the run treats as
@@ -975,6 +976,7 @@ impl<'a> ModuleRun<'a> {
     /// A run that reads nothing of the module.
     pub(crate) const NONE: Self = Self {
         procedures: None,
+        analysis_body: None,
         owned: None,
         level: ModuleLevel::Places,
         reads_exits: false,
@@ -987,6 +989,7 @@ impl<'a> ModuleRun<'a> {
     ) -> Self {
         Self {
             procedures,
+            analysis_body: None,
             owned: None,
             level: ModuleLevel::Places,
             reads_exits: false,
@@ -1052,7 +1055,7 @@ impl<'a> SolveInputs<'a> {
     fn driver(&self, trace: TraceInputs<'a>, escaping: &HashSet<String>) -> LatticeDriver<'a> {
         LatticeDriver::new(trace, self.folds, self.policy, escaping)
             .with_cfg_metadata(&self.cfg.metadata_context)
-            .in_module(&self.cfg.name, self.module)
+            .in_module(self.cfg, self.module)
     }
 }
 

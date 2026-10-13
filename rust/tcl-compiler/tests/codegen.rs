@@ -68,6 +68,10 @@
 //!     `CfgFunction` with a `Statement::AssignExpr` carrying an
 //!     `ExprNode::Binary`/`Unary`, run through `codegen_function`.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use std::collections::HashMap;
 
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
@@ -107,9 +111,11 @@ fn top_asm(source: &str) -> FunctionAsm {
 
 /// The `FunctionAsm` for a named procedure in `source`.
 fn proc_asm(source: &str, name: &str) -> FunctionAsm {
-    asm_for(source)
+    let mut module = asm_for(source);
+    let id = fixture_id(&module.procedures, name);
+    module
         .procedures
-        .remove(name)
+        .remove(&id)
         .unwrap_or_else(|| panic!("procedure {name} not found"))
 }
 
@@ -290,9 +296,17 @@ fn proc_return_folds_to_done() {
     let ir = lower_to_ir("proc foo {} { return 42 }", &reg);
     let cfg = build_cfg(&ir, false);
     let module = codegen_module(&cfg, &ir, &reg);
-    assert!(module.procedures.contains_key("::foo"));
+    assert!(fixture_id_if_present(&module.procedures, "::foo").is_some());
     // Tail-position return is folded to done (matching tclsh).
-    assert!(opcodes(&module.procedures["::foo"]).contains(&Op::DONE));
+    assert!(
+        opcodes(
+            module
+                .procedures
+                .get(&fixture_id(&module.procedures, "::foo"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::DONE)
+    );
 }
 
 #[test]
@@ -559,7 +573,11 @@ fn format_variables_section() {
     assert!(text.contains("0 variables"));
     // Proc bodies still use the LVT.
     let ma = asm_for("proc foo {x} { set x 1 }");
-    let proc_text = format_function_asm(&ma.procedures["::foo"]);
+    let proc_text = format_function_asm(
+        ma.procedures
+            .get(&fixture_id(&ma.procedures, "::foo"))
+            .expect("authored fixture body"),
+    );
     assert!(proc_text.contains("Local variables:"));
     assert!(proc_text.contains("%v0: \"x\""));
 }
@@ -601,7 +619,11 @@ fn format_instruction_offsets_monotonic() {
 #[test]
 fn format_proc_has_local_variables() {
     let ma = asm_for("proc foo {a b} { set c [expr {$a + $b}]; return $c }");
-    let text = format_function_asm(&ma.procedures["::foo"]);
+    let text = format_function_asm(
+        ma.procedures
+            .get(&fixture_id(&ma.procedures, "::foo"))
+            .expect("authored fixture body"),
+    );
     assert!(text.contains("Local variables:"));
     assert!(text.contains("\"a\""));
     assert!(text.contains("\"b\""));
@@ -616,7 +638,7 @@ fn format_done_always_at_end() {
         assert_eq!(
             fa.instructions.last().unwrap().op,
             Op::DONE,
-            "proc {name} missing trailing done"
+            "proc {name:?} missing trailing done"
         );
     }
 }
@@ -721,18 +743,46 @@ fn multiple_procs() {
     let ma = asm_for(
         "proc add {a b} { expr {$a + $b} }\nproc sub {a b} { expr {$a - $b} }\nproc mul {a b} { expr {$a * $b} }",
     );
-    assert!(ma.procedures.contains_key("::add"));
-    assert!(ma.procedures.contains_key("::sub"));
-    assert!(ma.procedures.contains_key("::mul"));
-    assert!(opcodes(&ma.procedures["::add"]).contains(&Op::ADD));
-    assert!(opcodes(&ma.procedures["::sub"]).contains(&Op::SUB));
-    assert!(opcodes(&ma.procedures["::mul"]).contains(&Op::MULT));
+    assert!(fixture_id_if_present(&ma.procedures, "::add").is_some());
+    assert!(fixture_id_if_present(&ma.procedures, "::sub").is_some());
+    assert!(fixture_id_if_present(&ma.procedures, "::mul").is_some());
+    assert!(
+        opcodes(
+            ma.procedures
+                .get(&fixture_id(&ma.procedures, "::add"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::ADD)
+    );
+    assert!(
+        opcodes(
+            ma.procedures
+                .get(&fixture_id(&ma.procedures, "::sub"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::SUB)
+    );
+    assert!(
+        opcodes(
+            ma.procedures
+                .get(&fixture_id(&ma.procedures, "::mul"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::MULT)
+    );
 }
 
 #[test]
 fn proc_calling_proc() {
     let ma = asm_for("proc helper {x} { expr {$x * 2} }\nproc caller {x} { helper $x }");
-    assert!(opcodes(&ma.procedures["::caller"]).contains(&Op::INVOKE_STK1));
+    assert!(
+        opcodes(
+            ma.procedures
+                .get(&fixture_id(&ma.procedures, "::caller"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::INVOKE_STK1)
+    );
 }
 
 #[test]
@@ -765,7 +815,7 @@ fn proc_local_vs_param() {
 #[test]
 fn namespace_eval_proc_qualified() {
     let ir = ir_for("namespace eval ::myns {\n    proc foo {x} { expr {$x + 1} }\n}\n");
-    assert!(ir.procedures.contains_key("::myns::foo"));
+    assert!(fixture_id_if_present(&ir.procedures, "::myns::foo").is_some());
 }
 
 #[test]
@@ -777,7 +827,7 @@ fn dynamic_proc_name_not_registered() {
 #[test]
 fn proc_with_default_args() {
     let ir = ir_for("proc greet {name {greeting \"hello\"}} { return \"$greeting, $name\" }");
-    assert!(ir.procedures.contains_key("::greet"));
+    assert!(fixture_id_if_present(&ir.procedures, "::greet").is_some());
 }
 
 // Nested control flow
@@ -822,7 +872,10 @@ fn while_with_nested_switch() {
     let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact -- $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::dispatch"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::dispatch"))
+        .expect("authored fixture body");
     let branch_count = proc_cfg
         .blocks
         .values()
@@ -960,7 +1013,10 @@ fn switch_fallthrough_stays_irswitch() {
     let src = "proc classify {x} { switch -exact $x { a - b - c { set r \"letter\" } 1 - 2 - 3 { set r \"digit\" } default { set r \"other\" } }; return $r }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::classify"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::classify"))
+        .expect("authored fixture body");
     let irswitch_count: usize = proc_cfg
         .blocks
         .values()
@@ -980,7 +1036,10 @@ fn switch_glob_stays_as_irswitch() {
     let src = "proc ext {filename} { switch -glob $filename { *.c { return \"c_source\" } *.h { return \"c_header\" } default { return \"unknown\" } } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::ext"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::ext"))
+        .expect("authored fixture body");
     let has_barrier = proc_cfg.blocks.values().any(|b| {
         b.statements.iter().any(
             |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -glob")),
@@ -1000,7 +1059,10 @@ fn switch_regexp_stays_switch() {
     let src = "proc match {s} { switch -regexp $s { {^[0-9]+$} { return \"number\" } {^[a-z]+$} { return \"alpha\" } default { return \"mixed\" } } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::match"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::match"))
+        .expect("authored fixture body");
     let has_barrier = proc_cfg.blocks.values().any(|b| {
         b.statements.iter().any(
             |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -regexp")),
@@ -1117,7 +1179,10 @@ fn try_finally_block() {
     let src = "proc with_cleanup {} { try { set x 1 } finally { set x 0 }; return $x }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::with_cleanup"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::with_cleanup"))
+        .expect("authored fixture body");
     assert!(proc_cfg.block_names().iter().any(|n| n.contains("finally")));
 }
 
@@ -1126,7 +1191,10 @@ fn try_on_error() {
     let src = "proc safe_div {a b} { try { set r [expr {$a / $b}] } on error {msg opts} { set r -1 }; return $r }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::safe_div"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::safe_div"))
+        .expect("authored fixture body");
     assert!(proc_cfg.block_names().iter().any(|n| n.contains("handler")));
 }
 
@@ -1135,7 +1203,10 @@ fn try_on_error_with_finally() {
     let src = "proc robust {body_cmd} { set ok 0; try { eval $body_cmd; set ok 1 } on error {msg} { set ok 0 } finally { set cleanup_done 1 }; return $ok }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::robust"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::robust"))
+        .expect("authored fixture body");
     assert!(proc_cfg.block_names().iter().any(|n| n.contains("handler")));
     assert!(proc_cfg.block_names().iter().any(|n| n.contains("finally")));
 }
@@ -1184,7 +1255,10 @@ fn for_loop_registered_in_loop_nodes() {
     let src = "proc loop {} { for {set i 0} {$i < 10} {incr i} { puts $i } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::loop"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::loop"))
+        .expect("authored fixture body");
     assert_eq!(
         proc_cfg.loop_nodes.len(),
         1,
@@ -1223,7 +1297,10 @@ fn foreach_creates_loop_cfg() {
     let src = "proc iter {lst} { foreach item $lst { puts $item } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::iter"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::iter"))
+        .expect("authored fixture body");
     let names = proc_cfg.block_names();
     assert!(names.iter().any(|n| n.contains("foreach_header")));
     assert!(names.iter().any(|n| n.contains("foreach_body")));
@@ -1245,7 +1322,10 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
 
     // Analysis CFG: real loop blocks, no dict-for barrier.
     let analysis = build_cfg(&ir, false);
-    let a_cfg = &analysis.procedures["::dict_iter"];
+    let a_cfg = analysis
+        .procedures
+        .get(&fixture_id(&analysis.procedures, "::dict_iter"))
+        .expect("authored fixture body");
     let names = a_cfg.block_names();
     assert!(
         names.iter().any(|n| n.contains("foreach_header")),
@@ -1262,7 +1342,10 @@ fn dict_for_lowers_to_loop_cfg_for_analysis_but_barriers_for_codegen() {
 
     // Codegen CFG: the opaque `::tcl::dict::for` barrier is preserved.
     let codegen = build_cfg_codegen(&ir, false);
-    let c_cfg = &codegen.procedures["::dict_iter"];
+    let c_cfg = codegen
+        .procedures
+        .get(&fixture_id(&codegen.procedures, "::dict_iter"))
+        .expect("authored fixture body");
     let has_barrier = c_cfg.blocks.values().any(|b| {
         b.statements
             .iter()
@@ -1507,7 +1590,10 @@ fn for_loop_back_edge() {
     let src = "proc loop {} { for {set i 0} {$i < 10} {incr i} { puts $i } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::loop"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::loop"))
+        .expect("authored fixture body");
     let header = proc_cfg
         .block_names()
         .iter()
@@ -1533,7 +1619,10 @@ fn return_terminates_block() {
     let src = "proc early_exit {x} { set a 1; return $a; set b 2 }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::early_exit"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::early_exit"))
+        .expect("authored fixture body");
     let has_return = proc_cfg
         .blocks
         .values()
@@ -1559,7 +1648,10 @@ fn all_blocks_reachable() {
     let src = "proc simple {x} { if {$x > 0} { set r \"pos\" } else { set r \"neg\" }; return $r }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::simple"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::simple"))
+        .expect("authored fixture body");
     // BFS from entry over terminator successors.
     let mut visited = std::collections::HashSet::new();
     let mut queue = vec![proc_cfg.entry];
@@ -1652,7 +1744,10 @@ fn incr_with_amount() {
 #[test]
 fn return_with_options_becomes_barrier() {
     let ir = ir_for("proc fail {} { return -code error \"oops\" }");
-    let proc = &ir.procedures["::fail"];
+    let proc = ir
+        .procedures
+        .get(&fixture_id(&ir.procedures, "::fail"))
+        .expect("authored fixture body");
     assert!(
         proc.body
             .statements
@@ -1836,7 +1931,10 @@ fn catch_in_if_condition() {
         "proc safe_check {} { if {[catch {expr {1/0}} result]} { return $result }; return \"ok\" }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::safe_check"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::safe_check"))
+        .expect("authored fixture body");
     let has_cond_def = proc_cfg.blocks.values().any(|b| {
         b.statements
             .iter()
@@ -1850,7 +1948,10 @@ fn catch_in_while_condition() {
     let src = "proc retry_loop {} { while {[catch {some_op} result] != 0} { puts \"retrying...\" }; return $result }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::retry_loop"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::retry_loop"))
+        .expect("authored fixture body");
     let has_cond_def = proc_cfg.blocks.values().any(|b| {
         b.statements
             .iter()
@@ -1871,7 +1972,10 @@ fn backslash_in_set_value() {
 
 fn foreach_iter_count(src: &str, proc: &str) -> usize {
     let ir = ir_for(src);
-    let p = &ir.procedures[proc];
+    let p = ir
+        .procedures
+        .get(&fixture_id(&ir.procedures, proc))
+        .expect("authored fixture body");
     p.body
         .statements
         .iter()
@@ -1903,7 +2007,10 @@ fn foreach_multi_var_per_group() {
     let src =
         "proc pairs {lst} { set r {}; foreach {k v} $lst { lappend r \"$k=$v\" }; return $r }";
     let ir = ir_for(src);
-    let p = &ir.procedures["::pairs"];
+    let p = ir
+        .procedures
+        .get(&fixture_id(&ir.procedures, "::pairs"))
+        .expect("authored fixture body");
     let fe = p
         .body
         .statements
@@ -1972,7 +2079,10 @@ fn frozen_for_cmd_subst_condition() {
     let src = "proc frozen {} { for {set i 0} {[expr {$i < 10}]} {incr i} { puts $i } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::frozen"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::frozen"))
+        .expect("authored fixture body");
     let has_barrier = proc_cfg.blocks.values().any(|b| {
         b.statements.iter().any(
             |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen for")),
@@ -1986,7 +2096,10 @@ fn frozen_while_cmd_subst_condition() {
     let src = "proc frozen_while {} { set i 0; while {[expr {$i < 10}]} { incr i } }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::frozen_while"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::frozen_while"))
+        .expect("authored fixture body");
     let has_barrier = proc_cfg.blocks.values().any(|b| {
         b.statements.iter().any(
             |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("frozen while")),
@@ -2001,8 +2114,12 @@ fn frozen_while_cmd_subst_condition() {
 fn kitchen_sink() {
     let src = "namespace eval ::test {\n    proc helper {x} {\n        return [expr {$x * 2}]\n    }\n}\n\nproc main {args} {\n    set total 0\n    set items {1 2 3 4 5}\n    for {set i 0} {$i < 5} {incr i} {\n        if {$i % 2 == 0} {\n            set total [expr {$total + $i}]\n        }\n    }\n    foreach item $items {\n        set total [expr {$total + $item}]\n    }\n    set j 0\n    while {$j < 100} {\n        if {$j > 10} {\n            break\n        }\n        incr j\n    }\n    switch -exact $j {\n        10 { set label \"ten\" }\n        11 { set label \"eleven\" }\n        default { set label \"other\" }\n    }\n    set rc [catch {expr {1/0}} err]\n    set s \"hello world\"\n    string length $s\n    string toupper $s\n    return $total\n}\n\nmain\n";
     let ma = asm_for(src);
-    assert!(ma.procedures.contains_key("::main"));
-    let ops = opcodes(&ma.procedures["::main"]);
+    assert!(fixture_id_if_present(&ma.procedures, "::main").is_some());
+    let ops = opcodes(
+        ma.procedures
+            .get(&fixture_id(&ma.procedures, "::main"))
+            .expect("authored fixture body"),
+    );
     assert!(ops.contains(&Op::LT) || ops.contains(&Op::LE));
     assert!(ops.contains(&Op::ADD));
     assert!(ops.contains(&Op::MOD));
@@ -2268,10 +2385,21 @@ fn the_body_shape_matches_the_same_source_compiled_as_a_procedure() {
 fn a_procedure_records_the_body_word_it_was_compiled_from() {
     let m = asm_for("proc p {} {return A}\nproc q {} {}\n");
     assert_eq!(
-        m.procedures["::p"].proc_body_src.as_deref(),
+        m.procedures
+            .get(&fixture_id(&m.procedures, "::p"))
+            .expect("authored fixture body")
+            .proc_body_src
+            .as_deref(),
         Some("return A")
     );
-    assert_eq!(m.procedures["::q"].proc_body_src.as_deref(), Some(""));
+    assert_eq!(
+        m.procedures
+            .get(&fixture_id(&m.procedures, "::q"))
+            .expect("authored fixture body")
+            .proc_body_src
+            .as_deref(),
+        Some("")
+    );
     assert_eq!(m.top_level.proc_body_src, None);
     assert_eq!(m.top_level_body.proc_body_src, None);
 }

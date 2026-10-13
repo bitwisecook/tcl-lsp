@@ -408,7 +408,7 @@ pub fn find_thunking_warnings_for_cu(
             &fu.types,
             &fu.sccp.executable_blocks,
             context,
-            cu.method_instance_vars(&fu.name),
+            cu.method_instance_vars(fu.body_id),
         ));
     }
     out
@@ -498,7 +498,7 @@ pub fn find_sharing_warnings_for_cu(
             &fu.def_use,
             &fu.sccp.executable_blocks,
             context,
-            cu.method_instance_vars(&fu.name),
+            cu.method_instance_vars(fu.body_id),
         ));
     }
     out

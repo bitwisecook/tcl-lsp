@@ -119,28 +119,34 @@ fn inlined_native_top(source: &str) -> Vec<Statement> {
     if std::env::var_os("TCL_INLINE_PROOF_DEBUG").is_some() {
         let summaries =
             crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
-        let catalogue = build_inlinable_map(&module, &summaries, registry);
+        let bound = InliningSummaries {
+            module: &module,
+            registry,
+            escapes: &summaries,
+        };
+        let catalogue = build_inlinable_map(&module, &bound, registry);
         eprintln!(
             "inline source={source:?} top_admission={} catalogue={:?}",
             crate::native_compilation_admission::script_requires_admission(&module.top_level),
             catalogue.keys().collect::<Vec<_>>()
         );
         for (name, procedure) in &module.procedures {
-            if let Some(summary) = summaries.get(name) {
+            if let Some(summary) = summaries.get(&tcl_core_types::BodyFrameId::Body(*name)) {
                 eprintln!(
                     "inline escape frame={} flags={:?} callees={:?} barriers={:?}",
                     summary.frame_needed, summary.flags, summary.direct_callees, summary.barriers,
                 );
             }
             eprintln!(
-                "inline proc={name} admission={} safe={} size={} v3={} kinds={:?}",
+                "inline proc={name:?} admission={} safe={} size={} v3={} kinds={:?}",
                 crate::native_compilation_admission::script_requires_admission(&procedure.body),
                 summaries
-                    .get(name)
+                    .get(&tcl_core_types::BodyFrameId::Body(*name))
                     .is_some_and(ProcEscapeSummary::safe_to_inline),
                 count_statements(&procedure.body),
-                frame::SourceContext::for_module(&module, registry)
-                    .is_some_and(|source| v3_eligible(procedure, name, &summaries, source)),
+                frame::SourceContext::for_module(&module, registry).is_some_and(|source| {
+                    v3_eligible(procedure, &procedure.qualified_name, &bound, source)
+                }),
                 procedure
                     .body
                     .statements
@@ -178,6 +184,16 @@ fn has_inline_binding(stmts: &[Statement]) -> bool {
 /// still walk the full un-truncated source nesting before that cap trims
 /// it — same rationale as
 /// `codegen::structured::tests::deeply_nested_if_survives_structured_walk`.
+fn fixture_id(module: &Module, display: &str) -> crate::ir::ProcedureId {
+    let mut matching = module
+        .procedures
+        .iter()
+        .filter(|(_, body)| body.qualified_name == display);
+    let id = *matching.next().expect("authored fixture body").0;
+    assert!(matching.next().is_none(), "ambiguous authored fixture body");
+    id
+}
+
 #[test]
 fn deeply_nested_if_survives_inlining_walks() {
     const DEPTH: usize = 1000;
@@ -311,7 +327,10 @@ fn bare_call_does_not_resolve_through_an_ancestor_namespace() {
          proc ::target {} { puts GLOBAL }\n\
          proc ::a::b::caller {} { target }",
     ));
-    let caller = &with_global.procedures["::a::b::caller"];
+    let caller = &with_global
+        .procedures
+        .get(&fixture_id(&with_global, "::a::b::caller"))
+        .expect("authored fixture body");
     // The definition's `puts` is the global one; spliced into another namespace
     // it is spelled so, and not as a word `::a::b` would resolve first.
     assert!(caller.body.statements.iter().any(|statement| matches!(
@@ -333,7 +352,10 @@ fn bare_call_does_not_resolve_through_an_ancestor_namespace() {
          proc ::a::b::caller {} { target }",
     ));
     assert!(
-        without_global.procedures["::a::b::caller"]
+        without_global
+            .procedures
+            .get(&fixture_id(&without_global, "::a::b::caller"))
+            .expect("authored fixture body")
             .body
             .statements
             .iter()
@@ -378,7 +400,10 @@ fn procedure_caller_can_still_inline_across_namespaces() {
          proc ::n::callee {} { ::puts NAMESPACED }\n\
          proc ::caller {} { ::n::callee }",
     ));
-    let caller = &inlined.procedures["::caller"];
+    let caller = &inlined
+        .procedures
+        .get(&fixture_id(&inlined, "::caller"))
+        .expect("authored fixture body");
 
     assert!(
         caller.body.statements.iter().any(|statement| matches!(
@@ -462,7 +487,10 @@ fn inline_inside_control_flow_body() {
 #[test]
 fn count_statements_walks_nested_bodies() {
     let module = module_for("proc ::f {} { puts a\n if {1} { puts b\n puts c } }");
-    let proc = &module.procedures["::f"];
+    let proc = &module
+        .procedures
+        .get(&fixture_id(&module, "::f"))
+        .expect("authored fixture body");
     assert_eq!(count_statements(&proc.body), 4);
 }
 
@@ -616,7 +644,10 @@ fn v3_terminal_if_branch_keeps_trailing_return() {
     let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 } }",
     ));
-    let outer = &module.procedures["::outer"];
+    let outer = &module
+        .procedures
+        .get(&fixture_id(&module, "::outer"))
+        .expect("authored fixture body");
     let clause_body = match &outer.body.statements[0] {
         Statement::If { clauses, .. } => &clauses[0].body,
         other => panic!("expected if, got {other:?}"),
@@ -652,7 +683,10 @@ fn v3_non_terminal_if_branch_still_wraps_return() {
     let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {} { if {1} { id 7 }\n puts done }",
     ));
-    let outer = &module.procedures["::outer"];
+    let outer = &module
+        .procedures
+        .get(&fixture_id(&module, "::outer"))
+        .expect("authored fixture body");
     let clause_body = match &outer.body.statements[0] {
         Statement::If { clauses, .. } => &clauses[0].body,
         other => panic!("expected if, got {other:?}"),
@@ -847,10 +881,24 @@ fn classify_large_single_call_is_if_single_call() {
     let module =
         module_for("proc ::big {} { puts a\n puts b\n puts c\n puts d\n puts e\n puts f }\nbig");
     let summaries = crate::var_escape::analyse_var_escape(&module, true);
-    let counts = count_static_calls(&module, &summaries);
-    let proc = &module.procedures["::big"];
+    let bound = InliningSummaries {
+        module: &module,
+        registry: &CommandRegistry::build_default(),
+        escapes: &summaries,
+    };
+    let counts = count_static_calls(&module, &bound);
+    let proc = &module
+        .procedures
+        .get(&fixture_id(&module, "::big"))
+        .expect("authored fixture body");
     assert_eq!(
-        classify_proc(proc, summaries.get("::big"), counts["::big"]),
+        classify_proc(
+            proc,
+            summaries.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module, "::big"
+            ))),
+            counts[&fixture_id(&module, "::big")]
+        ),
         InlineDecision::IfSingleCall
     );
     // The pass leaves IF_SINGLE_CALL procs alone.
@@ -944,11 +992,18 @@ fn original_inlining_activation_requires_selected_c_parameter_grammar() {
 /// Every command word of every call in `proc`'s body, nested ones included.
 fn call_heads(module: &Module, proc: &str) -> Vec<String> {
     let mut heads = Vec::new();
-    crate::ir::for_each_statement(&module.procedures[proc].body, &mut |statement| {
-        if let Statement::Call { command, .. } = statement {
-            heads.push(command.clone());
-        }
-    });
+    crate::ir::for_each_statement(
+        &module
+            .procedures
+            .get(&fixture_id(module, proc))
+            .expect("authored fixture body")
+            .body,
+        &mut |statement| {
+            if let Statement::Call { command, .. } = statement {
+                heads.push(command.clone());
+            }
+        },
+    );
     heads
 }
 
@@ -960,7 +1015,10 @@ fn v3_wrapped_return_hands_out_its_result_as_a_variable_reference() {
     let module = inline_module_default(module_for(
         "proc ::h {x} { if {$x} { return 1 }\n set y 2 }\nproc ::outer {n} { h $n }",
     ));
-    let value = module.procedures["::outer"]
+    let value = module
+        .procedures
+        .get(&fixture_id(&module, "::outer"))
+        .expect("authored fixture body")
         .body
         .statements
         .iter()
@@ -984,7 +1042,10 @@ fn v3_terminal_block_keeps_trailing_return() {
     let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {n} { eval {id $n} }",
     ));
-    let outer = &module.procedures["::outer"];
+    let outer = &module
+        .procedures
+        .get(&fixture_id(&module, "::outer"))
+        .expect("authored fixture body");
     let Statement::Block { body, .. } = &outer.body.statements[0] else {
         panic!("expected a block: {:?}", outer.body.statements);
     };
@@ -1011,7 +1072,10 @@ fn v3_block_before_more_commands_wraps_return() {
     let module = inline_module_default(module_for(
         "proc ::id {x} { return $x }\nproc ::outer {n} { eval {id $n}\n puts after }",
     ));
-    let outer = &module.procedures["::outer"];
+    let outer = &module
+        .procedures
+        .get(&fixture_id(&module, "::outer"))
+        .expect("authored fixture body");
     let Statement::Block { body, .. } = &outer.body.statements[0] else {
         panic!("expected a block: {:?}", outer.body.statements);
     };
@@ -1087,7 +1151,11 @@ fn a_loop_that_reads_no_value_is_still_given_a_wrap() {
 fn result_stores(module: &Module, proc: &str) -> Vec<(bool, String)> {
     let mut stores = Vec::new();
     crate::ir::for_each_statement(
-        &module.procedures[proc].body,
+        &module
+            .procedures
+            .get(&fixture_id(module, proc))
+            .expect("authored fixture body")
+            .body,
         &mut |statement| match statement {
             Statement::AssignConst { name, value, .. } if name.ends_with("__RESULT") => {
                 stores.push((true, value.clone()));
@@ -1173,7 +1241,10 @@ fn an_uplevel_body_is_left_as_written() {
     ));
     assert!(call_heads(&module, "::outer").contains(&"id".to_owned()));
     assert!(
-        module.procedures["::outer"]
+        module
+            .procedures
+            .get(&fixture_id(&module, "::outer"))
+            .expect("authored fixture body")
             .body
             .procedure_binding_requirements
             .iter()
@@ -1355,17 +1426,24 @@ fn a_body_that_only_increments_a_name_it_never_bound_stays_a_call() {
 /// The words of every call to `command` in `proc`'s body.
 fn call_words(module: &Module, proc: &str, command: &str) -> Vec<Vec<String>> {
     let mut found = Vec::new();
-    crate::ir::for_each_statement(&module.procedures[proc].body, &mut |statement| {
-        if let Statement::Call {
-            command: head,
-            args,
-            ..
-        } = statement
-            && head == command
-        {
-            found.push(args.clone());
-        }
-    });
+    crate::ir::for_each_statement(
+        &module
+            .procedures
+            .get(&fixture_id(module, proc))
+            .expect("authored fixture body")
+            .body,
+        &mut |statement| {
+            if let Statement::Call {
+                command: head,
+                args,
+                ..
+            } = statement
+                && head == command
+            {
+                found.push(args.clone());
+            }
+        },
+    );
     found
 }
 
@@ -1382,9 +1460,17 @@ fn a_braced_word_in_a_body_is_not_renamed() {
         call_words(&module, "::outer", "string"),
         [["length", "$x"]],
         "{:?}",
-        module.procedures["::outer"].body.statements
+        module
+            .procedures
+            .get(&fixture_id(&module, "::outer"))
+            .expect("authored fixture body")
+            .body
+            .statements
     );
-    let value = module.procedures["::again"]
+    let value = module
+        .procedures
+        .get(&fixture_id(&module, "::again"))
+        .expect("authored fixture body")
         .body
         .statements
         .iter()
@@ -1583,7 +1669,15 @@ fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context
     let (context, module) = logical_module_for(source);
     let summaries =
         crate::var_escape::analyse_var_escape_with_registry(&module, true, context.commands());
-    assert!(build_inlinable_map(&module, &summaries, context.commands()).contains_key("::p"));
+    let bound = InliningSummaries {
+        module: &module,
+        registry: context.commands(),
+        escapes: &summaries,
+    };
+    assert!(
+        build_inlinable_map(&module, &bound, context.commands())
+            .contains_key(&fixture_id(&module, "::p"))
+    );
     assert!(has_inline_binding(
         &inline_module(module.clone(), context.commands())
             .top_level
@@ -1592,26 +1686,27 @@ fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context
     let mut stale = module.clone();
     stale.source =
         tcl_lexer::SourceImage::document("proc ::p {x} {return $missing}; p VALUE; puts after");
-    assert!(build_inlinable_map(&stale, &summaries, context.commands()).is_empty());
+    assert!(build_inlinable_map(&stale, &bound, context.commands()).is_empty());
     let mut missing = module.clone();
     missing.source_metadata_input = None;
-    assert!(build_inlinable_map(&missing, &summaries, context.commands()).is_empty());
+    assert!(build_inlinable_map(&missing, &bound, context.commands()).is_empty());
+    let p_id = fixture_id(&module, "::p");
     let mut names_only = module.clone();
-    names_only.procedures.get_mut("::p").unwrap().params_raw = "array(index)".to_owned();
-    assert!(build_inlinable_map(&names_only, &summaries, context.commands()).is_empty());
+    names_only.procedures.get_mut(&p_id).unwrap().params_raw = "array(index)".to_owned();
+    assert!(build_inlinable_map(&names_only, &bound, context.commands()).is_empty());
     let mut mismatched_names = module.clone();
     mismatched_names
         .procedures
-        .get_mut("::p")
+        .get_mut(&p_id)
         .unwrap()
         .params_raw = "other".to_owned();
-    assert!(build_inlinable_map(&mismatched_names, &summaries, context.commands()).is_empty());
+    assert!(build_inlinable_map(&mismatched_names, &bound, context.commands()).is_empty());
     let mut missing_tokens = module.clone();
-    let proc = missing_tokens.procedures.get_mut("::p").unwrap();
+    let proc = missing_tokens.procedures.get_mut(&p_id).unwrap();
     proc.body.command_binding_sites = Default::default();
     let Statement::Return { tokens, .. } = &mut proc.body.statements[0] else {
         panic!("genuine original return fixture");
     };
     *tokens = None;
-    assert!(build_inlinable_map(&missing_tokens, &summaries, context.commands()).is_empty());
+    assert!(build_inlinable_map(&missing_tokens, &bound, context.commands()).is_empty());
 }

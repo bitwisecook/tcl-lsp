@@ -40,7 +40,7 @@ pub(crate) struct CompletionWalk<'w> {
     module: &'w Module,
     registry: &'w CommandRegistry,
     registry_commands: bool,
-    pub(crate) calls: Vec<(String, usize)>,
+    pub(crate) calls: Vec<(crate::ir::ProcedureId, usize)>,
     pub(crate) reads: Vec<String>,
 }
 
@@ -177,8 +177,7 @@ impl<'w> CompletionWalk<'w> {
                 let Some(count) = call.argument_count() else {
                     return false;
                 };
-                self.calls
-                    .push((call.procedure().qualified_name.clone(), count));
+                self.calls.push((call.id(), count));
             }
             return true;
         }
@@ -213,15 +212,12 @@ impl<'w> CompletionWalk<'w> {
 pub(super) fn procedures_complete(
     module: &Module,
     registry: &CommandRegistry,
-    defined: &dyn Fn(&str, &str) -> bool,
-) -> HashMap<String, bool> {
-    let calls: HashMap<&str, Vec<(String, usize)>> = module
+    defined: &dyn Fn(&crate::ir::ProcedureId, &crate::ir::ProcedureId) -> bool,
+) -> HashMap<crate::ir::ProcedureId, bool> {
+    let calls: HashMap<crate::ir::ProcedureId, Vec<(crate::ir::ProcedureId, usize)>> = module
         .procedures
-        .display_entries()
-        .filter_map(|(qname, procedure)| {
-            if module.procedures.unique_display(qname).is_none() {
-                return None;
-            }
+        .iter()
+        .filter_map(|(id, procedure)| {
             let bound = crate::registry_invocation::original_procedure_scalar_bindings(
                 module, procedure, registry,
             )?;
@@ -236,23 +232,27 @@ pub(super) fn procedures_complete(
                 bound,
             };
             scan.script(&procedure.body)
-                .then_some((qname.as_str(), scan.walk.calls))
+                .then_some((*id, scan.walk.calls))
         })
         .collect();
-    let mut completes: HashSet<&str> = HashSet::new();
+    let mut completes: HashSet<crate::ir::ProcedureId> = HashSet::new();
     loop {
         let before = completes.len();
         for (&qname, callees) in &calls {
-            if completes.contains(qname) {
+            if completes.contains(&qname) {
                 continue;
             }
             if callees.iter().all(|(callee, count)| {
-                completes.contains(callee.as_str())
-                    && !module.redefined_procedures.contains(callee)
-                    && defined(callee, qname)
+                completes.contains(callee)
+                    && !module.procedures.get(callee).is_none_or(|procedure| {
+                        module
+                            .redefined_procedures
+                            .contains(&procedure.qualified_name)
+                    })
+                    && defined(callee, &qname)
                     && module
                         .procedures
-                        .get_unique_display(callee)
+                        .get(callee)
                         .and_then(|procedure| {
                             crate::registry_invocation::original_procedure_formal_count_shape(
                                 module, procedure, registry,
@@ -269,8 +269,8 @@ pub(super) fn procedures_complete(
     }
     module
         .procedures
-        .unique_displays()
-        .map(|qname| (qname.clone(), completes.contains(qname.as_str())))
+        .keys()
+        .map(|id| (*id, completes.contains(id)))
         .collect()
 }
 

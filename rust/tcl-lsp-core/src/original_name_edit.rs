@@ -29,6 +29,9 @@ pub(crate) fn original_input_matches_source(
     let Some(realm) = analysis.retained_command_realm() else {
         return false;
     };
+    if analysis.logical_original_word_input_matches_source(&image, config, recorded, input) {
+        return true;
+    }
     if realm
         .original_written_name_input_at_span_in_source(&image, recorded, config)
         .as_ref()

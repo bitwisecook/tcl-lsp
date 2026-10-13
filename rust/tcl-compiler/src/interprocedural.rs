@@ -29,6 +29,7 @@ pub use tcl_registry::Arity;
 use tcl_registry::value_transfer::ExactValue;
 
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
+use crate::ir::ProcedureId;
 use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
@@ -178,13 +179,13 @@ pub struct ProcSummary {
     /// Declared arity.
     pub arity: Arity,
     /// Names of procedures this one calls (transitive closure).
-    pub calls: Vec<String>,
+    pub calls: Vec<ProcedureId>,
     /// Names of procedures this one calls *directly* (no transitive
     /// closure), sorted and resolved to in-module proc qnames. The
     /// proc's local, non-transitive direct-call set; consumed by
     /// the `callgraph` verb's `build_call_graph`, which needs the direct
     /// call set so the edge list carries no spurious A→C transitive edges.
-    pub direct_calls: Vec<String>,
+    pub direct_calls: Vec<ProcedureId>,
     /// True if the body contains a barrier command.
     pub has_barrier: bool,
     /// True if the body calls a command not in the registry and
@@ -211,7 +212,7 @@ pub struct ProcSummary {
     /// The procedures this one calls whose definitions surely run before the
     /// load may first run it, sorted: the callees the completion proof
     /// may take as defined where this procedure's calls run.
-    pub defined_callees: Vec<String>,
+    pub defined_callees: Vec<ProcedureId>,
     /// Effect regions this proc (or its callees) may read.
     pub effect_reads: EffectRegion,
     /// Effect regions this proc (or its callees) may write.
@@ -273,7 +274,7 @@ pub struct MethodSummary {
     pub class_name: String,
     /// Method kind: `"method"` / `"classmethod"` / `"constructor"` /
     /// `"destructor"`.
-    pub method_kind: String,
+    pub method_kind: crate::ir::MethodKind,
     /// Instance variables the method reads.
     pub reads_instance_vars: HashSet<String>,
     /// Instance variables the method writes.
@@ -288,14 +289,14 @@ pub struct MethodSummary {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct InterproceduralAnalysis {
     /// Per-procedure summaries keyed by qualified name.
-    pub procedures: HashMap<String, ProcSummary>,
+    pub procedures: HashMap<ProcedureId, ProcSummary>,
     /// Per-method summaries keyed by qualified name.
-    pub methods: HashMap<String, MethodSummary>,
+    pub methods: HashMap<crate::ir::ProcedureId, MethodSummary>,
     /// Conditional object/widget class candidates from original top-level
     /// source setup, keyed by procedure. Eager calls see earlier source
     /// factories; callback-only procedure advice sees direct authored setup.
     /// These labels prove no constructor completion or existing Native object.
-    pub global_instance_classes: HashMap<String, crate::taint::InstanceClassState>,
+    pub global_instance_classes: HashMap<ProcedureId, crate::taint::InstanceClassState>,
     /// Complete source metadata used to produce the conditional receiver map.
     /// Equality of input alone cannot authenticate another Module's candidates.
     pub global_instance_class_input: Option<crate::analyser::ResolvedAnalysisInput>,
@@ -306,7 +307,7 @@ pub struct InterproceduralAnalysis {
     /// Global/namespace variables made externally controlled by a procedure's
     /// registry-declared instance-option configuration, closed transitively
     /// over the internal call graph.
-    pub tainted_global_writes: HashMap<String, HashSet<String>>,
+    pub tainted_global_writes: HashMap<ProcedureId, HashSet<String>>,
     /// Each procedure's transfer summary: what a call does to its caller's
     /// places. A compilation unit's build computes them.
     pub transfers: TransferSummaries,
@@ -333,13 +334,13 @@ pub type ProcIndex = HashMap<String, Vec<ProcParameterSummary>>;
 #[must_use]
 pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
     let mut index = ProcIndex::new();
-    for (qname, summary) in &ia.procedures {
+    for summary in ia.procedures.values() {
         let entry = ProcParameterSummary {
             params: summary.params.clone(),
             param_traits: summary.param_traits.clone(),
             param_defaults: summary.param_defaults.clone(),
         };
-        for key in tcl_syntax::naming::key_suffixes(qname) {
+        for key in tcl_syntax::naming::key_suffixes(&summary.qualified_name) {
             index.entry(key).or_default().push(entry.clone());
         }
     }
@@ -864,7 +865,7 @@ fn build_interprocedural_analysis_inner(
     units: Option<ModuleUnits<'_>>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.candidates;
-    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
+    let known: HashSet<ProcedureId> = ir_module.procedures.keys().copied().collect();
 
     let local = scan_all_procs(
         ir_module,
@@ -993,7 +994,7 @@ fn return_shape(summary: &ProcSummary) -> ReturnKind {
 pub(crate) fn global_instance_classes(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, crate::taint::InstanceClassState> {
+) -> HashMap<ProcedureId, crate::taint::InstanceClassState> {
     global_instance_classes_with(
         ir_module,
         registry,
@@ -1027,7 +1028,7 @@ pub(crate) fn global_instance_classes_with(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
     invocations: &EagerInvocations,
-) -> HashMap<String, crate::taint::InstanceClassState> {
+) -> HashMap<ProcedureId, crate::taint::InstanceClassState> {
     let source = crate::taint::TaintSourceContext::for_module(registry, ir_module);
     // Each statement retains its own original words and lookup horizon.
     // Nested source effects only withdraw candidates; they do not prove that
@@ -1057,9 +1058,9 @@ pub(crate) fn global_instance_classes_with(
     sites.sort_by_key(|(statement, _, _)| statement.span().start());
     ir_module
         .procedures
-        .unique_displays()
-        .map(|qname| {
-            let eager = invocations.named(qname);
+        .keys()
+        .map(|id| {
+            let eager = invocations.named(id);
             let mut classes = crate::taint::InstanceClassState::new();
             for &(statement, tokens, direct) in &sites {
                 if eager.is_some_and(|call| statement.span().start() >= call) {
@@ -1078,7 +1079,7 @@ pub(crate) fn global_instance_classes_with(
                     classes.retain(|name, class| candidate.get(name) == Some(class));
                 }
             }
-            (qname.clone(), classes)
+            (*id, classes)
         })
         .collect()
 }
@@ -1089,8 +1090,8 @@ pub(crate) fn global_instance_classes_with(
 pub(crate) fn tainted_global_writes(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
-    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
-) -> HashMap<String, HashSet<String>> {
+    global_classes: &HashMap<ProcedureId, crate::taint::InstanceClassState>,
+) -> HashMap<ProcedureId, HashSet<String>> {
     let mut cfg_module = crate::cfg_builder::build_cfg_with_registry_and_config(
         ir_module,
         false,
@@ -1098,31 +1099,30 @@ pub(crate) fn tainted_global_writes(
         tcl_lexer::LexerConfig::for_profile(registry.profile()),
     );
     let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
-    close_tainted_global_writes(ir_module, writes)
+    close_tainted_global_writes(ir_module, registry, writes)
 }
 
 fn tainted_global_writes_from_cfg(
     ir_module: &crate::ir::Module,
     cfg_module: &crate::cfg::CfgModule,
     registry: &tcl_registry::CommandRegistry,
-    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
-) -> HashMap<String, HashSet<String>> {
+    global_classes: &HashMap<ProcedureId, crate::taint::InstanceClassState>,
+) -> HashMap<ProcedureId, HashSet<String>> {
     let mut cfg_module = cfg_module.clone();
     let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
-    close_tainted_global_writes(ir_module, writes)
+    close_tainted_global_writes(ir_module, registry, writes)
 }
 
 fn direct_instance_option_writes(
     cfg_module: &mut crate::cfg::CfgModule,
     registry: &tcl_registry::CommandRegistry,
-    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
-) -> HashMap<String, HashSet<String>> {
+    global_classes: &HashMap<ProcedureId, crate::taint::InstanceClassState>,
+) -> HashMap<ProcedureId, HashSet<String>> {
     cfg_module
         .procedures
         .iter_mut()
-        .map(|(_, cfg)| {
-            let qname = cfg.name.clone();
-            let initial = global_classes.get(&qname).cloned().unwrap_or_default();
+        .map(|(id, cfg)| {
+            let initial = global_classes.get(id).cloned().unwrap_or_default();
             let mut defs =
                 crate::ssa::enrich_instance_option_defs_with_initial(cfg, registry, &initial);
             defs.retain(|name| name.starts_with("::"));
@@ -1153,25 +1153,35 @@ fn direct_instance_option_writes(
                     }
                 }
             }
-            (qname.clone(), defs)
+            (*id, defs)
         })
         .collect()
 }
 
 fn close_tainted_global_writes(
     ir_module: &crate::ir::Module,
-    mut writes: HashMap<String, HashSet<String>>,
-) -> HashMap<String, HashSet<String>> {
-    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
-    let mut calls: HashMap<String, HashSet<String>> = HashMap::new();
-    for (qname, procedure) in ir_module.procedures.display_entries() {
-        let proc_calls = calls.entry(qname.clone()).or_default();
+    registry: &tcl_registry::CommandRegistry,
+    mut writes: HashMap<ProcedureId, HashSet<String>>,
+) -> HashMap<ProcedureId, HashSet<String>> {
+    let known: HashSet<ProcedureId> = ir_module.procedures.keys().copied().collect();
+    let mut calls: HashMap<ProcedureId, HashSet<ProcedureId>> = HashMap::new();
+    for (id, procedure) in ir_module.procedures.iter() {
+        let proc_calls = calls.entry(*id).or_default();
         crate::ir::for_each_statement(&procedure.body, &mut |statement| {
-            let crate::ir::Statement::Call { command, .. } = statement else {
+            let crate::ir::Statement::Call {
+                command,
+                tokens: Some(tokens),
+                ..
+            } = statement
+            else {
                 return;
             };
-            if let Some(target) = resolve_internal_call(command, qname, &known) {
-                proc_calls.insert(target);
+            if let Some(targets) =
+                crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                    tokens, command, ir_module, registry,
+                )
+            {
+                proc_calls.extend(targets.into_iter().filter(|id| known.contains(id)));
             }
         });
     }
@@ -1205,28 +1215,35 @@ pub(crate) fn enrich_instance_taint_cfg(
     ir_module: &crate::ir::Module,
     cfg_module: &mut crate::cfg::CfgModule,
     registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, HashSet<String>> {
+) -> HashMap<ProcedureId, HashSet<String>> {
     let global_classes = global_instance_classes(ir_module, registry);
     let direct_writes = direct_instance_option_writes(cfg_module, registry, &global_classes);
-    let writes = close_tainted_global_writes(ir_module, direct_writes);
+    let writes = close_tainted_global_writes(ir_module, registry, direct_writes);
 
-    let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
     let annotate_calls = |cfg: &mut crate::cfg::Function| {
-        let caller = cfg.name.clone();
         for block in cfg.blocks.values_mut() {
             for statement in &mut block.statements {
-                let crate::ir::Statement::Call { command, defs, .. } = statement else {
+                let crate::ir::Statement::Call {
+                    command,
+                    tokens: Some(tokens),
+                    defs,
+                    ..
+                } = statement
+                else {
                     continue;
                 };
-                let Some(target) = resolve_internal_call(command, &caller, &known) else {
+                let Some(targets) =
+                    crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                        tokens, command, ir_module, registry,
+                    )
+                else {
                     continue;
                 };
-                let Some(target_writes) = writes.get(&target) else {
-                    continue;
-                };
-                for variable in target_writes {
-                    if !defs.contains(variable) {
-                        defs.push(variable.clone());
+                for target in targets {
+                    for variable in writes.get(&target).into_iter().flatten() {
+                        if !defs.contains(variable) {
+                            defs.push(variable.clone());
+                        }
                     }
                 }
             }
@@ -1244,9 +1261,9 @@ pub(crate) fn enrich_instance_taint_cfg(
 /// keeps a small signature.
 #[derive(Clone, Copy)]
 struct ProcFixpoints<'a> {
-    pure: &'a HashMap<String, bool>,
-    effect_reads: &'a HashMap<String, EffectRegion>,
-    effect_writes: &'a HashMap<String, EffectRegion>,
+    pure: &'a HashMap<ProcedureId, bool>,
+    effect_reads: &'a HashMap<ProcedureId, EffectRegion>,
+    effect_writes: &'a HashMap<ProcedureId, EffectRegion>,
 }
 
 /// Summarise `TclOO` method bodies into [`MethodSummary`] entries.
@@ -1262,13 +1279,13 @@ struct ProcFixpoints<'a> {
 /// runs).
 fn build_method_summaries(
     ir_module: &crate::ir::Module,
-    known: &HashSet<String>,
+    known: &HashSet<ProcedureId>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &crate::realm::CommandBindingRealm,
     declared: Option<&tcl_registry::model::DeclaredSurface>,
     procs: ProcFixpoints<'_>,
-) -> HashMap<String, MethodSummary> {
+) -> HashMap<crate::ir::ProcedureId, MethodSummary> {
     let ProcFixpoints {
         pure,
         effect_reads,
@@ -1279,14 +1296,15 @@ fn build_method_summaries(
     }
     // A call resolving to a method qname is "known" (not unknown), so
     // seed the resolver with both procs and method names.
-    let mut method_known = known.clone();
-    method_known.extend(ir_module.methods.keys().cloned());
+    let method_known = known.clone();
 
     let source_input =
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
-    let mut out: HashMap<String, MethodSummary> = HashMap::with_capacity(ir_module.methods.len());
-    for (mqname, method) in &ir_module.methods {
+    let mut out: HashMap<crate::ir::ProcedureId, MethodSummary> =
+        HashMap::with_capacity(ir_module.methods.len());
+    for (id, method) in &ir_module.methods {
+        let mqname = method.reporting_label();
         let mut facts = LocalFacts {
             local_pure: true,
             ..LocalFacts::default()
@@ -1299,15 +1317,11 @@ fn build_method_summaries(
         // than an abstain-on-redefinition kill switch: more precise, equally
         // sound.
         let mut written_ivars: HashSet<String> = HashSet::new();
-        let replacements = ir_module
-            .redefined_methods
-            .get(mqname)
-            .map_or(&[][..], Vec::as_slice);
-        for body_def in std::iter::once(method).chain(replacements) {
+        for (_, body_def) in ir_module.method_definition_bodies(*id) {
             scan_method_body_facts(
                 body_def,
                 MethodScan {
-                    mqname,
+                    mqname: &mqname,
                     method_known: &method_known,
                     registry,
                     dialect,
@@ -1315,6 +1329,7 @@ fn build_method_summaries(
                     declared,
                     source_input,
                     source_procedures: &ir_module.procedures,
+                    source_module: ir_module,
                 },
                 &mut facts,
                 &mut written_ivars,
@@ -1358,14 +1373,14 @@ fn build_method_summaries(
             m_writes |= effect_writes.get(c).copied().unwrap_or(EffectRegion::NONE);
         }
 
-        let mut calls: Vec<String> = facts.direct_calls.iter().cloned().collect();
+        let mut calls: Vec<ProcedureId> = facts.direct_calls.iter().copied().collect();
         calls.sort();
         let direct_calls = calls.clone();
         let (returns_constant, constant_return, passthrough, depends) =
             summarise_returns(&facts.returns, SeedlessAnswer::NotRun);
 
         out.insert(
-            mqname.clone(),
+            *id,
             MethodSummary {
                 base: ProcSummary {
                     qualified_name: mqname.clone(),
@@ -1394,7 +1409,7 @@ fn build_method_summaries(
                     param_defaults: HashMap::new(),
                 },
                 class_name: method.class_name.clone(),
-                method_kind: method.kind.as_str().to_owned(),
+                method_kind: method.kind,
                 // Read-set / MRO-dispatch tracking is not implemented;
                 // left empty (the purity gate consumes only `pure`).
                 reads_instance_vars: HashSet::new(),
@@ -1415,7 +1430,7 @@ fn build_method_summaries(
 #[derive(Clone, Copy)]
 struct MethodScan<'a> {
     mqname: &'a str,
-    method_known: &'a HashSet<String>,
+    method_known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &'a crate::realm::CommandBindingRealm,
@@ -1423,6 +1438,7 @@ struct MethodScan<'a> {
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     source_procedures: &'a crate::ir::ProcedureInventory,
+    source_module: &'a crate::ir::Module,
 }
 
 fn scan_method_body_facts(
@@ -1440,6 +1456,7 @@ fn scan_method_body_facts(
         declared,
         source_input,
         source_procedures,
+        source_module,
     } = scan;
     let params: HashSet<String> = body_def.params.iter().cloned().collect();
     if matches!(
@@ -1470,6 +1487,8 @@ fn scan_method_body_facts(
         positioned_substitutions: false,
         source_input,
         source_procedures,
+        source_module,
+        current_tokens: None,
     };
     scan_script(&body_def.body, ctx, facts, 0);
     // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -1764,23 +1783,21 @@ fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String
 
 fn scan_all_procs(
     ir_module: &crate::ir::Module,
-    known: &HashSet<String>,
+    known: &HashSet<ProcedureId>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
     identities: &crate::realm::CommandBindingRealm,
     declared: Option<&tcl_registry::model::DeclaredSurface>,
-) -> HashMap<String, LocalFacts> {
+) -> HashMap<ProcedureId, LocalFacts> {
     let source_input =
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, ir_module)
             .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input);
-    let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
-    for (qname, proc) in ir_module.procedures.display_entries() {
-        if ir_module.procedures.unique_display(qname).is_none() {
-            continue;
-        }
+    let mut local: HashMap<ProcedureId, LocalFacts> = HashMap::with_capacity(known.len());
+    for (id, proc) in ir_module.procedures.iter() {
+        let qname = proc.qualified_name.as_str();
         local.insert(
-            qname.clone(),
+            *id,
             scan_proc(ProcScan {
                 qname,
                 proc,
@@ -1792,6 +1809,7 @@ fn scan_all_procs(
                 declared,
                 source_input,
                 source_procedures: &ir_module.procedures,
+                source_module: ir_module,
             }),
         );
     }
@@ -1804,7 +1822,7 @@ fn scan_all_procs(
 struct ProcScan<'a> {
     qname: &'a str,
     proc: &'a crate::ir::Procedure,
-    known: &'a HashSet<String>,
+    known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
@@ -1814,13 +1832,14 @@ struct ProcScan<'a> {
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     source_procedures: &'a crate::ir::ProcedureInventory,
+    source_module: &'a crate::ir::Module,
 }
 
 fn compute_all_transitive_calls(
-    known: &HashSet<String>,
-    local: &HashMap<String, LocalFacts>,
-) -> HashMap<String, HashSet<String>> {
-    let mut out: HashMap<String, HashSet<String>> = HashMap::with_capacity(known.len());
+    known: &HashSet<ProcedureId>,
+    local: &HashMap<ProcedureId, LocalFacts>,
+) -> HashMap<ProcedureId, HashSet<ProcedureId>> {
+    let mut out: HashMap<ProcedureId, HashSet<ProcedureId>> = HashMap::with_capacity(known.len());
     for qname in known {
         out.insert(qname.clone(), compute_transitive_calls(qname, local));
     }
@@ -1835,12 +1854,12 @@ fn compute_all_transitive_calls(
 /// summaries*). Such a procedure is one whose body does nothing its caller
 /// observes but through those links, and calls only procedures of the same
 /// kind with places of its own, its links' among them.
-fn fixpoint_pure(local: &HashMap<String, LocalFacts>) -> HashMap<String, bool> {
-    let mut pure: HashMap<String, bool> = local
+fn fixpoint_pure(local: &HashMap<ProcedureId, LocalFacts>) -> HashMap<ProcedureId, bool> {
+    let mut pure: HashMap<ProcedureId, bool> = local
         .iter()
         .map(|(q, f)| (q.clone(), f.local_pure))
         .collect();
-    let mut bounded: HashMap<String, bool> = local
+    let mut bounded: HashMap<ProcedureId, bool> = local
         .iter()
         .map(|(q, f)| (q.clone(), !f.impure_beyond_links))
         .collect();
@@ -1905,13 +1924,16 @@ fn names_own_places(
 }
 
 fn fixpoint_effects(
-    local: &HashMap<String, LocalFacts>,
-) -> (HashMap<String, EffectRegion>, HashMap<String, EffectRegion>) {
-    let mut reads: HashMap<String, EffectRegion> = local
+    local: &HashMap<ProcedureId, LocalFacts>,
+) -> (
+    HashMap<ProcedureId, EffectRegion>,
+    HashMap<ProcedureId, EffectRegion>,
+) {
+    let mut reads: HashMap<ProcedureId, EffectRegion> = local
         .iter()
         .map(|(q, f)| (q.clone(), f.effect_reads))
         .collect();
-    let mut writes: HashMap<String, EffectRegion> = local
+    let mut writes: HashMap<ProcedureId, EffectRegion> = local
         .iter()
         .map(|(q, f)| (q.clone(), f.effect_writes))
         .collect();
@@ -1943,30 +1965,30 @@ fn fixpoint_effects(
 
 fn materialise_summaries(
     ir_module: &crate::ir::Module,
-    local: &HashMap<String, LocalFacts>,
-    transitive_calls: &HashMap<String, HashSet<String>>,
-    (pure, completes): (&HashMap<String, bool>, &HashMap<String, bool>),
+    local: &HashMap<ProcedureId, LocalFacts>,
+    transitive_calls: &HashMap<ProcedureId, HashSet<ProcedureId>>,
+    (pure, completes): (&HashMap<ProcedureId, bool>, &HashMap<ProcedureId, bool>),
     (effect_reads, effect_writes): (
-        &HashMap<String, EffectRegion>,
-        &HashMap<String, EffectRegion>,
+        &HashMap<ProcedureId, EffectRegion>,
+        &HashMap<ProcedureId, EffectRegion>,
     ),
-    seedless: &HashMap<String, Option<ExactValue>>,
-) -> HashMap<String, ProcSummary> {
-    let mut procedures: HashMap<String, ProcSummary> = HashMap::with_capacity(local.len());
+    seedless: &HashMap<ProcedureId, Option<ExactValue>>,
+) -> HashMap<ProcedureId, ProcSummary> {
+    let mut procedures: HashMap<ProcedureId, ProcSummary> = HashMap::with_capacity(local.len());
     let rules =
         tcl_syntax::word_rules::WordValueRules::of_dialect_name(ir_module.dialect.as_deref());
     for (qname, facts) in local {
-        let Some(proc) = ir_module.procedures.get_unique_display(qname) else {
+        let Some(proc) = ir_module.procedures.get(qname) else {
             continue;
         };
-        let mut calls_list: Vec<String> = transitive_calls
+        let mut calls_list: Vec<ProcedureId> = transitive_calls
             .get(qname)
             .cloned()
             .unwrap_or_default()
             .into_iter()
             .collect();
         calls_list.sort();
-        let mut direct_calls: Vec<String> = facts.direct_calls.iter().cloned().collect();
+        let mut direct_calls: Vec<ProcedureId> = facts.direct_calls.iter().cloned().collect();
         direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
@@ -1997,7 +2019,7 @@ fn materialise_summaries(
         procedures.insert(
             qname.clone(),
             ProcSummary {
-                qualified_name: qname.clone(),
+                qualified_name: proc.qualified_name.clone(),
                 params: proc.params.clone(),
                 arity: arity_from_names(&proc.params),
                 calls: calls_list,
@@ -2053,7 +2075,7 @@ fn declared_defaults(
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 struct LocalFacts {
-    direct_calls: HashSet<String>,
+    direct_calls: HashSet<ProcedureId>,
     has_barrier: bool,
     has_unknown_calls: bool,
     writes_global: bool,
@@ -2091,7 +2113,7 @@ struct LocalFacts {
     /// Each call to a procedure of the module, with its argument words where
     /// the call spells them; `None` for a callback, whose words a later
     /// invocation supplies.
-    procedure_calls: Vec<(String, Option<Vec<String>>)>,
+    procedure_calls: Vec<(ProcedureId, Option<Vec<String>>)>,
     /// The positions of the parameters whose value names the place one frame
     /// up a local of the body is linked to.
     name_params: Vec<usize>,
@@ -2157,6 +2179,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         declared,
         source_input,
         source_procedures,
+        source_module,
     } = scan;
     let mut facts = LocalFacts {
         local_pure: true,
@@ -2176,6 +2199,8 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         positioned_substitutions: false,
         source_input,
         source_procedures,
+        source_module,
+        current_tokens: None,
     };
     scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
@@ -2203,7 +2228,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
 #[derive(Clone, Copy)]
 struct ScanCtx<'a> {
     caller: &'a str,
-    known: &'a HashSet<String>,
+    known: &'a HashSet<ProcedureId>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     params: &'a HashSet<String>,
@@ -2225,6 +2250,8 @@ struct ScanCtx<'a> {
     positioned_substitutions: bool,
     source_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
     source_procedures: &'a crate::ir::ProcedureInventory,
+    source_module: &'a crate::ir::Module,
+    current_tokens: Option<&'a crate::ir::CommandTokens>,
 }
 
 impl<'a> ScanCtx<'a> {
@@ -2238,6 +2265,19 @@ impl<'a> ScanCtx<'a> {
     fn surface(&self) -> tcl_registry::model::DocumentCommandSurface<'a> {
         tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared)
     }
+}
+
+fn possible_body_id(word: &str, ctx: ScanCtx<'_>) -> Option<ProcedureId> {
+    let ids = crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+        ctx.current_tokens?,
+        word,
+        ctx.source_module,
+        ctx.registry,
+    )?;
+    let [id] = ids.as_slice() else {
+        return None;
+    };
+    ctx.known.contains(id).then_some(*id)
 }
 
 /// `depth` is the nesting level of `script` — see
@@ -2299,9 +2339,9 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         });
     let internal_target =
         if invokes_named_proc && let Some(name) = args.first().filter(|n| is_plain_proc_name(n)) {
-            resolve_internal_call(name, caller, known)
+            possible_body_id(name, ctx)
         } else {
-            resolve_internal_call(command, caller, known)
+            possible_body_id(command, ctx)
         };
 
     // Command-prefix callbacks (`lsort -command myCompare`, `trace add … cb`,
@@ -2320,7 +2360,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     {
         if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
             && is_plain_proc_name(&word)
-            && let Some(target) = resolve_internal_call(&word, caller, known)
+            && let Some(target) = possible_body_id(&word, ctx)
         {
             facts.procedure_calls.push((target.clone(), None));
             facts.direct_calls.insert(target);
@@ -2896,7 +2936,7 @@ fn scan_candidate_method_callbacks(
                 .and_then(|word| word.literal())
                 .and_then(|word| command_prefix_head(ctx.registry, word))
                 && is_plain_proc_name(&word)
-                && let Some(target) = resolve_internal_call(&word, ctx.caller, ctx.known)
+                && let Some(target) = possible_body_id(&word, ctx)
             {
                 facts.direct_calls.insert(target);
             }
@@ -2919,20 +2959,12 @@ fn scan_positioned_candidate_callbacks(
         return;
     };
     for row in rows {
-        if let Some(target) = row
+        if let Some(id) = row
             .target()
             .and_then(|target| target.original_ir_procedure_id(ctx.source_procedures))
-            .and_then(|id| {
-                let procedure = ctx.source_procedures.get(&id)?;
-                (ctx.source_procedures
-                    .unique_display(&procedure.qualified_name)?
-                    .0
-                    == &id)
-                    .then_some(procedure.qualified_name.as_str())
-            })
-            .filter(|target| ctx.known.contains(*target))
+            && ctx.known.contains(&id)
         {
-            facts.direct_calls.insert(target.to_owned());
+            facts.direct_calls.insert(id);
         }
     }
 }
@@ -2953,7 +2985,7 @@ fn scan_normal_procedure_caller(
             Some(context.as_ref().into()),
             tokens,
         )
-        && let Some(callee) = resolve_internal_call(&call.target, ctx.caller, ctx.known)
+        && let Some(callee) = possible_body_id(&call.target, ctx)
     {
         // A possible successful handler entry contributes a call-graph edge.
         // Compiler/completion uncertainty below still withdraws effects and purity.
@@ -2988,7 +3020,8 @@ fn scan_positioned_reachability(
     // Unknown/absent residuals still withdraw effects and purity below.
     for target in binding.execution_targets() {
         if !target.registry_backed
-            && let Some(callee) = resolve_internal_call(&target.command, ctx.caller, ctx.known)
+            && let Some((callee, _)) = ctx.source_module.source_procedure_for_target(target)
+            && ctx.known.contains(&callee)
         {
             facts.direct_calls.insert(callee);
         }
@@ -3001,8 +3034,8 @@ fn scan_positioned_reachability(
         for child in ctx.identities.possible_entered_body_invocations(site) {
             for target in child.execution_targets() {
                 if !target.registry_backed
-                    && let Some(callee) =
-                        resolve_internal_call(&target.command, ctx.caller, ctx.known)
+                    && let Some((callee, _)) = ctx.source_module.source_procedure_for_target(target)
+                    && ctx.known.contains(&callee)
                 {
                     facts.direct_calls.insert(callee);
                 }
@@ -3053,6 +3086,7 @@ fn scan_positioned_invocation(
     let positioned = ScanCtx {
         identities: crate::realm::CommandBindingRealm::none(),
         positioned_substitutions: true,
+        current_tokens: Some(tokens),
         ..ctx
     };
     if target.registry_backed {
@@ -3088,7 +3122,7 @@ fn scan_positioned_invocation(
             // query cannot invent bytes for a captured unmaterialised value.
             scan_unproved_invocation(args, positioned, facts);
         }
-    } else if let Some(target) = resolve_internal_call(&target.command, ctx.caller, ctx.known) {
+    } else if let Some(target) = possible_body_id(&target.command, ctx) {
         facts.direct_calls.insert(target);
         for arg in args {
             scan_value_substitutions(arg, ctx, facts, 0);
@@ -4078,7 +4112,7 @@ enum SeedlessAnswer<'a> {
 
 impl<'a> SeedlessAnswer<'a> {
     /// The answer [`seedless_returns`] recorded for `qname`.
-    fn of(seedless: &'a HashMap<String, Option<ExactValue>>, qname: &str) -> Self {
+    fn of(seedless: &'a HashMap<ProcedureId, Option<ExactValue>>, qname: &ProcedureId) -> Self {
         match seedless.get(qname) {
             None => Self::NotRun,
             Some(Some(value)) => Self::Value(value),
@@ -4166,9 +4200,12 @@ fn constant_return_of(value: &ExactValue) -> Option<ConstantReturn> {
     ))
 }
 
-fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> HashSet<String> {
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut stack: Vec<String> = Vec::new();
+fn compute_transitive_calls(
+    root: &ProcedureId,
+    local: &HashMap<ProcedureId, LocalFacts>,
+) -> HashSet<ProcedureId> {
+    let mut visited: HashSet<ProcedureId> = HashSet::new();
+    let mut stack: Vec<ProcedureId> = Vec::new();
     if let Some(f) = local.get(root) {
         stack.extend(f.direct_calls.iter().cloned());
     }
@@ -4200,17 +4237,17 @@ fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> 
 fn seedless_returns(
     ir_module: &crate::ir::Module,
     units: SeedlessUnits<'_>,
-    pure: &HashMap<String, bool>,
+    pure: &HashMap<ProcedureId, bool>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
-) -> HashMap<String, Option<ExactValue>> {
+) -> HashMap<ProcedureId, Option<ExactValue>> {
     let module = ModuleProcedures::of_unit(units.unit, registry);
     units
         .procedures
         .iter()
-        .filter(|(_, fu)| {
-            ir_module.procedures.unique_display(&fu.name).is_some()
-                && pure.get(&fu.name).copied().unwrap_or(false)
+        .filter(|(id, fu)| {
+            ir_module.procedures.contains_key(id)
+                && pure.get(id).copied().unwrap_or(false)
                 && !fu.complexity_guarded
         })
         .map(|(qname, fu)| {
@@ -4220,7 +4257,7 @@ fn seedless_returns(
                     crate::registry_invocation::InvocationMetadataContext::source_analysis_input,
                 );
             if source_metadata_input.is_none() && !fu.cfg.metadata_context.is_standalone() {
-                return (fu.name.clone(), None);
+                return (*qname, None);
             }
             let dialect = source_metadata_input
                 .map(crate::analyser::ResolvedAnalysisInput::unit_profile)
@@ -4269,14 +4306,12 @@ fn seedless_returns(
                 },
                 folds: Some(reading.folds),
                 module: crate::sccp::ModuleRun {
+                    analysis_body: Some(Some(*qname)),
                     reads_exits: true,
                     ..crate::sccp::ModuleRun::reading(Some(&module))
                 },
             });
-            (
-                fu.name.clone(),
-                exit_value(ExitBody::of(fu), &result, reading),
-            )
+            (*qname, exit_value(ExitBody::of(fu), &result, reading))
         })
         .collect()
 }
@@ -4300,7 +4335,7 @@ pub(crate) struct ExitReading<'a> {
     /// The module's procedures and the function the exits are read in,
     /// where a re-run reads them: a command a return's expression runs that
     /// names a procedure of the module is re-run for its result.
-    pub(crate) module: Option<(&'a ModuleProcedures<'a>, &'a str)>,
+    pub(crate) module: Option<(&'a ModuleProcedures<'a>, &'a ProcedureId)>,
 }
 
 /// The body an exit reading reads: a flow graph and its SSA.
@@ -4591,6 +4626,21 @@ use crate::side_effects::classify_side_effects_in;
 
 #[cfg(test)]
 mod tests {
+    fn fixture_method<'a>(
+        analysis: &'a InterproceduralAnalysis,
+        label: &str,
+    ) -> Option<&'a MethodSummary> {
+        let mut matches = analysis
+            .methods
+            .values()
+            .filter(|method| method.base.qualified_name == label);
+        let first = matches.next()?;
+        assert!(
+            matches.next().is_none(),
+            "fixture method label must be unambiguous"
+        );
+        Some(first)
+    }
 
     use super::*;
 
@@ -4684,7 +4734,7 @@ mod tests {
             .procedures
             .get("::caller")
             .expect("procedure summary");
-        let method = current.methods.get("::C::run").expect("method summary");
+        let method = fixture_method(&current, "::C::run").expect("method summary");
         for summary in [proc, &method.base] {
             assert!(summary.direct_calls.iter().any(|name| name == "::cb"));
             assert!(summary.direct_calls.iter().any(|name| name == "::direct"));
@@ -4709,7 +4759,7 @@ mod tests {
                 .procedures
                 .get("::caller")
                 .expect("retained procedure");
-            let method = result.methods.get("::C::run").expect("retained method");
+            let method = fixture_method(&result, "::C::run").expect("retained method");
             for summary in [proc, &method.base] {
                 assert!(
                     !summary.direct_calls.iter().any(|name| name == "::cb"),
@@ -5502,11 +5552,11 @@ mod tests {
              \x20   method get {} { ::return $n }\n\
              }",
         );
-        let m = ia.methods.get("::C::get").expect("method summary");
+        let m = fixture_method(&ia, "::C::get").expect("method summary");
         assert!(m.base.pure, "read-only getter should be pure: {:?}", m.base);
         assert!(m.writes_instance_vars.is_empty());
         assert_eq!(m.class_name, "::C");
-        assert_eq!(m.method_kind, "method");
+        assert_eq!(m.method_kind, crate::ir::MethodKind::Method);
     }
 
     #[test]
@@ -5517,7 +5567,7 @@ mod tests {
              \x20   method bump {} { incr n }\n\
              }",
         );
-        let m = ia.methods.get("::C::bump").expect("method summary");
+        let m = fixture_method(&ia, "::C::bump").expect("method summary");
         assert!(!m.base.pure, "instance-var write must be impure");
         assert!(
             m.writes_instance_vars.contains("n"),
@@ -5536,7 +5586,7 @@ mod tests {
              \x20   method bump {} { set counter(0) 1 }\n\
              }",
         );
-        let m = ia.methods.get("::C::bump").expect("method summary");
+        let m = fixture_method(&ia, "::C::bump").expect("method summary");
         assert!(!m.base.pure);
         assert!(m.writes_instance_vars.contains("counter"));
     }
@@ -5551,10 +5601,10 @@ mod tests {
              \x20   method b {} { ::return 1 }\n\
              }",
         );
-        let a = ia.methods.get("::C::a").expect("method a");
+        let a = fixture_method(&ia, "::C::a").expect("method a");
         assert!(!a.base.pure, "my-dispatch caller must be impure");
         // The pure leaf method still summarises pure.
-        let b = ia.methods.get("::C::b").expect("method b");
+        let b = fixture_method(&ia, "::C::b").expect("method b");
         assert!(b.base.pure, "absolute literal return leaf: {:?}", b.base);
     }
 
@@ -5571,14 +5621,21 @@ mod tests {
              \x20   method m {} { ::return 2 }\n\
              }",
         );
-        let m = ia.methods.get("::C::m").expect("method summary");
-        assert!(
-            m.base.pure,
-            "two pure bodies join to pure — abstention on the mere fact of \
+        let methods = ia
+            .methods
+            .values()
+            .filter(|method| method.base.qualified_name == "::C::m")
+            .collect::<Vec<_>>();
+        assert_eq!(methods.len(), 2);
+        for m in methods {
+            assert!(
+                m.base.pure,
+                "two pure bodies join to pure — abstention on the mere fact of \
              redefinition is the imprecision issue #1166 removes"
-        );
-        // Disagreeing constants join to no-constant-return.
-        assert!(m.base.constant_return.is_none());
+            );
+            // Disagreeing constants join to no-constant-return.
+            assert!(m.base.constant_return.is_none());
+        }
 
         // FN-now-caught: an impure REPLACEMENT makes the join impure even
         // though the first (retained-in-`methods`) body is pure.
@@ -5591,8 +5648,15 @@ mod tests {
              \x20       return 2 }\n\
              }",
         );
-        let m = ia.methods.get("::C::m").expect("method summary");
-        assert!(!m.base.pure, "an impure replacement body must join impure");
+        let methods = ia
+            .methods
+            .values()
+            .filter(|method| method.base.qualified_name == "::C::m")
+            .collect::<Vec<_>>();
+        assert_eq!(methods.len(), 2);
+        for m in methods {
+            assert!(!m.base.pure, "an impure replacement body must join impure");
+        }
 
         // Agreeing constants survive the join.
         let ia = build(
@@ -5603,12 +5667,19 @@ mod tests {
              \x20   method m {} { ::return 7 }\n\
              }",
         );
-        let m = ia.methods.get("::C::m").expect("method summary");
-        assert!(m.base.pure);
-        assert!(matches!(
-            m.base.constant_return,
-            Some(ConstantReturn::Int(7))
-        ));
+        let methods = ia
+            .methods
+            .values()
+            .filter(|method| method.base.qualified_name == "::C::m")
+            .collect::<Vec<_>>();
+        assert_eq!(methods.len(), 2);
+        for m in methods {
+            assert!(m.base.pure);
+            assert!(matches!(
+                m.base.constant_return,
+                Some(ConstantReturn::Int(7))
+            ));
+        }
     }
 
     #[test]
@@ -5622,7 +5693,7 @@ mod tests {
              \x20   method $n {} { return 2 }\n\
              }",
         );
-        let m = ia.methods.get("::C::m").expect("method summary");
+        let m = fixture_method(&ia, "::C::m").expect("method summary");
         assert!(!m.base.pure, "unanalysable class member must widen");
 
         // A dynamic class word may have touched any class — module-wide.
@@ -5632,7 +5703,7 @@ mod tests {
              }\n\
              oo::define $cls { method m {} { puts hi } }",
         );
-        let m = ia.methods.get("::C::m").expect("method summary");
+        let m = fixture_method(&ia, "::C::m").expect("method summary");
         assert!(!m.base.pure, "dynamic OO definition target must widen");
     }
 
@@ -5649,7 +5720,7 @@ mod tests {
              \x20   method peek {} { variable x; return $x }\n\
              }",
         );
-        let m = ia.methods.get("::C::peek").expect("method summary");
+        let m = fixture_method(&ia, "::C::peek").expect("method summary");
         assert!(
             m.writes_instance_vars.is_empty(),
             "variable decl wrongly counted as write: {:?}",
@@ -6051,7 +6122,11 @@ mod tests {
             .stack_size(STACK_SIZE)
             .spawn(move || {
                 let ia = build(&src);
-                assert!(ia.methods.contains_key("::C::bump"));
+                assert!(
+                    ia.methods
+                        .values()
+                        .any(|method| method.base.qualified_name == "::C::bump")
+                );
             })
             .unwrap()
             .join()

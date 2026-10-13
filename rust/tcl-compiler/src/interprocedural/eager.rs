@@ -40,7 +40,7 @@ use tcl_lexer::Span;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming, Traits};
 
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
-use crate::ir::{CommandTokens, Module, Script, Statement, WordExpr, WordPart};
+use crate::ir::{CommandTokens, Module, ProcedureId, Script, Statement, WordExpr, WordPart};
 use crate::ir_helpers::CommandWord;
 
 /// Where the load may first run each procedure of the module.
@@ -48,7 +48,7 @@ use crate::ir_helpers::CommandWord;
 pub(crate) struct EagerInvocations {
     /// Each procedure the load may run by name, with the position of the
     /// first statement that may run it.
-    named: HashMap<String, u32>,
+    named: HashMap<ProcedureId, u32>,
     /// The first position from which the load may run a procedure no name
     /// shows.
     unnamed_from: Option<u32>,
@@ -58,7 +58,7 @@ impl EagerInvocations {
     /// The fact for `ir_module`, its commands read from `registry`.
     #[must_use]
     pub(crate) fn of(ir_module: &Module, registry: &CommandRegistry) -> Self {
-        let known: HashSet<String> = ir_module.procedures.unique_displays().cloned().collect();
+        let known: HashSet<ProcedureId> = ir_module.procedures.keys().copied().collect();
         let units: Vec<Span> = ir_module
             .body_units
             .values()
@@ -68,15 +68,26 @@ impl EagerInvocations {
             registry,
             config: crate::dynamic_names::lexer_config_for(registry),
             known: &known,
+            module: ir_module,
             units: &units,
         };
-        let owner = |span: Span| -> Option<&str> {
-            ir_module
+        let owner = |span: Span| -> Vec<ProcedureId> {
+            let matching: Vec<_> = ir_module
                 .procedures
                 .iter()
                 .filter(|(_, procedure)| encloses(procedure.span, span))
-                .min_by_key(|(_, procedure)| procedure.span.end() - procedure.span.start())
-                .map(|(_, procedure)| procedure.qualified_name.as_str())
+                .collect();
+            let width = matching
+                .iter()
+                .map(|(_, procedure)| procedure.span.end() - procedure.span.start())
+                .min();
+            matching
+                .into_iter()
+                .filter(|(_, procedure)| {
+                    Some(procedure.span.end() - procedure.span.start()) == width
+                })
+                .map(|(id, _)| *id)
+                .collect()
         };
 
         let mut load = Self::default();
@@ -87,7 +98,7 @@ impl EagerInvocations {
         };
         crate::ir::for_each_statement(&ir_module.top_level, &mut |stmt| at(stmt, "::top"));
         for (qname, unit) in ir_module.body_units.display_entries() {
-            if owner(unit.span).is_none() {
+            if owner(unit.span).is_empty() {
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| at(stmt, qname));
             }
         }
@@ -97,15 +108,16 @@ impl EagerInvocations {
 
         // What each procedure's own runs reach: its body and the bodies
         // lowering registered inside it.
-        let mut bodies: HashMap<&str, Reach> = HashMap::new();
-        for (qname, procedure) in ir_module.procedures.display_entries() {
-            let reach = bodies.entry(qname.as_str()).or_default();
+        let mut bodies: HashMap<ProcedureId, Reach> = HashMap::new();
+        for (id, procedure) in ir_module.procedures.iter() {
+            let qname = procedure.qualified_name.as_str();
+            let reach = bodies.entry(*id).or_default();
             crate::ir::for_each_statement(&procedure.body, &mut |stmt| {
                 walk.statement(stmt, qname, reach);
             });
         }
         for (qname, unit) in ir_module.body_units.display_entries() {
-            if let Some(owner) = owner(unit.span) {
+            for owner in owner(unit.span) {
                 let reach = bodies.entry(owner).or_default();
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| {
                     walk.statement(stmt, qname, reach);
@@ -117,7 +129,7 @@ impl EagerInvocations {
         while changed {
             changed = false;
             for (caller, reach) in &bodies {
-                let Some(position) = load.named.get(*caller).copied() else {
+                let Some(position) = load.named.get(caller).copied() else {
                     continue;
                 };
                 for callee in &reach.named {
@@ -130,7 +142,7 @@ impl EagerInvocations {
         }
         for (caller, reach) in &bodies {
             if reach.unnamed
-                && let Some(position) = load.named.get(*caller).copied()
+                && let Some(position) = load.named.get(caller).copied()
             {
                 load.unnamed_from =
                     Some(load.unnamed_from.map_or(position, |old| old.min(position)));
@@ -156,7 +168,7 @@ impl EagerInvocations {
     /// `None` where only a callback runs it — the instance lifecycle proof's
     /// reading.
     #[must_use]
-    pub(crate) fn named(&self, qname: &str) -> Option<u32> {
+    pub(crate) fn named(&self, qname: &ProcedureId) -> Option<u32> {
         self.named.get(qname).copied()
     }
 
@@ -164,7 +176,7 @@ impl EagerInvocations {
     /// or from the first statement that may run a procedure no name shows.
     /// `None` where only a callback runs it, after the load.
     #[must_use]
-    pub(crate) fn may_run_from(&self, qname: &str) -> Option<u32> {
+    pub(crate) fn may_run_from(&self, qname: &ProcedureId) -> Option<u32> {
         match (self.named(qname), self.unnamed_from) {
             (Some(named), Some(unnamed)) => Some(named.min(unnamed)),
             (named, unnamed) => named.or(unnamed),
@@ -176,7 +188,7 @@ impl EagerInvocations {
 /// `proc` statement surely runs, and where the load may first run each.
 pub(crate) struct DefinitionReach {
     invocations: EagerInvocations,
-    points: HashMap<String, u32>,
+    points: HashMap<ProcedureId, u32>,
 }
 
 impl DefinitionReach {
@@ -199,7 +211,7 @@ impl DefinitionReach {
     /// first run `runner`; a runner only a callback runs takes every
     /// definition the load surely runs.
     #[must_use]
-    pub(crate) fn defined(&self, procedure: &str, runner: &str) -> bool {
+    pub(crate) fn defined(&self, procedure: &ProcedureId, runner: &ProcedureId) -> bool {
         self.points.get(procedure).is_some_and(|&at| {
             self.invocations
                 .may_run_from(runner)
@@ -209,7 +221,7 @@ impl DefinitionReach {
 
     /// State each summary's definition reach: where its definition runs, and
     /// which of its callees are defined before it may first run.
-    pub(crate) fn state(&self, procedures: &mut HashMap<String, super::ProcSummary>) {
+    pub(crate) fn state(&self, procedures: &mut HashMap<ProcedureId, super::ProcSummary>) {
         for (qname, summary) in procedures {
             summary.defined_at = self.points.get(qname).copied();
             summary.defined_callees = summary
@@ -226,12 +238,11 @@ impl DefinitionReach {
 /// statement of the top level, or of a `namespace eval` body that is one,
 /// before any `return` that may end the script or body around it.
 #[must_use]
-pub(crate) fn definition_points(ir_module: &Module) -> HashMap<String, u32> {
-    let by_span: HashMap<Span, &str> = ir_module
-        .procedures
-        .iter()
-        .map(|(_, procedure)| (procedure.span, procedure.qualified_name.as_str()))
-        .collect();
+pub(crate) fn definition_points(ir_module: &Module) -> HashMap<ProcedureId, u32> {
+    let mut by_span: HashMap<Span, Vec<ProcedureId>> = HashMap::new();
+    for (id, procedure) in ir_module.procedures.iter() {
+        by_span.entry(procedure.span).or_default().push(*id);
+    }
     let mut points = HashMap::new();
     let top = direct_definitions(&ir_module.top_level, &by_span, &mut points);
     for statement in &ir_module.top_level.statements {
@@ -262,8 +273,8 @@ pub(crate) fn definition_points(ir_module: &Module) -> HashMap<String, u32> {
 /// first `return`, and answer that `return`'s position.
 fn direct_definitions(
     script: &Script,
-    by_span: &HashMap<Span, &str>,
-    points: &mut HashMap<String, u32>,
+    by_span: &HashMap<Span, Vec<ProcedureId>>,
+    points: &mut HashMap<ProcedureId, u32>,
 ) -> Option<u32> {
     let mut end: Option<u32> = None;
     crate::ir::for_each_statement(script, &mut |statement| {
@@ -277,8 +288,10 @@ fn direct_definitions(
         if end.is_some_and(|end| span.start() >= end) {
             break;
         }
-        if let Some(qname) = by_span.get(&span) {
-            points.insert((*qname).to_owned(), span.start());
+        if let Some(ids) = by_span.get(&span) {
+            for id in ids {
+                points.insert(*id, span.start());
+            }
         }
     }
     end
@@ -293,7 +306,7 @@ fn encloses(outer: Span, inner: Span) -> bool {
 /// one no name shows.
 #[derive(Debug, Default)]
 struct Reach {
-    named: HashSet<String>,
+    named: HashSet<ProcedureId>,
     unnamed: bool,
 }
 
@@ -301,7 +314,8 @@ struct Reach {
 struct Walk<'a> {
     registry: &'a CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    known: &'a HashSet<String>,
+    known: &'a HashSet<ProcedureId>,
+    module: &'a Module,
     /// The bodies lowering registered as units of their own, whose
     /// statements the fact visits in place of the words that hold them.
     units: &'a [Span],
@@ -309,6 +323,7 @@ struct Walk<'a> {
 
 /// One command a statement runs, as the walk reads it.
 struct Invocation<'w> {
+    tokens: Option<&'w CommandTokens>,
     /// The head as written, which names a procedure of the module.
     head: &'w str,
     /// The command the head resolves to, which the registry describes.
@@ -367,6 +382,7 @@ impl Walk<'_> {
             && self.units.iter().any(|unit| encloses(*span, *unit));
         self.invocation(
             &Invocation {
+                tokens: tokens.as_ref(),
                 head: command,
                 command: canonical_command.as_deref().unwrap_or(command),
                 args,
@@ -397,6 +413,7 @@ impl Walk<'_> {
         let literal: Vec<bool> = args.iter().map(|word| !word.substituted).collect();
         self.invocation(
             &Invocation {
+                tokens: None,
                 head: &head.text,
                 command: &head.text,
                 args: &texts,
@@ -410,25 +427,53 @@ impl Walk<'_> {
         );
     }
 
+    fn note_original_word(&self, tokens: Option<&CommandTokens>, word: &str, reach: &mut Reach) {
+        let Some(tokens) = tokens else {
+            reach.unnamed = true;
+            return;
+        };
+        let Some(binding) = tokens.source_binding.as_ref() else {
+            reach.unnamed = true;
+            return;
+        };
+        if binding
+            .original_invocation_metadata_for_module(tokens, self.module, self.registry)
+            .is_none()
+        {
+            reach.unnamed = true;
+            return;
+        }
+        let lookup = binding.lookup_command_word(word);
+        reach.unnamed |= lookup.unknown || lookup.may_be_absent;
+        for target in &lookup.targets {
+            if target.registry_backed {
+                continue;
+            }
+            match self.module.source_procedure_for_target(target) {
+                Some((id, _)) if self.known.contains(&id) => {
+                    reach.named.insert(id);
+                }
+                _ => reach.unnamed = true,
+            }
+        }
+    }
+
     /// What one command runs before it returns: the procedure it names, the
     /// procedure an invoker names, a sourced file, and each script or command
     /// prefix it runs at once.
     fn invocation(&self, call: &Invocation<'_>, caller: &str, depth: u32, reach: &mut Reach) {
-        if let Some(target) = super::resolve_internal_call(call.head, caller, self.known) {
-            reach.named.insert(target);
-        }
+        self.note_original_word(call.tokens, call.head, reach);
         let args: Vec<&str> = call.args.iter().map(String::as_str).collect();
         let traits = self.registry.invocation_traits(call.command, &args, None);
         if traits.contains(Traits::SOURCES_FILE) {
             reach.unnamed = true;
         }
-        if traits.contains(Traits::INVOKES_USER_PROC)
-            && let Some(target) = call
-                .args
-                .first()
-                .and_then(|name| super::resolve_internal_call(name, caller, self.known))
-        {
-            reach.named.insert(target);
+        if traits.contains(Traits::INVOKES_USER_PROC) {
+            if let Some(word) = call.args.first() {
+                self.note_original_word(call.tokens, word, reach);
+            } else {
+                reach.unnamed = true;
+            }
         }
         if call.held
             || traits.intersects(Traits::DEFINES_PROCEDURE.union(Traits::BODY_RUNS_IN_OWN_FRAME))
@@ -504,6 +549,7 @@ impl Walk<'_> {
         let literal: Vec<bool> = args.iter().map(is_literal).collect();
         self.invocation(
             &Invocation {
+                tokens: None,
                 head: text,
                 command: text,
                 args: &texts,

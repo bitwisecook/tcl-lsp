@@ -54,7 +54,7 @@ pub use api::{
 };
 pub use cfg_propagation::{analyse_cfg_function, analyse_cfg_function_with_registry};
 pub use interprocedural::{
-    solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
+    EscapeCallGraph, solve_interprocedural_escape, solve_interprocedural_escape_with_registry,
 };
 pub use slot_resolution::{LOCALS_ARRAY_CAP, assign_local_slots, populate_local_slots};
 pub use walker::{analyse_script, analyse_script_with_registry};

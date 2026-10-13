@@ -63,6 +63,10 @@
 //! a deliberate sound over-approximation (it never fires a false W210); those
 //! cases assert the conservative `false` return and say so.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::auto_path_eval::evaluate_auto_path_expr;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -1122,7 +1126,10 @@ fn inline_classify_no_summary_is_never() {
     // `classify_proc` with no escape summary (None) → Never (the soundness gate
     // fails closed).
     let module = module_for("proc ::f {} { puts hi }\n");
-    let proc = &module.procedures["::f"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::f"))
+        .expect("authored fixture body");
     assert_eq!(
         classify_proc(proc, None, 0),
         InlineDecision::Never,
@@ -1139,15 +1146,28 @@ fn inline_classify_side_effecting_proc_is_never() {
     // relocate that body.
     let module = module_for("proc ::bump {name} { upvar 1 $name v; incr v }\n");
     let summaries = analyse_var_escape(&module, true);
-    let proc = &module.procedures["::bump"];
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::bump"))
+        .expect("authored fixture body");
     assert!(
         !summaries
-            .get("::bump")
+            .get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module.procedures,
+                "::bump"
+            )))
             .is_some_and(ProcEscapeSummary::safe_to_inline),
         "upvar proc is not safe_to_inline",
     );
     assert_eq!(
-        classify_proc(proc, summaries.get("::bump"), 0),
+        classify_proc(
+            proc,
+            summaries.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &module.procedures,
+                "::bump"
+            ))),
+            0
+        ),
         InlineDecision::Never,
     );
 }
@@ -1172,17 +1192,44 @@ fn inline_classify_small_pure_leaf_is_always_large_is_count_dependent() {
     let ss = analyse_var_escape(&ms, true);
     let sb = analyse_var_escape(&mb, true);
     assert_eq!(
-        classify_proc(&ms.procedures["::s"], ss.get("::s"), 99),
+        classify_proc(
+            ms.procedures
+                .get(&fixture_id(&ms.procedures, "::s"))
+                .expect("authored fixture body"),
+            ss.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &ms.procedures,
+                "::s"
+            ))),
+            99
+        ),
         InlineDecision::Always,
         "threshold-sized pure-leaf is Always regardless of count",
     );
     assert_eq!(
-        classify_proc(&mb.procedures["::b"], sb.get("::b"), 1),
+        classify_proc(
+            mb.procedures
+                .get(&fixture_id(&mb.procedures, "::b"))
+                .expect("authored fixture body"),
+            sb.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &mb.procedures,
+                "::b"
+            ))),
+            1
+        ),
         InlineDecision::IfSingleCall,
         "threshold+1 with one caller is IfSingleCall",
     );
     assert_eq!(
-        classify_proc(&mb.procedures["::b"], sb.get("::b"), 3),
+        classify_proc(
+            mb.procedures
+                .get(&fixture_id(&mb.procedures, "::b"))
+                .expect("authored fixture body"),
+            sb.get(&tcl_core_types::BodyFrameId::Body(fixture_id(
+                &mb.procedures,
+                "::b"
+            ))),
+            3
+        ),
         InlineDecision::Never,
         "threshold+1 with multiple callers is Never",
     );
@@ -1195,7 +1242,13 @@ fn inline_count_statements_try_and_switch() {
     let module = module_for(
         "proc ::f {} {\n try { set a 1 } on error {e} { set b 2 } finally { set c 3 }\n switch -- $a { 1 { set d 4 } default { set e 5 } }\n}\n",
     );
-    let n = count_statements(&module.procedures["::f"].body);
+    let n = count_statements(
+        module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body,
+    );
     // 3 from try (a, b, c) + 2 from switch (d, e) = 5 leaf statements.
     assert_eq!(n, 5, "count walks try + switch bodies");
 }
@@ -1204,7 +1257,13 @@ fn inline_count_statements_try_and_switch() {
 fn inline_count_statements_foreach_and_catch() {
     // foreach / catch each contribute 1 (the construct) + their body count.
     let module = module_for("proc ::f {} {\n foreach x {1 2} { set a 1 }\n catch { set b 2 }\n}\n");
-    let n = count_statements(&module.procedures["::f"].body);
+    let n = count_statements(
+        module
+            .procedures
+            .get(&fixture_id(&module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body,
+    );
     // foreach: 1 + 1(set a) = 2; catch: 1 + 1(set b) = 2; total 4.
     assert_eq!(n, 4, "count walks foreach + catch bodies");
 }
@@ -1289,7 +1348,7 @@ fn inline_recursive_proc_does_not_loop() {
     // `rec` is not pure-leaf (it calls itself / has a command-subst arg), so it
     // never qualifies — the call survives and the pass terminates.
     assert!(
-        module.procedures.contains_key("::rec"),
+        fixture_id_if_present(&module.procedures, "::rec").is_some(),
         "recursive proc remains defined",
     );
 }
@@ -1554,7 +1613,7 @@ fn memoised_unit(
 
 /// Whether `::g`'s lattice proves its local `v` is the integer 3.
 fn g_proves_v_is_three(cu: &CompilationUnit) -> bool {
-    let Some(fu) = cu.procedures.get("::g") else {
+    let Some(fu) = cu.procedures.get(&fixture_id(&cu.procedures, "::g")) else {
         return false;
     };
     let Some(sym) = fu.ssa.var_symbol("v") else {
@@ -1664,7 +1723,10 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
         build_cfg_with_registry(&cu.ir_module, false, &registry),
         build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
     ] {
-        let function = &cfg.procedures["::p"];
+        let function = cfg
+            .procedures
+            .get(&fixture_id(&cfg.procedures, "::p"))
+            .expect("authored fixture body");
         assert!(
             function.blocks.values().any(|block| {
                 block.statements.iter().any(|statement| {
@@ -2446,7 +2508,9 @@ fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
             build_cfg_codegen_with_registry(&cu.ir_module, false, &registry),
         ] {
             assert!(
-                cfg.procedures["::p"]
+                cfg.procedures
+                    .get(&fixture_id(&cfg.procedures, "::p"))
+                    .expect("authored fixture body")
                     .blocks
                     .values()
                     .flat_map(|block| &block.statements)

@@ -1,0 +1,302 @@
+[
+  {
+    "file": "ir/procedure_identity.rs",
+    "test": "repeated_displays_retain_both_bodies_and_refuse_label_selection"
+  },
+  {
+    "file": "ir/procedure_identity.rs",
+    "test": "cloned_module_retains_existing_ids_and_issues_distinct_new_bodies"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "source_positioned_receiver_proofs_do_not_reuse_an_older_object_value"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "opaque_constructor_cannot_prove_the_original_concrete_class"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "retained_procedure_factory_candidates_do_not_require_an_executable_unit"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "colliding_method_reports_have_distinct_scoped_object_candidates"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input"
+  },
+  {
+    "file": "object_types.rs",
+    "test": "normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "independent_caller_ingresses_keep_their_actual_sources_and_loader_identity"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "trusted_file_entry_retains_actual_loaded_declaration_identity"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "sourced_partial_errors_and_redefinition_preserve_real_target_identity"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_namespace_eval_body_resolves_against_its_own_namespace"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "an_uplevel_body_inside_a_catch_body_is_not_reattributed"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_catch_body_is_still_walked_with_the_callers_namespace"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "deferred_global_callers_retract_only_their_retained_possible_targets"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "an_unresolved_word_is_a_call_site_of_the_modules_unknown_handler_1044"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_module_with_no_unknown_handler_is_unaffected_1044"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "an_unenumerable_dispatch_marks_the_module_non_enumerable"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_script_the_scan_cannot_read_makes_the_module_non_enumerable"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_retained_script_value_records_its_actual_caller"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "a_literal_body_mentioning_a_variable_is_still_walked"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_callback_callers_share_source_horizons_without_parameter_seeds"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "scope_variable_facts_keep_actual_availability_and_refuse_missing_or_foreign_owners"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "unit_caller_seeds_require_the_retained_metadata_owner"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "supplied_native_caller_scan_retains_source_input_without_entry_or_frame_donation"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "source_entry_caller_metadata_requires_an_independent_supplied_input"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_cfg_caller_inventory_keeps_consumed_expression_source_and_configuration"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_cfg_caller_inventory_refuses_missing_foreign_and_stale_owners"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_body_caller_inventory_requires_each_original_child_sidecar"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_argument_caller_phase_keeps_real_return_and_direct_argument_counts"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_argument_caller_child_keeps_its_own_expression_roles"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_argument_caller_owner_refusal_stays_distinct_from_effect_only_empty"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_argument_caller_metadata_joins_from_the_module_to_its_nested_owner"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_native_procedure_argv_roles_do_not_invent_registry_body_callers"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_native_procedure_argv_roles_keep_authentic_alias_prefix_counts"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_covered_alias_effect_keeps_actual_publication_and_prefix_owner"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_covered_alias_effect_refuses_missing_foreign_source_and_vector_owners"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_covered_alias_effect_keeps_rebinding_unknown_and_callback_opacity"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_covered_alias_effect_requires_original_entered_continuation"
+  },
+  {
+    "file": "unit_scope.rs",
+    "test": "original_direct_return_keeps_terminator_argv_without_captured_phase_marker"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "authored_program_storage_keeps_original_coverage_without_native_frame_or_body_grants"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "authored_source_templates_withdraw_changed_module_and_point_owners"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "authored_source_inventory_keeps_availability_replacement_and_native_entry_separate"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_declared_argument_slots_do_not_borrow_the_parent_native_frame"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_procedure_body_preflight_keeps_entry_and_missing_provider_independent"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_empty_procedure_direct_call_keeps_formals_without_body_specialisation"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "retained_aot_metadata_cannot_borrow_missing_or_foreign_function_input"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_source_queries_require_unanimous_statement_carriers"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "structural_call_candidates_keep_original_nested_words_and_literal_boundaries"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_direct_expression_body_requires_the_actual_nested_operation_receipts"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "original_literal_actual_types_do_not_create_native_or_ssa_value_identity"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "declared_arguments_keep_distinct_reached_cells_and_exact_source_receipts"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "retained_native_program_coverage_does_not_donate_root_frame_slots"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "internal_operation_rebinding_and_tracing_decline_body_specialisation"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "dynamic_binding_transition_still_declines_direct_call_identity"
+  },
+  {
+    "file": "common_aot_plan.rs",
+    "test": "dialect_tcloo_and_variable_trace_premises_are_retained"
+  },
+  {
+    "file": "optimiser/elimination/source_purity.rs",
+    "test": "original_substitution_purity_keeps_alias_prefixes_and_target_barriers"
+  },
+  {
+    "file": "optimiser/elimination/source_purity.rs",
+    "test": "original_substitution_purity_requires_actual_availability_and_input"
+  },
+  {
+    "file": "optimiser/elimination/source_purity.rs",
+    "test": "logical_procedure_purity_joins_the_original_declaration_not_its_label"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "procedure_and_method_callback_advice_requires_the_module_source_producer"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "original_positioned_child_bodies_preserve_replacements_and_aliases"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "original_callback_reachability_distinguishes_literal_values_and_selected_builders"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "document_procedure_named_like_wrapper_does_not_inherit_body_roles"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "empty_module_has_no_summaries"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "call_inside_apply_lambda_body_is_a_direct_call"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "call_inside_apply_lambda_body_resolves_in_lambda_namespace"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "call_inside_apply_lambda_body_resolves_in_explicit_namespace"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "redefined_method_joins_over_every_retained_body"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "conditional_return_is_not_constant_when_body_falls_through"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "call_graph_follows_an_aliased_body_command"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "call_graph_follows_a_renamed_body_command"
+  },
+  {
+    "file": "interprocedural.rs",
+    "test": "a_call_running_a_body_word_may_return"
+  },
+  {
+    "file": "taint_interproc.rs",
+    "test": "summary_dependencies_read_original_static_heads_under_source_grammar"
+  },
+  {
+    "file": "taint_interproc.rs",
+    "test": "original_return_word_keeps_bom_and_actual_ssa_exit_versions"
+  }
+]

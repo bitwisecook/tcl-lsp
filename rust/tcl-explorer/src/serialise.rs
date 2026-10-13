@@ -409,6 +409,12 @@ fn serialise_wasm_with_options(
     let li = LineIndex::new(&result.source);
     let mut entries = crate::wasm_explorer::wasm_to_explorer_json(&wasm, &li, &result.source);
 
+    for entry in &mut entries {
+        if entry["isTopLevel"].as_bool() == Some(true) {
+            entry["bodyKey"] = json!(root_body_key(result));
+        }
+    }
+
     // Augment the synthetic `(module)` header with the WAT text the TUI
     // renderer reads (it reads `text` on the module entry and
     // `name`/`instrCount` on each function entry, both already present).
@@ -484,7 +490,7 @@ fn serialise_wasm_with_options(
         if let Value::Object(map) = &mut plan {
             map.insert(
                 "nativeLowering".to_owned(),
-                serialise_native_tier(&wasm.native),
+                serialise_native_tier(&wasm.native, &root_body_key(result)),
             );
         }
         header.insert("codegenPlan".to_owned(), plan);
@@ -496,12 +502,22 @@ fn serialise_wasm_with_options(
 /// functions lowered, why the others declined, and per statement how it was
 /// lowered and every cell-framing decision taken for it. Stable spellings
 /// throughout.
-fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierReport) -> Value {
-    use tcl_compiler::native_lowering::{FunctionStatus, StatementOutcome};
+fn serialise_native_tier(
+    report: &tcl_compiler::native_lowering::NativeTierReport,
+    root_key: &str,
+) -> Value {
+    use tcl_compiler::native_lowering::{FunctionStatus, NativeFunctionId, StatementOutcome};
     let functions: serde_json::Map<String, Value> = report
         .functions
         .iter()
-        .map(|(name, function)| {
+        .map(|(id, named)| {
+            let function = &named.report;
+            let (key, body_id, is_top_level) = match id {
+                NativeFunctionId::TopLevel => ("topLevel".to_owned(), None, true),
+                NativeFunctionId::Procedure(id) => {
+                    (format!("body:{}", id.ordinal()), Some(id.ordinal()), false)
+                }
+            };
             let (status, reason, detail) = match &function.status {
                 FunctionStatus::Lowered => ("lowered", Value::Null, Value::Null),
                 FunctionStatus::Declined(decline) => (
@@ -536,8 +552,12 @@ fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierRepor
                 })
                 .collect();
             (
-                name.clone(),
+                key,
                 json!({
+                    "name": named.name,
+                    "bodyId": body_id,
+                    "bodyKey": match id { NativeFunctionId::TopLevel => root_key.to_owned(), NativeFunctionId::Procedure(id) => id.reporting_key() },
+                    "isTopLevel": is_top_level,
                     "status": status,
                     "reason": reason,
                     "detail": detail,
@@ -748,6 +768,26 @@ fn argv_identity(argv: tcl_compiler::executable_ir::ExecutableArgvId) -> Value {
     })
 }
 
+fn root_body_key(result: &ExplorerResult) -> String {
+    format!(
+        "{}:root",
+        result.unit.ir_module.procedure_ids.reporting_scope()
+    )
+}
+
+fn snapshot_body_key(
+    result: &ExplorerResult,
+    snapshot: &crate::FunctionSnapshot<'_>,
+) -> Option<String> {
+    snapshot
+        .unit
+        .body_id
+        .map(|id| id.reporting_key())
+        .or_else(|| {
+            std::ptr::eq(snapshot.unit, &result.unit.top_level).then(|| root_body_key(result))
+        })
+}
+
 /// Serialise the `ir` view.:
 /// Procedure rows retain module body IDs independently of their display names.
 #[must_use]
@@ -757,7 +797,7 @@ pub fn serialise_ir(module: &Module, li: &LineIndex, source: &str) -> Value {
         procedures.insert(
             format!("body:{}", id.ordinal()),
             json!({
-                "bodyId": id.ordinal(),
+                "bodyId": id.ordinal(), "bodyKey": id.reporting_key(),
                 "name": proc.qualified_name,
                 "params": proc.params,
                 "range": range_dict(proc.span, li, source),
@@ -916,7 +956,7 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
                 })
                 .collect();
             json!({
-                "name": snap.name,
+                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
@@ -963,7 +1003,7 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "may": may, "must": must }))
                 })
                 .collect();
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries }))
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }))
         })
         .collect();
     Value::Array(funcs)
@@ -1597,7 +1637,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "lo": iv.lo, "hi": iv.hi }))
                 })
                 .collect();
-            json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries })
+            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries })
         })
         .collect();
     Value::Array(funcs)
@@ -1622,7 +1662,7 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
                     json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) })
                 })
                 .collect();
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "entries": entries }))
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "entries": entries }))
         })
         .collect();
     Value::Array(funcs)
@@ -1767,7 +1807,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                 .collect();
 
             json!({
-                "name": snap.name,
+                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
@@ -1822,7 +1862,7 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
                         })
                     })
                     .collect();
-                json!({ "name": snap.name, "kind": snap.kind.as_str(), "entry": ssa.block_name(ssa.entry), "blocks": rows })
+                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entry": ssa.block_name(ssa.entry), "blocks": rows })
             })
             .collect(),
     )
@@ -2073,7 +2113,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .collect();
                 let tally = &snap.unit.sccp.route_tally;
                 json!({
-                    "name": snap.name,
+                    "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                     "kind": snap.kind.as_str(),
                     "values": values,
                     "executableBlocks": executable_blocks,
@@ -2143,7 +2183,7 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
                             })
                         })
                         .collect();
-                json!({ "name": snap.name, "kind": snap.kind.as_str(), "chains": chains, "deadStores": dead_stores })
+                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "chains": chains, "deadStores": dead_stores })
             })
             .collect(),
     )
@@ -2372,7 +2412,7 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     })
                     .collect::<Vec<_>>();
                 json!({
-                    "name": snap.name,
+                    "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                     "kind": snap.kind.as_str(),
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
@@ -2566,6 +2606,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .collect();
             json!({
                 "name": f.function_name,
+                "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "nodes": nodes,
                 "edges": edges,
@@ -2792,7 +2833,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
                     })
                 })
                 .collect();
-            json!({ "name": snap.name, "kind": snap.kind.as_str(), "loops": loops })
+            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "loops": loops })
         })
         .collect();
     Value::Array(funcs)
@@ -2858,7 +2899,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
             .collect();
-            Some(json!({ "name": snap.name, "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
+            Some(json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
         })
         .collect();
     funcs.map_or(Value::Null, Value::Array)
@@ -2884,14 +2925,11 @@ pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
         .iter_names()
         .map(|k| Value::String(k.to_owned()))
         .collect();
-    let callees: Vec<Value> = scope
-        .call_sites
-        .callees()
-        .map(|name| {
-            let evidence = scope
-                .call_sites
-                .get(name)
-                .expect("callee listed by the evidence table");
+    let callees: Vec<Value> = result.unit.ir_module.procedures.keys().copied()
+        .filter_map(|id| {
+            let evidence = scope.call_sites.get_for_body(&result.unit.ir_module, id)?;
+            let procedure = result.unit.ir_module.procedures.get(&id)?;
+            let name = &procedure.qualified_name;
             let max_index = evidence.slots.keys().copied().max().map_or(0, |m| m + 1);
             let positions: Vec<Value> = (0..max_index)
                 .map(|index| {
@@ -2909,7 +2947,7 @@ pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
                 .iter()
                 .map(|n| Value::String(n.to_string()))
                 .collect();
-            json!({ "name": name, "positions": positions, "argCounts": arg_counts })
+            Some(json!({ "bodyId": id.ordinal(), "bodyKey": id.reporting_key(), "name": name, "positions": positions, "argCounts": arg_counts }))
         })
         .collect();
     json!({
@@ -2936,21 +2974,28 @@ pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
 #[must_use]
 pub fn serialise_interproc(
     interproc: &InterproceduralAnalysis,
-    param_constants: &BTreeMap<String, Vec<(String, u32, String)>>,
+    param_constants: &BTreeMap<tcl_compiler::ir::ProcedureId, Vec<(String, u32, String)>>,
 ) -> Value {
     let mut out: Vec<Value> = Vec::new();
 
-    let mut qnames: Vec<&String> = interproc.procedures.keys().collect();
-    qnames.sort();
+    let mut qnames: Vec<_> = interproc.procedures.keys().collect();
+    qnames.sort_by(|left, right| {
+        interproc.procedures[*left]
+            .qualified_name
+            .cmp(&interproc.procedures[*right].qualified_name)
+            .then(left.cmp(right))
+    });
     for qname in qnames {
         let s = &interproc.procedures[qname];
         out.push(json!({
-            "name": qname,
+            "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+            "name": s.qualified_name,
             "arity": arity_str(s.arity),
             "pure": s.pure,
             "foldable": s.can_fold_static_calls,
             "returnShape": format_return_shape(s),
-            "calls": s.calls,
+            "calls": s.calls.iter().filter_map(|id| interproc.procedures.get(id).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
+            "callBodyIds": s.calls.iter().map(|id| id.ordinal()).collect::<Vec<_>>(),
             "hasBarrier": s.has_barrier,
             "hasUnknownCalls": s.has_unknown_calls,
             "writesGlobal": s.writes_global,
@@ -2983,10 +3028,11 @@ pub fn serialise_interproc(
         out.push(json!({
             "name": mqname,
             "kind": "method",
-            "methodKind": m.method_kind,
+            "methodKind": m.method_kind.as_str(),
             "className": m.class_name,
             "pure": m.base.pure,
-            "calls": m.base.calls,
+            "calls": m.base.calls.iter().filter_map(|id| interproc.procedures.get(id).map(|callee| &callee.qualified_name)).collect::<Vec<_>>(),
+            "callBodyIds": m.base.calls.iter().map(|id| id.ordinal()).collect::<Vec<_>>(),
             "hasBarrier": m.base.has_barrier,
             "hasUnknownCalls": m.base.has_unknown_calls,
             "writesGlobal": m.base.writes_global,
@@ -3026,7 +3072,7 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                 }));
             }
             (!entries.is_empty()).then(
-                || json!({ "name": snap.name, "kind": snap.kind.as_str(), "entries": entries }),
+                || json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }),
             )
         })
         .collect();
@@ -3293,7 +3339,7 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
         .iter()
         .map(|snap| {
             json!({
-                "name": snap.name,
+                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "baseOffset": snap.unit.base_offset,
             })
@@ -3432,21 +3478,18 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
 
     // Barriers (IR walk).
     walk_barriers(&result.unit.ir_module.top_level, "::top", &mut anns);
-    let mut qnames: Vec<&String> = result.unit.ir_module.procedures.keys().collect();
-    qnames.sort();
-    for qname in qnames {
-        walk_barriers(
-            &result.unit.ir_module.procedures[qname].body,
-            qname,
-            &mut anns,
-        );
+    for procedure in result.unit.ir_module.procedures.values() {
+        walk_barriers(&procedure.body, &procedure.qualified_name, &mut anns);
     }
 
     // Dead stores (O109 optimiser findings — Rust has no standalone liveness
     // pass), constant branches, and unreachable blocks, per function.
     let dead_stores = find_dead_stores(&result.unit, registry, dialect);
     for snap in result.all_snapshots() {
-        for dead in dead_stores.iter().filter(|d| d.function == snap.name) {
+        for dead in dead_stores.iter().filter(|dead| match dead.body_id {
+            Some(id) => snap.unit.body_id == Some(id),
+            None => dead.is_top_level && snap.kind == FunctionSnapshotKind::TopLevel,
+        }) {
             let Some(block) = snap.unit.cfg.block_by_name(&dead.block) else {
                 continue;
             };
@@ -3836,6 +3879,22 @@ mod tests {
     use crate::run_pipeline;
 
     #[test]
+    fn ir_rows_keep_equal_names_and_distinct_source_bodies() {
+        let source =
+            "proc p {} {return FIRST}; proc p {} {return LAST}; proc ::top {} {return NAMED}";
+        let result = run_pipeline(source, "tcl8.6");
+        let ir = serialise_ir(&result.unit.ir_module, &LineIndex::new(source), source);
+        let rows: Vec<_> = ir["procedures"].as_object().unwrap().values().collect();
+        assert_eq!(rows.len(), 3, "{ir}");
+        let p_rows: Vec<_> = rows.iter().filter(|row| row["name"] == "::p").collect();
+        assert_eq!(p_rows.len(), 2, "{ir}");
+        assert_ne!(p_rows[0]["bodyId"], p_rows[1]["bodyId"]);
+        assert_ne!(p_rows[0]["range"], p_rows[1]["range"]);
+        assert_ne!(p_rows[0]["body"], p_rows[1]["body"]);
+        assert_eq!(rows.iter().filter(|row| row["name"] == "::top").count(), 1);
+    }
+
+    #[test]
     // Implementation contract: naming.variable.registry-event-frame-identity
     // docs/design/analysis/name-resolution-proofs/variable-registry-event-frame-identity.md
     fn original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant() {
@@ -4216,7 +4275,7 @@ mod tests {
         let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
         let native = &plan["nativeLowering"];
         assert_eq!(native["enabled"], true);
-        let top = &native["functions"]["::top"];
+        let top = &native["functions"]["topLevel"];
         assert_eq!(top["status"], "lowered");
         let statements = top["statements"].as_array().expect("statement records");
         assert!(statements.iter().any(|statement| {
@@ -4439,7 +4498,13 @@ mod tests {
             "tcl8.6",
         );
         let ir = serialise_result(&result)["ir"].clone();
-        let body = &ir["procedures"]["::f"]["body"];
+        let procedure = ir["procedures"]
+            .as_object()
+            .unwrap()
+            .values()
+            .find(|row| row["name"] == "::f")
+            .unwrap();
+        let body = &procedure["body"];
         let if_node = &body[0];
         assert_eq!(if_node["kind"], "IRIf");
         assert_eq!(if_node["colorClass"], "ir-control");

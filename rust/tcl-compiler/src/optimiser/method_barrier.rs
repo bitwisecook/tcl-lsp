@@ -39,13 +39,13 @@ use crate::ir::{ExecutionNamespace, Module as IrModule, Script, Statement};
 /// The computed barrier: which methods may propagate their private locals.
 pub(crate) struct MethodDispatchBarrier {
     bar_all: bool,
-    barred: HashSet<String>,
+    barred: HashSet<crate::ir::ProcedureId>,
 }
 
 impl MethodDispatchBarrier {
     /// Whether `method_qname`'s provably-local variables may propagate.
-    pub(crate) fn allows_locals(&self, method_qname: &str) -> bool {
-        !self.bar_all && !self.barred.contains(method_qname)
+    pub(crate) fn allows_locals(&self, method: crate::ir::ProcedureId) -> bool {
+        !self.bar_all && !self.barred.contains(&method)
     }
 
     fn allow_all() -> Self {
@@ -101,11 +101,7 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
         .iter()
         .map(String::as_str)
         .collect();
-    for m in ir
-        .methods
-        .values()
-        .chain(ir.redefined_methods.values().flatten())
-    {
+    for m in ir.methods.values() {
         if crate::cfg_builder::upvar_info::reaches_caller_frame(&m.body, &m.params) {
             bad_classes.insert(m.class_name.as_str());
         }
@@ -141,7 +137,7 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
     let comp_out = component_dispatch_closure(ir, &comp_of, &method_facts);
 
     // Bar each method whose reachable dispatch surface meets a bad class.
-    let mut barred: HashSet<String> = HashSet::new();
+    let mut barred: HashSet<crate::ir::ProcedureId> = HashSet::new();
     for (qname, facts) in &method_facts {
         let mut anywhere = facts.anywhere;
         let mut reach: HashSet<usize> = facts.comps.clone();
@@ -152,7 +148,7 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
             }
         }
         if anywhere || reach.iter().any(|c| tainted.contains(c)) {
-            barred.insert((*qname).to_owned());
+            barred.insert(*qname);
         }
     }
     MethodDispatchBarrier {
@@ -167,19 +163,15 @@ fn method_dispatch_facts<'a>(
     ir: &'a IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
-    proc_facts: &HashMap<&str, DispatchFacts>,
-) -> HashMap<&'a str, DispatchFacts> {
+    proc_facts: &HashMap<crate::ir::ProcedureId, DispatchFacts>,
+) -> HashMap<crate::ir::ProcedureId, DispatchFacts> {
     let metadata = dispatch_metadata(registry, ir);
 
-    let mut method_facts: HashMap<&str, DispatchFacts> = HashMap::new();
+    let mut method_facts: HashMap<crate::ir::ProcedureId, DispatchFacts> = HashMap::new();
     for (qname, m) in &ir.methods {
         let own_comp = comp_of.get(m.class_name.as_str()).copied();
         let mut facts = DispatchFacts::default();
-        for body_def in std::iter::once(m).chain(
-            ir.redefined_methods
-                .get(qname)
-                .map_or(&[][..], Vec::as_slice),
-        ) {
+        for (_, body_def) in ir.method_definition_bodies(*qname) {
             collect_dispatches(
                 &body_def.body,
                 &body_def.execution_namespace,
@@ -196,7 +188,7 @@ fn method_dispatch_facts<'a>(
                 0,
             );
         }
-        method_facts.insert(qname.as_str(), facts);
+        method_facts.insert(*qname, facts);
     }
     method_facts
 }
@@ -206,15 +198,14 @@ fn method_dispatch_facts<'a>(
 fn component_dispatch_closure(
     ir: &IrModule,
     comp_of: &HashMap<String, usize>,
-    method_facts: &HashMap<&str, DispatchFacts>,
+    method_facts: &HashMap<crate::ir::ProcedureId, DispatchFacts>,
 ) -> Vec<DispatchFacts> {
     let comp_count = comp_of.values().copied().max().map_or(0, |m| m + 1);
     let mut comp_out: Vec<DispatchFacts> = vec![DispatchFacts::default(); comp_count];
     for (qname, m) in &ir.methods {
-        if let (Some(&comp), Some(facts)) = (
-            comp_of.get(m.class_name.as_str()),
-            method_facts.get(qname.as_str()),
-        ) {
+        if let (Some(&comp), Some(facts)) =
+            (comp_of.get(m.class_name.as_str()), method_facts.get(qname))
+        {
             comp_out[comp].absorb(facts);
         }
     }
@@ -298,16 +289,14 @@ fn proc_dispatch_facts<'a>(
     ir: &'a IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
-) -> HashMap<&'a str, DispatchFacts> {
+) -> HashMap<crate::ir::ProcedureId, DispatchFacts> {
     let metadata = dispatch_metadata(registry, ir);
 
     // Direct facts + direct proc callees per proc.
-    let mut facts: HashMap<&str, DispatchFacts> = HashMap::new();
-    let mut callees: HashMap<&str, HashSet<String>> = HashMap::new();
-    for (qname, proc) in ir.procedures.display_entries() {
-        if ir.procedures.unique_display(qname).is_none() {
-            continue;
-        }
+    let mut facts: HashMap<crate::ir::ProcedureId, DispatchFacts> = HashMap::new();
+    let mut callees: HashMap<crate::ir::ProcedureId, HashSet<crate::ir::ProcedureId>> =
+        HashMap::new();
+    for (id, proc) in &ir.procedures {
         let Some(namespace) = proc
             .body
             .namespace_context
@@ -317,7 +306,7 @@ fn proc_dispatch_facts<'a>(
             continue;
         };
         let mut f = DispatchFacts::default();
-        let mut c: HashSet<String> = HashSet::new();
+        let mut c: HashSet<crate::ir::ProcedureId> = HashSet::new();
         collect_dispatches(
             &proc.body,
             &ExecutionNamespace::exact(namespace),
@@ -333,21 +322,21 @@ fn proc_dispatch_facts<'a>(
             &mut c,
             0,
         );
-        facts.insert(qname.as_str(), f);
-        callees.insert(qname.as_str(), c);
+        facts.insert(*id, f);
+        callees.insert(*id, c);
     }
     // Fixpoint over the (small) proc call graph.
     loop {
         let mut changed = false;
-        let names: Vec<&str> = facts.keys().copied().collect();
+        let names: Vec<crate::ir::ProcedureId> = facts.keys().copied().collect();
         for name in names {
             let callee_facts: Vec<DispatchFacts> = callees
-                .get(name)
+                .get(&name)
                 .into_iter()
                 .flatten()
-                .filter_map(|callee| facts.get(callee.as_str()).cloned())
+                .filter_map(|callee| facts.get(callee).cloned())
                 .collect();
-            if let Some(f) = facts.get_mut(name) {
+            if let Some(f) = facts.get_mut(&name) {
                 for cf in &callee_facts {
                     changed |= f.absorb(cf);
                 }
@@ -367,7 +356,7 @@ struct ScanEnv<'a> {
     metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
     registry: &'a CommandRegistry,
     comp_of: &'a HashMap<String, usize>,
-    proc_facts: &'a HashMap<&'a str, DispatchFacts>,
+    proc_facts: &'a HashMap<crate::ir::ProcedureId, DispatchFacts>,
     ir: &'a IrModule,
     own_comp: Option<usize>,
 }
@@ -455,7 +444,7 @@ fn collect_dispatches(
     execution_namespace: &ExecutionNamespace,
     env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
-    callees: &mut HashSet<String>,
+    callees: &mut HashSet<crate::ir::ProcedureId>,
     depth: u32,
 ) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
@@ -509,7 +498,7 @@ fn classify_tokens(
     tokens: &crate::ir::CommandTokens,
     env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
-    callees: &mut HashSet<String>,
+    callees: &mut HashSet<crate::ir::ProcedureId>,
 ) {
     let Some(binding) = tokens.source_binding.as_ref() else {
         facts.anywhere = true;
@@ -614,25 +603,18 @@ fn record_procedure(
     target: &crate::command_binding::SourceCommandTarget,
     env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
-    callees: &mut HashSet<String>,
+    callees: &mut HashSet<crate::ir::ProcedureId>,
 ) {
-    let Some((_, procedure)) =
-        env.ir
-            .source_procedure_for_target(target)
-            .filter(|(id, procedure)| {
-                !env.ir.redefined_procedures.contains(&target.command)
-                    && env
-                        .ir
-                        .procedures
-                        .unique_display(&procedure.qualified_name)
-                        .is_some_and(|(unique, _)| unique == id)
-            })
+    let Some((id, _)) = env
+        .ir
+        .source_procedure_for_target(target)
+        .filter(|_| !env.ir.redefined_procedures.contains(&target.command))
     else {
         facts.anywhere = true;
         return;
     };
-    callees.insert(procedure.qualified_name.clone());
-    if let Some(callee_facts) = env.proc_facts.get(procedure.qualified_name.as_str()) {
+    callees.insert(id);
+    if let Some(callee_facts) = env.proc_facts.get(&id) {
         facts.absorb(callee_facts);
     }
 }

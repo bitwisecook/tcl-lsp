@@ -3,6 +3,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::dispatch_proof::DispatchEntryAssumption;
 use tcl_compiler::executable_ir::ExecutableFunctionId;
@@ -72,14 +76,14 @@ fn assert_production_entry_contract(unit: &CompilationUnit, phase: &str) {
         assert_eq!(
             function.semantic_facts.dispatch_entry_assumption(),
             DispatchEntryAssumption::UnknownWorld,
-            "{phase}: procedure {name} received an unproved entry world",
+            "{phase}: procedure {name:?} received an unproved entry world",
         );
     }
     for (name, function) in &unit.methods {
         assert_eq!(
             function.semantic_facts.dispatch_entry_assumption(),
             DispatchEntryAssumption::UnknownWorld,
-            "{phase}: TclOO method {name} received an unproved entry world",
+            "{phase}: TclOO method {name:?} received an unproved entry world",
         );
     }
     for (name, function) in &unit.body_units {
@@ -210,18 +214,18 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
             .ir_module
             .procedures
             .get(name)
-            .unwrap_or_else(|| panic!("{phase}: procedure {name} missing from retained IR"))
+            .unwrap_or_else(|| panic!("{phase}: procedure {name:?} missing from retained IR"))
             .body;
-        assert_deep_body_evidence(name, function, source, phase);
+        assert_deep_body_evidence(&function.name, function, source, phase);
     }
     for (name, function) in &unit.methods {
         let source = &unit
             .ir_module
             .methods
             .get(name)
-            .unwrap_or_else(|| panic!("{phase}: method {name} missing from retained IR"))
+            .unwrap_or_else(|| panic!("{phase}: method {name:?} missing from retained IR"))
             .body;
-        assert_deep_body_evidence(name, function, source, phase);
+        assert_deep_body_evidence(&function.name, function, source, phase);
     }
     for (name, function) in &unit.body_units {
         let source = &unit
@@ -230,7 +234,7 @@ fn assert_deep_body_families(unit: &CompilationUnit, phase: &str) {
             .get(name)
             .unwrap_or_else(|| panic!("{phase}: body unit {name} missing from retained IR"))
             .body;
-        assert_deep_body_evidence(name, function, source, phase);
+        assert_deep_body_evidence(&function.name, function, source, phase);
     }
 }
 
@@ -270,12 +274,13 @@ fn deep_contract_rejects_noop_and_unavailable_body_evidence() {
     // to publish its typed unavailable sidecar; the retained map population
     // alone must not make this pass.
     let mut missing_ir = unit;
-    missing_ir.ir_module.procedures.remove("::p");
+    let removed_id = fixture_id(&missing_ir.ir_module.procedures, "::p");
+    missing_ir.ir_module.procedures.remove(&removed_id);
     let rebuilt = missing_ir.with_retained_deep_semantic_analysis(registry);
     assert!(matches!(
         rebuilt
             .procedures
-            .get("::p")
+            .get(&removed_id)
             .expect("retained procedure map population")
             .semantic_facts
             .executable(),

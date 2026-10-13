@@ -121,6 +121,55 @@ pub(crate) fn original_authored_procedure_calls_for_module<'a>(
     })
 }
 
+/// Possible body identities from the original invocation's checked source lookup.
+/// This supplies source reachability only, never dispatch, argument or Native grants.
+pub(crate) fn original_source_procedure_ids_for_word_for_module(
+    tokens: &CommandTokens,
+    word: &str,
+    module: &Module,
+    registry: &CommandRegistry,
+) -> Option<Vec<crate::ir::ProcedureId>> {
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let lookup = binding.lookup_command_word(word);
+    if lookup.unknown || lookup.may_be_absent || lookup.targets.is_empty() {
+        return None;
+    }
+    let mut ids = Vec::new();
+    for target in &lookup.targets {
+        let (id, procedure) = module.source_procedure_for_target(target)?;
+        if !module
+            .retained_source_bindings
+            .as_ref()?
+            .matches_original_procedure(procedure)
+        {
+            return None;
+        }
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    Some(ids)
+}
+
+/// Source-selected body calls with the same original captured argv; no Native grant.
+pub(crate) fn original_source_procedure_calls_for_word_for_module<'a>(
+    tokens: &CommandTokens,
+    word: &str,
+    module: &'a Module,
+    registry: &CommandRegistry,
+) -> Option<Vec<OriginalSourceProcedureCall<'a>>> {
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_invocation_metadata_for_module(tokens, module, registry)?;
+    let lookup = binding.lookup_command_word(word);
+    if lookup.unknown || lookup.may_be_absent || lookup.targets.is_empty() {
+        return None;
+    }
+    original_procedure_calls_for_targets(tokens, module, &lookup.targets, |procedure| {
+        original_procedure_formal_count_shape(module, procedure, registry)
+    })
+}
+
 fn original_procedure_calls_for_targets<'a>(
     tokens: &CommandTokens,
     module: &'a Module,

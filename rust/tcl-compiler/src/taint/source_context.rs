@@ -19,6 +19,8 @@ pub(crate) struct TaintSourceContext<'a> {
     pub(super) config: LexerConfig,
     pub(super) dialect: Option<&'static DialectProfile>,
     standalone: bool,
+    module: Option<&'a crate::ir::Module>,
+    body_id: Option<crate::ir::ProcedureId>,
     module_owner: Option<&'a crate::command_binding::RetainedSourceModuleBindings>,
 }
 
@@ -52,6 +54,8 @@ impl<'a> TaintSourceContext<'a> {
             config,
             dialect: input.map(ResolvedAnalysisInput::unit_profile),
             standalone: false,
+            module: None,
+            body_id: None,
             module_owner: None,
         }
     }
@@ -67,6 +71,8 @@ impl<'a> TaintSourceContext<'a> {
             config: module.lexer_config,
             dialect: module.dialect_profile,
             standalone: false,
+            module: module_owner.map(|_| module),
+            body_id: None,
             module_owner,
         }
     }
@@ -101,6 +107,8 @@ impl<'a> TaintSourceContext<'a> {
             metadata: source
                 .metadata
                 .and_then(|_| function.invocation_metadata_context_for_module(registry, module)),
+            module: source.module,
+            body_id: function.body_id,
             module_owner: source.module_owner,
             ..Self::for_function(registry, function)
         }
@@ -119,8 +127,30 @@ impl<'a> TaintSourceContext<'a> {
             config: LexerConfig::for_profile(dialect),
             dialect,
             standalone: true,
+            module: None,
+            body_id: None,
             module_owner: None,
         }
+    }
+
+    pub(crate) const fn module(self) -> Option<&'a crate::ir::Module> {
+        self.module
+    }
+    pub(crate) const fn body_id(self) -> Option<crate::ir::ProcedureId> {
+        self.body_id
+    }
+    pub(crate) fn procedure_ids(
+        self,
+        tokens: &crate::ir::CommandTokens,
+        word: &str,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<crate::ir::ProcedureId>> {
+        crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+            tokens,
+            word,
+            self.module?,
+            registry,
+        )
     }
 
     pub(super) const fn module_owner(
@@ -147,7 +177,11 @@ pub(crate) struct TaintPropagationInputs<'a> {
     pub(crate) interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
     pub(crate) source: TaintSourceContext<'a>,
     pub(crate) param_taints: Option<&'a std::collections::HashMap<String, super::TaintLattice>>,
-    pub(crate) taint_summaries:
-        Option<&'a std::collections::HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
+    pub(crate) taint_summaries: Option<
+        &'a std::collections::HashMap<
+            crate::ir::ProcedureId,
+            crate::taint_interproc::ProcTaintSummary,
+        >,
+    >,
     pub(crate) instance_classes: &'a super::LocalInstanceClasses,
 }

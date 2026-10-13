@@ -86,6 +86,7 @@ pub mod analyser;
 pub mod analyses;
 pub mod auto_path_eval;
 pub mod backend_registry;
+pub mod body_analysis_capsule;
 pub mod bounded_set;
 pub mod cfg;
 pub mod cfg_builder;

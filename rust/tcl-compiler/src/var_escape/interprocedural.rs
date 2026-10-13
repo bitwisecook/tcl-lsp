@@ -35,24 +35,153 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
-use super::helpers::is_frameless_runtime_command_in;
 use std::hash::BuildHasher;
 
 use crate::var_escape::types::{EscapeFlags, ProcEscapeSummary};
 
-/// Resolve a call's head word to the qname of a tracked proc using the
-/// compiler's shared Tcl command-resolution rule.
-/// Returns `None` for builtins / unknown commands (absent from
-/// `summaries`). Exposed `pub(crate)` so the inliner (`crate::inlining`)
-/// resolves call sites with the same rules.
-pub(crate) fn resolve_callee<S: BuildHasher>(
-    command: &str,
-    caller_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary, S>,
-) -> Option<String> {
-    crate::interprocedural::resolve_internal_call_with(command, caller_qname, |qname| {
-        summaries.contains_key(qname)
-    })
+/// Exact retained source-call edges; labels carry no body-selection authority.
+#[derive(Debug, Clone, Default)]
+pub struct EscapeCallGraph {
+    callees: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>>,
+    unresolved: HashSet<tcl_core_types::BodyFrameId>,
+}
+
+impl EscapeCallGraph {
+    /// Analytical edges between exact body coordinates; this grants no runtime entry.
+    #[must_use]
+    pub fn from_edges(
+        edges: impl IntoIterator<Item = (tcl_core_types::BodyFrameId, tcl_core_types::BodyFrameId)>,
+        unresolved: impl IntoIterator<Item = tcl_core_types::BodyFrameId>,
+    ) -> Self {
+        let mut graph = Self {
+            unresolved: unresolved.into_iter().collect(),
+            ..Self::default()
+        };
+        for (caller, callee) in edges {
+            graph.callees.entry(caller).or_default().insert(callee);
+        }
+        graph
+    }
+
+    pub(crate) fn for_module(
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Self {
+        use tcl_core_types::BodyFrameId;
+        let mut graph = Self::default();
+        let bodies = std::iter::once((
+            BodyFrameId::Top(module.procedure_ids.module_id()),
+            &module.top_level,
+        ))
+        .chain(
+            module
+                .procedures
+                .iter()
+                .map(|(id, body)| (BodyFrameId::Body(*id), &body.body)),
+        )
+        .chain(
+            module
+                .body_units
+                .iter()
+                .map(|(id, body)| (BodyFrameId::Body(*id), &body.body)),
+        )
+        .chain(
+            module
+                .methods
+                .iter()
+                .map(|(id, body)| (BodyFrameId::Body(*id), &body.body)),
+        );
+        for (caller, body) in bodies {
+            graph.callees.entry(caller).or_default();
+            let mut pending = vec![body];
+            while let Some(script) = pending.pop() {
+                for statement in &script.statements {
+                    pending.extend(statement.child_scripts());
+                    if let crate::ir::Statement::Call {
+                        command, tokens, ..
+                    } = statement
+                    {
+                        if let Some(tokens) = tokens.as_ref() {
+                            graph.record_call(caller, command, tokens, module, registry);
+                        } else {
+                            graph.unresolved.insert(caller);
+                        }
+                    }
+                    let Some(tokens) = statement.tokens() else {
+                        continue;
+                    };
+                    let calls = tokens
+                        .source_binding
+                        .as_ref()
+                        .and_then(|binding| {
+                            binding
+                                .original_invocation_metadata_for_module(tokens, module, registry)
+                        })
+                        .and_then(|metadata| {
+                            crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+                                tokens,
+                                module.lexer_config,
+                                registry,
+                                metadata,
+                            )
+                        });
+                    match calls {
+                        Some(calls) => {
+                            for call in calls {
+                                if let Some(tokens) = call.tokens.as_ref() {
+                                    graph.record_call(
+                                        caller,
+                                        &call.command,
+                                        tokens,
+                                        module,
+                                        registry,
+                                    );
+                                } else {
+                                    graph.unresolved.insert(caller);
+                                }
+                            }
+                        }
+                        None => {
+                            graph.unresolved.insert(caller);
+                        }
+                    }
+                }
+            }
+        }
+        graph
+    }
+
+    fn record_call(
+        &mut self,
+        caller: tcl_core_types::BodyFrameId,
+        command: &str,
+        tokens: &crate::ir::CommandTokens,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if let Some(ids) =
+            crate::registry_invocation::original_source_procedure_ids_for_word_for_module(
+                tokens, command, module, registry,
+            )
+        {
+            self.callees
+                .entry(caller)
+                .or_default()
+                .extend(ids.into_iter().map(tcl_core_types::BodyFrameId::Body));
+            return;
+        }
+        let frameless = tokens.source_binding.as_ref()
+            .and_then(|binding| binding.original_invocation_metadata_for_module(tokens, module, registry))
+            .is_some_and(|metadata| {
+                crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(registry, metadata, tokens)
+                    .is_some_and(|invocation| invocation.facts.traits.contains(tcl_registry::Traits::FRAMELESS_RUNTIME))
+                    || crate::registry_invocation::normal_representation_invocation_with_metadata_context(registry, Some(metadata), tokens)
+                        .is_some_and(|invocation| invocation.is_frameless_runtime())
+            });
+        if !frameless {
+            self.unresolved.insert(caller);
+        }
+    }
 }
 
 /// Return a new map of summaries with callee-induced escapes
@@ -65,9 +194,10 @@ pub(crate) fn resolve_callee<S: BuildHasher>(
 /// use [`solve_interprocedural_escape_with_registry`] (#2179).
 #[must_use]
 pub fn solve_interprocedural_escape<S: BuildHasher>(
-    summaries: &HashMap<String, ProcEscapeSummary, S>,
-) -> HashMap<String, ProcEscapeSummary> {
-    solve_interprocedural_escape_with_registry(summaries, super::helpers::default_registry())
+    summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
+    graph: &EscapeCallGraph,
+) -> HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> {
+    solve_interprocedural_escape_with_registry(summaries, graph, super::helpers::default_registry())
 }
 
 /// Registry-aware form of [`solve_interprocedural_escape`].
@@ -79,48 +209,42 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
 /// the permissive one.
 #[must_use]
 pub fn solve_interprocedural_escape_with_registry<S: BuildHasher>(
-    summaries: &HashMap<String, ProcEscapeSummary, S>,
-    registry: &tcl_registry::CommandRegistry,
-) -> HashMap<String, ProcEscapeSummary> {
+    summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
+    graph: &EscapeCallGraph,
+    _registry: &tcl_registry::CommandRegistry,
+) -> HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> {
     if summaries.is_empty() {
         return HashMap::new();
     }
 
-    // Resolve each callee; drop ones absent from `summaries` (builtins —
-    // no escape — or unknowns handled by the intraproc pessimistic fallback).
-    let mut resolved_callees: HashMap<String, HashSet<String>> = HashMap::new();
-    for (qname, summary) in summaries {
-        let mut callees: HashSet<String> = HashSet::new();
-        for cmd in &summary.direct_callees {
-            if let Some(resolved) = resolve_callee(cmd, qname, summaries)
-                && resolved != *qname
-            {
-                callees.insert(resolved);
-            }
-        }
-        resolved_callees.insert(qname.clone(), callees);
-    }
+    let resolved_callees: HashMap<_, _> = summaries
+        .keys()
+        .map(|caller| {
+            let callees = graph
+                .callees
+                .get(caller)
+                .into_iter()
+                .flatten()
+                .filter(|callee| summaries.contains_key(callee))
+                .copied()
+                .collect();
+            (*caller, callees)
+        })
+        .collect();
 
     let (transitive_sources, transitive_unbounded) =
         propagate_transitive_sources(summaries, &resolved_callees);
 
     // Final `has_fallback` = intraproc has_fallback | (has_call_fallback &
     // not all-callees-resolve).
-    let mut downgraded_fallback: HashMap<String, bool> = HashMap::new();
+    let mut downgraded_fallback: HashMap<tcl_core_types::BodyFrameId, bool> = HashMap::new();
     for (qname, summary) in summaries {
-        let call_fallback_final = if summary.has_call_fallback() {
-            !summary
-                .direct_callees
-                .iter()
-                .all(|cmd| resolve_callee(cmd, qname, summaries).is_some())
-        } else {
-            false
-        };
+        let call_fallback_final = summary.has_call_fallback() && graph.unresolved.contains(qname);
         downgraded_fallback.insert(qname.clone(), summary.has_fallback() || call_fallback_final);
     }
 
     // Materialise the final per-proc summary.
-    let mut result: HashMap<String, ProcEscapeSummary> = HashMap::new();
+    let mut result: HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> = HashMap::new();
     for (qname, summary) in summaries {
         let sources = transitive_sources[qname].clone();
         let unbounded = transitive_unbounded[qname];
@@ -136,7 +260,7 @@ pub fn solve_interprocedural_escape_with_registry<S: BuildHasher>(
         result.insert(qname.clone(), new_summary);
     }
 
-    downgrade_non_pure_leaf_callers(&mut result, registry);
+    downgrade_non_pure_leaf_callers(&mut result, graph);
     result
 }
 
@@ -144,23 +268,27 @@ pub fn solve_interprocedural_escape_with_registry<S: BuildHasher>(
 /// unbounded-source flag) up to every transitive caller. Returns the
 /// per-proc transitive source set and unbounded flag.
 fn propagate_transitive_sources<S: BuildHasher>(
-    summaries: &HashMap<String, ProcEscapeSummary, S>,
-    resolved_callees: &HashMap<String, HashSet<String>>,
-) -> (HashMap<String, HashSet<String>>, HashMap<String, bool>) {
-    let mut transitive_sources: HashMap<String, HashSet<String>> = summaries
+    summaries: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
+    resolved_callees: &HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>>,
+) -> (
+    HashMap<tcl_core_types::BodyFrameId, HashSet<String>>,
+    HashMap<tcl_core_types::BodyFrameId, bool>,
+) {
+    let mut transitive_sources: HashMap<tcl_core_types::BodyFrameId, HashSet<String>> = summaries
         .iter()
         .map(|(k, s)| (k.clone(), s.upvar_source_names.iter().cloned().collect()))
         .collect();
-    let mut transitive_unbounded: HashMap<String, bool> = summaries
+    let mut transitive_unbounded: HashMap<tcl_core_types::BodyFrameId, bool> = summaries
         .iter()
         .map(|(k, s)| (k.clone(), s.unbounded_upvar_source()))
         .collect();
 
     // Reverse edges: qname → set of qnames that call it.
-    let mut callers_of: HashMap<String, HashSet<String>> = summaries
-        .keys()
-        .map(|k| (k.clone(), HashSet::new()))
-        .collect();
+    let mut callers_of: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>> =
+        summaries
+            .keys()
+            .map(|k| (k.clone(), HashSet::new()))
+            .collect();
     for (qname, callees) in resolved_callees {
         for callee in callees {
             callers_of
@@ -170,8 +298,8 @@ fn propagate_transitive_sources<S: BuildHasher>(
         }
     }
 
-    let mut worklist: VecDeque<String> = summaries.keys().cloned().collect();
-    let mut in_worklist: HashSet<String> = summaries.keys().cloned().collect();
+    let mut worklist: VecDeque<tcl_core_types::BodyFrameId> = summaries.keys().cloned().collect();
+    let mut in_worklist: HashSet<tcl_core_types::BodyFrameId> = summaries.keys().cloned().collect();
     while let Some(qname) = worklist.pop_front() {
         in_worklist.remove(&qname);
         let current_sources = transitive_sources[&qname].clone();
@@ -212,29 +340,29 @@ fn propagate_transitive_sources<S: BuildHasher>(
 /// around it is still safe to splice. Iterates to a fixpoint (bounded by
 /// the proc count).
 fn downgrade_non_pure_leaf_callers<S: BuildHasher>(
-    result: &mut HashMap<String, ProcEscapeSummary, S>,
-    registry: &tcl_registry::CommandRegistry,
+    result: &mut HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
+    graph: &EscapeCallGraph,
 ) {
     let mut changed = true;
     while changed {
         changed = false;
-        let qnames: Vec<String> = result.keys().cloned().collect();
-        for qname in qnames {
-            if !result[&qname].pure_leaf {
+        let ids: Vec<_> = result.keys().copied().collect();
+        for id in ids {
+            if !result[&id].pure_leaf {
                 continue;
             }
-            let callees: Vec<String> = result[&qname].direct_callees.iter().cloned().collect();
-            let downgrade = callees.iter().any(|callee| {
-                result.get(callee).map_or_else(
-                    || {
-                        let bare = callee.strip_prefix("::").unwrap_or(callee);
-                        !is_frameless_runtime_command_in(bare, registry)
-                    },
-                    |c| !c.pure_leaf,
-                )
-            });
+            let downgrade = graph.unresolved.contains(&id)
+                || graph
+                    .callees
+                    .get(&id)
+                    .into_iter()
+                    .flatten()
+                    .any(|callee| result.get(callee).is_none_or(|summary| !summary.pure_leaf));
             if downgrade {
-                result.get_mut(&qname).expect("qname in result").pure_leaf = false;
+                result
+                    .get_mut(&id)
+                    .expect("retained body in summaries")
+                    .pure_leaf = false;
                 changed = true;
             }
         }
@@ -254,9 +382,45 @@ mod tests {
         }
     }
 
+    fn fixture_solve(
+        labels: &HashMap<String, ProcEscapeSummary>,
+    ) -> HashMap<String, ProcEscapeSummary> {
+        let issuer = tcl_core_types::ProcedureIdIssuer::default();
+        let ids: HashMap<_, _> = labels
+            .keys()
+            .map(|label| {
+                (
+                    label.clone(),
+                    tcl_core_types::BodyFrameId::Body(issuer.allocate()),
+                )
+            })
+            .collect();
+        let mut edges = Vec::new();
+        let mut unresolved = Vec::new();
+        for (label, summary) in labels {
+            for callee in &summary.direct_callees {
+                if let Some(id) = ids.get(callee) {
+                    edges.push((ids[label], *id));
+                } else {
+                    unresolved.push(ids[label]);
+                }
+            }
+        }
+        let values = labels
+            .iter()
+            .map(|(label, summary)| (ids[label], summary.clone()))
+            .collect();
+        let graph = EscapeCallGraph::from_edges(edges, unresolved);
+        let result = solve_interprocedural_escape(&values, &graph);
+        labels
+            .keys()
+            .map(|label| (label.clone(), result[&ids[label]].clone()))
+            .collect()
+    }
+
     #[test]
     fn empty_input_returns_empty() {
-        let result = solve_interprocedural_escape(&HashMap::new());
+        let result = solve_interprocedural_escape(&HashMap::new(), &EscapeCallGraph::default());
         assert!(result.is_empty());
     }
 
@@ -266,7 +430,7 @@ mod tests {
         let mut s = HashMap::new();
         s.insert("::caller".to_string(), summary(&["::leaf"], &[]));
         s.insert("::leaf".to_string(), summary(&[], &["x"]));
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         let caller = &r["::caller"];
         assert!(caller.upvar_source_names.contains("x"));
     }
@@ -280,7 +444,7 @@ mod tests {
         caller.tags.insert("x".to_string(), EscapeTag::Local);
         s.insert("::caller".to_string(), caller);
         s.insert("::leaf".to_string(), summary(&[], &["x"]));
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         assert!(r["::caller"].is_frame("x"));
     }
 
@@ -291,7 +455,7 @@ mod tests {
         let mut leaf = summary(&[], &[]);
         leaf.flags.insert(EscapeFlags::UNBOUNDED_UPVAR_SOURCE);
         s.insert("::leaf".to_string(), leaf);
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         assert!(r["::caller"].dynamic_barrier());
         assert!(r["::caller"].unbounded_upvar_source());
     }
@@ -304,7 +468,7 @@ mod tests {
         s.insert("::a".to_string(), summary(&["::b"], &[]));
         s.insert("::b".to_string(), summary(&["::c"], &[]));
         s.insert("::c".to_string(), summary(&[], &["x"]));
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         assert!(r["::a"].upvar_source_names.contains("x"));
         assert!(r["::b"].upvar_source_names.contains("x"));
     }
@@ -316,7 +480,7 @@ mod tests {
         caller.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
         s.insert("::caller".to_string(), caller);
         s.insert("::leaf".to_string(), summary(&[], &[]));
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         // ::leaf is a tracked proc, so the call_fallback downgrades
         // and final has_fallback stays false (intraproc didn't set
         // has_fallback either).
@@ -329,7 +493,7 @@ mod tests {
         let mut caller = summary(&["unknown_external"], &[]);
         caller.flags.insert(EscapeFlags::HAS_CALL_FALLBACK);
         s.insert("::caller".to_string(), caller);
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         // No tracked proc resolves ``unknown_external`` → final
         // has_fallback is true.
         assert!(r["::caller"].has_fallback());
@@ -341,7 +505,7 @@ mod tests {
         let mut caller = summary(&[], &[]);
         caller.flags.insert(EscapeFlags::HAS_FALLBACK);
         s.insert("::caller".to_string(), caller);
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         assert!(r["::caller"].has_fallback());
     }
 
@@ -350,7 +514,7 @@ mod tests {
         // ::recur → ::recur — the resolver drops self-edges.
         let mut s = HashMap::new();
         s.insert("::recur".to_string(), summary(&["::recur"], &["x"]));
-        let r = solve_interprocedural_escape(&s);
+        let r = fixture_solve(&s);
         assert!(r["::recur"].upvar_source_names.contains("x"));
     }
 }

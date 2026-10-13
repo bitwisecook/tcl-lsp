@@ -1,0 +1,129 @@
+--- a/rust/tcl-lsp-core/src/original_name_edit.rs
++++ b/rust/tcl-lsp-core/src/original_name_edit.rs
+@@ -29,11 +29,19 @@
+     let Some(realm) = analysis.retained_command_realm() else {
+         return false;
+     };
+-    if realm
+-        .original_written_name_input_at_span_in_source(&image, recorded, config)
+-        .as_ref()
+-        == Some(input)
+-    {
++    let actual = realm.original_written_name_input_at_span_in_source(&image, recorded, config);
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE input={}..{} native_word={} equal={} logical_correspondence={}",
++            recorded.start(),
++            recorded.end(),
++            actual.is_some(),
++            actual.as_ref() == Some(input),
++            analysis.logical_original_word_input_matches_source(&image, config, recorded, input)
++        );
++    }
++    if actual.as_ref() == Some(input) {
+         return true;
+     }
+     let Some(container) = input.original_static_list_container() else {
+--- a/rust/tcl-lsp-core/src/source_structure.rs
++++ b/rust/tcl-lsp-core/src/source_structure.rs
+@@ -268,11 +268,26 @@
+     cursor: u32,
+ ) -> Option<SourceVariableReference<'a>> {
+     let config = analysis.body_lexer_config?;
+-    if crate::definition::offset_is_inert(source, analysis, cursor)? {
++    let inert = crate::definition::offset_is_inert(source, analysis, cursor);
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!("VARIABLE_SOURCE cursor={cursor} inert={inert:?}");
++    }
++    if inert? {
+         return None;
+     }
+     let structure = SourceStructure::capture(source, Some(analysis), config)?;
+-    variable_in_structure(source, &structure, config, cursor, true)
++    let reference = variable_in_structure(source, &structure, config, cursor, true);
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE cursor={cursor} regions={} commands={} reference={}",
++            structure.scripts.len(),
++            structure.commands.len(),
++            reference.is_some()
++        );
++    }
++    reference
+ }
+ 
+ /// Explicit standalone source syntax utility. It has no retained analysis and
+--- a/rust/tcl-lsp-core/src/inert_text.rs
++++ b/rust/tcl-lsp-core/src/inert_text.rs
+@@ -169,9 +169,15 @@
+     // naming.core.original-comment-source-context
+     // docs/design/analysis/name-resolution-proofs/core-original-comment-source-context.md
+     source.get(..usize::try_from(off).ok()?)?;
+-    let facts =
+-        tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, analysis)?;
+-    Some(facts.iter().any(|fact| contains(fact.span, off)))
++    let facts = tcl_compiler::analyser::utils::script_comment_facts_from_analysis(source, analysis);
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE cursor={off} comment_facts={:?}",
++            facts.as_ref().map(Vec::len)
++        );
++    }
++    Some(facts?.iter().any(|fact| contains(fact.span, off)))
+ }
+ 
+ /// Classify original braced data using the complete retained analysis.
+@@ -197,6 +203,15 @@
+         .iter()
+         .filter(|command| contains(command.execution_span(source), off))
+         .min_by_key(|command| command.execution_span(source).len())?;
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE cursor={off} command={}..{} partial={}",
++            command.span.start(),
++            command.span.end(),
++            command.is_partial
++        );
++    }
+     if command.is_partial {
+         return None;
+     }
+@@ -216,6 +231,16 @@
+         .iter()
+         .enumerate()
+         .find(|(_, word)| contains(word.span(), off))?;
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE cursor={off} written={written} word={}..{} kind={:?} expand={}",
++            word.span().start(),
++            word.span().end(),
++            word.group().kind,
++            word.group().expand
++        );
++    }
+     if word.group().expand {
+         return None;
+     }
+@@ -225,7 +250,15 @@
+     if written == 0 {
+         return Some(true);
+     }
+-    let words = crate::original_invocation::source_registry_words(source, analysis, command)?;
++    let words = crate::original_invocation::source_registry_words(source, analysis, command);
++    #[cfg(test)]
++    if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {
++        eprintln!(
++            "VARIABLE_SOURCE cursor={off} source_schema={}",
++            words.is_some()
++        );
++    }
++    let words = words?;
+     let argument = usize::try_from(words.active_argument_at(written, off)?).ok()?;
+     let context = analysis.resolved_input.as_ref()?.context_registry();
+     let bodies = words.source_script_bodies(&context);

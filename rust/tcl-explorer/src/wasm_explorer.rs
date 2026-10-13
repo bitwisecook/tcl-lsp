@@ -257,7 +257,22 @@ fn function_to_explorer_json(
     // Attach block-pairing indices so the UI can cross-link opens/else/end.
     attach_pairing(&mut instructions, &open_info);
 
-    assemble_function_json(func, func_idx, instructions, li, source)
+    let mut entry = assemble_function_json(func, func_idx, instructions, li, source);
+    let source_id = u32::try_from(func_idx)
+        .ok()
+        .and_then(|index| module.source_function_ids.get(&index));
+    match source_id {
+        Some(tcl_compiler::native_lowering::NativeFunctionId::Procedure(id)) => {
+            entry["bodyId"] = json!(id.ordinal());
+            entry["bodyKey"] = json!(id.reporting_key());
+            entry["isTopLevel"] = json!(false);
+        }
+        Some(tcl_compiler::native_lowering::NativeFunctionId::TopLevel) => {
+            entry["isTopLevel"] = json!(true);
+        }
+        None => {}
+    }
+    entry
 }
 
 /// Assemble a function's explorer entry from its resolved instruction list and
@@ -556,6 +571,31 @@ mod tests {
         );
         let li = LineIndex::new(&result.source);
         wasm_to_explorer_json(&module, &li, &result.source)
+    }
+
+    #[test]
+    fn source_function_rows_preserve_duplicate_names_and_named_top() {
+        let entries = wasm_entries(
+            "proc p {} {return FIRST}; proc p {} {return LAST}; proc ::top {} {return NAMED}",
+        );
+        let procedure_rows: Vec<_> = entries
+            .iter()
+            .filter(|row| row["bodyKey"].is_string())
+            .collect();
+        assert_eq!(procedure_rows.len(), 3, "{entries:?}");
+        let keys: std::collections::HashSet<_> = procedure_rows
+            .iter()
+            .map(|row| row["bodyKey"].as_str().unwrap())
+            .collect();
+        assert_eq!(keys.len(), 3);
+        let roots: Vec<_> = entries
+            .iter()
+            .filter(|row| row["isTopLevel"].as_bool() == Some(true))
+            .collect();
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0]["name"], "::top");
+        assert!(procedure_rows.iter().any(|row| row["name"] == "::top"));
+        assert!(procedure_rows.iter().all(|row| row["isTopLevel"] == false));
     }
 
     #[test]

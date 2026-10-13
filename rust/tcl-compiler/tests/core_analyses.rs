@@ -24,7 +24,7 @@
 //!
 //! A built [`CompilationUnit`] exposes, per function, a
 //! [`tcl_compiler::compilation_unit::FunctionUnit`] (`cu.top_level`,
-//! `cu.procedures["::p"]`) carrying the raw lattice: `fu.sccp.values` is the
+//! `cu.procedures`) carrying the raw lattice: `fu.sccp.values` is the
 //! values map (keyed by an interned `(Symbol, version)` — resolve a name with
 //! `fu.ssa.var_symbol`), `fu.sccp.constant_branches` is the constant-branch set,
 //! and the unreachable set is `cfg.blocks \ sccp.executable_blocks`. The
@@ -55,6 +55,10 @@
 //! dynamic, nor suppresses a genuine read-before-set), so each is asserted at the
 //! *actual* verdict with an explanatory comment rather than `#[ignore]`d.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeKind, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -67,7 +71,7 @@ const D: &str = "tcl8.6";
 // Lattice-level harness (the `analyse_source(...).top_level` surface).
 
 /// Build the shared compilation unit for `src` under [`D`]. `cu.top_level` is
-/// the module script's function analysis; `cu.procedures[qname]` are the
+/// the module script's function analysis; `cu.procedures` are the
 /// per-proc ones.
 fn build(src: &str) -> CompilationUnit {
     CompilationUnit::build_for(src, static_context_for(D).commands(), false)
@@ -353,7 +357,7 @@ if {$total > 5} {
         );
         let p = cu
             .procedures
-            .get("::add_static")
+            .get(&fixture_id(&cu.procedures, "::add_static"))
             .expect("::add_static lowered");
         assert_const_int(p, "a", 1, 1);
         assert_const_int(p, "b", 1, 3);
@@ -482,7 +486,10 @@ mod interpolation_folding {
         let cu = build(
             "proc add {a b} {\n    set c [expr {0+1}]\n    set c \"${c}0\"\n    incr b $c\n    return $c\n}\n",
         );
-        let p = cu.procedures.get("::add").expect("::add lowered");
+        let p = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::add"))
+            .expect("::add lowered");
         assert_const_int(p, "c", 1, 1);
         assert_overdefined_or_absent(p, "c", 2, "interpolation value in proc");
     }
@@ -1122,7 +1129,10 @@ mod array_exists_parameter_is_false {
     /// The `ConstantBranch` values recorded for `::p`'s existence fold.
     fn branch_values(src: &str) -> Vec<bool> {
         let cu = build(src);
-        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        let fn_p = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::p"))
+            .expect("::p lowered");
         fn_p.sccp
             .constant_branches
             .iter()
@@ -1162,7 +1172,10 @@ mod array_exists_parameter_is_false {
         // `else` block, and the unreachable arm the `then` block.
         let src = "proc p {a} { if {[array exists a]} { puts dead } else { puts runs } }";
         let cu = build(src);
-        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        let fn_p = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::p"))
+            .expect("::p lowered");
         let branch = fn_p
             .sccp
             .constant_branches
@@ -1556,7 +1569,10 @@ mod analysis_level {
         // The existence-fold post-pass appends a value-false ConstantBranch for
         // `[info exists FOO]` (never-defined local). tclsh: → 0.
         let cu = build("proc p {} { if {[info exists FOO]} { puts dead } }");
-        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        let fn_p = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::p"))
+            .expect("::p lowered");
         assert!(
             fn_p.sccp.constant_branches.iter().any(|b| !b.value),
             "a value-false constant branch must be recorded; got {:?}",
@@ -1574,7 +1590,10 @@ mod analysis_level {
         // A global is exempt from the fold → no constant branch from it.
         let cu =
             build("proc p {} { global FOO; if {[info exists FOO]} { puts x } else { puts y } }");
-        let fn_p = cu.procedures.get("::p").expect("::p lowered");
+        let fn_p = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::p"))
+            .expect("::p lowered");
         assert!(
             fn_p.sccp.constant_branches.is_empty(),
             "global existence check must not produce a constant branch; got {:?}",

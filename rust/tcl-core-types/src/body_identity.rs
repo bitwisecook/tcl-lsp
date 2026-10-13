@@ -4,18 +4,38 @@
 
 //! Opaque source-module body coordinates, without execution or name authority.
 
-use alloc::sync::Arc;
+use alloc::{format, string::String, sync::Arc};
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 static NEXT_SCOPE: AtomicU64 = AtomicU64::new(1);
 
+/// Opaque identity of one independently retained analytical body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProcedureId {
     scope: u64,
     ordinal: u32,
 }
 
+/// Opaque retained module identity, independent of its source labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProcedureModuleId(u64);
+
+/// Analytical body owner; this coordinate grants no entered runtime frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BodyFrameId {
+    /// Whole-source analysis in one retained module.
+    Top(ProcedureModuleId),
+    /// One independently retained body.
+    Body(ProcedureId),
+}
+
 impl ProcedureId {
+    /// Opaque module-scoped output key; it carries no lookup or execution authority.
+    #[must_use]
+    pub fn reporting_key(self) -> String {
+        format!("body:{}:{}", self.scope, self.ordinal)
+    }
+
     /// Deterministic body order within its owning module, for output labels only.
     #[must_use]
     pub const fn ordinal(self) -> u32 {
@@ -54,6 +74,19 @@ impl PartialEq for ProcedureIdIssuer {
 }
 
 impl ProcedureIdIssuer {
+    /// Identity of this module and its retained top-level analytical frame.
+    #[must_use]
+    pub fn module_id(&self) -> ProcedureModuleId {
+        ProcedureModuleId(self.0.id)
+    }
+
+    /// Opaque output scope shared by clones, including their top-level reports.
+    #[must_use]
+    pub fn reporting_scope(&self) -> String {
+        format!("module:{}", self.0.id)
+    }
+
+    /// Retain a fresh body coordinate without name or execution authority.
     pub fn allocate(&self) -> ProcedureId {
         let ordinal = self
             .0
@@ -79,12 +112,18 @@ mod tests {
         let right = ProcedureIdIssuer::default().allocate();
         assert_eq!(left.ordinal(), right.ordinal());
         assert_ne!(left, right);
+        assert_ne!(left.reporting_key(), right.reporting_key());
     }
 
     #[test]
     fn cloned_issuers_cannot_reuse_body_coordinates() {
         let issuer = ProcedureIdIssuer::default();
         let clone = issuer.clone();
+        assert_eq!(issuer.reporting_scope(), clone.reporting_scope());
+        assert_ne!(
+            issuer.reporting_scope(),
+            ProcedureIdIssuer::default().reporting_scope()
+        );
         let first = issuer.allocate();
         let second = clone.allocate();
         let third = issuer.allocate();

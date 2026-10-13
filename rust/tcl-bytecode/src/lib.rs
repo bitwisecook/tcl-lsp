@@ -3589,6 +3589,7 @@ mod tests {
             }
             function
         };
+        let issuer = tcl_runtime_api::ProcedureIdIssuer::default();
         let module = ModuleAsm {
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             source: String::new(),
@@ -3597,8 +3598,8 @@ mod tests {
             top_level: claiming(&[("b", 2), ("a", 1)]),
             top_level_body: claiming(&[("d", 4), ("b", 2)]),
             procedures: HashMap::from([
-                ("::p".to_owned(), claiming(&[("c", 3), ("a", 1)])),
-                ("::q".to_owned(), FunctionAsm::default()),
+                (issuer.allocate(), claiming(&[("c", 3), ("a", 1)])),
+                (issuer.allocate(), FunctionAsm::default()),
             ]),
             procedure_provenance: HashMap::new(),
             manifest: None,

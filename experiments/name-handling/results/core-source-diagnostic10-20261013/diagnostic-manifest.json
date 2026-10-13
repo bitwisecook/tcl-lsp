@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "9f01ba493b76d97cbf9ae800f0524085a1a4724c0ce958ee3f4099763374d925",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/original_name_edit.rs",
+      "before_sha256": "f5d4a90e16e0f6d57d34f556fa9cb6c84e43c24b0bf791c92a2cffda2b63b0f8",
+      "after_sha256": "6212a0d452549a3f5aa418fb393ff0d9cd0264e7952b211c63bbf81add69aaab"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "before_sha256": "3cc56d094553d0fac6de91248a06fd6a1dd99701fa3f60e79d0ce0443fe19e29",
+      "after_sha256": "fad7abfdfd43ce8aa846df2263c266275824dc557054520cfdae597226fabbdc"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/inert_text.rs",
+      "before_sha256": "09c0dfc115a0ee1d1178b841d2158e7e7a0616e3a9b6f8dde334b85e70d469b4",
+      "after_sha256": "f49fbce55ace9786d61fab115080c5a8468d63ce7b39ce28529391de50a13f93"
+    }
+  ],
+  "purpose": "cfg(test) diagnostics only; original predicates/assertions unchanged",
+  "environment": "TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS=1",
+  "plan": "/tmp/name-scope15-isolated-20261013/producer9-plan.json",
+  "status": "unexecuted; no Cargo lease"
+}

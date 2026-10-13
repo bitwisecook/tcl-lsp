@@ -64,6 +64,10 @@
 //!
 //! These exclusions are pinned by tests so the boundary is explicit.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::ExprNode;
 use tcl_compiler::inlining::inline_module;
@@ -90,7 +94,7 @@ fn inlined(source: &str) -> Module {
 fn proc_body<'a>(module: &'a Module, qname: &str) -> &'a [Statement] {
     &module
         .procedures
-        .get(qname)
+        .get(&fixture_id(&module.procedures, qname))
         .unwrap_or_else(|| panic!("proc {qname} missing"))
         .body
         .statements

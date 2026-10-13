@@ -35,7 +35,7 @@ use tcl_compiler::analyser::{
 };
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
-use tcl_compiler::ir::Module as IrModule;
+use tcl_compiler::ir::{Module as IrModule, ProcedureId};
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
     find_destructive_file_warnings_for_module_function,
@@ -93,6 +93,10 @@ fn standalone_graph_input(
 
 /// The synthetic caller node for calls made outside any proc body.
 const TOP_LEVEL: &str = "<top-level>";
+
+fn body_key(id: ProcedureId) -> String {
+    id.reporting_key()
+}
 
 // Shared position helpers
 
@@ -431,20 +435,24 @@ fn is_inside_proc(range: Span, ir_module: &IrModule) -> bool {
 /// Call-site positions of `callee_qname` within `containing_proc`'s body.
 fn find_call_sites_in_scope(
     analysis: &AnalysisResult,
-    callee_qname: &str,
-    containing_proc: &str,
+    callee_id: &ProcedureId,
+    containing_proc: &ProcedureId,
     ir_module: &IrModule,
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some(containing_body) = ir_module.procedures.get_unique_display(containing_proc) else {
+    let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
+    let Some(callee_body) = ir_module.procedures.get(callee_id) else {
+        return Vec::new();
+    };
+    let callee_qname = callee_body.qualified_name.as_str();
     let original_callee = if analysis.allows_lexical_declaration_advice() {
         None
     } else {
         let mut declarations = analysis.original_procedure_declarations().filter(|row| {
-            original::compiled_label(source, analysis, ir_module, row) == Some(callee_qname)
+            original::compiled_body_id(source, analysis, ir_module, row) == Some(*callee_id)
         });
         let Some(first) = declarations.next() else {
             return Vec::new();
@@ -468,13 +476,14 @@ fn find_call_sites_in_scope(
         let matches = original_callee.map_or_else(
             || {
                 legacy_callee.is_some_and(|callee| {
-                    crate::references::invocation_calls_proc(
-                        analysis,
-                        inv,
-                        callee_qname,
-                        callee,
-                        source,
-                    )
+                    callee.body_span.start() == callee_body.body_offset
+                        && crate::references::invocation_calls_proc(
+                            analysis,
+                            inv,
+                            callee_qname,
+                            callee,
+                            source,
+                        )
                 })
             },
             |callee| {
@@ -495,10 +504,10 @@ fn find_call_sites_in_scope(
 fn resolve_invocation_target(
     analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-    proc_names_sorted: &[String],
+    proc_ids: &[ProcedureId],
     source: &str,
     ir_module: &IrModule,
-) -> Option<String> {
+) -> Option<ProcedureId> {
     if !analysis.allows_lexical_declaration_advice() {
         let mut selected = analysis
             .original_procedure_declarations()
@@ -507,22 +516,35 @@ fn resolve_invocation_target(
                     source, analysis, inv, row, true,
                 )
             })
-            .filter_map(|row| original::compiled_label(source, analysis, ir_module, row))
-            .filter(|label| proc_names_sorted.iter().any(|name| name == label));
+            .filter_map(|row| original::compiled_body_id(source, analysis, ir_module, row))
+            .filter(|id| proc_ids.contains(id));
         let first = selected.next()?;
-        return selected.next().is_none().then(|| first.to_owned());
+        return selected.next().is_none().then_some(first);
     }
-    proc_names_sorted.iter().find_map(|qname| {
-        let proc = analysis.all_procs.get(qname)?;
-        crate::references::invocation_calls_proc(analysis, inv, qname, proc, source)
-            .then(|| qname.clone())
-    })
+    let mut selected = proc_ids.iter().filter(|id| {
+        let Some(body) = ir_module.procedures.get(id) else {
+            return false;
+        };
+        let Some(proc) = analysis.all_procs.get(&body.qualified_name) else {
+            return false;
+        };
+        proc.body_span.start() == body.body_offset
+            && crate::references::invocation_calls_proc(
+                analysis,
+                inv,
+                &body.qualified_name,
+                proc,
+                source,
+            )
+    });
+    let first = *selected.next()?;
+    selected.next().is_none().then_some(first)
 }
 
 /// The `nodes` list — one entry per proc (sorted by qname), carrying
 /// params, 0-based definition line, purity, and the effect-region string.
 fn build_nodes(
-    proc_names: &[String],
+    proc_names: &[ProcedureId],
     interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
     ir_module: &IrModule,
     line_index: &LineIndex,
@@ -535,15 +557,17 @@ fn build_nodes(
             let summary = &interproc.procedures[qname];
             let line = ir_module
                 .procedures
-                .get_unique_display(qname)
+                .get(qname)
                 .map(|p| line0(line_index, p.span.start()));
             let matched = analysis.allows_lexical_declaration_advice() || {
                 let mut rows = analysis.original_procedure_declarations().filter(|row|
-                    original::compiled_label(source, analysis, ir_module, row) == Some(qname.as_str()));
+                    original::compiled_body_id(source, analysis, ir_module, row) == Some(*qname));
                 rows.next().is_some() && rows.next().is_none()
             };
             json!({
-                "name": qname,
+                "id": body_key(*qname),
+                "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+                "name": summary.qualified_name,
                 "params": summary.params,
                 "line": line,
                 "pure": matched.then_some(summary.pure),
@@ -648,9 +672,14 @@ fn call_graph_for_input(
 
     // Proc qnames in sorted order (iterates the summary dict, which is
     // keyed and surfaced in sorted qualified-name order).
-    let mut proc_names: Vec<String> = interproc.procedures.keys().cloned().collect();
-    proc_names.sort();
-    let proc_set: std::collections::HashSet<&str> = proc_names.iter().map(String::as_str).collect();
+    let mut proc_names: Vec<ProcedureId> = interproc.procedures.keys().copied().collect();
+    proc_names.sort_by(|left, right| {
+        interproc.procedures[*left]
+            .qualified_name
+            .cmp(&interproc.procedures[*right].qualified_name)
+            .then(left.cmp(right))
+    });
+    let proc_set: std::collections::HashSet<ProcedureId> = proc_names.iter().copied().collect();
 
     let nodes = build_nodes(
         &proc_names,
@@ -663,29 +692,32 @@ fn call_graph_for_input(
 
     // Edges + bookkeeping.
     let mut edges: Vec<Value> = Vec::new();
-    let mut called_set: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut has_outgoing: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut called_set: std::collections::HashSet<ProcedureId> = std::collections::HashSet::new();
+    let mut has_outgoing: std::collections::HashSet<ProcedureId> = std::collections::HashSet::new();
 
     for qname in &proc_names {
         let summary = &interproc.procedures[qname];
         for callee in &summary.direct_calls {
-            if !proc_set.contains(callee.as_str()) {
+            if !proc_set.contains(callee) {
                 continue;
             }
-            has_outgoing.insert(qname.as_str());
-            called_set.insert(callee.clone());
+            has_outgoing.insert(*qname);
+            called_set.insert(*callee);
             let sites =
                 find_call_sites_in_scope(&analysis, callee, qname, ir_module, &line_index, source);
             edges.push(json!({
-                "caller": qname,
-                "callee": callee,
+                "caller_id": body_key(*qname),
+                "callee_id": body_key(*callee),
+                "caller": summary.qualified_name,
+                "callee": interproc.procedures[callee].qualified_name,
                 "call_sites": sites,
             }));
         }
     }
 
     // Top-level calls (outside any proc body), in first-seen order.
-    let mut top_level: Map<String, Value> = Map::new();
+    let mut top_level: std::collections::BTreeMap<ProcedureId, Value> =
+        std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
         if is_inside_proc(inv.range, ir_module) {
             continue;
@@ -704,20 +736,27 @@ fn call_graph_for_input(
     }
     let has_top_level_calls = !top_level.is_empty();
     for (callee, sites) in &top_level {
-        called_set.insert(callee.clone());
+        called_set.insert(*callee);
         edges.push(json!({
+            "caller_id": TOP_LEVEL,
+            "callee_id": body_key(*callee),
             "caller": TOP_LEVEL,
-            "callee": callee,
+            "callee": interproc.procedures[callee].qualified_name,
             "call_sites": sites,
         }));
     }
 
     // Roots = uncalled procs, sorted; `<top-level>` prepended when any
     // invocation sits outside a proc body.
+    let mut root_ids: Vec<String> = proc_names
+        .iter()
+        .filter(|id| !called_set.contains(id))
+        .map(|id| body_key(*id))
+        .collect();
     let mut roots: Vec<String> = proc_names
         .iter()
         .filter(|qn| !called_set.contains(*qn))
-        .cloned()
+        .map(|id| interproc.procedures[id].qualified_name.clone())
         .collect();
     roots.sort();
     let any_top_level_inv = analysis
@@ -726,21 +765,29 @@ fn call_graph_for_input(
         .any(|inv| inv.lookup.is_execution_site() && !is_inside_proc(inv.range, ir_module));
     if has_top_level_calls || any_top_level_inv {
         roots.insert(0, TOP_LEVEL.to_owned());
+        root_ids.insert(0, TOP_LEVEL.to_owned());
     }
 
     // Leaves = procs with no outgoing proc calls, sorted.
     let mut leaf_procs: Vec<String> = proc_names
         .iter()
-        .filter(|qn| !has_outgoing.contains(qn.as_str()))
-        .cloned()
+        .filter(|qn| !has_outgoing.contains(*qn))
+        .map(|id| interproc.procedures[id].qualified_name.clone())
         .collect();
     leaf_procs.sort();
 
+    let leaf_ids: Vec<_> = proc_names
+        .iter()
+        .filter(|id| !has_outgoing.contains(id))
+        .map(|id| body_key(*id))
+        .collect();
     let compiled = json!({
         "projection": "compiled-ir",
         "nodes": nodes,
         "edges": edges,
         "roots": roots,
+        "root_ids": root_ids,
+        "leaf_ids": leaf_ids,
         "leaf_procs": leaf_procs,
     });
     if let Some(mut original) =
@@ -769,8 +816,6 @@ struct TaintWarnCtx<'a> {
     module: &'a IrModule,
     /// The dialect string (drives iRules-only warning families + octal reads).
     dialect: &'static tcl_dialect::DialectProfile,
-    /// Namespace-scoped proc names that shadow builtins for their namespace.
-    shadow_proc_qnames: &'a std::collections::HashSet<&'a str>,
     /// Whole-module variable-trace facts.
     module_traces: tcl_compiler::compilation_unit::ModuleTraceFacts<'a>,
     /// Byte-offset → line/column index for the source.
@@ -799,7 +844,6 @@ fn collect_taint_warnings(
         registry,
         module,
         dialect,
-        shadow_proc_qnames,
         module_traces,
         line_index,
     } = ctx;
@@ -815,14 +859,11 @@ fn collect_taint_warnings(
         }));
     };
 
-    // A namespace-scoped proc of the same name shadows a builtin for every
-    // call made from that namespace — see `taint::shadowed_builtin_names`.
-    let namespace = tcl_compiler::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-    let shadowed = tcl_compiler::taint::shadowed_builtin_names(
-        &namespace,
-        shadow_proc_qnames.iter().copied(),
-        registry,
-    );
+    let Some(shadowed) =
+        tcl_compiler::taint::shadowed_builtin_names_for_module_function(fu, module, registry)
+    else {
+        return;
+    };
     // `trace add variable` / `trace variable` lets a runtime callback rewrite
     // a variable in ways static analysis can't see — a traced name is
     // conservatively treated as tainted everywhere in the module — see
@@ -1001,12 +1042,7 @@ fn dataflow_graph_for_input(
     let solved =
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(profile));
 
-    // Taint warnings: top level first, then each procedure.
-    let shadow_proc_qnames: std::collections::HashSet<&str> = cu
-        .procedures
-        .values()
-        .map(|unit| unit.name.as_str())
-        .collect();
+    // Taint warnings: top level first, then each retained procedure.
     let module_traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
@@ -1016,7 +1052,6 @@ fn dataflow_graph_for_input(
         registry,
         module: &cu.ir_module,
         dialect,
-        shadow_proc_qnames: &shadow_proc_qnames,
         module_traces,
         line_index: &line_index,
     };
@@ -1031,7 +1066,7 @@ fn dataflow_graph_for_input(
         let fu = &cu.procedures[*qname];
         collect_taint_warnings(
             fu,
-            solved.proc_taints.get(&fu.name).unwrap_or(&fu.taints),
+            solved.proc_taints.get(*qname).unwrap_or(&fu.taints),
             taint_ctx,
             &mut taint_warnings,
         );
@@ -1044,7 +1079,7 @@ fn dataflow_graph_for_input(
     }
     for qname in &proc_names {
         for name in tainted_var_names(&cu.procedures[*qname]) {
-            tainted_variables.push(json!({ "bodyId": qname.ordinal(), "scope": cu.procedures[*qname].name, "variable": name }));
+            tainted_variables.push(json!({ "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(), "scope": cu.procedures[*qname].name, "variable": name }));
         }
     }
 
@@ -1053,8 +1088,13 @@ fn dataflow_graph_for_input(
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let mut effect_names: Vec<&String> = interproc.procedures.keys().collect();
-    effect_names.sort();
+    let mut effect_names: Vec<_> = interproc.procedures.keys().collect();
+    effect_names.sort_by(|left, right| {
+        interproc.procedures[*left]
+            .qualified_name
+            .cmp(&interproc.procedures[*right].qualified_name)
+            .then(left.cmp(right))
+    });
     let mut proc_effects: Vec<Value> = Vec::new();
     let mut pure_count = 0i64;
     let mut impure_count = 0i64;
@@ -1066,7 +1106,8 @@ fn dataflow_graph_for_input(
             impure_count += 1;
         }
         proc_effects.push(json!({
-            "name": qname,
+            "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+            "name": summary.qualified_name,
             "pure": summary.pure,
             "reads": effect_region_str(summary.effect_reads),
             "writes": effect_region_str(summary.effect_writes),
@@ -1101,7 +1142,10 @@ fn source_effect_card(declaration: &Value) -> Value {
 }
 
 /// One function unit's SSA def-use view, serialised to the camelCase wire dict.
-fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph) -> Value {
+fn function_dataflow_json(
+    f: &tcl_compiler::dataflow_graph::FunctionDataFlowGraph,
+    module: &IrModule,
+) -> Value {
     let nodes: Vec<Value> = f
         .nodes
         .iter()
@@ -1153,6 +1197,7 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
     json!({
         "name": f.function_name,
         "bodyId": f.body_id.map(|id| id.ordinal()),
+        "bodyKey": f.body_id.map(|id| id.reporting_key()).or_else(|| f.is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))),
         "isTopLevel": f.is_top_level,
         "nodes": nodes,
         "edges": edges,
@@ -1230,7 +1275,11 @@ fn def_use_graph_for_input(
     );
 
     let graph = extract_dataflow_graph(&inputs);
-    let mut functions: Vec<Value> = graph.functions.iter().map(function_dataflow_json).collect();
+    let mut functions: Vec<Value> = graph
+        .functions
+        .iter()
+        .map(|row| function_dataflow_json(row, &cu.ir_module))
+        .collect();
     for declaration in uncompiled_source_declarations(source, input, &cu.ir_module) {
         functions.push(json!({
             "name": declaration["name"], "source_declaration": declaration,
@@ -1266,11 +1315,16 @@ fn memory_location_str(loc: &tcl_compiler::memory_ssa::MemoryLocation) -> String
 fn memory_function_json(
     fu: &FunctionUnit,
     mem: Option<&tcl_compiler::memory_ssa::MemorySsaFunction>,
+    is_top_level: bool,
+    module: &IrModule,
 ) -> Value {
     let name = &fu.name;
     let body_id = fu.body_id.map(|id| id.ordinal());
+    let body_key = fu.body_id.map(|id| id.reporting_key()).or_else(|| {
+        is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))
+    });
     let Some(mem) = mem else {
-        return json!({ "name": name, "bodyId": body_id, "alias_sets": [], "memory_ops": 0,
+        return json!({ "name": name, "bodyId": body_id, "bodyKey": body_key, "alias_sets": [], "memory_ops": 0,
             "has_wildcard_aliasing": true });
     };
     let alias_sets: Vec<Value> = mem
@@ -1286,7 +1340,7 @@ fn memory_function_json(
         .collect();
     json!({
         "name": name,
-        "bodyId": body_id,
+        "bodyId": body_id, "bodyKey": body_key,
         "alias_sets": alias_sets,
         "has_wildcard_aliasing": mem.has_wildcard_aliasing,
         "memory_ops": mem.memory_ops.len(),
@@ -1337,6 +1391,8 @@ fn memory_alias_graph_for_input(
     let mut functions: Vec<Value> = vec![memory_function_json(
         &cu.top_level,
         cu.top_level.memory_ssa.as_ref(),
+        true,
+        &cu.ir_module,
     )];
     let mut proc_names: Vec<_> = cu.procedures.keys().collect();
     proc_names.sort_by(|left, right| {
@@ -1349,6 +1405,8 @@ fn memory_alias_graph_for_input(
         functions.push(memory_function_json(
             &cu.procedures[*qname],
             cu.procedures[*qname].memory_ssa.as_ref(),
+            false,
+            &cu.ir_module,
         ));
     }
 

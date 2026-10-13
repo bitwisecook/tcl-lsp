@@ -1,0 +1,1426 @@
+diff --git a/rust/tcl-compiler/src/body_analysis_capsule.rs b/rust/tcl-compiler/src/body_analysis_capsule.rs
+new file mode 100644
+index 000000000..e7ae1a3d0
+--- /dev/null
++++ b/rust/tcl-compiler/src/body_analysis_capsule.rs
+@@ -0,0 +1,337 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Retained compilation owners for per-body analysis and source edits.
++
++use std::hash::{Hash, Hasher};
++use std::sync::Arc;
++
++use crate::compilation_unit::{CompilationUnit, FunctionUnit};
++use crate::ir::{Procedure, ProcedureId};
++use crate::optimiser::Optimisation;
++use tcl_registry::CommandRegistry;
++
++/// One actual body and its complete immutable compilation inputs.
++#[derive(Debug, Clone)]
++pub struct BodyAnalysisCapsule {
++    unit: Arc<CompilationUnit>,
++    body: ProcedureId,
++    neutral: Option<Arc<NativeClosedBodyProjection>>,
++}
++
++#[derive(Debug, Clone, PartialEq)]
++struct NativeClosedBodyProjection {
++    declaration: NeutralDeclaration,
++    body: crate::ir::Script,
++    function: FunctionUnit,
++    summary: Option<crate::interprocedural::ProcSummary>,
++    instance_classes: Option<crate::taint::InstanceClassState>,
++    tainted_global_writes: Option<std::collections::HashSet<String>>,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++struct NeutralDeclaration {
++    publication: crate::signature_scan::scope::SignatureSourceCommand,
++    namespace: crate::command_binding::SourceNamespaceKey,
++    written_name: String,
++    display: String,
++    parameters: Vec<String>,
++    parameters_text: String,
++    body_text: String,
++    kind: crate::ir::ProcedureBodyKind,
++}
++
++impl BodyAnalysisCapsule {
++    /// Retain a source-corresponding body without deriving an identity from its name.
++    #[must_use]
++    pub fn retain(
++        unit: Arc<CompilationUnit>,
++        body: ProcedureId,
++        registry: &CommandRegistry,
++    ) -> Option<Self> {
++        let module = &unit.ir_module;
++        let procedure = module.procedures.get(&body)?;
++        let function = unit.procedures.get(&body)?;
++        let retained = module.retained_source_bindings.as_deref()?;
++        retained.positioned_for_module(module, registry)?;
++        if function.body_id != Some(body)
++            || unit.cfg_module.procedures.get(&body) != Some(&function.cfg)
++            || module.source.try_text().ok()? != unit.source
++            || procedure.declaration_site.is_none()
++            || !retained.matches_original_procedure(procedure)
++        {
++            return None;
++        }
++        let neutral = native_closed_projection(&unit, body, registry).map(Arc::new);
++        Some(Self {
++            unit,
++            body,
++            neutral,
++        })
++    }
++
++    /// The complete retained compilation unit, including original world and input owners.
++    #[must_use]
++    pub fn unit(&self) -> &CompilationUnit {
++        &self.unit
++    }
++
++    /// The Module-issued body coordinate retained by this capsule.
++    #[must_use]
++    pub const fn body_id(&self) -> ProcedureId {
++        self.body
++    }
++
++    /// Whether original Native closure and injective source relocation certify reuse.
++    /// The certificate supplies analysis data equivalence, never Native execution.
++    #[must_use]
++    pub const fn has_closed_native_correspondence(&self) -> bool {
++        self.neutral.is_some()
++    }
++
++    /// The exact retained source declaration.
++    #[must_use]
++    pub fn procedure(&self) -> &Procedure {
++        self.unit
++            .ir_module
++            .procedures
++            .get(&self.body)
++            .expect("retained capsule declaration")
++    }
++
++    /// The actual analysis belonging to the retained declaration.
++    #[must_use]
++    pub fn function(&self) -> &FunctionUnit {
++        self.unit
++            .procedures
++            .get(&self.body)
++            .expect("retained capsule function")
++    }
++
++    /// Select body-local source edits from the genuine whole-unit analysis.
++    /// A group crossing the body's source boundary is retained by neither memo.
++    #[must_use]
++    pub fn original_body_optimisations(
++        &self,
++        registry: &CommandRegistry,
++        dialect: Option<&'static tcl_dialect::DialectProfile>,
++    ) -> Vec<Optimisation> {
++        let span = self.procedure().span;
++        let raw = crate::optimiser::optimise_unit_raw(self.unit(), registry, dialect);
++        let outside_groups: std::collections::HashSet<_> = raw
++            .iter()
++            .filter(|edit| edit.span.start() < span.start() || span.end() < edit.span.end())
++            .filter_map(|edit| edit.group)
++            .collect();
++        raw.into_iter()
++            .filter(|edit| {
++                span.start() <= edit.span.start()
++                    && edit.span.end() <= span.end()
++                    && edit
++                        .group
++                        .is_none_or(|group| !outside_groups.contains(&group))
++            })
++            .map(|mut edit| {
++                edit.span = tcl_lexer::Span::new(
++                    edit.span.start() - span.start(),
++                    edit.span.end() - span.start(),
++                );
++                edit
++            })
++            .collect()
++    }
++}
++
++impl PartialEq for BodyAnalysisCapsule {
++    fn eq(&self, other: &Self) -> bool {
++        match (&self.neutral, &other.neutral) {
++            (Some(left), Some(right)) => {
++                left.declaration == right.declaration
++                    && left.body == right.body
++                    && ((self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit))
++                        || left == right)
++            }
++            (None, None) => self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit),
++            _ => false,
++        }
++    }
++}
++
++impl Eq for BodyAnalysisCapsule {}
++
++impl Hash for BodyAnalysisCapsule {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        if let Some(projection) = &self.neutral {
++            projection.declaration.hash(state);
++            projection.body.hash(state);
++        } else {
++            self.body.hash(state);
++            Arc::as_ptr(&self.unit).hash(state);
++        }
++    }
++}
++
++fn native_closed_projection(
++    unit: &CompilationUnit,
++    body_id: ProcedureId,
++    registry: &CommandRegistry,
++) -> Option<NativeClosedBodyProjection> {
++    let module = &unit.ir_module;
++    let procedure = module.procedures.get(&body_id)?;
++    let publication = procedure.publication.as_ref()?;
++    if module
++        .procedures
++        .values()
++        .filter(|candidate| candidate.publication.as_ref() == Some(publication))
++        .count()
++        != 1
++    {
++        return None;
++    }
++    let declaration = NeutralDeclaration {
++        publication: publication.clone(),
++        namespace: procedure.body.namespace_context.as_deref()?.clone(),
++        written_name: procedure.name.clone(),
++        display: procedure.qualified_name.clone(),
++        parameters: procedure.params.clone(),
++        parameters_text: procedure.params_raw.clone(),
++        body_text: procedure.body_source.clone()?,
++        kind: procedure.body_kind,
++    };
++    let mut original = procedure.body.clone();
++    crate::lattice_rebase::rebase_script(&mut original, -i64::from(procedure.span.start()));
++    let bindings = crate::command_binding::ModuleCommandBindings::analyse(module, registry);
++    let function = unit.procedures.get(&body_id)?;
++    let scope = crate::command_binding::BodyProofScope {
++        source: &unit.source,
++        body_source: &declaration.body_text,
++        original_body_offset: procedure.span.start(),
++        executable_body_offset: procedure.body_offset,
++        metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
++            function.source_metadata_input(),
++        ),
++        config: function.source_lexer_config(),
++    };
++    let scope = if module.source_entry.metadata_context.is_standalone() {
++        crate::command_binding::BodyProofScope {
++            metadata: crate::registry_invocation::InvocationMetadataInput::Standalone,
++            ..scope
++        }
++    } else {
++        scope
++    };
++    let template = bindings.prepare_native_body_template(&original, scope, registry)?;
++    let mut normalized = function.clone();
++    crate::lattice_rebase::rebase_function_unit(
++        &mut normalized,
++        -i64::from(procedure.span.start()),
++    );
++    let mut normalized = normalized
++        .relocated_variable_proofs(&template.variable_relocation)?
++        .restored_source_proofs(&crate::command_binding::BodySourceProofs::from_body(
++            &template.body,
++        ))?;
++    // The checked original declaration and injective body relocation own this
++    // comparison. The private projection is never used as an executable unit.
++    normalized.body_id = None;
++    let mut summary = unit
++        .interproc
++        .as_ref()
++        .and_then(|analysis| analysis.procedures.get(&body_id))
++        .cloned();
++    if let Some(summary) = &mut summary {
++        if !summary.calls.is_empty()
++            || !summary.direct_calls.is_empty()
++            || !summary.defined_callees.is_empty()
++        {
++            return None;
++        }
++        if let Some(defined_at) = summary.defined_at {
++            summary.defined_at =
++                Some(defined_at.checked_sub(procedure.declaration_site.as_ref()?.offset)?);
++        }
++    }
++    Some(NativeClosedBodyProjection {
++        declaration,
++        body: template.body,
++        function: normalized,
++        summary,
++        instance_classes: unit
++            .interproc
++            .as_ref()
++            .and_then(|analysis| analysis.global_instance_classes.get(&body_id))
++            .cloned(),
++        tainted_global_writes: unit
++            .interproc
++            .as_ref()
++            .and_then(|analysis| analysis.tainted_global_writes.get(&body_id))
++            .cloned(),
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn unit(
++        source: &str,
++    ) -> (
++        Arc<tcl_registry::model::ContextRegistry>,
++        Arc<CompilationUnit>,
++    ) {
++        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
++        (context, Arc::new(unit))
++    }
++
++    #[test]
++    fn source_body_capsule_keeps_the_actual_module_and_function() {
++        let (context, unit) = unit("proc p {argument} {return $argument}");
++        let body = *unit.ir_module.procedures.keys().next().unwrap();
++        let capsule = BodyAnalysisCapsule::retain(Arc::clone(&unit), body, context.commands())
++            .expect("original declaration, actual module and actual body");
++        assert!(std::ptr::eq(capsule.unit(), unit.as_ref()));
++        assert!(std::ptr::eq(capsule.function(), &unit.procedures[&body]));
++        assert_eq!(capsule.body_id(), body);
++        assert_eq!(capsule, capsule.clone());
++    }
++
++    #[test]
++    fn equal_source_and_display_do_not_replace_the_module_owner() {
++        let source = "proc p {} {return VALUE}";
++        let (context, left) = unit(source);
++        let (_, right) = unit(source);
++        let left_id = *left.ir_module.procedures.keys().next().unwrap();
++        let right_id = *right.ir_module.procedures.keys().next().unwrap();
++        assert_eq!(left_id.ordinal(), right_id.ordinal());
++        assert_ne!(left_id, right_id);
++        assert!(
++            BodyAnalysisCapsule::retain(Arc::clone(&left), right_id, context.commands()).is_none()
++        );
++        assert_ne!(
++            BodyAnalysisCapsule::retain(left, left_id, context.commands()).unwrap(),
++            BodyAnalysisCapsule::retain(right, right_id, context.commands()).unwrap(),
++        );
++    }
++
++    #[test]
++    fn changed_source_registry_or_body_owner_withdraws_the_capsule() {
++        let source = "proc p {} {return VALUE}";
++        let (context, actual) = unit(source);
++        let body = *actual.ir_module.procedures.keys().next().unwrap();
++        let mut changed_source = (*actual).clone();
++        changed_source.source = "proc p {} {return OTHER}".to_owned();
++        assert!(
++            BodyAnalysisCapsule::retain(Arc::new(changed_source), body, context.commands())
++                .is_none()
++        );
++        let mut changed_function = (*actual).clone();
++        changed_function.procedures.get_mut(&body).unwrap().body_id = None;
++        assert!(
++            BodyAnalysisCapsule::retain(Arc::new(changed_function), body, context.commands())
++                .is_none()
++        );
++        let foreign = CommandRegistry::build_default();
++        assert!(BodyAnalysisCapsule::retain(actual, body, &foreign).is_none());
++    }
++}
+diff --git a/rust/tcl-compiler/src/lib.rs b/rust/tcl-compiler/src/lib.rs
+index cf01ded12..7ea90a5d8 100644
+--- a/rust/tcl-compiler/src/lib.rs
++++ b/rust/tcl-compiler/src/lib.rs
+@@ -87,6 +87,7 @@ pub mod analyses;
+ pub mod auto_path_eval;
+ pub mod backend_registry;
+ pub mod bounded_set;
++pub mod body_analysis_capsule;
+ pub mod cfg;
+ pub mod cfg_builder;
+ pub mod cfg_layout;
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+index dbe44bd2f..01f9885bf 100644
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -133,9 +133,9 @@
+ //! | [`ItemBodyKey`] | `body_text` — the procedure/method body source |
+ //! | [`FnLatticeKey`] | `body` — the whole post-inline procedure IR |
+ //! | [`ProcBodyKey`] | `body_text` |
+-//! | [`OptDepsKey`] | `body_source` + `proc_body_source` |
+-//! | [`TaintSummaryKey`] | `reachable` — shifts as the projections move |
+-//! | [`SummaryDepsKey`] | `interproc_reachable` + `callee_summaries` |
++//! | [`OptDepsKey`] | current compilation capsule |
++//! | [`TaintSummaryKey`] | current compilation capsule |
++//! | [`SummaryDepsKey`] | current compilation capsule + actual-ID summary inputs |
+ //!
+ //! Typing inside a body therefore mints a brand-new interned id for every one
+ //! of them on every keystroke, each holding a body's worth of `Arc` payload in
+@@ -3178,12 +3178,26 @@ fn build_unit_with_keys_and_input<'db>(
+     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
+     // The whole-module summary is still rebuilt here (it is the memo's input);
+     // only unchanged procedures' `propagate_taints` is skipped.
++    let retained = Arc::new(cu.clone());
++    let mut interprocedural_owner = None;
+     let unit = cu.with_interprocedural_memoized(
+         registry,
+         dialect_opt,
+-        &mut |body_id: tcl_compiler::ir::ProcedureId, qname: &str, ia: &InterproceduralAnalysis| {
++        &mut |body_id: tcl_compiler::ir::ProcedureId,
++              _display: &str,
++              ia: &InterproceduralAnalysis| {
+             let key = memo_key(db, &lattice_keys, Some(body_id))?;
+-            let summary_key = taint_summary_key(db, ia, qname, dialect_key);
++            let actual = interprocedural_owner.get_or_insert_with(|| {
++                let mut actual = (*retained).clone();
++                actual.interproc = Some(ia.clone());
++                Arc::new(actual)
++            });
++            let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
++                Arc::clone(actual),
++                body_id,
++                registry,
++            )?;
++            let summary_key = TaintSummaryKey::new(db, capsule);
+             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
+             // is span-free (the offset rebase never touches it), so the unit can
+             // share the cached lattice rather than deep-copying it per procedure
+@@ -3230,352 +3244,92 @@ fn lattice_request_key<'db>(
+     )
+ }
+ 
+-/// The taint-relevant projection of one procedure's [`ProcSummary`], in the
+-/// deterministic, hashable form interned into [`TaintSummaryKey`].  Holds only
+-/// the fields `propagate_taints` reads from a summary — `writes_global`
+-/// (reachable-global seeding), `return_passthrough_param` + `params` (passthrough
+-/// taint transfer), and `calls` (only the cascade root's transitive callee list,
+-/// used by the reachable-global check).
+-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+-pub struct ProcTaintSummary {
+-    /// Fully-qualified procedure name.
+-    pub qname: String,
+-    /// Declared parameter names, in order.
+-    pub params: Vec<String>,
+-    /// Transitive callee qnames (populated only for the cascade root; sorted).
+-    pub calls: Vec<String>,
+-    /// Whether the procedure (or a callee) writes a global/namespace variable.
+-    pub writes_global: bool,
+-    /// The parameter the return value passes through, when any.
+-    pub return_passthrough_param: Option<String>,
+-}
+-
+-/// Interned identity of a procedure's interprocedural taint dependencies — the
+-/// `taint_cascade` key alongside its [`FnLatticeKey`] baseline.  Holds exactly
+-/// what `propagate_taints` reads from the interprocedural summary: the full set
+-/// of procedure **names** (so call resolution picks the same target as the whole
+-/// summary) and the taint-relevant projection of the cascade root + its
+-/// transitive callees.  A body edit that leaves these unchanged is a cache hit;
+-/// an edit that flips a reachable callee's `writes_global` / passthrough
+-/// re-interns this key for exactly the callers that reach it.
+-///
+-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+-/// `reachable` moves as the edited procedure's projections move, so a typing
+-/// session mints fresh ids steadily.  Only the collector's reuse of stale LRU
+-/// slots keeps the table flat, and it reclaims `Durability::LOW` slots interned
+-/// inside a tracked query only.  See the crate docs' "The interned garbage
+-/// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
++/// Actual compilation owner for a per-body interprocedural taint demand.
+ #[salsa::interned]
+ pub struct TaintSummaryKey<'db> {
+-    /// All procedure names in the module (sorted) — the call-resolution domain.
+-    #[returns(ref)]
+-    pub known_procs: Vec<String>,
+-    /// The cascade root + its transitive callees' taint projections (sorted by
+-    /// qname).
+-    #[returns(ref)]
+-    pub reachable: Vec<ProcTaintSummary>,
+     #[returns(ref)]
+-    pub dialect: String,
++    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+ }
+ 
+-/// Build the [`TaintSummaryKey`] for procedure `qname` from the whole-module
+-/// summary `ia`.  Includes every procedure **name** (resolution domain) plus the
+-/// taint projection of `qname` and each of its transitive callees.
+-fn taint_summary_key<'db>(
+-    db: &'db dyn TclDb,
+-    ia: &InterproceduralAnalysis,
+-    qname: &str,
+-    dialect: &str,
+-) -> TaintSummaryKey<'db> {
+-    let mut known: Vec<String> = ia.procedures.keys().cloned().collect();
+-    known.sort();
+-    let mut reachable: Vec<ProcTaintSummary> = Vec::new();
+-    if let Some(root) = ia.procedures.get(qname) {
+-        let mut calls = root.calls.clone();
+-        calls.sort();
+-        reachable.push(ProcTaintSummary {
+-            qname: qname.to_owned(),
+-            params: root.params.clone(),
+-            calls,
+-            writes_global: root.writes_global,
+-            return_passthrough_param: root.return_passthrough_param.clone(),
+-        });
+-        for callee in &root.calls {
+-            if callee == qname {
+-                continue;
+-            }
+-            if let Some(s) = ia.procedures.get(callee) {
+-                reachable.push(ProcTaintSummary {
+-                    qname: callee.clone(),
+-                    params: s.params.clone(),
+-                    calls: Vec::new(),
+-                    writes_global: s.writes_global,
+-                    return_passthrough_param: s.return_passthrough_param.clone(),
+-                });
+-            }
+-        }
+-    }
+-    reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
+-    TaintSummaryKey::new(db, known, reachable, dialect.to_owned())
+-}
+-
+-/// Memoised interprocedural taint for one procedure (backlog #1 — the
+-/// `taint_cascade` query layered on [`function_lattice`]'s offset-0 baseline).
+-///
+-/// Reconstructs the minimal [`InterproceduralAnalysis`] the key encodes —
+-/// every procedure name (so call resolution is identical to the whole summary)
+-/// with the taint projection overlaid for the cascade root + its transitive
+-/// callees — and re-runs `propagate_taints` over the offset-0 baseline.  Because
+-/// the taint lattice is `ValueKey`-keyed (span-free), the offset-0 result is
+-/// installed directly into the rebased unit (no rebase needed).  Byte-identical
+-/// to [`CompilationUnit::with_interprocedural`]'s per-procedure re-run, guarded
+-/// by the `compiler_check` corpus differential + the taint-cascade edit tests.
+-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+ #[salsa::tracked(lru = 512, returns(clone))]
+ pub fn taint_cascade<'db>(
+     db: &'db dyn TclDb,
+     lattice_key: FnLatticeKey<'db>,
+     summary_key: TaintSummaryKey<'db>,
+ ) -> Arc<HashMap<ValueKey, TaintLattice>> {
+-    let baseline = function_lattice(db, lattice_key);
+-    let dialect_opt = lattice_key
+-        .snapshot(db)
+-        .profile
+-        .map(|snapshot| snapshot.profile());
+-    let registry = lattice_key.snapshot(db).registry.registry();
+-
+-    // Reconstruct the minimal summary: a stub per known name (resolution
+-    // domain), with the real taint-relevant fields overlaid for the reachable
+-    // set.  `propagate_taints` reads only those fields, so this is byte-identical
+-    // to running against the whole summary.
+-    let mut ia = InterproceduralAnalysis::default();
+-    for name in summary_key.known_procs(db) {
+-        ia.procedures
+-            .insert(name.clone(), ProcSummary::unknown(name));
+-    }
+-    for r in summary_key.reachable(db) {
+-        let mut s = ProcSummary::unknown(&r.qname);
+-        s.params.clone_from(&r.params);
+-        s.calls.clone_from(&r.calls);
+-        s.writes_global = r.writes_global;
+-        s.return_passthrough_param
+-            .clone_from(&r.return_passthrough_param);
+-        ia.procedures.insert(r.qname.clone(), s);
+-    }
+-
+-    Arc::new(baseline.interproc_taints(registry, &ia, dialect_opt))
+-}
+-
+-/// Interned identity of one procedure's *interprocedural summary-fixpoint*
+-/// dependencies — the [`proc_summary_cascade`] key alongside its [`FnLatticeKey`]
+-/// baseline.  `infer_proc_summary(P)` is a pure function of
+-/// `P`'s offset-0 body (the `FnLatticeKey`) and, from the *current* summaries it
+-/// reads: the resolution domain (`known_procs`), the interprocedural
+-/// [`ProcSummary`] projection of `P`'s reachable set (`interproc_reachable` —
+-/// what `propagate_taints` reads for call resolution + reachable-global seeding,
+-/// identical to [`TaintSummaryKey`]), and the [`ReturnTaintSummary`] of every
+-/// procedure in `P`'s transitive call closure (`callee_summaries` — the return
+-/// transfer functions `propagate_taints` applies at `P`'s call sites).  A body
+-/// edit that leaves all of these unchanged re-interns to the same key, so `P`'s
+-/// inference is a cache hit; an edit that flips a reachable callee's summary
+-/// re-keys exactly the callers that reach it.
+-///
+-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+-/// `interproc_reachable` / `callee_summaries` move with the edited procedure's
+-/// projections, exactly as [`TaintSummaryKey`]'s `reachable` does, so the same
+-/// contract applies: collection needs `Durability::LOW` slots interned inside a
+-/// tracked query.  See the crate docs' "The interned garbage collector is
+-/// load-bearing"; pinned by `tests/interned_gc.rs`.
++    let capsule = summary_key.capsule(db);
++    let registry = lattice_registry(db, lattice_key);
++    let taints = capsule.unit().interproc.as_ref().map_or_else(
++        || (*capsule.function().taints).clone(),
++        |analysis| {
++            capsule.function().interproc_taints(
++                &registry,
++                analysis,
++                capsule.unit().ir_module.dialect_profile,
++            )
++        },
++    );
++    Arc::new(taints)
++}
++
++/// Genuine current summary-fixpoint inputs for one retained body.
+ #[salsa::interned]
+ pub struct SummaryDepsKey<'db> {
+-    /// All procedure names in the module (sorted) — the call-resolution domain.
+     #[returns(ref)]
+-    pub known_procs: Vec<String>,
+-    /// The interproc-analysis projection of the root + its transitive callees
+-    /// (sorted by qname) — mirrors [`TaintSummaryKey::reachable`].
++    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+     #[returns(ref)]
+-    pub interproc_reachable: Vec<ProcTaintSummary>,
+-    /// The colour-aware return-taint summaries the root reads from `summaries`:
+-    /// every procedure in its transitive call closure (sorted by qname, deduped).
++    pub known_procs: Vec<tcl_compiler::ir::ProcedureId>,
+     #[returns(ref)]
+-    pub callee_summaries: Vec<ReturnTaintSummary>,
++    pub callee_summaries: Vec<(tcl_compiler::ir::ProcedureId, ReturnTaintSummary)>,
+     #[returns(ref)]
+     pub dialect: String,
+ }
+ 
+-/// Build the [`SummaryDepsKey`] for procedure `qname` from the in-progress
+-/// summary-fixpoint state.  Reachable set = the root + its transitive callees
+-/// (`ProcSummary::calls`), exactly as [`taint_summary_key`] computes it, so the
+-/// interproc projection is identical; `callee_summaries` overlays the
+-/// return-taint summary of each reachable procedure (including `qname` itself
+-/// when it is in its own closure — i.e. recursive).  Over-approximating the
+-/// summaries read (transitive, not just direct callees) is sound: a wrong/missed
+-/// dependency is caught by the debug fixpoint guard in `converge_summaries_with`,
+-/// which re-runs the real `infer_proc_summary`.
+-// A cache-key builder that must observe every input the summary fixpoint reads;
+-// bundling them into a struct would just move the argument list off-site.
+-#[allow(clippy::too_many_arguments)]
+ fn summary_deps_key<'db>(
+     db: &'db dyn TclDb,
+-    qname: &str,
+-    fu: &FunctionUnit,
+-    body_source: Option<&str>,
+-    interproc: Option<&InterproceduralAnalysis>,
+-    summaries: &HashMap<String, ReturnTaintSummary>,
+-    known: &HashSet<String>,
++    capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
++    summaries: &HashMap<tcl_compiler::ir::ProcedureId, ReturnTaintSummary>,
++    known: &HashSet<tcl_compiler::ir::ProcedureId>,
+     dialect: &str,
+ ) -> SummaryDepsKey<'db> {
+-    let mut known_procs: Vec<String> = known.iter().cloned().collect();
+-    known_procs.sort();
+-
+-    let mut interproc_reachable: Vec<ProcTaintSummary> = Vec::new();
+-    let mut callee_summaries: Vec<ReturnTaintSummary> = Vec::new();
+-    if let Some(ia) = interproc
+-        && let Some(root) = ia.procedures.get(qname)
+-    {
+-        let mut calls = root.calls.clone();
+-        calls.sort();
+-        calls.dedup();
+-        // Root: full interproc projection (with its transitive `calls`), plus
+-        // its own return summary when recursive (qname appears in `calls`).
+-        interproc_reachable.push(ProcTaintSummary {
+-            qname: qname.to_owned(),
+-            params: root.params.clone(),
+-            calls: calls.clone(),
+-            writes_global: root.writes_global,
+-            return_passthrough_param: root.return_passthrough_param.clone(),
+-        });
+-        // Complete the callee set: `root.calls` comes from `direct_calls`, which
+-        // misses a callee buried in a nested command substitution under a dynamic
+-        // command (e.g. `symbolNodeOf` in `[$t get [symbolNodeOf …] …]`). The real
+-        // `infer_proc_summary` reads that callee's summary anyway (it scans the
+-        // FunctionUnit), so without it here the cascade would seed the callee clean
+-        // and under-taint — diverging from the whole-module solve (and tripping its
+-        // debug fixpoint guard). `resolved_callees` scans `fu` exactly as the
+-        // inference does, so we overlay the same callee projections + summaries.
+-        // The root's own `.calls` field above is left as the real `root.calls` so
+-        // the reconstructed `ia` still matches the whole-module projection.
+-        let mut callee_set = calls.clone();
+-        callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(
+-            fu,
+-            known,
+-            fu.source_lexer_config(),
+-        ));
+-        if let Some(src) = body_source {
+-            callee_set.extend(
+-                tcl_compiler::taint_interproc::command_subst_callees_with_config(
+-                    src,
+-                    qname,
+-                    known,
+-                    fu.source_lexer_config(),
+-                ),
+-            );
+-        }
+-        callee_set.sort();
+-        callee_set.dedup();
+-        for callee in &callee_set {
+-            if callee != qname
+-                && let Some(s) = ia.procedures.get(callee)
+-            {
+-                interproc_reachable.push(ProcTaintSummary {
+-                    qname: callee.clone(),
+-                    params: s.params.clone(),
+-                    calls: Vec::new(),
+-                    writes_global: s.writes_global,
+-                    return_passthrough_param: s.return_passthrough_param.clone(),
+-                });
+-            }
+-            if let Some(ts) = summaries.get(callee) {
+-                callee_summaries.push(ts.clone());
+-            }
+-        }
+-    }
+-    interproc_reachable.sort_by(|a, b| a.qname.cmp(&b.qname));
+-    callee_summaries.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+-    callee_summaries.dedup();
+-
++    let mut known_procs: Vec<_> = known.iter().copied().collect();
++    known_procs.sort_unstable();
++    let mut callee_summaries: Vec<_> = summaries
++        .iter()
++        .map(|(id, summary)| (*id, summary.clone()))
++        .collect();
++    callee_summaries.sort_by_key(|(id, _)| *id);
+     SummaryDepsKey::new(
+         db,
++        capsule,
+         known_procs,
+-        interproc_reachable,
+         callee_summaries,
+         dialect.to_owned(),
+     )
+ }
+ 
+-/// Memoised per-procedure interprocedural summary inference — the
+-/// `infer_proc_summary` half of the summary fixpoint, layered on
+-/// [`function_lattice`]'s offset-0 baseline the way [`taint_cascade`] layers the
+-/// per-proc taint re-run.
+-///
+-/// Reconstructs the minimal context [`SummaryDepsKey`] encodes — every procedure
+-/// name (so call resolution matches the whole summary), the interproc projection
+-/// of the reachable set, and the reachable return-taint summaries — and re-runs
+-/// the real [`tcl_compiler::taint_interproc::infer_proc_summary`] over the
+-/// offset-0 baseline.  Span-free (the summary is a transfer function over
+-/// parameter/return taint, not positions), so the offset-0 result is the same
+-/// the whole-module build computes.  A body edit re-keys only the edited
+-/// procedure and the callers that reach it; everything else is a cache hit.
+-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+ #[salsa::tracked(lru = 512, returns(clone))]
+ pub fn proc_summary_cascade<'db>(
+     db: &'db dyn TclDb,
+     lattice_key: FnLatticeKey<'db>,
+     deps_key: SummaryDepsKey<'db>,
+ ) -> Arc<ReturnTaintSummary> {
+-    let fu = function_lattice(db, lattice_key);
+-    let qname = lattice_key.qname(db);
+-    let params = lattice_key.params(db);
+-    let dialect_opt = lattice_key
+-        .snapshot(db)
+-        .profile
+-        .map(|profile| profile.profile());
++    let capsule = deps_key.capsule(db);
++    let known = deps_key.known_procs(db).iter().copied().collect();
++    let summaries = deps_key.callee_summaries(db).iter().cloned().collect();
+     let registry = lattice_registry(db, lattice_key);
+-    let registry: &CommandRegistry = &registry;
+-
+-    // Reconstruct the minimal interproc summary (stub per known name + real
+-    // fields for the reachable set) — identical to `taint_cascade`'s rebuild.
+-    let mut ia = InterproceduralAnalysis::default();
+-    for name in deps_key.known_procs(db) {
+-        ia.procedures
+-            .insert(name.clone(), ProcSummary::unknown(name));
+-    }
+-    for r in deps_key.interproc_reachable(db) {
+-        let mut s = ProcSummary::unknown(&r.qname);
+-        s.params.clone_from(&r.params);
+-        s.calls.clone_from(&r.calls);
+-        s.writes_global = r.writes_global;
+-        s.return_passthrough_param
+-            .clone_from(&r.return_passthrough_param);
+-        ia.procedures.insert(r.qname.clone(), s);
+-    }
+-    let known: HashSet<String> = deps_key.known_procs(db).iter().cloned().collect();
+-    // Seed the whole resolution domain with clean summaries — the worklist passes
+-    // `infer_proc_summary` a map with an entry for *every* procedure, and a
+-    // resolved callee that is *absent* (vs. present-but-clean) makes
+-    // `propagate_taints` fall through to its conservative bare-argument join and
+-    // over-taint (`taint.rs`'s `summaries.get(&target)?`).  So the seed is
+-    // load-bearing; the reachable overlay then installs the real (possibly
+-    // tainted) summaries the edited proc actually depends on.
+-    let mut summaries: HashMap<String, ReturnTaintSummary> = deps_key
+-        .known_procs(db)
+-        .iter()
+-        .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))
+-        .collect();
+-    for s in deps_key.callee_summaries(db) {
+-        summaries.insert(s.qualified_name.clone(), s.clone());
+-    }
+-
+-    Arc::new(tcl_compiler::taint_interproc::infer_proc_summary(
+-        qname,
+-        params,
+-        &fu,
+-        registry,
+-        Some(&ia),
+-        dialect_opt,
+-        &known,
+-        &summaries,
+-    ))
++    Arc::new(
++        tcl_compiler::taint_interproc::infer_proc_summary(
++            capsule.unit(),
++            capsule.body_id(),
++            &registry,
++            capsule.unit().interproc.as_ref(),
++            capsule.unit().ir_module.dialect_profile,
++            &known,
++            &summaries,
++        )
++        .expect("capsule retains the genuine root declaration and function"),
++    )
+ }
+ 
+ /// Memoised per-procedure **non-taint** compiler checks (SCCP constant branches,
+@@ -3706,48 +3460,39 @@ fn solve_checks_for_unit<'db>(
+     lattice_keys: &HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+     dialect_opt: Option<&'static tcl_dialect::DialectProfile>,
+ ) -> Arc<CheckSolve> {
+-    let interproc = cu.interproc.as_ref();
+-
++    let retained = Arc::new(cu.clone());
+     let taints = tcl_compiler::taint_interproc::solve_interprocedural_taints_with(
+         &cu,
+         registry,
+         dialect_opt,
+-        &mut |qname, params, fu, known, summaries| match memo_key(db, lattice_keys, fu.body_id) {
+-            // Memoised path: the proc has an offset-0 baseline key.
+-            Some(lattice_key) => {
+-                let body_source = cu
+-                    .ir_module
+-                    .procedures
+-                    .get(
+-                        &fu.body_id
+-                            .expect("memo selection retained the exact body ID"),
+-                    )
+-                    .and_then(|p| p.body_source.as_deref());
+-                let deps_key = summary_deps_key(
+-                    db,
+-                    qname,
+-                    fu,
+-                    body_source,
+-                    interproc,
+-                    summaries,
++        &mut |actual, body_id, analysis, known, summaries| {
++            let fresh = || {
++                tcl_compiler::taint_interproc::infer_proc_summary(
++                    actual,
++                    body_id,
++                    registry,
++                    analysis,
++                    dialect_opt,
+                     known,
+-                    dialect,
+-                );
+-                (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
++                    summaries,
++                )
++                .expect("solver supplied its actual procedure and function")
++            };
++            let Some(lattice_key) = memo_key(db, lattice_keys, Some(body_id)) else {
++                return fresh();
++            };
++            if analysis != retained.interproc.as_ref() {
++                return fresh();
+             }
+-            // Fallback (a proc without a memoised lattice — e.g. an unanalysable
+-            // body — or whose lattice read another procedure): run the real
+-            // inference directly, exactly as the bare solve.
+-            None => tcl_compiler::taint_interproc::infer_proc_summary(
+-                qname,
+-                params,
+-                fu,
++            let Some(capsule) = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
++                Arc::clone(&retained),
++                body_id,
+                 registry,
+-                interproc,
+-                dialect_opt,
+-                known,
+-                summaries,
+-            ),
++            ) else {
++                return fresh();
++            };
++            let dependencies = summary_deps_key(db, capsule, summaries, known, dialect);
++            (*proc_summary_cascade(db, lattice_key, dependencies)).clone()
+         },
+     );
+ 
+@@ -3837,6 +3582,7 @@ fn solve_checks_for_unit<'db>(
+ 
+ /// Hashable normalisation of a callee's `ConstantReturn` (`f64` isn't `Hash`/`Eq`)
+ /// for the interned [`OptDepsKey`].
++#[cfg(test)]
+ #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+ pub enum ConstReturnKey {
+     Int(i64),
+@@ -3848,6 +3594,7 @@ pub enum ConstReturnKey {
+ /// The opt-relevant projection of a direct-callee `ProcSummary` — the fields the
+ /// optimiser passes read from `cu.interproc` (O103 static-call folding + the
+ /// purity / effect gates). Hashable, so it can live in the interned [`OptDepsKey`].
++#[cfg(test)]
+ #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+ #[allow(clippy::struct_excessive_bools)] // a faithful projection of ProcSummary's fold/purity flags
+ pub struct OptCalleeSummary {
+@@ -3876,9 +3623,10 @@ pub struct OptCalleeSummary {
+     /// procedure, which the same proof takes as callable from its body. The
+     /// positions they are proved from stay out of the key, so an edit that
+     /// only moves text leaves it alone.
+-    pub defined_callees: Vec<String>,
++    pub defined_callees: Vec<tcl_compiler::ir::ProcedureId>,
+ }
+ 
++#[cfg(test)]
+ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
+     use tcl_compiler::interprocedural::ConstantReturn;
+     let mut param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)> = s
+@@ -3921,6 +3669,7 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
+     }
+ }
+ 
++#[cfg(test)]
+ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
+     use tcl_compiler::interprocedural::ConstantReturn;
+     let mut s = ProcSummary::unknown(&o.qname);
+@@ -3952,264 +3701,24 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
+     s
+ }
+ 
+-/// Interned per-procedure optimiser dependency key: the offset-0 body source (for
+-/// the optimiser's `source[span]` reads), the cross-proc resolution domain (every
+-/// module proc qname), the opt-relevant summaries of this proc's resolved direct
+-/// callees (O103 fold / purity inputs), and the module `redefined_procedures` set
+-/// (the O103 don't-fold-a-redefined-callee gate).  A body edit to an unrelated proc
+-/// whose summary this proc doesn't read leaves this key unchanged → cache hit.
+-///
+-/// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+-/// `body_source` and `proc_body_source` change on every keystroke inside the
+-/// procedure, and the memo behind a stale id holds that procedure's whole
+-/// optimisation set.  Slot reuse releases it, for `Durability::LOW` slots
+-/// interned inside a tracked query only.  See the crate docs' "The interned
+-/// garbage collector is load-bearing"; pinned by `tests/interned_gc.rs`.
++/// Original compilation owner for one body's source optimisations.
+ #[salsa::interned]
+ pub struct OptDepsKey<'db> {
+     #[returns(ref)]
+-    pub body_source: String,
+-    #[returns(ref)]
+-    pub proc_names: Vec<String>,
+-    #[returns(ref)]
+-    pub callees: Vec<OptCalleeSummary>,
+-    #[returns(ref)]
+-    pub redefined: Vec<String>,
+-    /// The procedure's `name` field exactly as the whole-module lowering records
+-    /// it — the *written* name (a fully-qualified `proc ::ns::p` keeps its `::`
+-    /// prefix; a short `proc p` inside `namespace eval` stays short). Name-bearing
+-    /// optimisation messages (e.g. O121 "tailcall for self-recursion in proc
+-    /// '<name>'") echo this verbatim, so the single-proc memo must reconstruct the
+-    /// same `proc.name` rather than deriving a short name from the qualified key.
+-    #[returns(ref)]
+-    pub proc_name: String,
+-    /// The procedure's `body_source` exactly as the whole-module lowering records
+-    /// it — the **body text only** (`args[2]`), *not* the whole-command slice used
+-    /// for `Module.source` span alignment. O122's loop-conversion rewrite
+-    /// (`emit_loop_conversion`) locates `body_source` inside the proc text and
+-    /// wraps it in `proc … { while {1} { <body> } }`, so it must be the body — a
+-    /// whole-`proc …` slice would nest the entire declaration into the replacement.
+-    #[returns(ref)]
+-    pub proc_body_source: String,
+-    /// The procedure's `params_raw` (`args[1]`) as written, so O122's replacement
+-    /// reproduces the original parameter-list text verbatim (spacing, defaults)
+-    /// rather than a `params.join(" ")` reconstruction.
+-    #[returns(ref)]
+-    pub proc_params_raw: String,
+-    #[returns(ref)]
+-    pub source_entry: tcl_compiler::command_binding::SourceAnalysisEntry,
++    pub capsule: tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule,
+ }
+ 
+-/// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
+-///
+-/// Captures **every** module proc's opt-relevant summary (the resolution domain +
+-/// fold/purity inputs).  A proc's call to a callee can come from a bare statement
+-/// *or* a `[…]` command substitution (which `direct_calls` does not record), so a
+-/// resolved-direct-callee-only key would miss an O103 fold inside a substitution.
+-/// Keying on every proc's *opt-projection* is the correct superset: it only changes
+-/// when some proc's fold/purity facts (`can_fold_static_calls` / `constant_return` /
+-/// `pure` / …) change — **not** on every body edit, since most edits leave those
+-/// summary fields untouched (a `set y 1` → `set y 2` edit re-keys only the edited
+-/// proc's own `FnLatticeKey`, not every caller's `OptDepsKey`).
+-fn opt_deps_key<'db>(
+-    db: &'db dyn TclDb,
+-    ia: &InterproceduralAnalysis,
+-    redefined: &HashSet<String>,
+-    body_source: &str,
+-    proc_name: &str,
+-    proc_body_source: &str,
+-    proc_params_raw: &str,
+-    source_entry: &tcl_compiler::command_binding::SourceAnalysisEntry,
+-) -> OptDepsKey<'db> {
+-    let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
+-    proc_names.sort();
+-    let mut callees: Vec<OptCalleeSummary> = ia
+-        .procedures
+-        .values()
+-        .map(opt_callee_from_summary)
+-        .collect();
+-    callees.sort_by(|a, b| a.qname.cmp(&b.qname));
+-    let mut redef: Vec<String> = redefined.iter().cloned().collect();
+-    redef.sort();
+-    OptDepsKey::new(
+-        db,
+-        body_source.to_owned(),
+-        proc_names,
+-        callees,
+-        redef,
+-        proc_name.to_owned(),
+-        proc_body_source.to_owned(),
+-        proc_params_raw.to_owned(),
+-        source_entry.clone(),
+-    )
+-}
+-
+-/// Memoised offset-0 raw optimisations for one procedure.
+-/// Builds a single-procedure offset-0 [`CompilationUnit`] — the proc's offset-0
+-/// `function_lattice` unit, its offset-0 IR body, and the reconstructed interproc
+-/// (domain stubs overlaid with the resolved direct callees' real opt summaries) —
+-/// and runs [`optimise_unit_raw`] on it.  Returns the **raw** (pre-overlap-select,
+-/// pre-renumber) optimisations at **offset 0**; the caller rebases by the proc's
+-/// `body_offset` and runs the whole-module [`finalise_optimisations`] over the
+-/// assembled set.  A body edit re-runs only the edited proc; an unrelated proc's
+-/// edit is a cache hit unless this proc reads its summary (a resolved direct call).
+-// LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
+ #[salsa::tracked(lru = 512, returns(clone))]
+ pub fn function_optimisations<'db>(
+     db: &'db dyn TclDb,
+     key: FnLatticeKey<'db>,
+     deps: OptDepsKey<'db>,
+ ) -> Arc<Vec<Optimisation>> {
+-    let fu = function_lattice(db, key);
+-    let qname = key.qname(db).clone();
+-    let params = key.params(db).clone();
+-    let body = key.body(db).clone();
+-    let dialect_opt = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
+-    let registry = key.snapshot(db).registry.registry();
+-    let body_source = deps.body_source(db).clone();
+-
+-    let mut ia = InterproceduralAnalysis::default();
+-    for name in deps.proc_names(db) {
+-        ia.procedures
+-            .insert(name.clone(), ProcSummary::unknown(name));
+-    }
+-    for c in deps.callees(db) {
+-        ia.procedures
+-            .insert(c.qname.clone(), opt_callee_to_summary(c));
+-    }
+-    let redefined: HashSet<String> = deps.redefined(db).iter().cloned().collect();
+-
+-    let body_len = u32::try_from(body_source.len()).unwrap_or(u32::MAX);
+-    let proc = tcl_compiler::ir::Procedure {
+-        name: deps.proc_name(db).clone(),
+-        qualified_name: qname.clone(),
+-        publication: None,
+-        declaration_site: None,
+-        body_kind: tcl_compiler::ir::ProcedureBodyKind::Named,
+-        params: params.clone(),
+-        span: tcl_lexer::Span::new(0, body_len),
+-        body,
+-        // `params_raw` / `body_source` are the *written* param-list and body text
+-        // (matching the whole-module `Procedure`), NOT the whole-command slice held
+-        // in `body_source` for `Module.source` span alignment — O122's rewrite wraps
+-        // the body verbatim, so a slice here would nest the whole `proc …`.
+-        params_raw: deps.proc_params_raw(db).clone(),
+-        body_source: Some(deps.proc_body_source(db).clone()),
+-        // The unit source here *is* the body text, so it opens at offset 0.
+-        body_offset: 0,
+-        namespace_scoped: false,
+-        base_priority: 0,
+-    };
+-
+-    let mut ir_module = tcl_compiler::ir::Module {
+-        irules_event_bodies: HashMap::new(),
+-        retained_source_bindings: None,
+-        // A body-only synthetic image lacks the complete original input owner.
+-        source_metadata_input: None,
+-        lexer_config: key.lexer_config(db),
+-        dialect_profile: dialect_opt,
+-        registry_snapshot: Some(key.snapshot(db).registry.clone()),
+-        top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
+-        source_entry: deps.source_entry(db).clone(),
+-        future_call_sites: Vec::new(),
+-        installed_procedure_body_units: Default::default(),
+-        original_declaration_body_units: Default::default(),
+-        // This synthetic unit has no retained source allocation attestation;
+-        // its procedure name cannot invent a callee implementation identity.
+-        procedure_implementation_bodies: Default::default(),
+-        source: body_source.clone().into(),
+-        native_namespace: None,
+-        // This synthetic module has no executable top-level script.
+-        // Its procedure body retains its selected namespace independently.
+-        top_level_namespace: "::".to_owned(),
+-        top_level_namespace_context: None,
+-        // The document's dialect, not `None`. The unit is synthesised, but the
+-        // release it is analysed under is real and known right here
+-        // (`dialect_opt`, which is also what `optimise_unit_raw` below is
+-        // given), so labelling the module "no release" is simply false.
+-        //
+-        // Nothing on *this* path reads it today — `Module::dialect`'s numeral
+-        // consumers (`native_integer_proof`, `common_aot_plan`) hang off the
+-        // wasm codegen pipeline, and the optimisations this path does produce
+-        // take their grammar from `dialect_opt` directly, so the folds are
+-        // correct either way (`0755 + 1` → 494 under 8.6, 756 under 9.0).
+-        // It is set correctly because a synthesised module carrying the wrong
+-        // release is a trap for the next consumer: `numbers_for_dialect(None)`
+-        // silently means Tcl 9.0, so a future reader would mis-fold rather than
+-        // fail. Cheap to keep honest, expensive to debug later.
+-        dialect: dialect_opt.map(|profile| profile.name.to_owned()),
+-        // This synthetic optimisation unit models the ordinary compiler path;
+-        // it is never a trace/mutation recovery artefact.
+-        plain_command_dispatch: false,
+-        top_level: tcl_compiler::ir::Script::new(),
+-        procedures: Default::default(),
+-        procedure_ids: Default::default(),
+-        methods: HashMap::new(),
+-        body_units: Default::default(),
+-        lambda_body_units: std::collections::BTreeSet::new(),
+-        redefined_procedures: redefined,
+-        redefined_methods: HashMap::new(),
+-        oo_unanalysed_classes: HashSet::new(),
+-        oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
+-        class_relations: Vec::new(),
+-        namespace_imports: Vec::new(),
+-        namespace_exports: Vec::new(),
+-        // Always empty/false here — the caller (`memoised_module_optimisations`)
+-        // falls back to the whole-module `optimise_unit` whenever the real
+-        // module carries any trace fact, so this per-proc offset-0 unit is
+-        // only ever built for a module with none. See that fallback's
+-        // comment for why threading these through the salsa `OptDepsKey`
+-        // instead was not the chosen fix.
+-        traced_commands: BTreeSet::new(),
+-        has_dynamic_trace: false,
+-        traced_variables: BTreeSet::new(),
+-        has_dynamic_variable_trace: false,
+-        deferred_writes: tcl_compiler::ir::DeferredWrites::default(),
+-        reference_bodies: tcl_compiler::ir::ReferenceBodies::default(),
+-        declared_frame_effects: std::collections::BTreeMap::new(),
+-    };
+-    let body_id = ir_module.retain_procedure(proc);
+-    let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
+-    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], registry, key.lexer_config(db));
+-    let mut cfg_procs = HashMap::new();
+-    cfg_procs.insert(body_id, fu.cfg.clone());
+-    let mut retained_fu = (*fu).clone();
+-    retained_fu.body_id = Some(body_id);
+-    let mut fu_procs = HashMap::new();
+-    fu_procs.insert(body_id, retained_fu);
+-    let cu = CompilationUnit {
+-        source: body_source,
+-        ir_module,
+-        cfg_module: tcl_compiler::cfg::CfgModule {
+-            top_level: empty_cfg,
+-            procedures: cfg_procs,
+-        },
+-        // This per-procedure memo path is entered only after the whole-unit
+-        // solver proves there are no command mutations.
+-        command_mutations: tcl_compiler::command_binding::ModuleCommandMutations::default(),
+-        source_class_facts: None,
+-        top_level: top_fu,
+-        procedures: fu_procs,
+-        methods: HashMap::new(),
+-        body_units: HashMap::new(),
+-        interproc: Some(ia),
+-        connection_scope: None,
+-        // A synthetic single-procedure unit: no source text of its own to
+-        // scan for boundaries, no cross-file view to inherit, and no
+-        // document of its own to carry stub declarations.
+-        caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
+-        declared_commands: deps
+-            .source_entry(db)
+-            .declared_commands
+-            .clone()
+-            .unwrap_or_default(),
+-        transfers: tcl_compiler::interprocedural::TransferSummaries::default(),
+-    };
+-    Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
+-        &cu,
+-        registry,
+-        dialect_opt,
+-    ))
++    let registry = lattice_registry(db, key);
++    let capsule = deps.capsule(db);
++    Arc::new(
++        capsule.original_body_optimisations(&registry, capsule.unit().ir_module.dialect_profile),
++    )
+ }
+ 
+ /// Whether `module` carries any whole-module trace fact (execution *or*
+@@ -4217,16 +3726,7 @@ pub fn function_optimisations<'db>(
+ /// `traced_variables` / `has_dynamic_variable_trace`) or any callback script
+ /// that writes a variable (`Module::deferred_writes`).
+ ///
+-/// The single-proc offset-0 `Module` [`function_optimisations`] builds has
+-/// no way to reconstruct these — its `OptDepsKey` threads `proc_names` /
+-/// `callees` / `redefined`, but not trace state, so a memoised per-proc
+-/// unit would silently see "nothing is traced" regardless of the real
+-/// module content. [`solve_optimisations`] falls back to the whole-module
+-/// build whenever this is `true`, exactly like its `mutations` /
+-/// `has_arg_sensitive_target` fallbacks — traces are rare enough in
+-/// practice that this costs little, and it is far lower-risk than
+-/// widening the salsa dependency key to thread four more whole-module
+-/// facts through the per-proc cache.
++/// Whole-unit trace and deferred-write obligations require a whole-unit solve.
+ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
+     !module.traced_commands.is_empty()
+         || module.has_dynamic_trace
+@@ -4288,9 +3788,24 @@ fn solve_optimisations<'db>(
+         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
+     }
+ 
+-    let ia = cu.interproc.clone().unwrap_or_default();
++    let retained = Arc::new(cu.clone());
++    let capsules: Option<HashMap<_, _>> = cu
++        .procedures
++        .keys()
++        .map(|id| {
++            tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
++                Arc::clone(&retained),
++                *id,
++                registry,
++            )
++            .map(|capsule| (*id, capsule))
++        })
++        .collect();
++    let Some(capsules) = capsules else {
++        return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
++    };
+     let redefined = &cu.ir_module.redefined_procedures;
+-    let mut raw: Vec<Optimisation> = Vec::new();
++    let mut raw = Vec::new();
+     // Each per-proc `optimise_unit_raw` allocates group ids from 0, so the procs'
+     // raw sets carry **colliding** group ids; offset each proc's groups into a
+     // disjoint range so the assembled set has unique ids (the whole-module build's
+@@ -4307,32 +3822,8 @@ fn solve_optimisations<'db>(
+         let Some(proc) = cu.ir_module.procedures.get(qname) else {
+             continue;
+         };
+-        // The offset-0 lattice normalises every span by `-proc.span.start()`
+-        // (the body offset), so the single-proc unit's `source` must be the file
+-        // sliced at `[body_offset, body_end)` — `proc.body_source` is the body text
+-        // but not necessarily at that exact base. Reading the slice keeps
+-        // `source[offset0_span]` byte-aligned with the whole-module read.
+         let body_offset = proc.span.start();
+-        let body_end = proc.span.end();
+-        let body_source = cu
+-            .source
+-            .get(body_offset as usize..body_end as usize)
+-            .unwrap_or("")
+-            .to_owned();
+-        // `body_source` (the whole-command slice) is `Module.source` for span
+-        // alignment; the proc's real `body_source` (`args[2]`) + `params_raw`
+-        // (`args[1]`) are threaded separately so O122's rewrite matches the
+-        // whole-module `Procedure` (see `OptDepsKey`).
+-        let deps = opt_deps_key(
+-            db,
+-            &ia,
+-            redefined,
+-            &body_source,
+-            &proc.name,
+-            proc.body_source.as_deref().unwrap_or(""),
+-            &proc.params_raw,
+-            &cu.ir_module.source_entry,
+-        );
++        let deps = OptDepsKey::new(db, capsules[qname].clone());
+         let mut max_group: Option<u32> = None;
+         for opt in function_optimisations(db, key, deps).iter() {
+             let mut opt = opt.clone();
+@@ -4375,64 +3866,13 @@ fn top_level_only_unit(
+     cu: &CompilationUnit,
+     redefined: &std::collections::HashSet<String>,
+ ) -> CompilationUnit {
+-    CompilationUnit {
+-        source: cu.source.clone(),
+-        ir_module: tcl_compiler::ir::Module {
+-            irules_event_bodies: HashMap::new(),
+-            retained_source_bindings: cu.ir_module.retained_source_bindings.clone(),
+-            source_metadata_input: cu.ir_module.source_metadata_input.clone(),
+-            lexer_config: cu.ir_module.lexer_config,
+-            dialect_profile: cu.ir_module.dialect_profile,
+-            registry_snapshot: cu.ir_module.registry_snapshot.clone(),
+-            top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
+-            source_entry: cu.ir_module.source_entry.clone(),
+-            future_call_sites: cu.ir_module.future_call_sites.clone(),
+-            installed_procedure_body_units: cu.ir_module.installed_procedure_body_units.clone(),
+-            original_declaration_body_units: cu.ir_module.original_declaration_body_units.clone(),
+-            procedure_implementation_bodies: cu.ir_module.procedure_implementation_bodies.clone(),
+-            source: cu.source.clone().into(),
+-            native_namespace: cu.ir_module.native_namespace.clone(),
+-            top_level_namespace: cu.ir_module.top_level_namespace.clone(),
+-            top_level_namespace_context: cu.ir_module.top_level_namespace_context.clone(),
+-            dialect: cu.ir_module.dialect.clone(),
+-            plain_command_dispatch: cu.ir_module.plain_command_dispatch,
+-            top_level: cu.ir_module.top_level.clone(),
+-            procedures: Default::default(),
+-            procedure_ids: cu.ir_module.procedure_ids.clone(),
+-            methods: HashMap::new(),
+-            body_units: Default::default(),
+-            lambda_body_units: std::collections::BTreeSet::new(),
+-            redefined_procedures: redefined.clone(),
+-            redefined_methods: HashMap::new(),
+-            oo_unanalysed_classes: HashSet::new(),
+-            oo_evidence: tcl_compiler::ir::OoDefinitionEvidence::default(),
+-            class_relations: Vec::new(),
+-            namespace_imports: Vec::new(),
+-            namespace_exports: Vec::new(),
+-            traced_commands: cu.ir_module.traced_commands.clone(),
+-            has_dynamic_trace: cu.ir_module.has_dynamic_trace,
+-            traced_variables: cu.ir_module.traced_variables.clone(),
+-            has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+-            deferred_writes: cu.ir_module.deferred_writes.clone(),
+-            reference_bodies: cu.ir_module.reference_bodies.clone(),
+-            declared_frame_effects: cu.ir_module.declared_frame_effects.clone(),
+-        },
+-        cfg_module: tcl_compiler::cfg::CfgModule {
+-            top_level: cu.cfg_module.top_level.clone(),
+-            procedures: HashMap::new(),
+-        },
+-        command_mutations: cu.command_mutations.clone(),
+-        source_class_facts: cu.source_class_facts.clone(),
+-        top_level: cu.top_level.clone(),
+-        procedures: HashMap::new(),
+-        methods: HashMap::new(),
+-        body_units: HashMap::new(),
+-        interproc: cu.interproc.clone(),
+-        connection_scope: None,
+-        caller_scope: cu.caller_scope.clone(),
+-        declared_commands: cu.declared_commands.clone(),
+-        transfers: cu.transfers.clone(),
+-    }
++    let mut selected = cu.clone();
++    selected.procedures.clear();
++    selected.methods.clear();
++    selected.body_units.clear();
++    selected.cfg_module.procedures.clear();
++    selected.ir_module.redefined_procedures = redefined.clone();
++    selected
+ }
+ 
+ /// Interned complete-document lexer policy for the resolved environment.
+@@ -8655,43 +8095,66 @@ p\uD801 ordinary";
+             file.text(db),
+             unit_build_options(db, file, cfg, registry, None, &declared),
+         );
+-        let known: HashSet<_> = cu.ir_module.procedures.unique_displays().cloned().collect();
+-        let mut summaries: HashMap<_, _> = known
++        let known: HashSet<_> = cu.ir_module.procedures.keys().copied().collect();
++        let mut summaries: HashMap<_, _> = cu
++            .ir_module
++            .procedures
+             .iter()
+-            .map(|name| (name.clone(), ReturnTaintSummary::untainted(name, &[])))
++            .map(|(id, procedure)| {
++                (
++                    *id,
++                    ReturnTaintSummary::untainted(&procedure.qualified_name, &procedure.params),
++                )
++            })
+             .collect();
++        let provider_id = *cu
++            .ir_module
++            .procedures
++            .unique_display("::producer")
++            .expect("fixture retains one actual provider declaration")
++            .0;
++        let caller_id = *cu
++            .ir_module
++            .procedures
++            .unique_display(&caller)
++            .expect("fixture retains one actual caller declaration")
++            .0;
+         let provider = tcl_compiler::taint_interproc::infer_proc_summary(
+-            "::producer",
+-            &[],
+-            cu.function("::producer")
+-                .expect("actual provider source unit"),
++            &cu,
++            provider_id,
+             registry,
+             cu.interproc.as_ref(),
+             tcl_lsp_core::stated_profile_for_dialect(dialect),
+             &known,
+             &summaries,
+-        );
+-        summaries.insert("::producer".to_owned(), provider.clone());
+-        let body = cu.ir_module.procedures[&caller]
++        )
++        .expect("actual provider source unit");
++        summaries.insert(provider_id, provider.clone());
++        let body = cu
++            .ir_module
++            .procedures
++            .get(&caller_id)
++            .unwrap()
+             .body_source
+-            .as_deref()
++            .clone()
+             .expect("actual caller source body");
+-        let dependencies = summary_deps_key(
+-            db,
+-            &caller,
+-            cu.function(&caller).expect("actual caller source unit"),
+-            Some(body),
+-            cu.interproc.as_ref(),
+-            &summaries,
+-            &known,
+-            dialect,
+-        );
+-        let summary = proc_summary_cascade(db, keys[&caller], dependencies);
++        let capsule = tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
++            Arc::new(cu),
++            caller_id,
++            registry,
++        )
++        .expect("actual current compiler owners");
++        let dependencies = summary_deps_key(db, capsule, &summaries, &known, dialect);
++        let summary = proc_summary_cascade(db, keys[&caller_id], dependencies);
+         SummaryDependencyProbe {
+             caller_name: caller,
+-            caller_body: body.to_owned(),
++            caller_body: body,
+             provider,
+-            dependencies: dependencies.callee_summaries(db).clone(),
++            dependencies: dependencies
++                .callee_summaries(db)
++                .iter()
++                .map(|(_, summary)| summary.clone())
++                .collect(),
+             caller: (*summary).clone(),
+         }
+     }

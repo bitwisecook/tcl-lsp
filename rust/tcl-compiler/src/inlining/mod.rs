@@ -90,9 +90,40 @@ use crate::ir::{
     TryHandler,
 };
 use crate::var_escape::ProcEscapeSummary;
-use crate::var_escape::interprocedural::resolve_callee;
 use tcl_registry::CommandRegistry;
 use tcl_syntax::word_rules::WordValueRules;
+
+struct InliningSummaries<'a> {
+    module: &'a Module,
+    registry: &'a CommandRegistry,
+    escapes: &'a HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+}
+
+impl InliningSummaries<'_> {
+    fn get(&self, id: &crate::ir::ProcedureId) -> Option<&ProcEscapeSummary> {
+        self.escapes.get(&tcl_core_types::BodyFrameId::Body(*id))
+    }
+    fn selected_body(&self, tokens: &CommandTokens) -> Option<crate::ir::ProcedureId> {
+        let calls = crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            self.module,
+            self.registry,
+        )?;
+        let first = calls.first()?;
+        if !first.accepts_arguments()
+            || !first.effective_arguments().binding_prefix.is_empty()
+            || !calls.iter().all(|call| {
+                call.id() == first.id()
+                    && call.accepts_arguments()
+                    && call.effective_arguments() == first.effective_arguments()
+            })
+        {
+            return None;
+        }
+        let written = tokens.words().get(1..)?;
+        (first.effective_arguments().words.get(1..)? == written).then_some(first.id())
+    }
+}
 
 /// Per-proc inlining policy decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +157,7 @@ const MAX_INLINING_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::
 #[derive(Debug, Clone)]
 struct ProcedureDefinitionIdentity {
     name: String,
+    namespace: String,
     parameters: String,
     body: String,
 }
@@ -172,6 +204,12 @@ impl InlineSpec {
 fn procedure_definition(proc: &Procedure) -> Option<ProcedureDefinitionIdentity> {
     Some(ProcedureDefinitionIdentity {
         name: proc.qualified_name.clone(),
+        namespace: proc
+            .body
+            .namespace_context
+            .as_ref()?
+            .advisory_key()?
+            .to_owned(),
         parameters: proc.params_raw.clone(),
         body: proc.body_source.clone()?,
     })
@@ -248,45 +286,29 @@ fn count_one(stmt: &Statement) -> usize {
 /// interprocedural pass uses) to a known proc contributes `+1`.
 fn count_static_calls(
     module: &Module,
-    summaries: &HashMap<String, ProcEscapeSummary>,
-) -> HashMap<String, usize> {
-    let mut counts: HashMap<String, usize> = module
-        .procedures
-        .unique_displays()
-        .map(|q| (q.clone(), 0))
-        .collect();
-    let top_caller = namespace_caller_key(&module.top_level_namespace);
-    tally_calls(
-        &module.top_level,
-        &top_caller,
-        &top_caller,
-        summaries,
-        &mut counts,
-        0,
-    );
-    for (qname, proc) in module.procedures.display_entries() {
-        let root_ns = root_namespace_of(qname);
-        tally_calls(&proc.body, &root_ns, qname, summaries, &mut counts, 0);
+    summaries: &InliningSummaries<'_>,
+) -> HashMap<crate::ir::ProcedureId, usize> {
+    let mut counts: HashMap<_, _> = module.procedures.keys().map(|id| (*id, 0)).collect();
+    for body in
+        std::iter::once(&module.top_level).chain(module.procedures.values().map(|proc| &proc.body))
+    {
+        crate::ir::for_each_statement(body, &mut |statement| {
+            if let Statement::Call {
+                tokens: Some(tokens),
+                ..
+            } = statement
+                && let Some(id) = summaries.selected_body(tokens)
+                && let Some(count) = counts.get_mut(&id)
+            {
+                *count += 1;
+            }
+        });
     }
     counts
 }
 
-/// Synthetic command owner whose parent is the exact namespace in which a
-/// script target resolves commands.
-///
-/// The shared interprocedural resolver accepts a procedure-shaped owner key,
-/// not a namespace by itself. Runtime script compilation has no owning
-/// procedure, so retain its explicit constructed namespace by appending one
-/// inert tail segment. Root scripts keep the established `::` key.
-fn namespace_caller_key(namespace: &str) -> String {
-    if namespace.is_empty() || namespace == "::" {
-        "::".to_owned()
-    } else {
-        format!("{namespace}::__inline_script__")
-    }
-}
-
 /// Procedure-body namespace label in the authored inlining model.
+#[cfg(test)]
 fn root_namespace_of(qname: &str) -> String {
     tcl_syntax::naming::reported_qname_namespace(
         qname,
@@ -296,96 +318,6 @@ fn root_namespace_of(qname: &str) -> String {
 
 /// `depth` is the nesting level of `script` — see
 /// [`MAX_INLINING_WALK_DEPTH`].
-fn tally_calls(
-    script: &Script,
-    ns: &str,
-    caller_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
-    counts: &mut HashMap<String, usize>,
-    depth: u32,
-) {
-    if MAX_INLINING_WALK_DEPTH.exceeded(depth) {
-        return;
-    }
-    for stmt in &script.statements {
-        match stmt {
-            Statement::Call { command, .. } => {
-                let mut target = resolve_callee(command, ns, summaries);
-                if target.is_none() && ns != caller_qname {
-                    target = resolve_callee(command, caller_qname, summaries);
-                }
-                if let Some(t) = target
-                    && let Some(c) = counts.get_mut(&t)
-                {
-                    *c += 1;
-                }
-            }
-            Statement::Block {
-                body, namespace, ..
-            } => {
-                let inner = if namespace.is_empty() {
-                    "::"
-                } else {
-                    namespace
-                };
-                tally_calls(body, inner, caller_qname, summaries, counts, depth + 1);
-            }
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    tally_calls(&c.body, ns, caller_qname, summaries, counts, depth + 1);
-                }
-                if let Some(b) = else_body {
-                    tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
-                }
-            }
-            Statement::For {
-                init, next, body, ..
-            } => {
-                tally_calls(init, ns, caller_qname, summaries, counts, depth + 1);
-                tally_calls(next, ns, caller_qname, summaries, counts, depth + 1);
-                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
-            }
-            Statement::While { body, .. }
-            | Statement::Foreach { body, .. }
-            | Statement::Catch { body, .. }
-            | Statement::UpFrame { body, .. } => {
-                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
-            }
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                tally_calls(body, ns, caller_qname, summaries, counts, depth + 1);
-                for h in handlers {
-                    tally_calls(&h.body, ns, caller_qname, summaries, counts, depth + 1);
-                }
-                if let Some(fb) = finally_body {
-                    tally_calls(fb, ns, caller_qname, summaries, counts, depth + 1);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
-                    }
-                }
-                if let Some(b) = default_body {
-                    tally_calls(b, ns, caller_qname, summaries, counts, depth + 1);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-// policy
-
 /// Apply the inlining policy to a single proc. A proc is inlinable only if
 /// its escape summary is pure-leaf (`safe_to_inline`); among that set,
 /// size and static-call-count decide between [`InlineDecision::Always`]
@@ -420,13 +352,14 @@ pub fn classify_proc(
 /// builtin).
 fn command_is_namespace_invariant(
     command: &str,
-    callee_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    _callee_qname: &str,
+    tokens: &CommandTokens,
+    summaries: &InliningSummaries<'_>,
 ) -> bool {
     if command.starts_with("::") {
         return true;
     }
-    resolve_callee(command, callee_qname, summaries).is_none()
+    summaries.selected_body(tokens).is_none()
 }
 
 /// True iff `stmt` can be lifted out of the wrapper proc and spliced into
@@ -434,7 +367,7 @@ fn command_is_namespace_invariant(
 fn stmt_is_splice_eligible(
     stmt: &Statement,
     callee_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    summaries: &InliningSummaries<'_>,
     source: frame::SourceContext<'_>,
 ) -> bool {
     let Statement::Call {
@@ -450,7 +383,7 @@ fn stmt_is_splice_eligible(
         return false;
     };
     defs.is_empty()
-        && command_is_namespace_invariant(command, callee_qname, summaries)
+        && command_is_namespace_invariant(command, callee_qname, tokens, summaries)
         && tcl_registry::traits::is_splice_safe(invocation.facts.traits)
         && crate::word_subst::checked_lifted_calls(tokens, source.config)
             .is_some_and(|calls| calls.is_empty())
@@ -462,7 +395,7 @@ fn stmt_is_splice_eligible(
 fn v3_eligible(
     proc: &Procedure,
     qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    summaries: &InliningSummaries<'_>,
     source: frame::SourceContext<'_>,
 ) -> bool {
     if has_irreturn_in_unsafe_scope(&proc.body, false, 0) {
@@ -583,7 +516,7 @@ fn has_irreturn_in_unsafe_scope(script: &Script, inside_unsafe: bool, depth: u32
 fn v3_stmt_eligible(
     stmt: &Statement,
     callee_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    summaries: &InliningSummaries<'_>,
     source: frame::SourceContext<'_>,
 ) -> bool {
     match stmt {
@@ -657,7 +590,7 @@ fn v3_stmt_eligible(
 fn v3_script_eligible(
     script: &Script,
     callee_qname: &str,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    summaries: &InliningSummaries<'_>,
     source: frame::SourceContext<'_>,
 ) -> bool {
     if crate::native_compilation_admission::script_requires_admission(script) {
@@ -682,9 +615,9 @@ fn v3_script_eligible(
 /// this pass does not perform. Redefined procs are never inlined.
 fn build_inlinable_map(
     module: &Module,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    summaries: &InliningSummaries<'_>,
     registry: &CommandRegistry,
-) -> HashMap<String, InlineSpec> {
+) -> HashMap<crate::ir::ProcedureId, InlineSpec> {
     // The transform binds ordinary positional cells, ordered defaults and a
     // final rest slot. Name-only Jim headers cannot issue that activation;
     // unknown axes preserve dispatch instead of borrowing C Tcl binding.
@@ -700,16 +633,16 @@ fn build_inlinable_map(
     // holds the module.
     let word_rules = WordValueRules::from_config(&module.lexer_config);
     let mut map = HashMap::new();
-    for (qname, proc) in module.procedures.display_entries() {
-        if module.procedures.unique_display(qname).is_none()
-            || module.redefined_procedures.contains(qname)
+    for (id, proc) in &module.procedures {
+        let qname = &proc.qualified_name;
+        if module.redefined_procedures.contains(qname)
             || !source.matches_procedure(proc)
             || crate::native_compilation_admission::script_requires_admission(&proc.body)
         {
             continue;
         }
-        let count = counts.get(qname).copied().unwrap_or(0);
-        if classify_proc(proc, summaries.get(qname), count) != InlineDecision::Always {
+        let count = counts.get(id).copied().unwrap_or(0);
+        if classify_proc(proc, summaries.get(id), count) != InlineDecision::Always {
             continue;
         }
         // Every binding strategy uses the same selected strict ParamList
@@ -741,7 +674,7 @@ fn build_inlinable_map(
 
         // v0 — empty body.
         if proc.body.statements.is_empty() {
-            map.insert(qname.clone(), InlineSpec::Empty(definition, source.config));
+            map.insert(*id, InlineSpec::Empty(definition, source.config));
             continue;
         }
 
@@ -754,7 +687,7 @@ fn build_inlinable_map(
                 .all(|s| stmt_is_splice_eligible(s, qname, summaries, source))
         {
             map.insert(
-                qname.clone(),
+                *id,
                 InlineSpec::Verbatim(proc.body.clone(), definition, source.config),
             );
             continue;
@@ -763,7 +696,7 @@ fn build_inlinable_map(
         // v3 — parameterised inline with α-renaming.
         if v3_eligible(proc, qname, summaries, source) {
             map.insert(
-                qname.clone(),
+                *id,
                 InlineSpec::Parameterised(proc.clone(), word_rules, source.config),
             );
         }
@@ -890,20 +823,21 @@ fn inline_procedures(
     registry: &CommandRegistry,
     scope: &Inlining<'_>,
 ) -> Module {
-    let summaries = crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
-    let mut inlinable = build_inlinable_map(&module, &summaries, registry);
-    inlinable.retain(|qname, _| {
-        module
-            .procedures
-            .unique_display(qname)
-            .is_some_and(|(id, _)| scope.admits(id))
-    });
+    let catalogue = module.clone();
+    let escape = crate::var_escape::analyse_var_escape_with_registry(&catalogue, true, registry);
+    let summaries = InliningSummaries {
+        module: &catalogue,
+        registry,
+        escapes: &escape,
+    };
+    let mut inlinable = build_inlinable_map(&catalogue, &summaries, registry);
+    inlinable.retain(|id, _| scope.admits(id));
     if inlinable.is_empty() {
         return module;
     }
 
     let mut counter: usize = 0;
-    let top_caller = namespace_caller_key(&module.top_level_namespace);
+    let top_caller = module.top_level_namespace.clone();
     if let Some(may_be_global_frame) = scope.top_level(&module) {
         let (new_top, _) = rewrite_script(
             &module.top_level,
@@ -922,9 +856,17 @@ fn inline_procedures(
         if matches!(scope, Inlining::Only(names) if names.contains(qname)) {
             continue;
         }
+        let Some(caller_namespace) = proc
+            .body
+            .namespace_context
+            .as_deref()
+            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
+        else {
+            continue;
+        };
         let (new_body, changed) = rewrite_script(
             &proc.body,
-            &proc.qualified_name,
+            &caller_namespace,
             &inlinable,
             &summaries,
             &mut counter,
@@ -955,8 +897,8 @@ fn inline_procedures(
 fn rewrite_script(
     script: &Script,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     tail: Tail,
     caller_may_be_global_frame: bool,
@@ -1012,15 +954,18 @@ fn rewrite_script(
 fn rewrite_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     site: Site,
     caller_may_be_global_frame: bool,
 ) -> Option<InlineExpansion> {
     match stmt {
-        Statement::Call { command, .. } => {
-            let target = resolve_callee(command, caller_qname, summaries)?;
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } => {
+            let target = summaries.selected_body(tokens)?;
             // A procedure invocation normally creates a frame in its defining
             // namespace. Inlining erases that frame. If a preceding command in
             // the copied body mutates a later specialised command, the VM
@@ -1030,12 +975,20 @@ fn rewrite_stmt(
             // Keep the original procedure call whenever a module-level caller
             // may occupy frame zero and the callee belongs to another namespace.
             if caller_may_be_global_frame
-                && root_namespace_of(&target) != root_namespace_of(caller_qname)
+                && summaries
+                    .module
+                    .procedures
+                    .get(&target)?
+                    .body
+                    .namespace_context
+                    .as_ref()?
+                    .advisory_key()?
+                    != caller_qname
             {
                 return None;
             }
             let spec = inlinable.get(&target)?;
-            splice_call_site(stmt, spec, &root_namespace_of(caller_qname), counter, site)
+            splice_call_site(stmt, spec, caller_qname, counter, site)
         }
         Statement::Block { .. } => rewrite_block_stmt(
             stmt,
@@ -1110,8 +1063,8 @@ fn rewrite_stmt(
 fn rewrite_block_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     tail: Tail,
     caller_may_be_global_frame: bool,
@@ -1127,7 +1080,7 @@ fn rewrite_block_stmt(
         return None;
     };
     let inner_caller = if !namespace.is_empty() && namespace != "::" {
-        format!("{namespace}::__inblock__")
+        namespace.to_owned()
     } else {
         caller_qname.to_owned()
     };
@@ -1168,8 +1121,8 @@ fn ends_in_a_branch(script: &Script) -> bool {
 fn rewrite_arm(
     body: &Script,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     tail: Tail,
     caller_may_be_global_frame: bool,
@@ -1195,8 +1148,8 @@ fn rewrite_arm(
 fn rewrite_if_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     tail: Tail,
     caller_may_be_global_frame: bool,
@@ -1268,8 +1221,8 @@ fn rewrite_if_stmt(
 fn rewrite_for_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
@@ -1342,8 +1295,8 @@ fn rewrite_for_stmt(
 fn rewrite_single_body_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
@@ -1430,8 +1383,8 @@ fn rewrite_single_body_stmt(
 fn rewrite_foreach_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
@@ -1484,8 +1437,8 @@ fn rewrite_foreach_stmt(
 fn rewrite_try_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     caller_may_be_global_frame: bool,
 ) -> Option<Vec<Statement>> {
@@ -1573,8 +1526,8 @@ fn rewrite_try_stmt(
 fn rewrite_switch_stmt(
     stmt: &Statement,
     caller_qname: &str,
-    inlinable: &HashMap<String, InlineSpec>,
-    summaries: &HashMap<String, ProcEscapeSummary>,
+    inlinable: &HashMap<crate::ir::ProcedureId, InlineSpec>,
+    summaries: &InliningSummaries<'_>,
     counter: &mut usize,
     tail: Tail,
     caller_may_be_global_frame: bool,
@@ -1723,7 +1676,7 @@ fn splice_call_site(
     };
     let span = *span;
     let definition = spec.definition();
-    let defined_in = root_namespace_of(&definition.name);
+    let defined_in = definition.namespace.clone();
     let foreign = resolution_namespace != defined_in;
     // A definition in a namespace of its own resolved each command it names there
     // first and in the global namespace after it. No spelling says that to a

@@ -41,6 +41,10 @@
 //! (see `mod skipped_divergences`); the only genuine one is `ceil`/`floor`,
 //! where the pass infers `Int` but `tclsh` proves the value is a `Double`.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::collections::HashMap;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -58,7 +62,7 @@ fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
         &cu.top_level
     } else {
         cu.procedures
-            .get(qname)
+            .get(&fixture_id(&cu.procedures, qname))
             .unwrap_or_else(|| panic!("procedure {qname} not found"))
     };
     let mut out = HashMap::new();
@@ -787,7 +791,7 @@ proc wire_namespace_vars {} {
     // The proc unit exists and carries a (possibly empty) type map.
     let fu = cu
         .procedures
-        .get("::wire_namespace_vars")
+        .get(&fixture_id(&cu.procedures, "::wire_namespace_vars"))
         .expect("proc ::wire_namespace_vars built");
     // Accessing `types` proves the map is present and the build did not panic.
     let _ = fu.types.len();

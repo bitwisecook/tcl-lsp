@@ -60,20 +60,17 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 
     // Partition procs: event handlers (`::when::*`) vs user procs.
-    let mut event_procs: HashSet<String> = HashSet::new();
+    let mut event_procs: HashSet<crate::ir::ProcedureId> = HashSet::new();
     let mut event_names: HashSet<String> = HashSet::new();
-    let mut user_procs: Vec<String> = Vec::new();
+    let mut user_procs: Vec<crate::ir::ProcedureId> = Vec::new();
 
-    for (_, procedure) in ir_module.procedures.iter() {
+    for (id, procedure) in ir_module.procedures.iter() {
         let qname = &procedure.qualified_name;
-        if ir_module.procedures.unique_display(qname).is_none() {
-            return;
-        }
         if procedure.body_kind == crate::ir::ProcedureBodyKind::Event {
-            event_procs.insert(qname.clone());
+            event_procs.insert(*id);
             event_names.insert(when_event_name(qname).to_owned());
         } else {
-            user_procs.push(qname.clone());
+            user_procs.push(*id);
         }
     }
 
@@ -103,14 +100,14 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 
     // Report user procs not reachable from any event.
-    let mut unused: Vec<&String> = user_procs
+    let mut unused: Vec<&crate::ir::ProcedureId> = user_procs
         .iter()
         .filter(|q| !reachable.contains(*q))
         .collect();
     unused.sort();
 
     for qname in unused {
-        let Some(ir_proc) = ir_module.procedures.get_unique_display(qname) else {
+        let Some(ir_proc) = ir_module.procedures.get(qname) else {
             continue;
         };
         let span = full_rewrite_span(ctx.source, ir_proc.span);
@@ -141,11 +138,11 @@ fn is_library_irule(event_names: &HashSet<String>) -> bool {
 }
 
 fn reachable_procs(
-    roots: &HashSet<String>,
+    roots: &HashSet<crate::ir::ProcedureId>,
     interproc: &crate::interprocedural::InterproceduralAnalysis,
-) -> HashSet<String> {
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut stack: Vec<String> = roots.iter().cloned().collect();
+) -> HashSet<crate::ir::ProcedureId> {
+    let mut visited: HashSet<crate::ir::ProcedureId> = HashSet::new();
+    let mut stack: Vec<crate::ir::ProcedureId> = roots.iter().cloned().collect();
     while let Some(current) = stack.pop() {
         if !visited.insert(current.clone()) {
             continue;

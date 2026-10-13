@@ -71,6 +71,10 @@
 //! selects is the carrier of that computed value and is what the structural
 //! assertion pins, with the value itself proven against tclsh.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use std::collections::HashMap;
 
 mod common;
@@ -124,9 +128,10 @@ fn proc_asm(source: &str, qname: &str) -> FunctionAsm {
     let ir = lower_to_ir(source, &reg);
     let cfg = build_cfg(&ir, false);
     let mut module = codegen_module(&cfg, &ir, &reg);
+    let id = fixture_id(&ir.procedures, qname);
     module
         .procedures
-        .remove(qname)
+        .remove(&id)
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 
@@ -1056,7 +1061,7 @@ fn module_dispatch_emits_proc_and_top_level() {
     let cfg = build_cfg(&ir, false);
     let m = codegen_module(&cfg, &ir, &reg);
     assert!(
-        m.procedures.contains_key("::foo"),
+        fixture_id_if_present(&m.procedures, "::foo").is_some(),
         "proc emitted: {:?}",
         m.procedures.keys()
     );
@@ -1067,7 +1072,13 @@ fn module_dispatch_emits_proc_and_top_level() {
         "top-level ends with done"
     );
     assert_eq!(
-        m.procedures["::foo"].instructions.last().unwrap().op,
+        m.procedures
+            .get(&fixture_id(&m.procedures, "::foo"))
+            .expect("authored fixture body")
+            .instructions
+            .last()
+            .unwrap()
+            .op,
         Op::DONE,
         "the proc body ends with done"
     );

@@ -64,6 +64,13 @@
 //! make a write observable in another frame — that scoping behaviour is
 //! confirmed with tclsh and cited next to the structural assertion.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+#[path = "support/escape_identity.rs"]
+mod escape_identity;
+use body_identity::fixture_id;
+use escape_identity::FixtureEscapes;
+
 use std::collections::HashMap;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -91,31 +98,34 @@ fn registry() -> &'static CommandRegistry {
 
 /// IR-walk escape summaries (the inliner's path). `ipa=true` folds the
 /// interprocedural fixpoint and `pure_leaf` propagation.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> FixtureEscapes {
     let module = lower_to_ir(src, registry());
-    analyse_var_escape(&module, true)
+    let summaries = analyse_var_escape(&module, true);
+    FixtureEscapes::new(module, summaries)
 }
 
 /// IR-walk escape summaries with the interprocedural pass *off* — the raw
 /// per-proc intraprocedural result.
-fn escape_ir_raw(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir_raw(src: &str) -> FixtureEscapes {
     let module = lower_to_ir(src, registry());
-    analyse_var_escape(&module, false)
+    let summaries = analyse_var_escape(&module, false);
+    FixtureEscapes::new(module, summaries)
 }
 
 /// CFG/SSA escape summaries (codegen's frame-analysis path).
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_cu(src: &str) -> FixtureEscapes {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, true)
+    let summaries = analyse_var_escape_cu(&cu, true);
+    FixtureEscapes::new(cu.ir_module, summaries)
 }
 
 /// Fetch the summary for a proc qname, panicking with the available keys
 /// if it is missing.
-fn summary<'a>(map: &'a HashMap<String, ProcEscapeSummary>, qname: &str) -> &'a ProcEscapeSummary {
+fn summary<'a>(map: &'a FixtureEscapes, qname: &str) -> &'a ProcEscapeSummary {
     map.get(qname).unwrap_or_else(|| {
         panic!(
             "summary for {qname} not found; keys = {:?}",
-            map.keys().collect::<Vec<_>>()
+            map.summaries.keys().collect::<Vec<_>>()
         )
     })
 }
@@ -128,7 +138,7 @@ fn infer_type(src: &str, qname: &str, var: &str) -> Option<TclType> {
         &cu.top_level
     } else {
         cu.procedures
-            .get(qname)
+            .get(&fixture_id(&cu.procedures, qname))
             .unwrap_or_else(|| panic!("procedure {qname} not found"))
     };
     fu.types
@@ -475,17 +485,27 @@ fn solve_interprocedural_escape_on_synthetic_summaries() {
         upvar_source_names: sources.iter().map(|s| (*s).to_string()).collect(),
         ..Default::default()
     };
-    let mut input: HashMap<String, ProcEscapeSummary> = HashMap::new();
-    input.insert("::a".into(), mk(&["::b"], &[]));
-    input.insert("::b".into(), mk(&["::c"], &[]));
-    input.insert("::c".into(), mk(&[], &["shared"]));
-    let out = solve_interprocedural_escape(&input);
-    // The transitive source flows up the whole a → b → c chain.
-    assert!(out["::a"].upvar_source_names.contains("shared"));
-    assert!(out["::b"].upvar_source_names.contains("shared"));
-    assert!(out["::c"].upvar_source_names.contains("shared"));
-    // Empty input round-trips to empty.
-    assert!(solve_interprocedural_escape(&HashMap::<String, ProcEscapeSummary>::new()).is_empty());
+    let issuer = tcl_core_types::ProcedureIdIssuer::default();
+    let a = tcl_core_types::BodyFrameId::Body(issuer.allocate());
+    let b = tcl_core_types::BodyFrameId::Body(issuer.allocate());
+    let c = tcl_core_types::BodyFrameId::Body(issuer.allocate());
+    let input = HashMap::from([
+        (a, mk(&["::b"], &[])),
+        (b, mk(&["::c"], &[])),
+        (c, mk(&[], &["shared"])),
+    ]);
+    let graph = tcl_compiler::var_escape::EscapeCallGraph::from_edges([(a, b), (b, c)], []);
+    let out = solve_interprocedural_escape(&input, &graph);
+    assert!(out[&a].upvar_source_names.contains("shared"));
+    assert!(out[&b].upvar_source_names.contains("shared"));
+    assert!(out[&c].upvar_source_names.contains("shared"));
+    assert!(
+        solve_interprocedural_escape(
+            &HashMap::new(),
+            &tcl_compiler::var_escape::EscapeCallGraph::default()
+        )
+        .is_empty()
+    );
 }
 
 // var_escape: CFG/SSA path (analyse_var_escape_cu)
@@ -557,8 +577,12 @@ fn assign_local_slots_direct_api() {
     // its summary — the public slot-resolution entry point.
     let module = lower_to_ir("proc ::q {p1} { set m 1\n set n 2 }", registry());
     let summaries = analyse_var_escape(&module, true);
-    let proc = module.procedures.get("::q").expect("proc ::q lowered");
-    let summ = summary(&summaries, "::q");
+    let proc = module
+        .procedures
+        .get(&fixture_id(&module.procedures, "::q"))
+        .expect("proc ::q lowered");
+    let summ =
+        &summaries[&tcl_core_types::BodyFrameId::Body(fixture_id(&module.procedures, "::q"))];
     let slots = assign_local_slots(&proc.body, summ, &proc.params);
     assert_eq!(slots.get("p1"), Some(&0), "param claims slot 0");
     assert_eq!(slots.get("m"), Some(&1));
@@ -925,7 +949,10 @@ fn scope_alias_def_widens_to_overdefined() {
         registry(),
         false,
     );
-    let fu = cu.procedures.get("::f").expect("proc ::f");
+    let fu = cu
+        .procedures
+        .get(&fixture_id(&cu.procedures, "::f"))
+        .expect("proc ::f");
     let widened = fu
         .types
         .iter()
@@ -941,7 +968,10 @@ fn scope_alias_def_widens_to_overdefined() {
 fn global_alias_def_widens_to_overdefined() {
     // `global g` likewise imports an external intrep → Overdefined.
     let cu = CompilationUnit::build_for("proc ::f {} { global g\n return $g }", registry(), false);
-    let fu = cu.procedures.get("::f").expect("proc ::f");
+    let fu = cu
+        .procedures
+        .get(&fixture_id(&cu.procedures, "::f"))
+        .expect("proc ::f");
     let widened = fu
         .types
         .iter()

@@ -71,6 +71,9 @@ mod jim_table_key_tests;
 mod jim_table_keys;
 mod jim_teardown;
 mod namespace_stack;
+mod native_alias_registration;
+#[cfg(test)]
+mod native_alias_registration_tests;
 mod native_append;
 #[cfg(test)]
 mod native_bootstrap;
@@ -6702,27 +6705,10 @@ impl Vm {
             },
             None => self.cur,
         };
-        let mut names = self.in_interp(id, |vm| {
-            vm.commands
-                .values()
-                .filter_map(|command| match command {
-                    Command::Alias {
-                        publication_name, ..
-                    }
-                    | Command::CrossAlias {
-                        publication_name, ..
-                    } => Some(publication_name.clone()),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        });
-        names.sort();
-        ok(Value::list(
-            names
-                .into_iter()
-                .map(|name| Value::from_native_string_bytes(name.as_bytes()))
-                .collect(),
-        ))
+        match self.in_interp(id, Vm::original_alias_registration_names) {
+            Ok(names) => ok(Value::list(names)),
+            Err(error) => crate::command::completion_from_cmd_error(self, error),
+        }
     }
 
     fn interp_alias_at(
@@ -6806,12 +6792,14 @@ impl Vm {
                     Command::Alias {
                         words: Rc::clone(&words),
                         publication_name,
+                        registration_name: src_cmd.clone(),
                     }
                 } else {
                     Command::CrossAlias {
                         target,
                         words: Rc::clone(&words),
                         publication_name,
+                        registration_name: src_cmd.clone(),
                     }
                 };
                 let report = vm
@@ -6838,7 +6826,7 @@ impl Vm {
                     vm.note_alias_backref(&key, target);
                 }
                 let token = if selected
-                    .alias_registration_replacement_key()
+                    .alias_registration_key()
                     .map_err(|_| {
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "original alias registration purpose",
@@ -6908,6 +6896,17 @@ impl Vm {
             return err(message);
         }
         if let Some(published_token) = published_token {
+            if producer.recipe()
+                != tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_4)
+            {
+                let registered = self.in_interp(src, |vm| {
+                    vm.complete_modern_alias_registration(src_cmd, published_token.generation)
+                });
+                return match self.original_name_outcome(original_name_scope, registered) {
+                    Ok(name) => ok(name),
+                    Err(error) => crate::command::completion_from_cmd_error(self, error),
+                };
+            }
             let registration = self.in_interp(src, |vm| {
                 let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
                     vm,
@@ -9562,6 +9561,45 @@ impl Vm {
             Err(error) => return crate::command::completion_from_cmd_error(self, error),
         };
         match sub {
+            "alias" => match rest {
+                [alias] => self.alias_query_at(id, alias),
+                [alias, target, arguments @ ..] => {
+                    let bytes = match original_name_scope.read(self, target) {
+                        Ok(bytes) => bytes,
+                        Err(error) => {
+                            return crate::command::completion_from_cmd_error(self, error);
+                        }
+                    };
+                    let Some(recipe) = self.name_policy_protocol().map(|policy| policy.recipe())
+                    else {
+                        return self
+                            .refuse_host_command("original child alias target issuer".into());
+                    };
+                    if recipe.child_alias_pretested_target_is_empty(&bytes) == Some(true) {
+                        if arguments.is_empty() {
+                            self.alias_delete_at(id, alias)
+                        } else {
+                            self.child_wrong_arguments(
+                                name,
+                                b"alias aliasName ?targetName? ?arg ...?",
+                            )
+                        }
+                    } else {
+                        let mut words = vec![target.clone()];
+                        words.extend_from_slice(arguments);
+                        self.interp_alias_at(id, alias, self.cur, words)
+                    }
+                }
+                _ => self.child_wrong_arguments(name, b"alias aliasName ?targetName? ?arg ...?"),
+            },
+            "aliases" if rest.is_empty() => {
+                match self.in_interp(id, Vm::original_alias_registration_names) {
+                    Ok(names) => ok(Value::list(names)),
+                    Err(error) => crate::command::completion_from_cmd_error(self, error),
+                }
+            }
+            "aliases" => self.child_wrong_arguments(name, b"aliases"),
+
             "eval" => self.eval_values_in_interp(id, rest),
             "issafe" => ok(Value::bool(self.st_of(id).is_some_and(|st| st.is_safe))),
             "delete" => {

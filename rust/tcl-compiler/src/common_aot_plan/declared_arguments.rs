@@ -94,10 +94,10 @@ struct ArgumentInputs<'a> {
     registry: &'a CommandRegistry,
     declaration: &'a Arc<OriginalDeclaredProcedureArgumentSlots>,
     summary: Option<&'a ProcEscapeSummary>,
-    propagated: &'a HashMap<(String, usize), Option<TypeLattice>>,
+    propagated: &'a HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     metadata_available: bool,
     enabled: bool,
-    qname: &'a str,
+    body_id: crate::ir::ProcedureId,
     ordinal: usize,
 }
 
@@ -105,8 +105,8 @@ pub(super) fn collect(
     unit: &CompilationUnit,
     registry: &CommandRegistry,
     selection: AotMetadataSelection,
-    escape: &HashMap<String, ProcEscapeSummary>,
-    propagated: &HashMap<(String, usize), Option<TypeLattice>>,
+    escape: &HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
+    propagated: &HashMap<(crate::ir::ProcedureId, usize), Option<TypeLattice>>,
     config: SemanticOptimisationConfig,
 ) -> BTreeMap<DeclaredArgumentIdentity, DeclaredArgumentDecision> {
     let mut arguments = BTreeMap::new();
@@ -137,13 +137,13 @@ pub(super) fn collect(
                     function,
                     registry,
                     declaration: &declaration,
-                    summary: escape.get(&procedure.qualified_name),
+                    summary: escape.get(&tcl_core_types::BodyFrameId::Body(*qname)),
                     propagated,
                     metadata_available: selection
                         .for_function(function, registry, &unit.ir_module)
                         .is_some(),
                     enabled: config.is_enabled(SemanticOptimisationPassId::MaterialisableSlot),
-                    qname: &procedure.qualified_name,
+                    body_id: *qname,
                     ordinal,
                 }),
             );
@@ -182,7 +182,7 @@ fn decide(input: &ArgumentInputs<'_>) -> DeclaredArgumentDecision {
         let reads = original_reads(input, name).ok_or(Decline::OriginalSlotUnavailable)?;
         let shape = input
             .propagated
-            .get(&(input.qname.to_owned(), input.ordinal))
+            .get(&(input.body_id, input.ordinal))
             .and_then(Option::as_ref)
             .and_then(TypeLattice::single_shape)
             .cloned()

@@ -574,6 +574,7 @@ pub(crate) struct LatticeDriver<'a> {
     /// The function the run analyses, by qualified name: where a procedure
     /// name it spells is looked up from.
     function: &'a str,
+    body_id: Option<Option<crate::ir::ProcedureId>>,
     /// Whether the run read the module's procedures, or would have read them
     /// had its caller held them ([`crate::sccp::SccpResult::reads_module`]).
     reads_module: Cell<bool>,
@@ -776,7 +777,7 @@ pub(crate) fn summary_steps(
         return Vec::new();
     };
     let words: Vec<Option<&str>> = words.iter().map(Option::as_deref).collect();
-    match module.call_transfer(&call.procedure.qualified_name, &words) {
+    match module.call_transfer(&call.id, &words) {
         Some(crate::interprocedural::CallTransfer::Places(places)) => places,
         _ => Vec::new(),
     }
@@ -1336,6 +1337,7 @@ impl<'a> LatticeDriver<'a> {
             module: None,
             level: crate::sccp::ModuleLevel::Places,
             function: "::",
+            body_id: None,
             reads_module: Cell::new(false),
         }
     }
@@ -1382,8 +1384,15 @@ impl<'a> LatticeDriver<'a> {
     /// Say which function the run analyses and what it reads of the module
     /// ([`crate::sccp::ModuleRun`]). The module's summary revision rides the
     /// context's seeds revision.
-    pub(crate) fn in_module(mut self, function: &'a str, run: crate::sccp::ModuleRun<'a>) -> Self {
-        self.function = function;
+    pub(crate) fn in_module(
+        mut self,
+        cfg: &'a crate::cfg::Function,
+        run: crate::sccp::ModuleRun<'a>,
+    ) -> Self {
+        self.function = &cfg.name;
+        self.body_id = run
+            .analysis_body
+            .or_else(|| run.procedures.and_then(|module| module.body_for_cfg(cfg)));
         self.module = run.procedures;
         self.level = run.level;
         self.reads_exits = run.reads_exits;
@@ -1404,14 +1413,15 @@ impl<'a> LatticeDriver<'a> {
     /// ([`crate::interprocedural::ModuleProcedures::parameter_default`]):
     /// unknown in a run whose caller holds no module view, which records
     /// that it would have read one.
-    pub(crate) fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+    pub(crate) fn parameter_default_at(
+        &self,
+        original: Option<&CommandTokens>,
+        procedure: &str,
+        parameter: &str,
+    ) -> ParameterDefault {
         self.reads_module.set(true);
         self.module.map_or(ParameterDefault::Unknown, |module| {
-            module.parameter_default(
-                self.function,
-                (procedure, parameter),
-                self.procedure_trust(),
-            )
+            module.parameter_default(original, (procedure, parameter), self.procedure_trust())
         })
     }
 
@@ -1497,7 +1507,7 @@ impl<'a> LatticeDriver<'a> {
         let module = self.procedures_for(command)?;
         let original = tokens.as_ref()?;
         let call = module.resolve_call_at(original, self.procedure_trust())?;
-        let callee = &call.procedure.qualified_name;
+        let callee = &call.id;
         self.reads_module.set(true);
         let defs = named_defs(stmt_ssa, ssa);
         let cooked =
@@ -1577,7 +1587,10 @@ impl<'a> LatticeDriver<'a> {
     /// a place is not a variable of the frame the call spells.
     fn statement_rerun<S: std::hash::BuildHasher>(
         &self,
-        (module, callee): (&crate::interprocedural::ModuleProcedures<'a>, &str),
+        (module, callee): (
+            &crate::interprocedural::ModuleProcedures<'a>,
+            &crate::ir::ProcedureId,
+        ),
         (block, index): (&crate::ssa::SsaBlock, usize),
         (cooked, places): (&[ArgWord<'_>], &PlaceSteps),
         (values, ssa): (&HashMap<ValueKey, LatticeValue, S>, &SsaFunction),
@@ -1615,7 +1628,7 @@ impl<'a> LatticeDriver<'a> {
             // With no existence rung, a procedure's entry version of a name
             // is bound for a parameter and unbound for any other.
             let entry = module
-                .params_of(self.function)
+                .params_of(&self.body_id.flatten()?)
                 .filter(|_| prior == 0)
                 .map(|params| {
                     if params.iter().any(|param| param == name) {
@@ -1643,7 +1656,10 @@ impl<'a> LatticeDriver<'a> {
     /// `arguments` — an omitted one its default — and its links `seeds`.
     fn rerun_with(
         &self,
-        (module, callee): (&crate::interprocedural::ModuleProcedures<'a>, &str),
+        (module, callee): (
+            &crate::interprocedural::ModuleProcedures<'a>,
+            &crate::ir::ProcedureId,
+        ),
         arguments: &[Option<ExactValue>],
         seeds: &[(Option<ExactValue>, Existence)],
     ) -> Option<std::rc::Rc<crate::interprocedural::Rerun>> {
@@ -1679,9 +1695,9 @@ impl<'a> LatticeDriver<'a> {
         }
         let module = self.procedures_for(head)?;
         let call = module.resolve_call_at(original, self.procedure_trust())?;
-        let callee = &call.procedure.qualified_name;
+        let callee = &call.id;
         self.reads_module.set(true);
-        let binding = binding_of(head, &callee);
+        let binding = binding_of(head, &call.procedure.qualified_name);
         let answered = |answer, writes| {
             Some(ScriptRun {
                 head: head.to_owned(),
@@ -1739,7 +1755,7 @@ impl<'a> LatticeDriver<'a> {
             driver: self,
             prior_writes: prior.to_vec(),
             words: Words::under(policy),
-            view: procedure_view(&callee, &texts, &cooked),
+            view: procedure_view(&call.procedure.qualified_name, &texts, &cooked),
             uses,
             values,
             ssa,
@@ -3415,7 +3431,7 @@ impl<'a> LatticeDriver<'a> {
         };
         let inner = std::str::from_utf8(script).ok()?;
         let original = self.module.and_then(|module| {
-            let parent = module.original_statement_tokens(self.function, statement)?;
+            let parent = module.original_statement_tokens(self.body_id?, statement)?;
             let (_, site) = parent.words().last()?.sole_command_substitution()?;
             module.original_substitution(&parent, site, inner)
         });
@@ -3502,7 +3518,7 @@ impl<'a> LatticeDriver<'a> {
         statement: &Statement,
     ) -> Option<CommandTokens> {
         self.module?
-            .original_statement_tokens(self.function, statement)
+            .original_statement_tokens(self.body_id?, statement)
     }
 
     /// The inputs of an expression that has no operand words of its own:
@@ -5469,7 +5485,10 @@ struct DetachedExpressionInputs<'a, 'd> {
     constants: &'a HashMap<String, ExactValue>,
     /// The module's procedures and the function the expression runs in,
     /// where a re-run's exit reading holds them.
-    module: Option<(&'a crate::interprocedural::ModuleProcedures<'a>, &'a str)>,
+    module: Option<(
+        &'a crate::interprocedural::ModuleProcedures<'a>,
+        &'a crate::ir::ProcedureId,
+    )>,
     /// The stance the expression is read under.
     stance: (BuiltinFoldInputs<'a>, FoldPolicy),
 }
@@ -5557,7 +5576,10 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
 /// Detached source text retains no original parent operand or point. A Module
 /// procedure result needs that independent receipt; this interface declines.
 fn detached_procedure_result(
-    _module: (&crate::interprocedural::ModuleProcedures<'_>, &str),
+    _module: (
+        &crate::interprocedural::ModuleProcedures<'_>,
+        &crate::ir::ProcedureId,
+    ),
     _script: &str,
     _constants: &HashMap<String, ExactValue>,
     _stance: (BuiltinFoldInputs<'_>, FoldPolicy),
@@ -5593,7 +5615,10 @@ pub(crate) fn evaluate_expression_in_module(
     node: &ExprNode,
     constants: &HashMap<String, ExactValue>,
     (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
-    module: Option<(&crate::interprocedural::ModuleProcedures<'_>, &str)>,
+    module: Option<(
+        &crate::interprocedural::ModuleProcedures<'_>,
+        &crate::ir::ProcedureId,
+    )>,
 ) -> Option<ExactValue> {
     let driver = LatticeDriver::detached(Some(folds), policy);
     let expression = ExpressionEvaluation {
@@ -6905,7 +6930,8 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
     }
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
-        self.driver.parameter_default(procedure, parameter)
+        self.driver
+            .parameter_default_at(self.original.as_ref(), procedure, parameter)
     }
 
     fn source_lexer_config(&self) -> Option<LexerConfig> {
@@ -7462,7 +7488,7 @@ impl AnalysisInputs for StateInputs<'_> {
     }
 
     fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
-        self.driver.parameter_default(procedure, parameter)
+        self.driver.parameter_default_at(None, procedure, parameter)
     }
 
     fn source_lexer_config(&self) -> Option<LexerConfig> {

@@ -214,6 +214,7 @@ fn resolved_top_level_priority(
 /// registry is picked up here with no lowering change.
 #[derive(Clone, Copy)]
 struct DefinerCall {
+    definition_scope: Option<crate::ir::ProcedureId>,
     /// The definer's member grammar (registry data).
     grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     /// Full-argv index of the class / type / object-handle word.
@@ -302,6 +303,7 @@ impl Lowerer<'_> {
                 })?;
             let name_idx = name_arg.checked_add(1)?;
             (name_idx < tokens.argv.len()).then_some(DefinerCall {
+                definition_scope: None,
                 grammar,
                 name_idx,
                 body_idx,
@@ -5292,16 +5294,6 @@ impl<'r> Lowerer<'r> {
                 method.instance_vars.extend(class_vars.iter().cloned());
             }
         }
-        // Retained replacement bodies are scanned by the same
-        // consumers, so they need the same whole-class instance-variable
-        // union.
-        for method in self.module.redefined_methods.values_mut().flatten() {
-            if method.body.executed_source.is_none()
-                && let Some(class_vars) = self.class_instance_vars.get(&method.class_name)
-            {
-                method.instance_vars.extend(class_vars.iter().cloned());
-            }
-        }
         self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
     }
 
@@ -5450,6 +5442,10 @@ impl<'r> Lowerer<'r> {
         body_content_offset: u32,
         namespace: &str,
     ) {
+        let call = DefinerCall {
+            definition_scope: Some(self.module.procedure_ids.allocate()),
+            ..call
+        };
         let texts = &definer.argv_texts;
         let target = texts[call.name_idx].as_str();
         let body_text = texts[call.body_idx].as_str();
@@ -5913,8 +5909,8 @@ impl<'r> Lowerer<'r> {
         if body_script.executed_source.is_some() {
             method_ivars.clear();
         }
-        let method_qname = format!("{class_qname}::{name}");
         let def = MethodDef {
+            definition_scope: call.definition_scope,
             class_name: class_qname.to_string(),
             method_name: name.to_string(),
             params,
@@ -5926,23 +5922,7 @@ impl<'r> Lowerer<'r> {
             original_receiver_context,
             original_parameters,
         };
-        // First definition wins for the stored body (matches proc
-        // registration), but a redefinition (a later `oo::define`
-        // or a duplicate in-body `method`) replaces the body at
-        // runtime — we can't statically know which body a given
-        // dispatch runs, so RETAIN the replacement in definition
-        // order: analysis consumers scan every retained
-        // body (the union over-approximates whichever is live) rather
-        // than abstaining on the mere fact of redefinition.
-        if self.module.methods.contains_key(&method_qname) {
-            self.module
-                .redefined_methods
-                .entry(method_qname)
-                .or_default()
-                .push(def);
-            return;
-        }
-        self.module.methods.insert(method_qname, def);
+        self.module.retain_method(def);
     }
 }
 
@@ -7155,6 +7135,13 @@ fn walk_for_trace(
 
 #[cfg(test)]
 mod tests {
+    fn fixture_method<'a>(
+        methods: &'a crate::ir::MethodInventory,
+        label: &str,
+    ) -> Option<&'a crate::ir::MethodDef> {
+        methods.unique_display(label).map(|(_, method)| method)
+    }
+
     /// An opaque invocation retains its original evaluated argv without licensing
     /// native instructions, a known normal store, or an invented entered body.
     pub(super) fn assert_runtime_opaque_call(
@@ -7731,18 +7718,23 @@ mod tests {
                    \x20   method get {} { return $n }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
-        let mut keys: Vec<&String> = m.methods.keys().collect();
+        let mut keys: Vec<String> = m
+            .methods
+            .values()
+            .map(crate::ir::MethodDef::reporting_label)
+            .collect();
         keys.sort();
         assert_eq!(
             keys,
             vec![
-                &"::Counter::<constructor>".to_string(),
-                &"::Counter::bump".to_string(),
-                &"::Counter::get".to_string(),
+                "::Counter::<constructor>".to_string(),
+                "::Counter::bump".to_string(),
+                "::Counter::get".to_string(),
             ],
             "methods: {keys:?}",
         );
-        let get = &m.methods["::Counter::get"];
+        let get =
+            fixture_method(&m.methods, "::Counter::get").expect("unique retained fixture method");
         assert_eq!(get.method_name, "get");
         assert_eq!(get.kind, MethodKind::Method);
         assert_eq!(get.class_name, "::Counter");
@@ -7760,12 +7752,14 @@ mod tests {
         );
         // The method body is lowered for analysis (the `incr n` /
         // `return $n` statements are present, not an empty barrier).
-        let bump = &m.methods["::Counter::bump"];
+        let bump =
+            fixture_method(&m.methods, "::Counter::bump").expect("unique retained fixture method");
         assert!(
             !bump.body.statements.is_empty(),
             "bump body should be lowered"
         );
-        let ctor = &m.methods["::Counter::<constructor>"];
+        let ctor = fixture_method(&m.methods, "::Counter::<constructor>")
+            .expect("unique retained fixture method");
         assert_eq!(ctor.kind, MethodKind::Constructor);
         assert_eq!(m.redefined_methods.len(), 0);
         assert!(
@@ -7787,12 +7781,18 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.methods.contains_key("::Pin::describe"),
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::Pin::describe"),
             "oo::configurable method must be lifted; methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
         assert!(
-            !m.methods["::Pin::describe"].body.statements.is_empty(),
+            !fixture_method(&m.methods, "::Pin::describe")
+                .expect("unique retained fixture method")
+                .body
+                .statements
+                .is_empty(),
             "the method body should be lowered, not barriered"
         );
     }
@@ -7811,12 +7811,16 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            m.methods.contains_key("::app::Widget::draw"),
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::app::Widget::draw"),
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
         assert!(
-            m.methods.contains_key("::app::Widget::hide"),
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::app::Widget::hide"),
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
@@ -7838,7 +7842,8 @@ mod tests {
         let m = lower_to_ir(src, &reg());
         let unit = m
             .methods
-            .get("::@objdefine@::k::probe")
+            .unique_display("::@objdefine@::k::probe")
+            .map(|(_, method)| method)
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert_eq!(unit.method_name, "probe");
         assert!(!unit.body.statements.is_empty(), "body must be lowered");
@@ -7862,7 +7867,7 @@ mod tests {
                    set k [C new]\n\
                    oo::objdefine $k { variable z }\n";
         let m = lower_to_ir(src, &reg());
-        let class_m = &m.methods["::C::m"];
+        let class_m = fixture_method(&m.methods, "::C::m").expect("unique retained fixture method");
         assert!(
             !class_m.instance_vars.contains("z"),
             "per-object `z` leaked into the class union: {:?}",
@@ -7884,7 +7889,8 @@ mod tests {
         let m = lower_to_ir(src, &reg());
         let bark = m
             .methods
-            .get("::Dog::bark")
+            .unique_display("::Dog::bark")
+            .map(|(_, method)| method)
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert_eq!(bark.kind, MethodKind::Method);
         assert_eq!(
@@ -7900,11 +7906,17 @@ mod tests {
             );
         }
         assert_eq!(
-            m.methods["::Dog::count"].kind,
+            fixture_method(&m.methods, "::Dog::count")
+                .expect("unique retained fixture method")
+                .kind,
             MethodKind::ClassMethod,
             "typemethod dispatches on the type command"
         );
-        assert!(m.methods.contains_key("::Dog::<constructor>"));
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::Dog::<constructor>")
+        );
     }
 
     // TP: the widget grammar's extra implicit vars (win / hull) reach
@@ -7917,7 +7929,8 @@ mod tests {
         let m = lower_to_ir(src, &reg());
         let redraw = m
             .methods
-            .get("::MyBar::redraw")
+            .unique_display("::MyBar::redraw")
+            .map(|(_, method)| method)
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert!(redraw.instance_vars.contains("win"));
         assert!(redraw.instance_vars.contains("hull"));
@@ -7938,7 +7951,8 @@ mod tests {
         let m = lower_to_ir(src, &reg());
         let toast = m
             .methods
-            .get("::Toaster::toast")
+            .unique_display("::Toaster::toast")
+            .map(|(_, method)| method)
             .unwrap_or_else(|| panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()));
         assert_eq!(toast.params, vec!["n".to_string()]);
         assert_eq!(
@@ -7952,8 +7966,16 @@ mod tests {
                 toast.instance_vars
             );
         }
-        assert!(m.methods.contains_key("::Toaster::clean"));
-        assert!(m.methods.contains_key("::Toaster::<constructor>"));
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::Toaster::clean")
+        );
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::Toaster::<constructor>")
+        );
     }
 
     #[test]
@@ -8002,14 +8024,24 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert_eq!(
-            m.methods.get("::W::make").map_or_else(
+            fixture_method(&m.methods, "::W::make").map_or_else(
                 || panic!("methods: {:?}", m.methods.keys().collect::<Vec<_>>()),
                 |d| d.kind
             ),
             MethodKind::ClassMethod
         );
-        assert_eq!(m.methods["::W::direct"].kind, MethodKind::ClassMethod);
-        assert_eq!(m.methods["::W::hidden"].kind, MethodKind::Method);
+        assert_eq!(
+            fixture_method(&m.methods, "::W::direct")
+                .expect("unique retained fixture method")
+                .kind,
+            MethodKind::ClassMethod
+        );
+        assert_eq!(
+            fixture_method(&m.methods, "::W::hidden")
+                .expect("unique retained fixture method")
+                .kind,
+            MethodKind::Method
+        );
         assert!(!m.oo_evidence.unretained_executable_roots);
     }
 
@@ -8023,11 +8055,17 @@ mod tests {
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            !m.methods.keys().any(|k| k.contains("initialise")),
+            !m.methods
+                .values()
+                .any(|m| m.reporting_label().contains("initialise")),
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
-        assert!(m.methods.contains_key("::I::read"));
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::I::read")
+        );
         assert!(
             m.oo_evidence.unretained_executable_roots,
             "the unrepresented initialise script must remain explicit evidence"
@@ -8053,14 +8091,20 @@ mod tests {
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
-        assert!(m.methods.contains_key("::S::m"));
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::S::m")
+        );
         let src = "oo::class create T {\n\
                    \x20   constructor {} { set a 1 }\n\
                    \x20   destructor { set b 2 }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
         assert_eq!(
-            m.methods["::T::<constructor>"].kind,
+            fixture_method(&m.methods, "::T::<constructor>")
+                .expect("unique retained fixture method")
+                .kind,
             MethodKind::Constructor
         );
         assert!(
@@ -8078,11 +8122,57 @@ mod tests {
                    oo::objdefine [C new] { method m {} { return 1 } }\n";
         let m = lower_to_ir(src, &reg());
         assert!(
-            !m.methods.keys().any(|k| k.starts_with("::@objdefine@")),
+            !m.methods
+                .values()
+                .any(|m| m.reporting_label().starts_with("::@objdefine@")),
             "methods: {:?}",
             m.methods.keys().collect::<Vec<_>>()
         );
         assert!(m.oo_evidence.unretained_executable_roots);
+    }
+
+    #[test]
+    fn colliding_method_reports_retain_distinct_bodies_and_constructor_purposes() {
+        let source = "namespace eval A {}\noo::class create A::B {method c {} {return LEFT}}\noo::class create A {method B::c {} {return RIGHT}; method <constructor> {} {return NAMED}; constructor {} {set local ACTUAL}; export B::c <constructor>}\n";
+        let module = lower_to_ir(source, &reg());
+        assert_eq!(module.methods.len(), 4);
+        assert_eq!(
+            module
+                .methods
+                .keys()
+                .copied()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            4
+        );
+        assert!(module.methods.unique_display("::A::B::c").is_none());
+        assert!(
+            module
+                .methods
+                .unique_display("::A::<constructor>")
+                .is_none()
+        );
+        assert_eq!(
+            module
+                .methods
+                .values()
+                .filter(|method| method.kind == MethodKind::Constructor)
+                .count(),
+            1
+        );
+        assert_eq!(
+            module
+                .methods
+                .values()
+                .filter(|method| method.kind == MethodKind::Method
+                    && method.method_name == "<constructor>")
+                .count(),
+            1
+        );
+        assert!(module.redefined_methods.is_empty());
+        for id in module.methods.keys() {
+            assert_eq!(module.method_definition_bodies(*id).count(), 1);
+        }
     }
 
     #[test]
@@ -8098,15 +8188,22 @@ mod tests {
                    \x20   method m {} { return 2 }\n\
                    }\n";
         let m = lower_to_ir(src, &reg());
-        assert!(m.methods.contains_key("::C::m"));
-        let retained = m
-            .redefined_methods
-            .get("::C::m")
-            .unwrap_or_else(|| panic!("redefined: {:?}", m.redefined_methods));
-        assert_eq!(retained.len(), 1, "one replacement body retained");
-        assert_eq!(retained[0].class_name, "::C");
         assert!(
-            !retained[0].body.statements.is_empty(),
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::C::m")
+        );
+        let (primary, replacements) = m
+            .redefined_methods
+            .iter()
+            .next()
+            .unwrap_or_else(|| panic!("redefined: {:?}", m.redefined_methods));
+        assert_eq!(m.methods.get(primary).unwrap().method_name, "m");
+        assert_eq!(replacements.len(), 1, "one replacement body retained");
+        let retained = m.methods.get(&replacements[0]).unwrap();
+        assert_eq!(retained.class_name, "::C");
+        assert!(
+            !retained.body.statements.is_empty(),
             "the replacement body is lowered, not discarded"
         );
         assert_eq!(m.oo_unanalysed_classes.len(), 0);
@@ -8188,7 +8285,11 @@ mod tests {
             m.procedures.keys().collect::<Vec<_>>()
         );
         // The method body still lowered the `proc helper ...` call.
-        assert!(m.methods.contains_key("::C::m"));
+        assert!(
+            m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::C::m")
+        );
     }
 
     #[test]
@@ -8667,7 +8768,7 @@ mod tests {
             "oo::class create C {\n    method m {a\\ b {c 1}} { return 1 }\n}\n",
             &reg(),
         );
-        let method = m.methods.get("::C::m").unwrap_or_else(|| {
+        let method = fixture_method(&m.methods, "::C::m").unwrap_or_else(|| {
             panic!(
                 "::C::m lowered, got {:?}",
                 m.methods.keys().collect::<Vec<_>>()
@@ -8680,7 +8781,11 @@ mod tests {
             &reg(),
         );
         assert!(m.oo_unanalysed_classes.contains("::C"), "{m:?}");
-        assert!(!m.methods.contains_key("::C::m"));
+        assert!(
+            !m.methods
+                .values()
+                .any(|method| method.reporting_label() == "::C::m")
+        );
     }
 
     #[test]

@@ -92,6 +92,10 @@
 //! bails whenever the command text contains `{*}` (length unknown); the repro
 //! below pins that (no W230).
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::cfg::Terminator;
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -143,12 +147,10 @@ fn messages(src: &str, code: &str) -> Vec<String> {
 
 /// Build `src` and return its `::f` `FunctionUnit` (the lower→cfg→ssa→sccp
 /// pipeline collapsed into the shared `CompilationUnit` build).
-fn func(src: &str) -> (CompilationUnit, String) {
-    // Return the owning CU alongside the proc key so the borrow lives.
-    (
-        CompilationUnit::build_for(src, static_context_for(D).commands(), false),
-        "::f".to_owned(),
-    )
+fn func(src: &str) -> (CompilationUnit, tcl_compiler::ir::ProcedureId) {
+    let unit = CompilationUnit::build_for(src, static_context_for(D).commands(), false);
+    let id = fixture_id(&unit.ir_module.procedures, "::f");
+    (unit, id)
 }
 
 /// `compute_intervals` over `::f`, plus a name→Symbol resolver bound to it.
@@ -1004,7 +1006,10 @@ mod dialect_numerals {
         let src =
             format!("proc f {{}} {{ set i 0\n while {{$i < {literal}}} {{ puts $i\n incr i }} }}");
         let cu = CompilationUnit::build_for(&src, static_context_for(dialect).commands(), false);
-        let fu = cu.procedures.get("::f").expect("::f lowered");
+        let fu = cu
+            .procedures
+            .get(&fixture_id(&cu.procedures, "::f"))
+            .expect("::f lowered");
         let numbers = numbers_for_dialect(Some(
             tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         ));
@@ -1095,7 +1100,10 @@ mod dialect_numerals {
     fn leading_zero_const_value_abstains() {
         let x1 = |src: &str, dialect: &str| -> Option<Interval> {
             let cu = CompilationUnit::build_for(src, static_context_for(dialect).commands(), false);
-            let fu = cu.procedures.get("::f").expect("::f lowered");
+            let fu = cu
+                .procedures
+                .get(&fixture_id(&cu.procedures, "::f"))
+                .expect("::f lowered");
             let iv = compute_intervals_with(
                 &fu.cfg,
                 &fu.ssa,

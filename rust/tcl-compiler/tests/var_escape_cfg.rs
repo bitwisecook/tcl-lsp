@@ -52,8 +52,11 @@
 //! compiler's encoding of "this write is observable elsewhere, so the name must
 //! live in the runtime frame".
 
-use std::collections::HashMap;
-
+#[path = "support/body_identity.rs"]
+mod body_identity;
+#[path = "support/escape_identity.rs"]
+mod escape_identity;
+use escape_identity::FixtureEscapes;
 use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
@@ -77,22 +80,25 @@ fn registry() -> &'static CommandRegistry {
 
 /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),
 /// with the interprocedural fixpoint folded in.
-fn escape_cu(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_cu(src: &str) -> FixtureEscapes {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, true)
+    let summaries = analyse_var_escape_cu(&cu, true);
+    FixtureEscapes::new(cu.ir_module, summaries)
 }
 
 /// CFG/SSA escape summaries with the interprocedural pass *off* — the raw
 /// per-proc flow-sensitive result.
-fn escape_cu_raw(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_cu_raw(src: &str) -> FixtureEscapes {
     let cu = CompilationUnit::build_for(src, registry(), false);
-    analyse_var_escape_cu(&cu, false)
+    let summaries = analyse_var_escape_cu(&cu, false);
+    FixtureEscapes::new(cu.ir_module, summaries)
 }
 
 /// IR-walk escape summaries (the inliner's path), interprocedural on.
-fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
+fn escape_ir(src: &str) -> FixtureEscapes {
     let module = lower_to_ir(src, registry());
-    analyse_var_escape(&module, true)
+    let summaries = analyse_var_escape(&module, true);
+    FixtureEscapes::new(module, summaries)
 }
 
 /// Drive the low-level [`analyse_cfg_function`] entry point directly on a
@@ -108,11 +114,11 @@ fn cfg_result(src: &str) -> CfgEscapeResult {
 
 /// Fetch the summary for a proc qname, panicking with the available keys
 /// if it is missing.
-fn summary<'a>(map: &'a HashMap<String, ProcEscapeSummary>, qname: &str) -> &'a ProcEscapeSummary {
+fn summary<'a>(map: &'a FixtureEscapes, qname: &str) -> &'a ProcEscapeSummary {
     map.get(qname).unwrap_or_else(|| {
         panic!(
             "summary for {qname} not found; keys = {:?}",
-            map.keys().collect::<Vec<_>>()
+            map.summaries.keys().collect::<Vec<_>>()
         )
     })
 }
@@ -998,7 +1004,11 @@ fn the_ir_entry_point_answers_pure_leaf_from_the_registry_it_is_given() {
 
         let exact = analyse_var_escape_with_registry(&module, true, irules);
         assert!(
-            !exact["::p"].pure_leaf,
+            !exact[&tcl_core_types::BodyFrameId::Body(body_identity::fixture_id(
+                &module.procedures,
+                "::p"
+            ))]
+                .pure_leaf,
             "{src}: `puts` is not frameless under f5-irules, so `::p` is no pure leaf"
         );
 

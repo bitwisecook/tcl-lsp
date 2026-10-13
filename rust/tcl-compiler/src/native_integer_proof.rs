@@ -87,6 +87,8 @@ impl NativeIntegerPolicy {
 pub struct NativeAddSite {
     /// Qualified function containing the operation.
     pub function: String,
+    /// Retained body identity; the top level has no procedure ID.
+    pub body_id: Option<crate::ir::ProcedureId>,
     /// CFG/SSA block containing the operation.
     pub block: BlockId,
     /// Statement index within `block`, or `None` for the block terminator.
@@ -300,6 +302,37 @@ pub fn prove_native_integer_adds(
     let Some(function_unit) = unit.function(function) else {
         return NativeIntegerProof::FunctionUnavailable;
     };
+    prove_native_integer_adds_for_body(
+        unit,
+        function_unit.body_id,
+        registry,
+        optimisations,
+        policy,
+        common_plan,
+    )
+}
+
+/// Analyse the retained body selected by the caller, independently of its name.
+#[must_use]
+pub fn prove_native_integer_adds_for_body(
+    unit: &CompilationUnit,
+    body_id: Option<crate::ir::ProcedureId>,
+    registry: &CommandRegistry,
+    optimisations: SemanticOptimisationConfig,
+    policy: NativeIntegerPolicy,
+    common_plan: &CommonAotProofPlan,
+) -> NativeIntegerProof {
+    if !optimisations.is_enabled(SemanticOptimisationPassId::NativeInteger) {
+        return NativeIntegerProof::Disabled;
+    }
+    let function_unit = match body_id {
+        Some(id) => unit.procedures.get(&id),
+        None => Some(&unit.top_level),
+    };
+    let Some(function_unit) = function_unit else {
+        return NativeIntegerProof::FunctionUnavailable;
+    };
+    let function = function_unit.name.as_str();
     if function_unit.complexity_guarded {
         return NativeIntegerProof::ComplexityGuarded;
     }
@@ -326,11 +359,12 @@ pub fn prove_native_integer_adds(
         registry,
         Some(metadata),
     );
-    let params: &[String] = match unit.ir_module.procedures.get_unique_display(function) {
+    let params: &[String] = match body_id.and_then(|id| unit.ir_module.procedures.get(&id)) {
         Some(procedure) => procedure.params.as_slice(),
         None => &[],
     };
-    let caller = match collect_caller_ranges(unit, function, registry, common_plan, params) {
+    let caller = match collect_caller_ranges(unit, body_id, function, registry, common_plan, params)
+    {
         Ok(caller) => caller,
         Err(reason) => {
             return NativeIntegerProof::Analysed(collect_candidate_declines(
@@ -413,6 +447,7 @@ fn prove_statement_candidates(
             }
             let site = NativeAddSite {
                 function: function.to_owned(),
+                body_id: function_unit.body_id,
                 block,
                 statement_index: Some(statement_index),
                 result,
@@ -456,6 +491,7 @@ fn prove_return_candidates(
         }
         let site = NativeAddSite {
             function: function.to_owned(),
+            body_id: function_unit.body_id,
             block,
             statement_index: None,
             result: NativeAddResult::FunctionReturn,
@@ -491,17 +527,21 @@ struct CallerRangeEvidence {
 )]
 fn collect_caller_ranges(
     unit: &CompilationUnit,
+    body_id: Option<crate::ir::ProcedureId>,
     function: &str,
     registry: &CommandRegistry,
     common_plan: &CommonAotProofPlan,
     params: &[String],
 ) -> Result<CallerRangeEvidence, NativeIntegerDeclineReason> {
-    if let Some(call_facts) = unit.caller_scope.call_sites.get(function)
-        && (call_facts.opaque_caller
-            || call_facts
-                .arg_counts
-                .iter()
-                .any(|count| *count != params.len()))
+    if let Some(call_facts) = body_id.and_then(|id| {
+        unit.caller_scope
+            .call_sites
+            .get_for_body(&unit.ir_module, id)
+    }) && (call_facts.opaque_caller
+        || call_facts
+            .arg_counts
+            .iter()
+            .any(|count| *count != params.len()))
     {
         // An opaque caller poisons a mixed direct+dynamic set even when the
         // common plan can separately select one direct site. A native zero-
@@ -515,7 +555,7 @@ fn collect_caller_ranges(
     // a site inside exceptional control flow — still invokes it with values no
     // selected site carries, so the evidence is refused rather than narrowed
     // against an incomplete caller set.
-    if common_plan.has_declined_direct_call_to(function) {
+    if body_id.is_some_and(|id| common_plan.has_declined_direct_call_to(id)) {
         return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
     }
 
@@ -535,7 +575,7 @@ fn collect_caller_ranges(
         let DirectProcDecision::Selected(direct) = decision else {
             continue;
         };
-        if direct.callee.qualified_name != function {
+        if Some(direct.callee.id) != body_id {
             continue;
         }
         let (caller, _, args) = direct_actuals(unit, id, unit.ir_module.lexer_config)
@@ -618,7 +658,13 @@ fn direct_actuals<'a>(
     id: &DirectCallSiteId,
     config: tcl_lexer::LexerConfig,
 ) -> Option<(&'a FunctionUnit, &'a SsaStatement, Vec<String>)> {
-    let caller = unit.function(&id.function)?;
+    let caller = match id.body_id {
+        Some(body_id) => unit.procedures.get(&body_id)?,
+        None => &unit.top_level,
+    };
+    if caller.name != id.function {
+        return None;
+    }
     let block = caller.ssa.blocks.get(&id.block)?;
     let statement = block.statements.get(id.statement_index as usize)?;
     let Statement::Call { args, .. } = &statement.statement else {
@@ -688,6 +734,7 @@ fn collect_candidate_declines(
             decisions.push(NativeAddDecision::Declined {
                 site: NativeAddSite {
                     function: function.to_owned(),
+                    body_id: function_unit.body_id,
                     block,
                     statement_index: Some(statement_index),
                     result,
@@ -713,6 +760,7 @@ fn collect_candidate_declines(
             decisions.push(NativeAddDecision::Declined {
                 site: NativeAddSite {
                     function: function.to_owned(),
+                    body_id: function_unit.body_id,
                     block,
                     statement_index: None,
                     result: NativeAddResult::FunctionReturn,

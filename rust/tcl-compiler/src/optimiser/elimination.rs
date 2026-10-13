@@ -80,7 +80,7 @@ use super::{Optimisation, PassContext};
 #[derive(Clone, Copy)]
 pub(crate) struct PurityCtx<'a> {
     pub(crate) registry: Option<&'a CommandRegistry>,
-    pub(crate) interproc_pure: &'a HashSet<String>,
+    pub(crate) interproc_pure: &'a HashSet<crate::ir::ProcedureId>,
     /// The document's lexer configuration.  The purity walk re-lexes an
     /// already-extracted word only to recognise command substitution syntax;
     /// original child receipts supply dispatch and arguments. It reads under
@@ -258,7 +258,7 @@ struct RaiseProof<'a> {
 /// summaries and how their names stand.
 struct CallCompletion<'a> {
     /// Each procedure's summary, by qualified name.
-    procedures: &'a HashMap<String, crate::interprocedural::ProcSummary>,
+    procedures: &'a HashMap<crate::ir::ProcedureId, crate::interprocedural::ProcSummary>,
     /// The procedures the module defines more than once.
     redefined: Option<&'a HashSet<String>>,
     /// The module's command bindings: a renamed or aliased procedure's name
@@ -277,7 +277,7 @@ struct CallCompletion<'a> {
 enum Defined<'a> {
     /// A procedure's body: the callees its summary proves defined before the
     /// load may first run it.
-    Callees(&'a [String]),
+    Callees(&'a [crate::ir::ProcedureId]),
     /// The load's own statements: a callee whose `proc` statement surely ran
     /// before the call's.
     Before,
@@ -313,9 +313,8 @@ impl<'a> Defined<'a> {
                 Self::Before
             };
         }
-        ctx.interproc
-            .procedures
-            .get(&fu.name)
+        fu.body_id
+            .and_then(|id| ctx.interproc.procedures.get(&id))
             .map_or(Self::Nothing, |summary| {
                 Self::Callees(&summary.defined_callees)
             })
@@ -323,9 +322,14 @@ impl<'a> Defined<'a> {
 
     /// Whether `summary`'s procedure is surely defined where a call at
     /// `site` runs.
-    fn admits(&self, summary: &crate::interprocedural::ProcSummary, site: u32) -> bool {
+    fn admits(
+        &self,
+        id: &crate::ir::ProcedureId,
+        summary: &crate::interprocedural::ProcSummary,
+        site: u32,
+    ) -> bool {
         match self {
-            Self::Callees(callees) => callees.contains(&summary.qualified_name),
+            Self::Callees(callees) => callees.contains(id),
             Self::Before => summary.defined_at.is_some_and(|at| at < site),
             Self::Nothing => false,
         }
@@ -337,25 +341,27 @@ impl CallCompletion<'_> {
     /// the statement at `site`, cannot raise: the summary proves the
     /// procedure pure and completing, its parameters accept the count, its
     /// definition surely ran, and its name stands for it.
-    fn completes(&self, qname: &str, words: usize, site: u32) -> bool {
+    fn completes(&self, qname: &crate::ir::ProcedureId, words: usize, site: u32) -> bool {
         self.procedures.get(qname).is_some_and(|summary| {
             summary.pure
                 && summary.completes
-                && self.defined.admits(summary, site)
+                && self.defined.admits(qname, summary, site)
                 && self
                     .module
                     .and_then(|module| {
                         crate::registry_invocation::original_procedure_formal_count_shape(
                             module,
-                            module.procedures.get_unique_display(qname)?,
+                            module.procedures.get(qname)?,
                             self.registry,
                         )
                     })
                     .is_some_and(|shape| shape.accepts(words))
-        }) && !self
-            .redefined
-            .is_some_and(|redefined| redefined.contains(qname))
-            && self.mutations.trusts_proc_binding(qname)
+        }) && self.procedures.get(qname).is_some_and(|summary| {
+            !self
+                .redefined
+                .is_some_and(|redefined| redefined.contains(&summary.qualified_name))
+                && self.mutations.trusts_proc_binding(&summary.qualified_name)
+        })
     }
 }
 
@@ -635,7 +641,7 @@ impl<'a> RaiseProof<'a> {
 /// analysis has proven pure — threaded into the O109 / O126 RHS-purity
 /// gates so `set unused [pureProc]` / `set unused [my pureMethod]` can
 /// fold.
-fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<String> {
+fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<crate::ir::ProcedureId> {
     ctx.interproc
         .procedures
         .iter()

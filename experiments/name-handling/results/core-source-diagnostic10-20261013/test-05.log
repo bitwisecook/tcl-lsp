@@ -1,0 +1,27 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner ... VARIABLE_SOURCE cursor=152 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=152 command=138..153 partial=false
+VARIABLE_SOURCE cursor=152 written=1 word=143..153 kind=Bare expand=false
+VARIABLE_SOURCE cursor=152 inert=Some(false)
+VARIABLE_SOURCE cursor=152 regions=6 commands=11 reference=true
+VARIABLE_SOURCE cursor=182 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=182 command=157..184 partial=false
+VARIABLE_SOURCE cursor=182 written=2 word=167..184 kind=Braced expand=false
+VARIABLE_SOURCE cursor=182 source_schema=false
+VARIABLE_SOURCE cursor=182 inert=None
+
+thread 'definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner' (165427) panicked at rust/tcl-lsp-core/src/definition.rs:9009:13:
+assertion `left == right` failed: uplevel 0 {puts $Target::x
+  left: None
+ right: Some("::N::Target::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.69s
+

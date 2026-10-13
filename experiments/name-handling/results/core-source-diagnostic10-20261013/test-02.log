@@ -1,0 +1,27 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates ... VARIABLE_SOURCE cursor=39 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=39 command=35..46 partial=false
+VARIABLE_SOURCE cursor=39 written=1 word=39..40 kind=Bare expand=false
+VARIABLE_SOURCE cursor=39 inert=Some(false)
+VARIABLE_SOURCE cursor=39 regions=2 commands=5 reference=false
+VARIABLE_SOURCE cursor=52 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=52 command=48..66 partial=false
+VARIABLE_SOURCE cursor=52 written=1 word=52..56 kind=Bare expand=false
+VARIABLE_SOURCE cursor=52 inert=Some(false)
+VARIABLE_SOURCE cursor=52 regions=2 commands=5 reference=false
+
+thread 'definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates' (165421) panicked at rust/tcl-lsp-core/src/definition.rs:8772:13:
+assertion `left == right` failed
+  left: None
+ right: Some("::N::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.66s
+

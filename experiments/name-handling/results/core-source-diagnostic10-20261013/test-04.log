@@ -1,0 +1,22 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards ... VARIABLE_SOURCE cursor=40 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=40 command=36..47 partial=false
+VARIABLE_SOURCE cursor=40 written=1 word=40..41 kind=Bare expand=false
+VARIABLE_SOURCE cursor=40 inert=Some(false)
+VARIABLE_SOURCE cursor=40 regions=2 commands=4 reference=false
+
+thread 'definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards' (165425) panicked at rust/tcl-lsp-core/src/definition.rs:8721:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::N::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 0.38s
+

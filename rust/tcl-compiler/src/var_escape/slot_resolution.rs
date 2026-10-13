@@ -380,9 +380,9 @@ pub fn assign_local_slots(
 /// Pure transformation — never mutates the input map.  Procs that
 /// aren't slot-eligible round-trip unchanged.
 pub fn populate_local_slots<S>(
-    summaries: &std::collections::HashMap<String, ProcEscapeSummary, S>,
+    summaries: &std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary, S>,
     ir_module: Option<&Module>,
-) -> std::collections::HashMap<String, ProcEscapeSummary>
+) -> std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>
 where
     S: std::hash::BuildHasher,
 {
@@ -392,10 +392,15 @@ where
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
     };
-    let mut out: std::collections::HashMap<String, ProcEscapeSummary> =
+    let mut out: std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> =
         std::collections::HashMap::with_capacity(summaries.len());
     for (qname, summary) in summaries {
-        if let Some(proc) = module.procedures.get_unique_display(qname) {
+        if let tcl_core_types::BodyFrameId::Body(id) = qname
+            && let Some(proc) = module
+                .procedures
+                .get(id)
+                .or_else(|| module.body_units.get(id))
+        {
             let slots = assign_local_slots(&proc.body, summary, &proc.params);
             if slots.is_empty() {
                 out.insert(qname.clone(), summary.clone());
@@ -794,11 +799,14 @@ mod tests {
     #[test]
     fn populate_local_slots_handles_none_module() {
         use std::collections::HashMap;
-        let mut summaries: HashMap<String, ProcEscapeSummary> = HashMap::new();
-        summaries.insert("::foo".into(), ProcEscapeSummary::default());
+        let id = tcl_core_types::BodyFrameId::Body(
+            tcl_core_types::ProcedureIdIssuer::default().allocate(),
+        );
+        let mut summaries = HashMap::new();
+        summaries.insert(id, ProcEscapeSummary::default());
         let result = populate_local_slots(&summaries, None);
         assert_eq!(result.len(), 1);
-        assert!(result["::foo"].local_slots.is_empty());
+        assert!(result[&id].local_slots.is_empty());
     }
 
     #[test]

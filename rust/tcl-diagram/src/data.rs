@@ -1040,7 +1040,7 @@ fn source_procedure_nodes(
     context: &DiagramContext<'_>,
 ) -> Vec<Value> {
     if context.analysis.allows_lexical_declaration_advice() {
-        regular_procs.iter().map(|(id, procedure)| json!({ "bodyId": id.ordinal(), "name": procedure.name,
+        regular_procs.iter().map(|(id, procedure)| json!({ "bodyId": id.ordinal(), "bodyKey": id.reporting_key(), "name": procedure.name,
             "params": procedure.params, "flow": walk_script(&procedure.body, &procedure.qualified_name, context, 0) }))
             .collect::<Vec<_>>()
     } else if context.analysis.has_original_vendor_source_names() {
@@ -1058,15 +1058,15 @@ fn source_procedure_nodes(
                     && procedure.body_source.as_deref() == context.source.get(
                         metadata.body_span.start() as usize..metadata.body_span.end() as usize))
                 .collect::<Vec<_>>();
-            let (body_id, flow) = match body.as_slice() {
-                [(id, procedure)] => (Some(id.ordinal()), Some(walk_script(&procedure.body, &procedure.qualified_name, context, 0))),
-                _ => (None, None),
+            let (body_id, body_key, flow) = match body.as_slice() {
+                [(id, procedure)] => (Some(id.ordinal()), Some(id.reporting_key()), Some(walk_script(&procedure.body, &procedure.qualified_name, context, 0))),
+                _ => (None, None, None),
             };
             let name = tcl_syntax::native_string::resident_name_label(input.original_word().try_text().unwrap_or("").as_bytes());
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": input.span().start(), "end": input.span().end()},
                 "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(),
-                "bodyId": body_id, "flow": flow, "source_policy": "hosted" })
+                "bodyId": body_id, "bodyKey": body_key, "flow": flow, "source_policy": "hosted" })
         }).collect::<Vec<_>>()
     } else {
         context.analysis.original_procedure_declarations().enumerate().map(|(ordinal, declaration)| {
@@ -1074,12 +1074,13 @@ fn source_procedure_nodes(
             let body = tcl_compiler::source_graph::procedure_body_for_declaration(context.source, context.analysis, module, declaration);
             let flow = body.map(|(_, procedure)| walk_script(&procedure.body, &procedure.qualified_name, context, 0));
             let body_id = body.map(|(id, _)| id.ordinal());
+            let body_key = body.map(|(id, _)| id.reporting_key());
             let name = declaration.name().source_spelling().unwrap_or_else(||
                 tcl_syntax::native_string::resident_name_label(declaration.name_input().bytes()));
             let span = declaration.name_input().span();
             json!({ "id": format!("declaration-{ordinal}"), "name": name,
                 "name_span": {"start": span.start(), "end": span.end()},
-                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(), "bodyId": body_id, "flow": flow })
+                "params": metadata.params.iter().map(|parameter| &parameter.name).collect::<Vec<_>>(), "bodyId": body_id, "bodyKey": body_key, "flow": flow })
         }).collect::<Vec<_>>()
     }
 }
@@ -1169,10 +1170,12 @@ pub fn diagram_data_for_analysis(
     'outer: for event in event_registry.order_events(&unique_events) {
         if let Some(handlers) = handlers_by_event.get(&event) {
             for (id, procedure) in handlers {
-                events.push(json!({ "bodyId": id.ordinal(), "name": event,
+                events.push(
+                    json!({ "bodyId": id.ordinal(), "bodyKey": id.reporting_key(), "name": event,
                     "priority": (procedure.base_priority != 500).then_some(procedure.base_priority),
                     "multiplicity": event_registry.event_multiplicity(&event),
-                    "flow": walk_script(&procedure.body, &procedure.qualified_name, &context, 0) }));
+                    "flow": walk_script(&procedure.body, &procedure.qualified_name, &context, 0) }),
+                );
                 if events.len() >= MAX_EVENTS {
                     break 'outer;
                 }

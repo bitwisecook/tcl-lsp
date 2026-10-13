@@ -656,7 +656,8 @@ mod tests {
         // scope. The generic receiver inventory supplies a May namespace
         // hazard without certifying one instance's physical alias.
         let c = cu("oo::class create C {method p {} {my variable x; set x 1}}");
-        let fu = &c.methods["::C::p"];
+        let (id, _) = c.ir_module.methods.unique_display("::C::p").unwrap();
+        let fu = c.methods.get(&id).unwrap();
         let reg = registry();
         let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(
@@ -672,7 +673,8 @@ mod tests {
         let unit = cu(
             "oo::class create C {method variable args {return NOOP}; method p {} {my variable x; set x 1}}",
         );
-        let method = &unit.methods["::C::p"];
+        let (id, _) = unit.ir_module.methods.unique_display("::C::p").unwrap();
+        let method = unit.methods.get(&id).unwrap();
         let registry = registry();
         let observability = analyse_var_observability(&method.cfg, &registry);
         assert!(!observability.escaping_var_names().contains("x"));

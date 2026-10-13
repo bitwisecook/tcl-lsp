@@ -1,0 +1,22 @@
+[
+  {
+    "path": "rust/tcl-syntax/src/naming/root_source.rs",
+    "sha256": "656164b0fcdb45347180ac19c2710869a4257dfb2bcc102b10d4bb94b8564af7"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_name_query.rs",
+    "sha256": "b3c1e526e2e288f030b22f028d94e85649b9f186b977240672e278dc5894588f"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_inventory.rs",
+    "sha256": "7ce730156ba3007895649f12c7157c967091fd55095ecb628173c018d8f52696"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_command_presence.rs",
+    "sha256": "80e3b8a700610f19c2407baabd5ed636d29fcd70ab98e9a644f720f882bf4200"
+  },
+  {
+    "path": "rust/tcl-syntax/src/naming/script_namespace_snapshot.rs",
+    "sha256": "c8b939ab79ba776973b8c60a9a8fb2dd087d7d4bac128167b55abe53fc60de84"
+  }
+]

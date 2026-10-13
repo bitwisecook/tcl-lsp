@@ -46,12 +46,14 @@ pub(super) fn procedure_view(
     let mut references = Vec::new();
     for (ordinal, (row, identity)) in declarations.iter().zip(&identities).enumerate() {
         let proc = row.metadata();
-        let summary = compilation.and_then(|(module, interproc)| {
-            compiled_label(source, analysis, module, row)
-                .and_then(|label| interproc.procedures.get(label))
-        });
+        let body_id =
+            compilation.and_then(|(module, _)| compiled_body_id(source, analysis, module, row));
+        let summary = compilation
+            .and_then(|(_, interproc)| body_id.and_then(|id| interproc.procedures.get(&id)));
         nodes.push(json!({
             "id": format!("declaration-{ordinal}"),
+            "bodyId": body_id.map(|id| id.ordinal()),
+            "bodyKey": body_id.map(|id| id.reporting_key()),
             "name": labels[ordinal],
             "params": proc.params.iter().map(|param| &param.name).collect::<Vec<_>>(),
             "line": super::line0(&index, identity.span().start()),
@@ -215,8 +217,23 @@ pub(super) fn uncompiled_procedure_nodes(
         .collect()
 }
 
-/// A compiled unit must independently retain the same original implementation
-/// body, namespace and allocation. Labels only index those authenticated units.
+/// Select the body retained for this exact source declaration and allocation.
+pub(super) fn compiled_body_id(
+    source: &str,
+    analysis: &AnalysisResult,
+    module: &Module,
+    declaration: &SourceDeclarationMetadata<ProcDef>,
+) -> Option<tcl_compiler::ir::ProcedureId> {
+    tcl_compiler::source_graph::procedure_body_for_declaration(
+        source,
+        analysis,
+        module,
+        declaration,
+    )
+    .map(|(id, _)| id)
+}
+
+/// Presentation label of an independently selected source body.
 pub(super) fn compiled_label<'a>(
     source: &str,
     analysis: &AnalysisResult,
@@ -273,6 +290,43 @@ fn caller(
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_summary_rows_join_source_allocations_after_display_collision() {
+        let source = "proc first {} {return FIRST}; proc second {} {return SECOND}";
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let registry = crate::registry_for_dialect("tcl8.6");
+        let input = super::super::standalone_graph_input(registry, profile);
+        let unit = super::super::document_unit(source, registry, &input)
+            .with_interprocedural(registry, Some(profile));
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "tcl8.6");
+        let mut module = unit.ir_module.clone();
+        for procedure in module.procedures.values_mut() {
+            procedure.qualified_name = "same display".to_owned();
+        }
+        let rows: Vec<_> = analysis
+            .original_procedure_declarations()
+            .map(|row| compiled_body_id(source, &analysis, &module, row).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert_ne!(rows[0], rows[1]);
+        let graph = procedure_view(
+            source,
+            &analysis,
+            Some((&module, unit.interproc.as_ref().unwrap())),
+        )
+        .unwrap();
+        let nodes = graph["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2, "{graph}");
+        assert!(
+            nodes
+                .iter()
+                .all(|node| node["pure"].as_bool() == Some(true)),
+            "{graph}"
+        );
+    }
 
     #[test]
     // Implementation contract: naming.core.original-declaration-graphs

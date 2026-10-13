@@ -691,7 +691,7 @@ pub(crate) fn instance_classes_for_function(
                 }
                 observed
             })
-            .and_then(|analysis| analysis.global_instance_classes.get(&cfg.name))
+            .and_then(|analysis| analysis.global_instance_classes.get(&source.body_id()?))
             .cloned()
             .unwrap_or_default()
     } else {
@@ -843,7 +843,7 @@ pub(crate) struct TaintCtx<'a> {
     /// [`Symbol`]-keyed `uses` / `taints` maps.
     pub(crate) ssa: &'a SsaFunction,
     pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
-    pub(crate) known_procs: Option<&'a HashSet<String>>,
+    pub(crate) known_procs: Option<&'a HashSet<crate::ir::ProcedureId>>,
     pub(crate) caller_qname: Option<&'a str>,
     pub(crate) dialect: Option<&'static tcl_dialect::DialectProfile>,
     pub(crate) source: TaintSourceContext<'a>,
@@ -853,7 +853,7 @@ pub(crate) struct TaintCtx<'a> {
     /// [`crate::taint_interproc::apply_proc_return_summary`] transfer
     /// instead of the conservative single-passthrough rule.
     pub(crate) taint_summaries:
-        Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
+        Option<&'a HashMap<crate::ir::ProcedureId, crate::taint_interproc::ProcTaintSummary>>,
     /// Local, registry-derived object receiver classes used to resolve a
     /// `TAINT_SOURCE` instance method (`.entry get`, `$widget get`).
     pub(crate) instance_classes: Option<&'a LocalInstanceClasses>,
@@ -1201,7 +1201,15 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
     depth: u32,
 ) -> Option<TaintLattice> {
     let known = ctx.known_procs?;
-    let caller = ctx.caller_qname.unwrap_or("::top");
+    let ids = ctx
+        .source
+        .procedure_ids(ctx.source_tokens?, command, ctx.registry)?;
+    let [target] = ids.as_slice() else {
+        return None;
+    };
+    if !known.contains(target) {
+        return None;
+    }
 
     // Colour-aware return-summary path: when the interprocedural taint
     // solve has computed per-proc summaries, apply the full transfer.
@@ -1209,8 +1217,7 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
     // always yields a result (untainted when the arity rejects the call),
     // so the bare argument join below is bypassed for internal calls.
     if let Some(summaries) = ctx.taint_summaries {
-        let target = crate::interprocedural::resolve_call_target(command, args, caller, known)?;
-        let summary = summaries.get(&target)?;
+        let summary = summaries.get(target)?;
         let arg_taints: Vec<TaintLattice> = (0..args.len())
             .map(|index| {
                 positional_argument_taint(index, args, effective, uses, taints, ctx, depth)
@@ -1224,8 +1231,7 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
 
     // Conservative single-passthrough rule (no solve summaries available).
     let interproc = ctx.interproc?;
-    let target = crate::interprocedural::resolve_internal_call(command, caller, known)?;
-    let summary = interproc.procedures.get(&target)?;
+    let summary = interproc.procedures.get(target)?;
     let passthrough = summary.return_passthrough_param.as_ref()?;
     let idx = summary.params.iter().position(|p| p == passthrough)?;
     args.get(idx)?;
@@ -1240,10 +1246,16 @@ fn interproc_call_taints_global(command: &str, defined_name: &str, ctx: TaintCtx
     let (Some(known), Some(interproc)) = (ctx.known_procs, ctx.interproc) else {
         return false;
     };
-    let caller = ctx.caller_qname.unwrap_or("::top");
-    crate::interprocedural::resolve_internal_call(command, caller, known)
-        .and_then(|target| interproc.tainted_global_writes.get(&target))
-        .is_some_and(|writes| writes.contains(defined_name))
+    ctx.source_tokens
+        .and_then(|tokens| ctx.source.procedure_ids(tokens, command, ctx.registry))
+        .is_some_and(|ids| {
+            ids.iter().filter(|id| known.contains(id)).any(|id| {
+                interproc
+                    .tainted_global_writes
+                    .get(id)
+                    .is_some_and(|writes| writes.contains(defined_name))
+            })
+        })
 }
 
 /// Look up taint for a named variable at its current SSA version. A name
@@ -1863,50 +1875,49 @@ fn join_uses<S: std::hash::BuildHasher>(
 /// function's IR via `Statement::Call` commands that resolve to an
 /// internal proc, then unions their transitive closures.
 fn reachable_writes_global(
-    ssa: &SsaFunction,
+    _ssa: &SsaFunction,
     cfg: &CfgFunction,
     ia: &InterproceduralAnalysis,
+    source: TaintSourceContext<'_>,
+    registry: &CommandRegistry,
 ) -> bool {
     if cfg.has_opaque_native_accesses() {
         return true;
     }
-    // If the function itself is in the summary, use its transitive
-    // closure directly.
-    if let Some(self_summary) = ia.procedures.get(ssa.name.as_str()) {
-        if self_summary.writes_global {
-            return true;
-        }
-        return self_summary
-            .calls
-            .iter()
-            .any(|c| ia.procedures.get(c).is_some_and(|s| s.writes_global));
+    if let Some(summary) = source.body_id().and_then(|id| ia.procedures.get(&id)) {
+        return summary.writes_global
+            || summary
+                .calls
+                .iter()
+                .any(|id| ia.procedures.get(id).is_some_and(|row| row.writes_global));
     }
-
-    // Unknown / top-level caller: walk the CFG for direct Call
-    // targets, resolve them, and union the transitive closures.
-    let known: HashSet<String> = ia.procedures.keys().cloned().collect();
-    let mut visited: FxHashSet<String> = FxHashSet::default();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Call { command, .. } = stmt
-                && let Some(target) = crate::interprocedural::resolve_internal_call(
-                    command,
-                    ssa.name.as_str(),
-                    &known,
-                )
-                && let Some(summary) = ia.procedures.get(&target)
-            {
-                if summary.writes_global {
-                    return true;
-                }
-                if visited.insert(target) {
-                    for c in &summary.calls {
-                        if ia.procedures.get(c).is_some_and(|s| s.writes_global) {
-                            return true;
-                        }
-                    }
-                }
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Statement::Call {
+            command, tokens, ..
+        } = statement
+        else {
+            continue;
+        };
+        let Some(ids) = tokens
+            .as_ref()
+            .and_then(|tokens| source.procedure_ids(tokens, command, registry))
+        else {
+            if ia.procedures.values().any(|row| row.writes_global) {
+                return true;
             }
+            continue;
+        };
+        if ids.iter().any(|id| {
+            ia.procedures.get(id).is_some_and(|row| {
+                row.writes_global
+                    || row.calls.iter().any(|callee| {
+                        ia.procedures
+                            .get(callee)
+                            .is_some_and(|row| row.writes_global)
+                    })
+            })
+        }) {
+            return true;
         }
     }
     false
@@ -2041,7 +2052,7 @@ pub(crate) fn propagate_taints(
     // resolution in `interproc_call_taint` is O(1) rather than
     // O(procedures) per call site. The solve's summaries take
     // precedence (their key set).
-    let known_procs: Option<HashSet<String>> = match (taint_summaries, interproc) {
+    let known_procs: Option<HashSet<crate::ir::ProcedureId>> = match (taint_summaries, interproc) {
         (Some(s), _) => Some(s.keys().cloned().collect()),
         (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
         (None, None) => None,
@@ -2070,6 +2081,7 @@ pub(crate) fn propagate_taints(
         interproc,
         param_taints,
         (registry, dialect),
+        source,
     );
 
     let mut changed = true;
@@ -2145,6 +2157,7 @@ fn seed_entry_taints(
         &CommandRegistry,
         Option<&'static tcl_dialect::DialectProfile>,
     ),
+    source: TaintSourceContext<'_>,
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -2171,7 +2184,7 @@ fn seed_entry_taints(
     // incomings) ensures we discover globals even when the entry
     // block has no seeded versions.
     if let Some(ia) = interproc
-        && reachable_writes_global(ssa, cfg, ia)
+        && reachable_writes_global(ssa, cfg, ia, source, registry)
     {
         let globals = collect_global_reads(ssa);
         for name in globals {
@@ -3156,12 +3169,6 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             )
         },
     );
-    let proc_qnames: HashSet<&str> = cu
-        .ir_module
-        .procedures
-        .unique_displays()
-        .map(String::as_str)
-        .collect();
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
@@ -3173,12 +3180,15 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     for fu in cu.analysable_body_function_units() {
         let exec = &fu.sccp.executable_blocks;
         let taints = apply_module_variable_traces(
-            solved.taints_for(&fu.name, &fu.taints).clone(),
+            solved.taints_for_function(cu, fu).clone(),
             &fu.ssa,
             module_traces,
         );
-        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
-        let shadowed = shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
+        let Some(shadowed) =
+            shadowed_builtin_names_for_module_function(fu, &cu.ir_module, registry)
+        else {
+            continue;
+        };
         out.extend(find_taint_warnings_for_function_with_identities(
             fu,
             &taints,
@@ -3400,7 +3410,7 @@ fn find_callback_substitution_warnings(
             &fu.cfg,
             registry,
             cu.interproc.as_ref(),
-            fu.name != "::top",
+            !std::ptr::eq(fu, &cu.top_level),
             source,
         );
         for block in fu.cfg.blocks.values() {
@@ -4132,6 +4142,64 @@ pub fn shadowed_builtin_names<'a>(
         }
     }
     out
+}
+
+/// Source shadowing for one actual retained body, without interpreting its display.
+/// Unknown namespace or publication geometry refuses this projection.
+#[must_use]
+pub fn shadowed_builtin_names_for_module_function(
+    function: &crate::compilation_unit::FunctionUnit,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> Option<HashSet<String>> {
+    use crate::command_binding::SourceNamespaceKey;
+    fn path(context: &SourceNamespaceKey) -> Option<tcl_core_types::ByteNamespacePath> {
+        context.exact_native_path().cloned().or_else(|| {
+            let authored = context.advisory_key()?;
+            Some(tcl_core_types::ByteNamespacePath::from_segments(
+                tcl_syntax::naming::key_segments(&authored),
+            ))
+        })
+    }
+    let namespace = if let Some(id) = function.body_id {
+        if let Some(procedure) = module
+            .procedures
+            .get(&id)
+            .or_else(|| module.body_units.get(&id))
+        {
+            path(procedure.body.namespace_context.as_deref()?)?
+        } else if let Some(method) = module.methods.get(&id) {
+            match &method.execution_namespace {
+                crate::ir::ExecutionNamespace::SourceContext(context) => path(context)?,
+                crate::ir::ExecutionNamespace::Exact(context) => {
+                    path(&SourceNamespaceKey::authored(context))?
+                }
+                crate::ir::ExecutionNamespace::RuntimeSelected => return None,
+            }
+        } else {
+            return None;
+        }
+    } else if let Some(context) = module.top_level_namespace_context.as_ref() {
+        path(context)?
+    } else if module.source_entry.metadata_context.is_standalone() {
+        tcl_core_types::ByteNamespacePath::root()
+    } else {
+        return None;
+    };
+    let mut shadowed = HashSet::new();
+    for procedure in module.procedures.values() {
+        let slot = procedure.publication.as_ref()?.slot();
+        if slot.namespace == namespace || slot.namespace.is_root() {
+            let tail = slot.simple.try_utf8().ok()?;
+            if registry
+                .get_for_surface(tail, registry.own_surface_query())
+                .is_some()
+            {
+                shadowed.insert(tail.to_owned());
+            }
+        }
+    }
+    Some(shadowed)
 }
 
 /// Emit taint sink warnings (`T100` family) for one function.

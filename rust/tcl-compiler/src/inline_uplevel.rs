@@ -65,16 +65,13 @@ pub enum PassthroughShape {
 pub fn detect_passthrough_candidates(
     module: &Module,
     registry: &CommandRegistry,
-) -> HashMap<String, PassthroughShape> {
+) -> HashMap<crate::ir::ProcedureId, PassthroughShape> {
     let mut out = HashMap::new();
-    for (qname, proc) in module.procedures.display_entries() {
-        if module.procedures.unique_display(qname).is_none() {
-            continue;
-        }
+    for (id, proc) in &module.procedures {
         if let Some(shape) =
             classify_passthrough(proc, registry, module.source_entry.invocation_dialect)
         {
-            out.insert(qname.clone(), shape);
+            out.insert(*id, shape);
         }
     }
     out
@@ -85,7 +82,7 @@ pub fn detect_passthrough_candidates(
 pub fn detect_static_passthrough(
     module: &Module,
     registry: &CommandRegistry,
-) -> HashMap<String, Script> {
+) -> HashMap<crate::ir::ProcedureId, Script> {
     detect_passthrough_candidates(module, registry)
         .into_iter()
         .filter_map(|(k, v)| match v {
@@ -480,12 +477,7 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     if candidates.is_empty() {
         return;
     }
-    let generations: HashMap<_, _> = module
-        .procedures
-        .display_entries()
-        .filter(|(name, _)| module.procedures.unique_display(name).is_some())
-        .map(|(name, proc)| (name.clone(), proc.span.start()))
-        .collect();
+    let catalogue = module.clone();
     let config = module.lexer_config;
     // naming.source.retained-positioned-command-realm
     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
@@ -503,7 +495,7 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     };
     let context = InlineContext {
         candidates: &candidates,
-        generations: &generations,
+        catalogue: &catalogue,
         registry,
         bindings,
         config,
@@ -540,8 +532,8 @@ fn namespace_of(qname: &str) -> String {
 }
 
 struct InlineContext<'a> {
-    candidates: &'a HashMap<String, PassthroughShape>,
-    generations: &'a HashMap<String, u32>,
+    candidates: &'a HashMap<crate::ir::ProcedureId, PassthroughShape>,
+    catalogue: &'a Module,
     registry: &'a CommandRegistry,
     bindings: &'a crate::command_binding::SourceCommandBindings,
     config: tcl_lexer::LexerConfig,
@@ -573,7 +565,7 @@ fn try_inline_callsite(
 ) -> Option<Statement> {
     let InlineContext {
         candidates,
-        generations,
+        catalogue,
         registry,
         bindings,
         config,
@@ -607,9 +599,9 @@ fn try_inline_callsite(
     if target.kind != crate::command_binding::BindingKind::Proc {
         return None;
     }
-    let identity = target.identity.as_ref()?;
-    let shape = candidates.get(&identity.origin)?;
-    let declaration = generations.get(&identity.origin).copied()?;
+    let (id, procedure) = catalogue.source_procedure_for_target(target)?;
+    let shape = candidates.get(&id)?;
+    let declaration = procedure.span.start();
     if !target.matches_authored_implementation(source, declaration) {
         return None;
     }
@@ -808,12 +800,22 @@ mod tests {
         lower_to_ir_with(lowerer, source)
     }
 
+    fn fixture_id(module: &Module, display: &str) -> crate::ir::ProcedureId {
+        let mut matching = module
+            .procedures
+            .iter()
+            .filter(|(_, body)| body.qualified_name == display);
+        let id = *matching.next().expect("authored fixture body").0;
+        assert!(matching.next().is_none(), "ambiguous authored fixture body");
+        id
+    }
+
     #[test]
     fn zero_param_static_passthrough_detected() {
         let m = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }\nreset", &reg());
         let candidates = detect_static_passthrough(&m, &reg());
         assert_eq!(candidates.len(), 1);
-        assert!(candidates.contains_key("::reset"));
+        assert!(candidates.contains_key(&fixture_id(&m, "::reset")));
     }
 
     #[test]
@@ -1007,7 +1009,7 @@ mod tests {
         ] {
             let m = lower_to_ir(src, &reg());
             let found = matches!(
-                detect_passthrough_candidates(&m, &reg()).get("::dispatcher"),
+                detect_passthrough_candidates(&m, &reg()).get(&fixture_id(&m, "::dispatcher")),
                 Some(PassthroughShape::ParamBody { .. })
             );
             assert_eq!(found, expected, "{src}");
@@ -1048,7 +1050,7 @@ mod tests {
         // `proc D {b} { ::uplevel 1 $b }` is the same passthrough shape.
         let m = lower_to_ir("proc dispatcher {body} { ::uplevel 1 $body }", &reg());
         assert!(matches!(
-            detect_passthrough_candidates(&m, &reg()).get("::dispatcher"),
+            detect_passthrough_candidates(&m, &reg()).get(&fixture_id(&m, "::dispatcher")),
             Some(PassthroughShape::ParamBody { .. })
         ));
     }
@@ -1057,7 +1059,9 @@ mod tests {
     fn param_body_passthrough_detected() {
         let m = lower_to_ir("proc dispatcher {body} { uplevel 1 $body }", &reg());
         let candidates = detect_passthrough_candidates(&m, &reg());
-        let shape = candidates.get("::dispatcher").expect("expected candidate");
+        let shape = candidates
+            .get(&fixture_id(&m, "::dispatcher"))
+            .expect("expected candidate");
         match shape {
             PassthroughShape::ParamBody { param_name, .. } => assert_eq!(param_name, "body"),
             PassthroughShape::Static { .. } => panic!("expected ParamBody, got Static"),
@@ -1071,7 +1075,7 @@ mod tests {
         let m = lower_to_ir("proc dispatcher {body} { uplevel $body }", &reg());
         let candidates = detect_passthrough_candidates(&m, &reg());
         assert!(matches!(
-            candidates.get("::dispatcher"),
+            candidates.get(&fixture_id(&m, "::dispatcher")),
             Some(PassthroughShape::ParamBody { .. })
         ));
     }

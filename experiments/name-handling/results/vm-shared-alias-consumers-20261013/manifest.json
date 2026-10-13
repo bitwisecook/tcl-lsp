@@ -1,0 +1,49 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/command.rs",
+      "main_sha256": "c77a59ae712ffcc8394e8b8e910ab1197e6e37202c376fa58ad833345ce2896d",
+      "after_sha256": "f56fd8993773930cf1d23948347d6ca539e03da48db4dcd1559fa005d03a4dd1",
+      "isolated_sha256": "f56fd8993773930cf1d23948347d6ca539e03da48db4dcd1559fa005d03a4dd1"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "main_sha256": "75ed9269a35b20db3e447079de4ec9675757a4fd36fece82b843d033094b88bc",
+      "after_sha256": "dc55d09c980290b5a8a8e3bc08f35298c21cbe1817e298019c7b6f595d47b6b8",
+      "isolated_sha256": "ecaead0871d473cf345335103b71c6099be16f7c357ad2b44c487f259db49368"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+      "main_sha256": "f7ea0c669baec323413dbe008b1ba6338afc4b75f6054b6053cb66a2b7ece069",
+      "after_sha256": "4398aa8b25a26c46616ff9f6738956b4a48acf65ef5048d9a217c38b45b62356",
+      "isolated_sha256": "4398aa8b25a26c46616ff9f6738956b4a48acf65ef5048d9a217c38b45b62356"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_alias_registration.rs",
+      "main_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "61a0a3f84be4a56e55afb86e26ca2115bf1fb84f7e93a2c6df8fc4e7b434665a",
+      "isolated_sha256": "61a0a3f84be4a56e55afb86e26ca2115bf1fb84f7e93a2c6df8fc4e7b434665a"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "main_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "3a6f0325df8829253ea57665d2ca2e379a0002369f7ee5a59ac3afb39ce9fac8",
+      "isolated_sha256": "3a6f0325df8829253ea57665d2ca2e379a0002369f7ee5a59ac3afb39ce9fac8"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_name_queries/tests.rs",
+      "main_sha256": "4581f7c6460a8e47d9df6128f95f3dc013a05e2b29ead6f95a3a61958873ceea",
+      "after_sha256": "9be934440065f47d28c427e919f989248df857fde0e6795d22ccdcf24276c94a",
+      "isolated_sha256": "9be934440065f47d28c427e919f989248df857fde0e6795d22ccdcf24276c94a"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/original_name_residual_tests.rs",
+      "main_sha256": "9eca604ba2650fe4b0c41e93fd6a8289c2bb36bb7f2d669185dd9a545b9c2e27",
+      "after_sha256": "c19acca857a786046ea7622e4c7950481d44d94631ee42d27f5657aed8f4ca76",
+      "isolated_sha256": "c19acca857a786046ea7622e4c7950481d44d94631ee42d27f5657aed8f4ca76"
+    }
+  ],
+  "status": "uncompiled",
+  "compiler_diagnostic_excluded": true,
+  "preserved_main_only_cache": "ProcedureArtifactCandidates; isolated cache requires independent Main primary ID producer"
+}

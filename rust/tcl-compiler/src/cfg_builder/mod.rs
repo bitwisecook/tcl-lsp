@@ -3191,6 +3191,33 @@ pub fn detect_upvar_procs_with_registry(
     detect_upvar_procs_with_bindings(module, registry, &command_bindings)
 }
 
+/// Caller-frame facts retained separately for every genuine source body.
+pub(crate) fn detect_upvar_bodies_with_registry(
+    module: &Module,
+    registry: &CommandRegistry,
+) -> HashMap<crate::ir::ProcedureId, UpvarInfo> {
+    let bindings = ModuleCommandBindings::analyse(module, registry);
+    let owner = module
+        .retained_source_bindings
+        .as_ref()
+        .filter(|owner| owner.matches_module(module, registry));
+    module.procedures.iter().map(|(id, procedure)| {
+        let namespace = procedure.body.namespace_context.as_deref().and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+        let mut info = if let Some(namespace) = namespace.filter(|_| owner.is_some_and(|owner| owner.matches_original_procedure(procedure))) {
+            upvar_info::collect_upvar_targets_with_bindings(
+                &procedure.body, &procedure.params, registry, &bindings, &namespace,
+                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module).and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
+            )
+        } else { opaque_frame_summary() };
+        if !info.uplevel_forwarded_calls.is_empty() {
+            // Unpositioned forwarding cannot select another retained body.
+            info = opaque_frame_summary();
+        }
+        info.param_defaults = upvar_info::name_param_defaults(&info, &procedure.params_raw, module.word_values());
+        (*id, info)
+    }).collect()
+}
+
 /// Scan caller-frame effects using the module binding summary already
 /// prepared by the whole-module CFG pipeline.
 fn detect_upvar_procs_with_bindings(

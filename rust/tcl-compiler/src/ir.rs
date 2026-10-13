@@ -35,6 +35,8 @@ pub use tcl_registry::value_transfer::HandlerMatch;
 use crate::expr_ast::ExprNode;
 use crate::segmenter::SegmentedCommand;
 
+mod method_identity;
+pub use method_identity::{MethodCoordinate, MethodInventory};
 mod procedure_identity;
 pub use procedure_identity::{
     ProcedureBodyKind, ProcedureId, ProcedureIdIssuer, ProcedureInventory,
@@ -2561,6 +2563,8 @@ impl SourceIrulesEventBody {
 /// interprocedural analysis and devirtualisation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodDef {
+    /// Issued owner of the retained definition script; not a class allocation.
+    pub definition_scope: Option<ProcedureId>,
     /// Enclosing class name.
     pub class_name: String,
     /// Method name.
@@ -2822,8 +2826,8 @@ pub struct Module {
     /// not create an event frame or select a hosted execution context.
     pub irules_event_bodies:
         std::collections::HashMap<ProcedureId, std::sync::Arc<SourceIrulesEventBody>>,
-    /// Named methods (keyed by `class::method`).
-    pub methods: std::collections::HashMap<String, MethodDef>,
+    /// Every method definition under its independently issued body ID.
+    pub methods: MethodInventory,
     /// Analysis bodies of lambdas, namespace scripts and retained declarations.
     /// Their IDs identify bodies; these rows do not publish callable commands.
     pub body_units: ProcedureInventory,
@@ -2840,17 +2844,9 @@ pub struct Module {
     pub lambda_body_units: std::collections::BTreeSet<ProcedureId>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
-    /// `TclOO` methods defined more than once (a later `oo::define` /
-    /// in-body redefinition replaces the body at runtime), keyed by
-    /// method qname. [`Self::methods`] keeps the *first* body
-    /// (last-definition-wins stays with the navigation layer); each
-    /// **replacement** body is retained here in definition order,
-    /// so analysis consumers — the SCCP method-dispatch barrier,
-    /// O126 method purity — can scan every body a dispatch may run
-    /// instead of abstaining on the mere fact of redefinition. The union
-    /// of bodies over-approximates whichever is live at dispatch time,
-    /// so scanning all of them is sound where scanning one is not.
-    pub redefined_methods: std::collections::HashMap<String, Vec<MethodDef>>,
+    /// Conservative replacement groups of actual retained body IDs.
+    /// Grouping is source metadata; no receiver or method token is selected.
+    pub redefined_methods: std::collections::HashMap<ProcedureId, Vec<ProcedureId>>,
     /// Class qnames with a member definition the lowering could not
     /// statically model — a dynamic member name (`method $n …`) or a
     /// dynamic member body (`method m {} $body`) inside an `oo::class` /
@@ -3025,6 +3021,46 @@ impl Module {
         id
     }
 
+    /// Issue one method-body ID and retain every definition independently.
+    /// Structured metadata groups protective may-body facts, never Native tokens.
+    pub fn retain_method(&mut self, method: MethodDef) -> ProcedureId {
+        let coordinate = method.coordinate();
+        let primary = self
+            .methods
+            .iter()
+            .find_map(|(id, existing)| (existing.coordinate() == coordinate).then_some(*id));
+        let id = self.procedure_ids.allocate();
+        self.methods.insert(id, method);
+        if let Some(primary) = primary {
+            self.redefined_methods.entry(primary).or_default().push(id);
+        }
+        id
+    }
+
+    /// All retained bodies conservatively associated with this definition.
+    /// Repeated labels cannot omit a body or identify its runtime receiver.
+    pub fn method_definition_bodies(
+        &self,
+        id: ProcedureId,
+    ) -> impl Iterator<Item = (ProcedureId, &MethodDef)> {
+        let primary = self
+            .redefined_methods
+            .iter()
+            .find_map(|(primary, replacements)| {
+                (*primary == id || replacements.contains(&id)).then_some(*primary)
+            })
+            .unwrap_or(id);
+        std::iter::once(primary)
+            .chain(
+                self.redefined_methods
+                    .get(&primary)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+            .filter_map(|id| self.methods.get(&id).map(|body| (id, body)))
+    }
+
     /// Retain an independent executable body under the same Module issuer.
     pub fn retain_body_unit(&mut self, procedure: Procedure) -> ProcedureId {
         let id = self.procedure_ids.allocate();
@@ -3193,19 +3229,6 @@ impl Module {
                     .execution_namespace(method.execution_namespace.clone()),
             )
         }));
-
-        let mut redefined_methods: Vec<_> = self.redefined_methods.iter().collect();
-        redefined_methods.sort_by(|a, b| a.0.cmp(b.0));
-        for (_, replacements) in redefined_methods {
-            roots.extend(replacements.iter().map(|method| {
-                (
-                    &method.body,
-                    method
-                        .body
-                        .execution_namespace(method.execution_namespace.clone()),
-                )
-            }));
-        }
 
         roots
     }

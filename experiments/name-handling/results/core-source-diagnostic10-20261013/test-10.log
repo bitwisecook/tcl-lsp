@@ -1,0 +1,49 @@
+
+running 1 test
+test source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles ... VARIABLE_SOURCE cursor=17 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=17 command=11..22 partial=false
+VARIABLE_SOURCE cursor=17 written=1 word=16..22 kind=Bare expand=false
+VARIABLE_SOURCE cursor=17 inert=Some(false)
+VARIABLE_SOURCE cursor=17 regions=2 commands=2 reference=true
+VARIABLE_SOURCE cursor=17 comment_facts=None
+VARIABLE_SOURCE cursor=17 inert=None
+VARIABLE_SOURCE cursor=17 comment_facts=None
+VARIABLE_SOURCE cursor=17 inert=None
+VARIABLE_SOURCE cursor=15 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=15 command=0..21 partial=false
+VARIABLE_SOURCE cursor=15 written=1 word=8..21 kind=Braced expand=false
+VARIABLE_SOURCE cursor=15 source_schema=true
+VARIABLE_SOURCE cursor=15 inert=Some(true)
+VARIABLE_SOURCE cursor=15 comment_facts=None
+VARIABLE_SOURCE cursor=15 inert=None
+VARIABLE_SOURCE cursor=15 comment_facts=None
+VARIABLE_SOURCE cursor=15 inert=None
+VARIABLE_SOURCE cursor=40 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=40 command=23..46 partial=false
+VARIABLE_SOURCE cursor=40 written=1 word=33..46 kind=Braced expand=false
+VARIABLE_SOURCE cursor=40 source_schema=false
+VARIABLE_SOURCE cursor=40 inert=None
+VARIABLE_SOURCE cursor=40 comment_facts=None
+VARIABLE_SOURCE cursor=40 inert=None
+VARIABLE_SOURCE cursor=40 comment_facts=None
+VARIABLE_SOURCE cursor=40 inert=None
+VARIABLE_SOURCE cursor=45 comment_facts=Some(0)
+VARIABLE_SOURCE cursor=45 command=31..51 partial=false
+VARIABLE_SOURCE cursor=45 written=1 word=38..51 kind=Braced expand=false
+VARIABLE_SOURCE cursor=45 source_schema=false
+VARIABLE_SOURCE cursor=45 inert=None
+
+thread 'source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles' (165456) panicked at rust/tcl-lsp-core/src/source_structure.rs:1011:13:
+assertion `left == right` failed
+  left: None
+ right: Some("value")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3018 filtered out; finished in 1.49s
+

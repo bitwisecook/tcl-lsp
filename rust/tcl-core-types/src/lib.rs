@@ -38,7 +38,7 @@
 extern crate alloc;
 
 mod body_identity;
-pub use body_identity::{ProcedureId, ProcedureIdIssuer};
+pub use body_identity::{BodyFrameId, ProcedureId, ProcedureIdIssuer, ProcedureModuleId};
 
 mod native_value;
 pub use native_value::{

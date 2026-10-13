@@ -225,6 +225,7 @@ fn original_alias_query_keeps_resident_headers_and_pending_first_host() {
         Command::Alias {
             words: Rc::clone(&words),
             publication_name: "a".into(),
+            registration_name: Value::new_native_string_bytes(b"a".as_slice()),
         },
     );
     let id = tcl_runtime_api::Namespaces::find_command_bytes(&vm, tcl_runtime_api::ROOT_NS, b"a")

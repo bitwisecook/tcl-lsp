@@ -251,6 +251,7 @@ pub enum ExistencePoint {
 /// of the same one — may have bound them; empty for a module with no
 /// handler.
 fn connection_scoped_names(
+    module: &IrModule,
     cfg_module: &CfgModule,
     registry: &CommandRegistry,
     options: UnitBuildOptions<'_>,
@@ -258,8 +259,12 @@ fn connection_scoped_names(
     let config = options.config;
     let mut names: BTreeSet<String> = BTreeSet::new();
     let mut any = false;
-    for (_, cfg) in &cfg_module.procedures {
-        if !cfg.name.starts_with(WHEN_HANDLER_PREFIX) {
+    for (id, cfg) in &cfg_module.procedures {
+        if !module
+            .procedures
+            .get(id)
+            .is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event)
+        {
             continue;
         }
         any |= crate::dynamic_names::dynamic_name_barrier(cfg, registry, config).writes;
@@ -395,7 +400,7 @@ pub struct FunctionUnit {
     pub(crate) source_config: tcl_lexer::LexerConfig,
     /// Qualified function name (e.g. `::top`, `::foo::bar`).
     pub name: String,
-    /// Retained module body identity; top-level and method units leave this absent.
+    /// Retained module body identity; the top-level script leaves this absent.
     pub body_id: Option<crate::ir::ProcedureId>,
     /// Control-flow graph.
     pub cfg: CfgFunction,
@@ -674,6 +679,8 @@ type ParamSeeds<'a> = Option<
 /// positional arguments.
 #[derive(Clone, Copy)]
 struct FunctionBuildInputs<'a> {
+    analysis_body: Option<Option<crate::ir::ProcedureId>>,
+    is_event_body: bool,
     /// Initial presence facts are separate from actual source frame ownership.
     initial_state: crate::sccp::ExistenceInitialState,
     source_metadata_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
@@ -757,7 +764,7 @@ impl<'a> FunctionBuildInputs<'a> {
     /// It reads the computed names per statement, so it takes the module's
     /// own trace fact rather than the widened one the values run under; an
     /// iRules `when` handler adds the names its connection may hold.
-    fn existence_entry(&self, name: &str) -> crate::sccp::ExistenceEntry<'a> {
+    fn existence_entry(&self, _name: &str) -> crate::sccp::ExistenceEntry<'a> {
         crate::sccp::ExistenceEntry {
             initial_state: self.initial_state,
             params: self.params,
@@ -766,7 +773,7 @@ impl<'a> FunctionBuildInputs<'a> {
             connection_scoped: self
                 .analysis_context
                 .map(|key| &key.connection_scoped)
-                .filter(|_| name.starts_with(WHEN_HANDLER_PREFIX)),
+                .filter(|_| self.is_event_body),
             dynamic_trace: self.trace_facts.has_dynamic_variable_trace
                 || self.trace_facts.deferred_writes.any,
             config: self.config,
@@ -1308,6 +1315,8 @@ impl FunctionUnit {
             name,
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: entry.as_ref(),
@@ -1355,6 +1364,8 @@ impl FunctionUnit {
             "::conditional_original_body",
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
                 initial_state: crate::sccp::ExistenceInitialState::InheritedFrame,
                 source_metadata_input,
                 entry_context: Some(&entry),
@@ -1406,6 +1417,8 @@ impl FunctionUnit {
             name.into(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: None,
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
@@ -1430,6 +1443,8 @@ impl FunctionUnit {
     /// names is read from.
     #[must_use]
     fn build_procedure_in_module(
+        id: crate::ir::ProcedureId,
+        is_event_body: bool,
         name: &str,
         cfg: CfgFunction,
         (params, param_constants): (&[String], ParamSeeds<'_>),
@@ -1448,6 +1463,8 @@ impl FunctionUnit {
             name.to_owned(),
             cfg,
             FunctionBuildInputs {
+                is_event_body,
+                analysis_body: Some(Some(id)),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
@@ -1491,6 +1508,8 @@ impl FunctionUnit {
             "::top".to_owned(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: Some(None),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: None,
@@ -1525,12 +1544,13 @@ impl FunctionUnit {
     pub fn build_for_method(
         name: impl Into<String>,
         cfg: CfgFunction,
-        method: &crate::ir::MethodDef,
+        method: (crate::ir::ProcedureId, &crate::ir::MethodDef),
         dialect: UnitDialect<'_>,
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
         command_trust: &crate::command_binding::ModuleCommandMutations,
     ) -> Self {
+        let (body_id, method) = method;
         let facts = Arc::new(MethodBodyFacts::from_method(method));
         let mut entry_context = crate::var_resolve::ResolveContext::for_frame(
             crate::var_resolve::VariableFrameKind::Local,
@@ -1545,7 +1565,7 @@ impl FunctionUnit {
         entry_context.instance_owner = if facts.original_source {
             String::new()
         } else {
-            method.class_name.clone()
+            method.definition_scope.unwrap_or(body_id).reporting_key()
         };
         match method
             .body
@@ -1574,6 +1594,8 @@ impl FunctionUnit {
             name.into(),
             cfg,
             FunctionBuildInputs {
+                is_event_body: false,
+                analysis_body: Some(Some(body_id)),
                 initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                 source_metadata_input,
                 entry_context: Some(&entry_context),
@@ -1595,6 +1617,7 @@ impl FunctionUnit {
                 procedures: None,
             },
         );
+        unit.body_id = Some(body_id);
         unit.method_facts = Some(facts);
         unit
     }
@@ -1627,6 +1650,7 @@ impl FunctionUnit {
             .analysis_context
             .map_or(AnalysisTier::Deep, |key| key.tier);
         let FunctionBuildInputs {
+            analysis_body,
             initial_state,
             source_metadata_input,
             entry_context,
@@ -1732,7 +1756,10 @@ impl FunctionUnit {
                 trust: crate::sccp::FoldTrust::ObservedBindings,
                 proven_pure_parameters: false,
             }),
-            module: crate::sccp::ModuleRun::reading(procedures),
+            module: crate::sccp::ModuleRun {
+                analysis_body,
+                ..crate::sccp::ModuleRun::reading(procedures)
+            },
         });
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase(4);
@@ -2241,7 +2268,7 @@ pub struct CompilationUnit {
     /// non-OO sources. Kept separate from [`Self::procedures`] so the
     /// per-proc diagnostic passes are unaffected — only the optimiser's
     /// O126 gate iterates these.
-    pub methods: HashMap<String, FunctionUnit>,
+    pub methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     /// Synthetic *body units* — the bodies of `apply` lambdas and
     /// `namespace eval` blocks, lowered to [`FunctionUnit`]s so the
     /// static-analysis pipeline reaches inside them (see
@@ -2438,7 +2465,7 @@ fn lower_and_build_cfg(
 ) -> (
     IrModule,
     CfgModule,
-    HashMap<String, HashSet<String>>,
+    HashMap<crate::ir::ProcedureId, HashSet<String>>,
     PreparedCfgContext,
 ) {
     let registry = options.registry;
@@ -2677,7 +2704,7 @@ struct ProcedureBuildContext<'a> {
     command_trust: &'a crate::command_binding::ModuleCommandMutations,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
-    tainted_global_writes: &'a HashMap<String, HashSet<String>>,
+    tainted_global_writes: &'a HashMap<crate::ir::ProcedureId, HashSet<String>>,
     /// The module's procedures, which a lattice reading another procedure —
     /// a parameter default, a callee's transfer summary — reads. The memo
     /// keys on one procedure's body, so a lattice that read them is built
@@ -2796,13 +2823,9 @@ fn build_procedure_units(
         let qname = cfg.name.as_str();
         let event_body = retained_procedure_event_body(ctx, id, proc, config);
         let param_constants = proc.and_then(|procedure| {
-            (ctx.ir_module
-                .procedures
-                .unique_display(&procedure.qualified_name)?
-                .0
-                == id)
-                .then_some(())?;
             params_constants_from_native_call_sites(
+                ctx.ir_module,
+                *id,
                 procedure,
                 ctx.ir_module.parameter_grammar(),
                 ctx.call_sites,
@@ -2847,7 +2870,7 @@ fn build_procedure_units(
         // and (d) the seeds encode into the hashable key form.
         let has_instance_global_writes = ctx
             .tainted_global_writes
-            .get(qname)
+            .get(&id)
             .is_some_and(|writes| !writes.is_empty());
         // The memo request retains the complete module mutation obligations;
         // a shadow or unknown callback rekeys the lattice rather than borrowing
@@ -2928,6 +2951,8 @@ fn build_procedure_units(
         };
         let mut fu = memoised.unwrap_or_else(|| {
             FunctionUnit::build_procedure_in_module(
+                *id,
+                proc.is_some_and(|body| body.body_kind == crate::ir::ProcedureBodyKind::Event),
                 qname,
                 cfg.clone(),
                 (params, param_constants.as_ref()),
@@ -3268,7 +3293,12 @@ impl CompilationUnit {
         // writes one.
         let analysis_context =
             crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
-                .with_connection_scoped(connection_scoped_names(&cfg_module, registry, options))
+                .with_connection_scoped(connection_scoped_names(
+                    &ir_module,
+                    &cfg_module,
+                    registry,
+                    options,
+                ))
                 .with_deferred_writes(ir_module.deferred_writes.clone());
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
@@ -3414,7 +3444,7 @@ impl CompilationUnit {
         ir_module: &IrModule,
         extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
         ctx: BodyUnitContext<'_>,
-    ) -> HashMap<String, FunctionUnit> {
+    ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
         let BodyUnitContext {
             registry,
             known_class_set,
@@ -3442,10 +3472,11 @@ impl CompilationUnit {
         ir_module
             .methods
             .iter()
-            .map(|(mqname, method)| {
+            .map(|(id, method)| {
+                let mqname = method.reporting_label();
                 let cfg = extra_callers
                     .iter()
-                    .find_map(|caller| caller.analysis_cfg(mqname))
+                    .find_map(|caller| caller.body_analysis_cfg(*id))
                     .expect("call-site scan prepares every method CFG")
                     .clone();
                 let command_resolution_guarded = matches!(
@@ -3465,14 +3496,14 @@ impl CompilationUnit {
                 let body_bytes = method
                     .span
                     .map_or(0usize, |s| s.end().saturating_sub(s.start()) as usize);
-                let fu = if command_resolution_guarded
+                let mut fu = if command_resolution_guarded
                     || body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES
                 {
                     // The guarded unit still carries its method facts: the
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
                     // same carrier as the deep path.
-                    let mut fu = FunctionUnit::trivial_guarded(mqname, cfg).with_source_metadata(
+                    let mut fu = FunctionUnit::trivial_guarded(&mqname, cfg).with_source_metadata(
                         module_source_metadata_input(ir_module, registry),
                         config,
                     );
@@ -3480,9 +3511,9 @@ impl CompilationUnit {
                     fu
                 } else {
                     FunctionUnit::build_for_method(
-                        mqname,
+                        &mqname,
                         cfg,
-                        method,
+                        (*id, method),
                         UnitDialect {
                             registry,
                             config,
@@ -3500,7 +3531,8 @@ impl CompilationUnit {
                     Some(&method.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
-                (mqname.clone(), fu)
+                fu.body_id = Some(*id);
+                (*id, fu)
             })
             .collect()
     }
@@ -3585,12 +3617,23 @@ impl CompilationUnit {
                         crate::var_resolve::ResolveContext::default()
                             .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
                     }
-                } else if ir_module.lambda_body_units.contains(id) {
-                    crate::var_resolve::ResolveContext::for_function(qname)
+                } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
+                    let frame = if ir_module.lambda_body_units.contains(id) {
+                        crate::var_resolve::VariableExecutionFrame::Procedure {
+                            namespace: namespace.display().unwrap_or_default(),
+                            identity: id.reporting_key(),
+                        }
+                    } else {
+                        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                            namespace: namespace.display().unwrap_or_default(),
+                            identity: id.reporting_key(),
+                        }
+                    }
+                    .with_namespace_identity(namespace.clone());
+                    crate::var_resolve::ResolveContext::default().in_frame(&frame)
                 } else {
-                    crate::var_resolve::ResolveContext::for_namespace(
-                        tcl_syntax::naming::key_holder_and_tail(qname).0,
-                    )
+                    crate::var_resolve::ResolveContext::default()
+                        .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
                 };
                 entry_context.namespace_cells.closed = false;
                 let fu = if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
@@ -3603,6 +3646,8 @@ impl CompilationUnit {
                         qname.clone(),
                         cfg,
                         FunctionBuildInputs {
+                            is_event_body: false,
+                            analysis_body: Some(Some(*id)),
                             initial_state: crate::sccp::ExistenceInitialState::DeclaredFrame,
                             source_metadata_input: module_source_metadata_input(
                                 ir_module, registry,
@@ -4060,11 +4105,11 @@ impl CompilationUnit {
     #[must_use]
     pub fn method_instance_vars(
         &self,
-        function_name: &str,
+        body_id: Option<crate::ir::ProcedureId>,
     ) -> Option<&std::collections::HashSet<String>> {
         self.ir_module
             .methods
-            .get(function_name)
+            .get(&body_id?)
             .map(|m| &m.instance_vars)
     }
 
@@ -4536,6 +4581,11 @@ pub fn decode_param_constants(
 
 #[cfg(test)]
 mod tests {
+    fn fixture_method<'a>(unit: &'a CompilationUnit, label: &str) -> Option<&'a FunctionUnit> {
+        let (id, _) = unit.ir_module.methods.unique_display(label)?;
+        unit.methods.get(&id)
+    }
+
     use super::*;
 
     #[test]
@@ -5445,7 +5495,7 @@ mod tests {
                        method m {arg} { ::return $arg }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let fu = cu.methods.get("::C::m").expect("method unit built");
+        let fu = fixture_method(&cu, "::C::m").expect("method unit built");
         let facts = fu
             .method_facts
             .as_deref()
@@ -5455,7 +5505,12 @@ mod tests {
         let known = facts.known_bound_at_entry();
         assert!(known.contains("arg") && known.contains("state"));
         // The IR the carrier was built from agrees (same construction site).
-        let ir = cu.ir_module.methods.get("::C::m").expect("method IR");
+        let ir = cu
+            .ir_module
+            .methods
+            .unique_display("::C::m")
+            .map(|(_, method)| method)
+            .expect("method IR");
         assert_eq!(facts.instance_vars, ir.instance_vars);
         assert_eq!(facts.params, ir.params);
     }
@@ -5680,6 +5735,22 @@ mod tests {
     }
 
     #[test]
+    fn colliding_method_reports_keep_independent_analysis_units() {
+        let source = "namespace eval A {}\noo::class create A::B {method c {} {return LEFT}}\noo::class create A {method B::c {} {return RIGHT}; method <constructor> {} {return NAMED}; constructor {} {set local ACTUAL}; export B::c <constructor>}\n";
+        let unit = CompilationUnit::build_for(source, &registry(), false);
+        assert_eq!(unit.ir_module.methods.len(), 4);
+        assert_eq!(unit.methods.len(), 4);
+        for (id, method) in &unit.ir_module.methods {
+            let function = unit
+                .methods
+                .get(id)
+                .expect("every retained method has its own analysis unit");
+            assert_eq!(function.body_id, Some(*id));
+            assert_eq!(function.name, method.reporting_label());
+        }
+    }
+
+    #[test]
     fn build_for_lowers_oo_methods_to_function_units() {
         // TclOO method bodies get their own
         // FunctionUnit (CFG → SSA → analysis) in `cu.methods`, kept
@@ -5691,7 +5762,7 @@ mod tests {
                    \x20   method get {} { ::return $n }\n\
                    }\n";
         let cu = CompilationUnit::build_for(src, &registry(), false);
-        let mut keys: Vec<&String> = cu.methods.keys().collect();
+        let mut keys: Vec<&String> = cu.methods.values().map(|method| &method.name).collect();
         keys.sort();
         assert_eq!(
             keys,
@@ -5703,11 +5774,15 @@ mod tests {
         );
         // Each method unit carries a real analysis pipeline (its CFG
         // has the entry block at minimum).
-        let get = &cu.methods["::Counter::get"];
+        let get = fixture_method(&cu, "::Counter::get").expect("unique retained fixture method");
         assert_eq!(get.name, "::Counter::get");
         assert!(!get.cfg.blocks.is_empty());
         // Methods are NOT mixed into the per-proc map.
-        assert!(!cu.procedures.contains_key("::Counter::get"));
+        assert!(
+            !cu.procedures
+                .values()
+                .any(|procedure| procedure.name == "::Counter::get")
+        );
     }
 
     #[test]
@@ -5727,15 +5802,21 @@ mod tests {
             false,
         );
         assert!(
-            cu.methods["::C::relative"].complexity_guarded,
+            fixture_method(&cu, "::C::relative")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "a receiver-local command may shadow the lexical builtin"
         );
         assert!(
-            !cu.methods["::C::absolute"].complexity_guarded,
+            !fixture_method(&cu, "::C::absolute")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "an absolute-only method is independent of the receiver namespace"
         );
         assert!(
-            cu.methods["::C::absolute_dispatch"].complexity_guarded,
+            fixture_method(&cu, "::C::absolute_dispatch")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "the receiver namespace can shadow TclOO's injected dispatch commands"
         );
         for name in [
@@ -5744,13 +5825,17 @@ mod tests {
             "::C::absolute_regex",
         ] {
             assert!(
-                !cu.methods[name].complexity_guarded,
+                !fixture_method(&cu, name)
+                    .expect("unique retained fixture method")
+                    .complexity_guarded,
                 "absolute-only method {name} must retain deep analysis: {:#?}",
-                cu.methods[name]
+                fixture_method(&cu, name).expect("unique retained fixture method")
             );
         }
         assert!(
-            cu.methods["::C::nested_alias"].complexity_guarded,
+            fixture_method(&cu, "::C::nested_alias")
+                .expect("unique retained fixture method")
+                .complexity_guarded,
             "a relative nested binding consumed by typed lowering remains runtime-selected"
         );
     }

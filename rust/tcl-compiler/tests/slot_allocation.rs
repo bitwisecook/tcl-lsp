@@ -36,6 +36,10 @@
 //! — so they are asserted directly against the analysis result. This note
 //! discharges the structural-assertion requirement for the whole file.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id;
+
 use std::collections::HashMap;
 
 use tcl_compiler::cfg::{BlockId, Function};
@@ -70,12 +74,15 @@ fn setup(
 ) {
     let reg = registry();
     let module = lower_to_ir(src, reg);
-    let procedure = module.procedures.get(proc).unwrap_or_else(|| {
-        panic!(
-            "proc {proc} not found; keys = {:?}",
-            module.procedures.keys().collect::<Vec<_>>()
-        )
-    });
+    let procedure = module
+        .procedures
+        .get(&fixture_id(&module.procedures, proc))
+        .unwrap_or_else(|| {
+            panic!(
+                "proc {proc} not found; keys = {:?}",
+                module.procedures.keys().collect::<Vec<_>>()
+            )
+        });
     // `false` = do not inline loops, matching the analysis CFG (build_cfg);
     // coalescing depends on liveness only.
     let cfg = build_cfg_function(proc, &procedure.body, false, reg, false);

@@ -1,0 +1,27 @@
+{
+  "prepared_utc": "2026-10-13T23:01:44.171629+00:00",
+  "main_head": "6fbec7420753a88221c865e9aea56edff86997e1",
+  "owners": [
+    {
+      "path": "rust/tcl-compiler/src/body_analysis_capsule.rs",
+      "preimage_sha256": null,
+      "after_sha256": "673f05d297d922a43bccd029e500ea08dfba0395ebb05ea4f79648b378773da9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lib.rs",
+      "preimage_sha256": "00ee19bed242452aadbc7d038e91512a225ce7d5731a14718aa8c6b85dd06759",
+      "after_sha256": "0929e16466ecaf6f1b9a4ec18ad13189f7b0bb0dde2759f450b1388fb1990ec6"
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "preimage_sha256": "abf1afb0d00c5771f030962d14b1e167faf5cc2af4b8395bdd8a1ef91c65edc3",
+      "after_sha256": "f6c5baabb5fa73bb2b19192d8fe0c9cb30ef44a541a605a28d1e779a3e27d2a4"
+    }
+  ],
+  "patch_sha256": "a7980cd20b24ef3148b322d09cf8f166d02425d84af15b8df3a84d11938277ad",
+  "validation": "uncompiled; Compiler strict04 owns lease",
+  "dependency": "typed taint APIs and IA keyed by actual ProcedureId in codegen worktree",
+  "neutral_reuse": "explicit Native closure/template proof implemented as uncompiled draft; noncertified capsules compare actual CU Arc + body ID",
+  "workspace_ingress": "pending optional actual-entry scanner API from compiler_finish; existing lib consumer not moved yet",
+  "original_tests": "cache/edit/corpus assertions retained; currently expected owner-exact memo misses on uncertified edited bodies; not executed"
+}

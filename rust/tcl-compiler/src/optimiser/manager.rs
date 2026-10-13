@@ -658,7 +658,7 @@ fn couple_const_dead_store_chain(
     // Pure constant assignment — removing it loses no observable effect.
     let purity = super::elimination::PurityCtx {
         registry: Some(registry),
-        interproc_pure: &empty,
+        interproc_pure: &std::collections::HashSet::<crate::ir::ProcedureId>::new(),
         config: fu.source_lexer_config(),
         metadata: fu.invocation_metadata_context_for_module(registry, module),
         module: Some(module),

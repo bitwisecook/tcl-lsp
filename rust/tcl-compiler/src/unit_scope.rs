@@ -162,15 +162,14 @@ impl CalleeEvidence {
     }
 }
 
-/// Call-site literal evidence for a set of callees, keyed by resolved
-/// qualified name.
-///
-/// The same shape backs the in-unit scan and the cross-unit one, so a host
-/// supplying workspace evidence is feeding the seed exactly what the unit
-/// would have collected had the other file been part of it.
+/// Caller evidence joined through retained body IDs or authentic source allocations.
+/// Display rows retain reporting and conservative unknown-call reach only.
 #[derive(Debug, Clone, Default)]
 pub struct CallSiteEvidence {
     by_callee: BTreeMap<String, CalleeEvidence>,
+    by_body: BTreeMap<crate::ir::ProcedureId, CalleeEvidence>,
+    body_labels: BTreeMap<crate::ir::ProcedureId, String>,
+    by_implementation: BTreeMap<crate::command_binding::CommandAllocation, CalleeEvidence>,
     /// Whether this round consulted a parameter's value set, i.e. whether
     /// the evidence depends on the previous round and the fixpoint must
     /// iterate.  Not part of the evidence's meaning, so it is excluded from
@@ -181,6 +180,8 @@ pub struct CallSiteEvidence {
 impl PartialEq for CallSiteEvidence {
     fn eq(&self, other: &Self) -> bool {
         self.by_callee == other.by_callee
+            && self.by_body == other.by_body
+            && self.by_implementation == other.by_implementation
     }
 }
 
@@ -190,13 +191,61 @@ impl CallSiteEvidence {
     /// Whether no call site at all was recorded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_callee.is_empty()
+        self.by_callee.is_empty() && self.by_body.is_empty() && self.by_implementation.is_empty()
     }
 
     /// The evidence recorded for `qname`, if any.
     #[must_use]
     pub fn get(&self, qname: &str) -> Option<&CalleeEvidence> {
         self.by_callee.get(qname)
+    }
+
+    /// Evidence for this exact retained body, including matching external allocations.
+    #[must_use]
+    pub fn get_for_body(
+        &self,
+        module: &IrModule,
+        id: crate::ir::ProcedureId,
+    ) -> Option<CalleeEvidence> {
+        let procedure = module
+            .procedures
+            .get(&id)
+            .or_else(|| module.body_units.get(&id))?;
+        let mut result = self.by_body.get(&id).cloned();
+        for (allocation, evidence) in &self.by_implementation {
+            if module
+                .source_procedure_for_allocation(allocation)
+                .is_some_and(|(actual, _)| actual == id)
+            {
+                result
+                    .get_or_insert_with(CalleeEvidence::default)
+                    .merge_from(evidence);
+            }
+        }
+        if self
+            .by_callee
+            .get(&procedure.qualified_name)
+            .is_some_and(|evidence| evidence.opaque_caller)
+        {
+            result.get_or_insert_with(CalleeEvidence::default).poison();
+        }
+        result
+    }
+
+    /// Local body IDs with recorded evidence; external-only bodies require `get_for_body`.
+    pub fn body_callees(&self) -> impl Iterator<Item = crate::ir::ProcedureId> + '_ {
+        self.by_body.keys().copied()
+    }
+
+    /// Presentation of a recorded body, without selecting a callee.
+    #[must_use]
+    pub fn display_for_body(&self, id: crate::ir::ProcedureId) -> Option<&str> {
+        self.body_labels.get(&id).map(String::as_str)
+    }
+
+    fn record_opaque_body(&mut self, id: crate::ir::ProcedureId, label: &str) {
+        self.body_labels.insert(id, label.to_owned());
+        self.by_body.entry(id).or_default().poison();
     }
 
     /// Every callee name evidence was recorded for.
@@ -207,6 +256,21 @@ impl CallSiteEvidence {
     /// Fold `other`'s call sites in.  See [`CalleeEvidence::merge_from`] —
     /// merging is monotone, so it can only ever retract a fold.
     pub fn merge_from(&mut self, other: &Self) {
+        for (id, evidence) in &other.by_body {
+            self.by_body.entry(*id).or_default().merge_from(evidence);
+        }
+        self.body_labels.extend(
+            other
+                .body_labels
+                .iter()
+                .map(|(id, label)| (*id, label.clone())),
+        );
+        for (allocation, evidence) in &other.by_implementation {
+            self.by_implementation
+                .entry(allocation.clone())
+                .or_default()
+                .merge_from(evidence);
+        }
         for (qname, evidence) in &other.by_callee {
             self.by_callee
                 .entry(qname.clone())
@@ -249,9 +313,54 @@ impl CallSiteEvidence {
     #[must_use]
     pub fn slice_for<'n>(&self, callees: impl Iterator<Item = &'n str>) -> Self {
         let mut out = Self::default();
+        let callees: BTreeSet<&str> = callees.collect();
+        for (id, label) in &self.body_labels {
+            if callees.contains(label.as_str()) {
+                out.body_labels.insert(*id, label.clone());
+                if let Some(evidence) = self.by_body.get(id) {
+                    out.by_body.insert(*id, evidence.clone());
+                }
+            }
+        }
+        for (allocation, evidence) in &self.by_implementation {
+            if callees.contains(allocation.command.as_str()) {
+                out.by_implementation
+                    .insert(allocation.clone(), evidence.clone());
+            }
+        }
         for qname in callees {
             if let Some(evidence) = self.by_callee.get(qname) {
                 out.by_callee.insert(qname.to_owned(), evidence.clone());
+            }
+        }
+        out
+    }
+
+    /// Project evidence through this Module's exact bodies and original allocations.
+    #[must_use]
+    pub fn slice_for_module(&self, module: &IrModule) -> Self {
+        let mut out = Self::default();
+        for (id, procedure) in module.procedures.iter().chain(module.body_units.iter()) {
+            if let Some(evidence) = self.by_body.get(id) {
+                out.by_body.insert(*id, evidence.clone());
+                out.body_labels
+                    .insert(*id, procedure.qualified_name.clone());
+            }
+            if let Some(evidence) = self
+                .by_callee
+                .get(&procedure.qualified_name)
+                .filter(|row| row.opaque_caller)
+            {
+                let mut opaque = CalleeEvidence::default();
+                opaque.poison();
+                out.by_callee
+                    .insert(procedure.qualified_name.clone(), opaque);
+            }
+        }
+        for (allocation, evidence) in &self.by_implementation {
+            if module.source_procedure_for_allocation(allocation).is_some() {
+                out.by_implementation
+                    .insert(allocation.clone(), evidence.clone());
             }
         }
         out
@@ -287,9 +396,11 @@ impl CallSiteEvidence {
         if !evidence.source_implementations.contains(allocation) {
             evidence.source_implementations.push(allocation.clone());
         }
-        evidence.arg_counts.insert(prefix.len() + argument_count);
+        let mut reached = CalleeEvidence::default();
+        reached.source_implementations.push(allocation.clone());
+        reached.arg_counts.insert(prefix.len() + argument_count);
         for index in 0..prefix.len() + argument_count {
-            let slot = evidence.slots.entry(index).or_default();
+            let slot = reached.slots.entry(index).or_default();
             let value = if index < prefix.len() {
                 match &prefix[index] {
                     crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
@@ -306,6 +417,11 @@ impl CallSiteEvidence {
                 slot.unknown = true;
             }
         }
+        evidence.merge_from(&reached);
+        self.by_implementation
+            .entry(allocation.clone())
+            .or_default()
+            .merge_from(&reached);
     }
 
     /// Record that `qname` has a caller whose arguments are unattributable.
@@ -476,13 +592,21 @@ impl<'a, S> CallSiteScanCtx<'a, S> {
 /// `resolve_as` and `scope` differ for a `TclOO` method: its bare command
 /// words resolve against the global namespace (tclsh-confirmed), while its
 /// local variables live in the method's own frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum CallerScopeId {
+    TopLevel,
+    Procedure(crate::ir::ProcedureId),
+    Extra(usize),
+}
+
 struct CallerFrame<'a> {
     /// Qualified-name context bare command words resolve against.
     _resolve_as: &'a str,
     metadata_owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
     /// Variable-scope identity — the key into `var_facts`, and the callee
     /// key whose recorded arguments a `$param` dispatch word may take.
-    scope: &'a str,
+    scope: CallerScopeId,
+    display_name: &'a str,
     /// The body's declared parameters, in order.
     params: &'a [String],
     /// Whether this evidence map attributes calls *to* this body. True for
@@ -530,7 +654,7 @@ struct ScopeVars {
 /// module-wide "a script wrote a frame this scan does not own" fact.
 #[derive(Default)]
 struct ModuleVarFacts {
-    scopes: HashMap<String, ScopeVars>,
+    scopes: HashMap<CallerScopeId, ScopeVars>,
     cross_frame_write: bool,
 }
 
@@ -722,7 +846,7 @@ fn word_values(
     if ctx.var_facts.cross_frame_write {
         return WordValues::Unknown;
     }
-    let Some(scope_vars) = ctx.var_facts.scopes.get(caller.scope) else {
+    let Some(scope_vars) = ctx.var_facts.scopes.get(&caller.scope) else {
         return WordValues::Unknown;
     };
     if scope_vars.dynamic_name_write {
@@ -762,9 +886,12 @@ fn parameter_values(
     if var == "args" || !caller.callers_tracked {
         return Some(WordValues::Unknown);
     }
-    match ctx
-        .previous
-        .get(caller.scope)
+    let CallerScopeId::Procedure(id) = caller.scope else {
+        return Some(WordValues::Unknown);
+    };
+    let previous = ctx.previous.get_for_body(ctx.module, id);
+    match previous
+        .as_ref()
         .and_then(|evidence| evidence.slots.get(&index))
     {
         Some(slot) if slot.unknown => Some(WordValues::Unknown),
@@ -825,11 +952,11 @@ fn record_call_site_evidence(
         return;
     }
     let Some(tokens) = tokens else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     let Ok(context) = ctx.original_metadata(tokens, caller.metadata_owner) else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     if tokens.source_binding.as_ref().is_some_and(|binding| {
@@ -906,7 +1033,7 @@ fn record_call_site_evidence(
         {
             return;
         }
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     record_indirect_callers(out, ctx, caller, &invocation, Some(tokens));
@@ -924,11 +1051,12 @@ fn record_normal_user_procedure_call(
     };
     let callee = source.lookup_command_word(&invocation.target);
     if invocation.unknown_runtime || callee.unknown {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
     }
     for target in &callee.targets {
         if target.kind == crate::command_binding::BindingKind::Proc
-            && ctx.known.contains(&target.command)
+            && (ctx.module.source_procedure_for_target(target).is_some()
+                || ctx.known.contains(&target.command))
         {
             out.record_source_call(
                 target.command.clone(),
@@ -938,7 +1066,7 @@ fn record_normal_user_procedure_call(
                 target.implementation_allocation.as_ref(),
             );
         } else if !target.registry_backed {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
     }
 }
@@ -966,7 +1094,7 @@ fn record_invocation_body_evidence(
         return;
     };
     let Some(input) = metadata.source_analysis_input() else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     let Some(words) =
@@ -976,11 +1104,11 @@ fn record_invocation_body_evidence(
             tokens,
         )
     else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     let Some(roles) = words.roles() else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     let has_bodies = roles.iter().any(|&(_, role)| role == ArgRole::Body);
@@ -992,33 +1120,33 @@ fn record_invocation_body_evidence(
                 .and_then(|word| word.literal_bytes())
                 .is_none()
         {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
     }
     if !has_bodies {
         return;
     }
     if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth + 1) {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     }
     // Definitions and frame-shifting bodies have independent caller units.
     // The selected authored trait description supplies no entered frame.
     let context = input.context_registry();
     let Some(traits) = words.with_source_schema(&context, |schema| schema.semantics.traits) else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     if traits.intersects(Traits::DEFINES_PROCEDURE | Traits::EVALUATES_IN_SHIFTED_FRAME) {
         return;
     }
     let Some(bodies) = words.source_script_bodies_for_mutation_coverage(&context) else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     for body in bodies {
         let Some(commands) = body.original_commands(&context) else {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
             continue;
         };
         for command in commands {
@@ -1028,19 +1156,19 @@ fn record_invocation_body_evidence(
                 .filter(|(offset, _)| *offset == command.span.start())
                 .map(|(_, binding)| binding);
             let Some(binding) = children.next() else {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             };
             if children.any(|other| other != binding) {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             }
             let Some(site) = binding.invocation_site() else {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             };
             let Some((segment, mut original)) = binding.original_recorded_command() else {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             };
             let config = binding.original_lexer_config_for_tokens(&original);
@@ -1056,7 +1184,7 @@ fn record_invocation_body_evidence(
                 .as_deref()
                     != Some(command.words.as_slice())
             {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             }
             original.inherit_nested_bindings(tokens);
@@ -1090,7 +1218,7 @@ fn record_standalone_invocation_body_evidence(
             .iter()
             .any(|&(_, role)| matches!(role, ArgRole::Body | ArgRole::LambdaLiteral))
         {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
         return;
     }
@@ -1111,12 +1239,12 @@ fn record_standalone_invocation_body_evidence(
                 word_is_whole_substitution(word, ctx.module.lexer_config.nested())
             })
         }) {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
     }
     for idx in role_indices(tcl_registry::ArgRole::Body) {
         let Some(body_text) = args.get(idx).and_then(Option::as_deref) else {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
             continue;
         };
         // `eval $script` / `catch $body` carry no script *text* at all, only
@@ -1125,7 +1253,7 @@ fn record_standalone_invocation_body_evidence(
         // (`catch {puts $x}`) is still walked — the discriminator is "the
         // whole word is one substitution", not "contains a `$`".
         if word_is_whole_substitution(body_text, ctx.module.lexer_config.nested()) {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
             continue;
         }
         // A body whose resolution namespace differs from the caller's must not
@@ -1232,6 +1360,16 @@ enum IndirectArgs<'a> {
     Unknowable,
 }
 
+fn record_unenumerable_targets(
+    out: &mut CallSiteEvidence,
+    ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
+) {
+    out.record_unenumerable_caller(ctx.unenumerable_reach);
+    for (id, procedure) in ctx.module.procedures.iter() {
+        out.record_opaque_body(*id, &procedure.qualified_name);
+    }
+}
+
 fn record_source_target(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
@@ -1239,8 +1377,9 @@ fn record_source_target(
     source: &crate::command_binding::SourceInvocationBinding,
     target: &crate::command_binding::SourceCommandTarget,
 ) {
+    let local = ctx.module.source_procedure_for_target(target);
     if target.kind == crate::command_binding::BindingKind::Proc
-        && ctx.known.contains(&target.command)
+        && (local.is_some() || ctx.known.contains(&target.command))
     {
         match args {
             IndirectArgs::Words(words) => out.record_source_call(
@@ -1250,10 +1389,15 @@ fn record_source_target(
                 &source.evaluated_argument_values,
                 target.implementation_allocation.as_ref(),
             ),
-            IndirectArgs::Unknowable => out.record_opaque_caller(&target.command),
+            IndirectArgs::Unknowable => {
+                if let Some((id, procedure)) = local {
+                    out.record_opaque_body(id, &procedure.qualified_name);
+                }
+                out.record_opaque_caller(&target.command);
+            }
         }
     } else if !target.registry_backed {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
     }
 }
 
@@ -1291,7 +1435,7 @@ fn record_invocation(
         // call graph. The retained execution candidates still cover a captured
         // native operation and a possible later generic dispatch.
         if source.unknown {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
         if source.may_be_absent {
             record_unresolved_word_dispatch(out, ctx, word, args);
@@ -1310,12 +1454,12 @@ fn record_invocation(
     let values = match word_values(ctx, caller, word) {
         WordValues::Literals(values) => values,
         WordValues::Unknown => {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
             return;
         }
     };
     let Some(source) = tokens.and_then(|tokens| tokens.source_binding.as_ref()) else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     for name in &values {
@@ -1328,30 +1472,13 @@ fn record_invocation(
             source.lookup_command_word(name)
         };
         if binding.unknown {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
         if binding.may_be_absent {
             record_unresolved_word_dispatch(out, ctx, name, args);
         }
         for target in &binding.targets {
-            if target.kind == crate::command_binding::BindingKind::Proc
-                && ctx.known.contains(&target.command)
-            {
-                match args {
-                    IndirectArgs::Words(words) => {
-                        out.record_source_call(
-                            target.command.clone(),
-                            &target.prepended,
-                            words.len(),
-                            &source.evaluated_argument_values,
-                            target.implementation_allocation.as_ref(),
-                        );
-                    }
-                    IndirectArgs::Unknowable => out.record_opaque_caller(&target.command),
-                }
-            } else if !target.registry_backed {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
-            }
+            record_source_target(out, ctx, args, &source, target);
         }
     }
 }
@@ -1503,7 +1630,7 @@ fn record_indirect_callers(
     }) {
         for word in args {
             let Some(word) = word.as_deref() else {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
                 continue;
             };
             if word.is_empty() || word.contains(['$', '[']) {
@@ -1531,17 +1658,12 @@ fn record_original_callback_callers(
     });
     if let Some(rows) = rows {
         for row in rows {
-            if let Some(target) = row.target()
-                .and_then(|target| target.original_ir_procedure_id(ctx.procedures))
-                .and_then(|id| {
-                let procedure = ctx.procedures.get(&id)?;
-                (ctx.procedures.unique_display(&procedure.qualified_name)?.0 == &id)
-                    .then_some(procedure.qualified_name.as_str())
-            })
-            .filter(|target| ctx.known.contains(*target))
-            { out.record_opaque_caller(target); }
-            else if row.refusal() != Some(crate::command_binding::OriginalSourceCallbackProcedureRefusal::KnownSourceBarrier) {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+            if let Some(id) = row.target().and_then(|target| target.original_ir_procedure_id(ctx.procedures)) {
+                if let Some(procedure) = ctx.procedures.get(&id) {
+                    out.record_opaque_body(id, &procedure.qualified_name);
+                }
+            } else if row.refusal() != Some(crate::command_binding::OriginalSourceCallbackProcedureRefusal::KnownSourceBarrier) {
+                record_unenumerable_targets(out, ctx);
             }
         }
     } else if metadata
@@ -1560,7 +1682,7 @@ fn record_original_callback_callers(
                 .any(|(_, role)| *role == ArgRole::CommandPrefix)
         })
     {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
     }
 }
 
@@ -1748,7 +1870,8 @@ pub(crate) fn build_extra_call_site_scan_contexts(
     ir_module
         .methods
         .iter()
-        .map(|(mqname, method)| {
+        .map(|(id, method)| {
+            let mqname = method.reporting_label();
             let execution_namespace = method.execution_namespace.clone();
             let requires_runtime_command_namespace = matches!(
                 &execution_namespace,
@@ -1766,19 +1889,19 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 crate::ir::ExecutionNamespace::RuntimeSelected => "::top".to_owned(),
             };
             let cfg = crate::cfg_builder::build_cfg_method_function_with_prepared_context(
-                mqname,
+                &mqname,
                 &method.body,
                 execution_namespace.clone(),
                 true,
                 registry,
                 ir_module.plain_command_dispatch,
                 cfg_context,
-                !dispatch_barrier.allows_locals(mqname),
+                !dispatch_barrier.allows_locals(*id),
                 config,
             );
             ExtraCallSiteScanContext {
-                analysis_unit: Some(mqname.clone()),
-                analysis_body: None,
+                analysis_unit: None,
+                analysis_body: Some(*id),
                 resolve_as,
                 cfg,
                 execution_namespace,
@@ -1891,13 +2014,7 @@ pub(crate) fn collect_call_site_constants(
             unenumerable_reach: &reach,
             unresolved_handler,
         };
-        let funcs = std::iter::once(("::top", &cfg_module.top_level))
-            .chain(cfg_module.procedures.values().map(|f| (f.name.as_str(), f)))
-            .chain(
-                extra_callers
-                    .iter()
-                    .map(|caller| (caller.resolve_as.as_str(), &caller.cfg)),
-            );
+        let funcs = call_site_scan_functions(&cfg_module, &extra_callers);
         let mut out = CallSiteEvidence::default();
         record_future_callers(&mut out, &ctx, future_call_sites);
         record_runtime_selected_extra_callers(&mut out, &ctx, extra_callers);
@@ -1917,17 +2034,20 @@ fn record_future_callers(
 ) {
     for site in sites {
         if site.binding.unknown {
-            out.record_unenumerable_caller(ctx.unenumerable_reach);
+            record_unenumerable_targets(out, ctx);
         }
         // A future caller withdraws assumptions about actual runtime targets.
         // Independent compiler uncertainty does not add a runtime callee.
         for target in &site.binding.targets {
+            if let Some((id, procedure)) = ctx.module.source_procedure_for_target(target) {
+                out.record_opaque_body(id, &procedure.qualified_name);
+            }
             if target.kind == crate::command_binding::BindingKind::Proc
                 && ctx.known.contains(&target.command)
             {
                 out.record_opaque_caller(&target.command);
             } else if !target.registry_backed {
-                out.record_unenumerable_caller(ctx.unenumerable_reach);
+                record_unenumerable_targets(out, ctx);
             }
         }
     }
@@ -1988,6 +2108,24 @@ fn unenumerable_reach(
     reach
 }
 
+fn call_site_scan_functions<'a>(
+    cfg: &'a CfgModule,
+    extra: &'a [ExtraCallSiteScanContext],
+) -> impl Iterator<Item = (CallerScopeId, &'a str, &'a CfgFunction)> {
+    std::iter::once((CallerScopeId::TopLevel, "::top", &cfg.top_level))
+        .chain(
+            cfg.procedures
+                .iter()
+                .map(|(id, body)| (CallerScopeId::Procedure(*id), body.name.as_str(), body)),
+        )
+        .chain(extra.iter().enumerate().map(|(index, caller)| {
+            let scope = caller
+                .analysis_body
+                .map_or(CallerScopeId::Extra(index), CallerScopeId::Procedure);
+            (scope, caller.resolve_as.as_str(), &caller.cfg)
+        }))
+}
+
 /// Collect per-scope variable literal facts for every body the scan walks as
 /// a caller — the input a dispatch word's value set is read from.
 fn collect_module_scope_var_facts(
@@ -1998,13 +2136,10 @@ fn collect_module_scope_var_facts(
     identities: &crate::realm::CommandBindingRealm,
 ) -> ModuleVarFacts {
     let mut out = ModuleVarFacts::default();
-    let funcs = std::iter::once(&cfg_module.top_level)
-        .chain(cfg_module.procedures.values())
-        .chain(extra_callers.iter().map(|caller| &caller.cfg));
-    for func in funcs {
+    for (scope, _, func) in call_site_scan_functions(cfg_module, extra_callers) {
         let facts = collect_original_scope_var_facts(func, surface, module, identities);
         out.cross_frame_write |= facts.cross_frame_write;
-        out.scopes.insert(func.name.clone(), facts);
+        out.scopes.insert(scope, facts);
     }
     out
 }
@@ -2157,7 +2292,7 @@ fn record_runtime_selected_extra_callers(
             crate::ir::ExecutionNamespace::RuntimeSelected
         ) && caller.requires_runtime_command_namespace
     }) {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
     }
 }
 
@@ -2167,7 +2302,7 @@ fn record_runtime_selected_extra_callers(
 fn scan_cfg_callers<'a>(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
-    funcs: impl Iterator<Item = (&'a str, &'a CfgFunction)>,
+    funcs: impl Iterator<Item = (CallerScopeId, &'a str, &'a CfgFunction)>,
 ) {
     // The unresolved-command handler's caller set is *never* enumerable, so
     // it is poisoned before a single statement is read.
@@ -2184,19 +2319,23 @@ fn scan_cfg_callers<'a>(
     if let Some(handler) = ctx.unresolved_handler {
         out.record_opaque_caller(handler);
     }
-    for (resolve_as, func) in funcs {
+    for (scope, resolve_as, func) in funcs {
         // The CFG function's own name is the *variable-scope* identity, which
         // differs from `resolve_as` for a `TclOO` method (lexical fallback
         // resolution, own frame).  A body the unit declares as a procedure is
         // one this evidence map attributes calls *to*; a method or `apply`
         // lambda is not, so its parameters may hold values never seen here.
-        let declared = ctx.procedures.get_unique_display(func.name.as_str());
+        let declared = match scope {
+            CallerScopeId::Procedure(id) => ctx.procedures.get(&id),
+            _ => None,
+        };
         let caller = CallerFrame {
             _resolve_as: resolve_as,
             metadata_owner: &func.metadata_context,
-            scope: func.name.as_str(),
+            scope,
+            display_name: func.name.as_str(),
             params: declared.map_or(&[][..], |p| p.params.as_slice()),
-            callers_tracked: declared.is_some() || func.name == "::top",
+            callers_tracked: declared.is_some() || scope == CallerScopeId::TopLevel,
         };
         let standalone = ctx.source_input.is_none()
             && ctx.module.source_entry.metadata_context.is_standalone()
@@ -2365,7 +2504,7 @@ fn record_original_lifted_call_sites(
         }
     })();
     let Some(inventory) = inventory else {
-        out.record_unenumerable_caller(ctx.unenumerable_reach);
+        record_unenumerable_targets(out, ctx);
         return;
     };
     for lifted in inventory {
@@ -2732,13 +2871,7 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
             unenumerable_reach: &reach,
             unresolved_handler,
         };
-        let funcs = std::iter::once(("::top", &cfg_module.top_level))
-            .chain(cfg_module.procedures.values().map(|f| (f.name.as_str(), f)))
-            .chain(
-                extra
-                    .iter()
-                    .map(|caller| (caller.resolve_as.as_str(), &caller.cfg)),
-            );
+        let funcs = call_site_scan_functions(&cfg_module, &extra);
         let mut round = CallSiteEvidence::default();
         record_future_callers(&mut round, &ctx, &ir_module.future_call_sites);
         record_runtime_selected_extra_callers(&mut round, &ctx, &extra);
@@ -3058,6 +3191,8 @@ pub(crate) fn params_constants_from_call_sites(
 /// Names identify logical formal inputs, never physical cell or object identity;
 /// consumers still need the captured incoming binding before using a seed.
 pub(crate) fn params_constants_from_native_call_sites(
+    module: &IrModule,
+    id: crate::ir::ProcedureId,
     procedure: &crate::ir::Procedure,
     grammar: Option<tcl_dialect::ParameterGrammar>,
     evidence: &CallSiteEvidence,
@@ -3087,7 +3222,7 @@ pub(crate) fn params_constants_from_native_call_sites(
     if formals.iter().any(|formal| !names.insert(&formal.name)) {
         return None;
     }
-    let callee = evidence.get(&procedure.qualified_name)?;
+    let callee = evidence.get_for_body(module, id)?;
     if callee.opaque_caller
         || view.source.is_some_and(|source| {
             callee.source_implementations.iter().any(|allocation| {
@@ -3277,11 +3412,19 @@ mod tests {
             namespace_scoped: false,
             base_priority: 500,
         };
+        let mut module = IrModule::default();
+        let id = module.retain_procedure(procedure);
+        let mut evidence = evidence.clone();
+        if let Some(row) = evidence.get("::helper").cloned() {
+            evidence.by_body.insert(id, row);
+        }
         let trust = crate::command_binding::ProcBindingTrustProjection::default();
         params_constants_from_native_call_sites(
-            &procedure,
+            &module,
+            id,
+            module.procedures.get(&id).expect("issued fixture body"),
             grammar,
-            evidence,
+            &evidence,
             &UnitCallerView {
                 linkage: Traits::empty(),
                 has_cross_file_evidence: false,
@@ -5059,7 +5202,8 @@ mod tests {
         let caller = CallerFrame {
             _resolve_as: "::top",
             metadata_owner: &cfg.top_level.metadata_context,
-            scope: "::top",
+            scope: CallerScopeId::TopLevel,
+            display_name: "::top",
             params: &[],
             callers_tracked: true,
         };
@@ -5282,7 +5426,8 @@ mod tests {
             CallerFrame {
                 _resolve_as: "::add",
                 metadata_owner: owner,
-                scope: "::add",
+                scope: CallerScopeId::Extra(0),
+                display_name: "::add",
                 params: &[],
                 callers_tracked: true,
             }

@@ -1,0 +1,192 @@
+diff --git a/rust/tcl-compiler/src/body_analysis_capsule.rs b/rust/tcl-compiler/src/body_analysis_capsule.rs
+index e69de29bb..86b371bdf 100644
+--- /dev/null
++++ b/rust/tcl-compiler/src/body_analysis_capsule.rs
+@@ -0,0 +1,175 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Retained compilation owners for per-body analysis and source edits.
++
++use std::hash::{Hash, Hasher};
++use std::sync::Arc;
++
++use crate::compilation_unit::{CompilationUnit, FunctionUnit};
++use crate::ir::{Procedure, ProcedureId};
++use crate::optimiser::Optimisation;
++use tcl_registry::CommandRegistry;
++
++/// One actual body and its complete immutable compilation inputs.
++#[derive(Debug, Clone)]
++pub struct BodyAnalysisCapsule {
++    unit: Arc<CompilationUnit>,
++    body: ProcedureId,
++}
++
++impl BodyAnalysisCapsule {
++    /// Retain a source-corresponding body without deriving an identity from its name.
++    #[must_use]
++    pub fn retain(
++        unit: Arc<CompilationUnit>,
++        body: ProcedureId,
++        registry: &CommandRegistry,
++    ) -> Option<Self> {
++        let module = &unit.ir_module;
++        let procedure = module.procedures.get(&body)?;
++        let function = unit.procedures.get(&body)?;
++        let retained = module.retained_source_bindings.as_deref()?;
++        retained.positioned_for_module(module, registry)?;
++        if function.body_id != Some(body)
++            || unit.cfg_module.procedures.get(&body) != Some(&function.cfg)
++            || module.source.try_text().ok()? != unit.source
++            || procedure.declaration_site.is_none()
++            || !retained.matches_original_procedure(procedure)
++        {
++            return None;
++        }
++        Some(Self { unit, body })
++    }
++
++    /// The complete retained compilation unit, including original world and input owners.
++    #[must_use]
++    pub fn unit(&self) -> &CompilationUnit {
++        &self.unit
++    }
++
++    /// The Module-issued body coordinate retained by this capsule.
++    #[must_use]
++    pub const fn body_id(&self) -> ProcedureId {
++        self.body
++    }
++
++    /// The exact retained source declaration.
++    #[must_use]
++    pub fn procedure(&self) -> &Procedure {
++        self.unit
++            .ir_module
++            .procedures
++            .get(&self.body)
++            .expect("retained capsule declaration")
++    }
++
++    /// The actual analysis belonging to the retained declaration.
++    #[must_use]
++    pub fn function(&self) -> &FunctionUnit {
++        self.unit
++            .procedures
++            .get(&self.body)
++            .expect("retained capsule function")
++    }
++
++    /// Select body-local source edits from the genuine whole-unit analysis.
++    /// A group crossing the body's source boundary is retained by neither memo.
++    #[must_use]
++    pub fn original_body_optimisations(
++        &self,
++        registry: &CommandRegistry,
++        dialect: Option<&'static tcl_dialect::DialectProfile>,
++    ) -> Vec<Optimisation> {
++        let span = self.procedure().span;
++        let raw = crate::optimiser::optimise_unit_raw(self.unit(), registry, dialect);
++        let outside_groups: std::collections::HashSet<_> = raw
++            .iter()
++            .filter(|edit| edit.span.start() < span.start() || span.end() < edit.span.end())
++            .filter_map(|edit| edit.group)
++            .collect();
++        raw.into_iter()
++            .filter(|edit| {
++                span.start() <= edit.span.start()
++                    && edit.span.end() <= span.end()
++                    && edit.group.is_none_or(|group| !outside_groups.contains(&group))
++            })
++            .map(|mut edit| {
++                edit.span = tcl_lexer::Span::new(
++                    edit.span.start() - span.start(),
++                    edit.span.end() - span.start(),
++                );
++                edit
++            })
++            .collect()
++    }
++}
++
++impl PartialEq for BodyAnalysisCapsule {
++    fn eq(&self, other: &Self) -> bool {
++        self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit)
++    }
++}
++
++impl Eq for BodyAnalysisCapsule {}
++
++impl Hash for BodyAnalysisCapsule {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        self.body.hash(state);
++        Arc::as_ptr(&self.unit).hash(state);
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn unit(source: &str) -> (Arc<tcl_registry::model::ContextRegistry>, Arc<CompilationUnit>) {
++        let (context, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
++        (context, Arc::new(unit))
++    }
++
++    #[test]
++    fn source_body_capsule_keeps_the_actual_module_and_function() {
++        let (context, unit) = unit("proc p {argument} {return $argument}");
++        let body = *unit.ir_module.procedures.keys().next().unwrap();
++        let capsule = BodyAnalysisCapsule::retain(Arc::clone(&unit), body, context.commands())
++            .expect("original declaration, actual module and actual body");
++        assert!(std::ptr::eq(capsule.unit(), unit.as_ref()));
++        assert!(std::ptr::eq(capsule.function(), &unit.procedures[&body]));
++        assert_eq!(capsule.body_id(), body);
++        assert_eq!(capsule, capsule.clone());
++    }
++
++    #[test]
++    fn equal_source_and_display_do_not_replace_the_module_owner() {
++        let source = "proc p {} {return VALUE}";
++        let (context, left) = unit(source);
++        let (_, right) = unit(source);
++        let left_id = *left.ir_module.procedures.keys().next().unwrap();
++        let right_id = *right.ir_module.procedures.keys().next().unwrap();
++        assert_eq!(left_id.ordinal(), right_id.ordinal());
++        assert_ne!(left_id, right_id);
++        assert!(BodyAnalysisCapsule::retain(Arc::clone(&left), right_id, context.commands()).is_none());
++        assert_ne!(
++            BodyAnalysisCapsule::retain(left, left_id, context.commands()).unwrap(),
++            BodyAnalysisCapsule::retain(right, right_id, context.commands()).unwrap(),
++        );
++    }
++
++    #[test]
++    fn changed_source_registry_or_body_owner_withdraws_the_capsule() {
++        let source = "proc p {} {return VALUE}";
++        let (context, actual) = unit(source);
++        let body = *actual.ir_module.procedures.keys().next().unwrap();
++        let mut changed_source = (*actual).clone();
++        changed_source.source = "proc p {} {return OTHER}".to_owned();
++        assert!(BodyAnalysisCapsule::retain(Arc::new(changed_source), body, context.commands()).is_none());
++        let mut changed_function = (*actual).clone();
++        changed_function.procedures.get_mut(&body).unwrap().body_id = None;
++        assert!(BodyAnalysisCapsule::retain(Arc::new(changed_function), body, context.commands()).is_none());
++        let foreign = CommandRegistry::build_default();
++        assert!(BodyAnalysisCapsule::retain(actual, body, &foreign).is_none());
++    }
++}
+diff --git a/rust/tcl-compiler/src/lib.rs b/rust/tcl-compiler/src/lib.rs
+index cf01ded12..7ea90a5d8 100644
+--- a/rust/tcl-compiler/src/lib.rs
++++ b/rust/tcl-compiler/src/lib.rs
+@@ -87,6 +87,7 @@ pub mod analyses;
+ pub mod auto_path_eval;
+ pub mod backend_registry;
+ pub mod bounded_set;
++pub mod body_analysis_capsule;
+ pub mod cfg;
+ pub mod cfg_builder;
+ pub mod cfg_layout;

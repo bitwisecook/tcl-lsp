@@ -1,0 +1,12 @@
+--- a/rust/tcl-lsp-core/src/original_name_edit.rs
++++ b/rust/tcl-lsp-core/src/original_name_edit.rs
+@@ -29,6 +29,9 @@
+     let Some(realm) = analysis.retained_command_realm() else {
+         return false;
+     };
++    if analysis.logical_original_word_input_matches_source(&image, config, recorded, input) {
++        return true;
++    }
+     let actual = realm.original_written_name_input_at_span_in_source(&image, recorded, config);
+     #[cfg(test)]
+     if std::env::var_os("TCL_LSP_TRACE_VARIABLE_SOURCE_GUARDS").is_some() {

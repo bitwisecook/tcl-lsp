@@ -60,6 +60,10 @@
 //! functions; this one covers the *lowering branches* those tests skip, and the
 //! `Backend`-trait entry points they never touch.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::{fixture_id, fixture_id_if_present};
+
 use tcl_compiler::cfg::{CfgModule, Function as CfgFunction, Terminator};
 use tcl_compiler::cfg_builder::{build_cfg, build_cfg_codegen};
 use tcl_compiler::codegen::{
@@ -101,9 +105,11 @@ fn module_inline_via_backend(source: &str) -> ModuleAsm {
 
 /// The `FunctionAsm` for a named procedure, lowered through the backend.
 fn proc_via_backend(source: &str, qname: &str) -> FunctionAsm {
-    module_inline_via_backend(source)
+    let mut module = module_inline_via_backend(source);
+    let id = fixture_id(&module.procedures, qname);
+    module
         .procedures
-        .remove(qname)
+        .remove(&id)
         .unwrap_or_else(|| panic!("procedure {qname} not found"))
 }
 
@@ -141,8 +147,15 @@ fn backend_lower_module_names_top_level() {
     // module artifact shape (top-level named `::top`, the proc present).
     let (asm, _) = module_via_backend("proc add {a b} { return [expr {$a + $b}] }\nadd 1 2");
     assert_eq!(asm.top_level.name, "::top");
-    assert!(asm.procedures.contains_key("::add"));
-    assert!(opcodes(&asm.procedures["::add"]).contains(&Op::ADD));
+    assert!(fixture_id_if_present(&asm.procedures, "::add").is_some());
+    assert!(
+        opcodes(
+            asm.procedures
+                .get(&fixture_id(&asm.procedures, "::add"))
+                .expect("authored fixture body")
+        )
+        .contains(&Op::ADD)
+    );
     // The top-level script ends cleanly with done.
     assert_eq!(asm.top_level.instructions.last().unwrap().op, Op::DONE);
 }
@@ -180,7 +193,10 @@ fn backend_lower_function_proc_flavour_uses_lvt() {
     let reg = registry();
     let ir = lower_to_ir("proc id {x} { return $x }", &reg);
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::id"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::id"))
+        .expect("authored fixture body");
     let mut backend = BytecodeBackend;
     let fa = backend.lower_function(proc_cfg, &["x"], true, &[], &reg);
     let ops = opcodes(&fa);
@@ -591,7 +607,10 @@ fn try_finally_cfg_chain_present() {
         &reg,
     );
     let cfg = build_cfg(&ir, false);
-    let proc_cfg = &cfg.procedures["::c"];
+    let proc_cfg = cfg
+        .procedures
+        .get(&fixture_id(&cfg.procedures, "::c"))
+        .expect("authored fixture body");
     let names = proc_cfg.block_names();
     assert!(
         names.iter().any(|n| n.starts_with("try_body_")),

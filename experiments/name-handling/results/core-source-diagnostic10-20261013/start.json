@@ -1,0 +1,25 @@
+{
+  "started_utc": "2026-10-13T22:56:50.395760+00:00",
+  "label": "Main Core10 original assertions through shared Logical correspondence; temporary guard diagnostics",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34648,
+  "plan": {
+    "exact": [
+      "definition::logical_variable_scope_owner_tests::logical_array_completion_keeps_the_actual_cursor_edit_extent",
+      "definition::logical_variable_scope_owner_tests::logical_bare_procedure_writes_cannot_publish_namespace_coordinates",
+      "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct",
+      "definition::logical_variable_scope_owner_tests::logical_namespace_write_coordinates_require_current_source_and_store_cards",
+      "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+      "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+      "definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table",
+      "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+      "definition::logical_variable_scope_owner_tests::logical_unknown_namespace_retains_body_tables_without_a_coordinate",
+      "source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles"
+    ],
+    "scope": "Ten existing exact assertions with temporary source-role diagnostics and shared Logical original-word correspondence wiring; no Native lookup/receipt acceptance."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "frozen diagnostic; exact temporary owner instrumentation retained"
+}

@@ -61,6 +61,10 @@
 //!   observation. They are asserted structurally and flagged `// f5-dialect`
 //!   (iRules events) or noted as compiler-internal at the site.
 
+#[path = "support/body_identity.rs"]
+mod body_identity;
+use body_identity::fixture_id_if_present;
+
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, decode_param_constants};
@@ -756,11 +760,11 @@ mod compilation_unit_build {
         let src = "oo::class create C {\n method m {} { return 1 }\n}\n";
         let cu = build(src);
         assert!(
-            cu.methods.contains_key("::C::m"),
+            fixture_id_if_present(&cu.methods, "::C::m").is_some(),
             "methods: {:?}",
             cu.methods.keys().collect::<Vec<_>>()
         );
-        assert!(!cu.procedures.contains_key("::C::m"));
+        assert!(!fixture_id_if_present(&cu.procedures, "::C::m").is_some());
     }
 
     #[test]
