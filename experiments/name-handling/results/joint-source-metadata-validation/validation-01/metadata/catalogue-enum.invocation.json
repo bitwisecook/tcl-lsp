@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+    "catalogue::tests::enum_witnesses_compile_and_hold",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T01:15:35.014909+00:00",
+  "end_utc": "2026-10-13T01:15:35.265755+00:00",
+  "elapsed_seconds": 0.25084272000094643,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2814455808,
+  "group": "metadata",
+  "package": "tcl-spectcl",
+  "test": "catalogue::tests::enum_witnesses_compile_and_hold",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 263
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+}

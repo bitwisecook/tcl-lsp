@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spec_studio-1ce408a3ca4670fa",
+    "render_spectcl::tests::authored_source_configuration_reference_survives_render_load_and_draft",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T01:15:39.831391+00:00",
+  "end_utc": "2026-10-13T01:15:40.082258+00:00",
+  "elapsed_seconds": 0.2508648430011817,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2814455808,
+  "group": "metadata",
+  "package": "tcl-spec-studio",
+  "test": "render_spectcl::tests::authored_source_configuration_reference_survives_render_load_and_draft",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 267
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "487b0cacce1187ce2e0bfbfef915bcad7d4c34b516886f371aa65a1dfafa83b3"
+}

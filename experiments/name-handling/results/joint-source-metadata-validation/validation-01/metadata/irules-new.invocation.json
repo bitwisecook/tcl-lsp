@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+    "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference",
+    "--exact",
+    "--nocapture"
+  ],
+  "start_utc": "2026-10-13T01:15:15.143998+00:00",
+  "end_utc": "2026-10-13T01:15:15.394764+00:00",
+  "elapsed_seconds": 0.2507609950043843,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2814455808,
+  "group": "metadata",
+  "package": "tcl-irules",
+  "test": "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference",
+  "test_result": {
+    "status": "ok",
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 70
+  },
+  "source_unchanged_after": true,
+  "binary_sha256_after": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+}

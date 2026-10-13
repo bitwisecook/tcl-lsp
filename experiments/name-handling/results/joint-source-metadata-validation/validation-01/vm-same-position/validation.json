@@ -1,0 +1,88 @@
+{
+  "group": "vm",
+  "build_provenance": "../build",
+  "selected_packages": [
+    "tcl-vm"
+  ],
+  "executed_controls": 1,
+  "passed": 1,
+  "failed": 0,
+  "results": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-652c3579378fae5f",
+        "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:48.749288+00:00",
+      "end_utc": "2026-10-13T01:15:50.751604+00:00",
+      "elapsed_seconds": 2.0023136680028983,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "vm",
+      "package": "tcl-vm",
+      "test": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 1197
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "8513dca92034bb91427bdb8135905dd0cc8f7d447a9f4f1ad071e871b5e64b55"
+    }
+  ],
+  "binary_identities": {
+    "tcl-vm": {
+      "artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp/rust/tcl-vm/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_vm",
+          "src_path": "/workspace/tcl-lsp/rust/tcl-vm/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [
+          "default",
+          "js-clock"
+        ],
+        "filenames": [
+          "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-652c3579378fae5f"
+        ],
+        "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-652c3579378fae5f",
+        "fresh": false
+      },
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-652c3579378fae5f",
+      "sha256": "8513dca92034bb91427bdb8135905dd0cc8f7d447a9f4f1ad071e871b5e64b55"
+    }
+  },
+  "conservative_local_packages": 26,
+  "frozen_files": 11803,
+  "source_changes": [],
+  "source_scope": "Actual common frozen six-package selected build; shared current source, no isolation claim.",
+  "oracle_execution": false,
+  "controls_repeated": false,
+  "full_suite_run": false,
+  "cache_released": true
+}

@@ -1,0 +1,11 @@
+
+running 1 test
+test source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal ... FAILED
+
+failures:
+
+failures:
+    source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1758 filtered out; finished in 0.04s
+

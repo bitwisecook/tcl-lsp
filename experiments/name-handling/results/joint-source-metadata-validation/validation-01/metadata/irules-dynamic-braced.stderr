@@ -1,0 +1,6 @@
+
+thread 'walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference' (268047) panicked at rust/tcl-irules/src/walker.rs:424:9:
+assertion `left == right` failed
+  left: []
+ right: ["/Common/braced_dg"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

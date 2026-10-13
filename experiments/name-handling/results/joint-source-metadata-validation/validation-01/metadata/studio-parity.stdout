@@ -1,0 +1,6 @@
+
+running 1 test
+test render_spectcl::tests::authored_source_configuration_reference_survives_render_load_and_draft ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 267 filtered out; finished in 0.01s
+

@@ -1,0 +1,10 @@
+{
+  "README.md": "4017930592f501840eb058e98e64d315c3e80c016827994720df28121685d9a4",
+  "compiler-adverse.invocation.json": "cb6560bb6f063a77503c4ba590e68113facbb1ec524fa1d0d726eaeb37c3d7b2",
+  "compiler-adverse.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compiler-adverse.stdout": "d6e9b9d4efeabd9a5e82fe21884b2dfff6c7f360be6f654c4676ca02112c07d6",
+  "compiler-positive.invocation.json": "2a142f234a70f17c431c294e1d8c740494b2293ad96518f4797715716e42dd65",
+  "compiler-positive.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "compiler-positive.stdout": "03c9aa958681d2e3b8d04c82fc84f2683d8f31535b0ebb91f742cbdda895bc49",
+  "validation.json": "2d8217153b0135996fec6a83b679dfcb12d482950ecc6bef0189a8f6818b1b7f"
+}

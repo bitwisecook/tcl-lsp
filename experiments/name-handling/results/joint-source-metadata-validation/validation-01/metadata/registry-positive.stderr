@@ -1,0 +1,6 @@
+
+thread 'source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal' (267832) panicked at rust/tcl-registry/src/source_configuration_reference.rs:191:13:
+assertion `left == right` failed
+  left: Some(AuthoredSourceConfigurationReference { argument: 3, family: DataGroup, selection_unknown: true })
+ right: Some(AuthoredSourceConfigurationReference { argument: 3, family: DataGroup, selection_unknown: false })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

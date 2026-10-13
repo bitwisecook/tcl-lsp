@@ -1,0 +1,493 @@
+{
+  "group": "metadata",
+  "build_provenance": "../build",
+  "selected_packages": [
+    "tcl-irules",
+    "tcl-registry",
+    "tcl-spec-studio",
+    "tcl-spectcl"
+  ],
+  "executed_controls": 12,
+  "passed": 10,
+  "failed": 2,
+  "results": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924",
+        "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:12:23.117489+00:00",
+      "end_utc": "2026-10-13T01:12:23.368325+00:00",
+      "elapsed_seconds": 0.2508353529992746,
+      "exit_code": 101,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814480384,
+      "group": "metadata",
+      "package": "tcl-registry",
+      "test": "source_configuration_reference::tests::selected_configuration_layout_keeps_unknown_item_and_original_ordinal",
+      "test_result": {
+        "status": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 1758
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "05a464e1668ade2cdee1c8bde920ddc70b7e6379a4764031618cb7ba4cfff445"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924",
+        "source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:12.914609+00:00",
+      "end_utc": "2026-10-13T01:15:13.167587+00:00",
+      "elapsed_seconds": 0.2529741800026386,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-registry",
+      "test": "source_configuration_reference::tests::selected_configuration_layout_declines_unknown_control_and_cardinality",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 1758
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "05a464e1668ade2cdee1c8bde920ddc70b7e6379a4764031618cb7ba4cfff445"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:15.143998+00:00",
+      "end_utc": "2026-10-13T01:15:15.394764+00:00",
+      "elapsed_seconds": 0.2507609950043843,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-irules",
+      "test": "source_object::tests::original_data_group_operands_keep_unknown_item_and_refuse_unknown_reference",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 70
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::tests::extracts_pool_snatpool_and_datagroup_refs",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:17.482770+00:00",
+      "end_utc": "2026-10-13T01:15:17.983796+00:00",
+      "elapsed_seconds": 0.5010230580010102,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-irules",
+      "test": "walker::tests::extracts_pool_snatpool_and_datagroup_refs",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 70
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:19.977504+00:00",
+      "end_utc": "2026-10-13T01:15:20.478470+00:00",
+      "elapsed_seconds": 0.500967722000496,
+      "exit_code": 101,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-irules",
+      "test": "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+      "test_result": {
+        "status": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 70
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:22.473181+00:00",
+      "end_utc": "2026-10-13T01:15:23.224460+00:00",
+      "elapsed_seconds": 0.7512767360021826,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-irules",
+      "test": "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 70
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "loader::tests::subcommand_source_configuration_reference_loads_and_omission_abstains",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:25.192121+00:00",
+      "end_utc": "2026-10-13T01:15:25.442861+00:00",
+      "elapsed_seconds": 0.250738356000511,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spectcl",
+      "test": "loader::tests::subcommand_source_configuration_reference_loads_and_omission_abstains",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 263
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "loader::tests::invalid_source_configuration_reference_withdraws_the_descriptor",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:27.515328+00:00",
+      "end_utc": "2026-10-13T01:15:27.766095+00:00",
+      "elapsed_seconds": 0.2507647890015505,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spectcl",
+      "test": "loader::tests::invalid_source_configuration_reference_withdraws_the_descriptor",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 263
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "loader::tests::source_configuration_reference_has_static_and_evaluated_loader_parity",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:29.774021+00:00",
+      "end_utc": "2026-10-13T01:15:32.776779+00:00",
+      "elapsed_seconds": 3.0027562089962885,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spectcl",
+      "test": "loader::tests::source_configuration_reference_has_static_and_evaluated_loader_parity",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 263
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "catalogue::tests::enum_witnesses_compile_and_hold",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:35.014909+00:00",
+      "end_utc": "2026-10-13T01:15:35.265755+00:00",
+      "elapsed_seconds": 0.25084272000094643,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spectcl",
+      "test": "catalogue::tests::enum_witnesses_compile_and_hold",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 263
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "catalogue::tests::catalogue_keys_are_unique",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:37.522642+00:00",
+      "end_utc": "2026-10-13T01:15:37.773985+00:00",
+      "elapsed_seconds": 0.25134013000206323,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spectcl",
+      "test": "catalogue::tests::catalogue_keys_are_unique",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 263
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spec_studio-1ce408a3ca4670fa",
+        "render_spectcl::tests::authored_source_configuration_reference_survives_render_load_and_draft",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:15:39.831391+00:00",
+      "end_utc": "2026-10-13T01:15:40.082258+00:00",
+      "elapsed_seconds": 0.2508648430011817,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2814455808,
+      "group": "metadata",
+      "package": "tcl-spec-studio",
+      "test": "render_spectcl::tests::authored_source_configuration_reference_survives_render_load_and_draft",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 267
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "487b0cacce1187ce2e0bfbfef915bcad7d4c34b516886f371aa65a1dfafa83b3"
+    }
+  ],
+  "binary_identities": {
+    "tcl-irules": {
+      "artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-irules#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp/rust/tcl-irules/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_irules",
+          "src_path": "/workspace/tcl-lsp/rust/tcl-irules/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07"
+        ],
+        "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "fresh": false
+      },
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+      "sha256": "8659dba01acc205ea08f2750915992889eab1ca67406fff6de488976169f4bcb"
+    },
+    "tcl-registry": {
+      "artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp/rust/tcl-registry/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_registry",
+          "src_path": "/workspace/tcl-lsp/rust/tcl-registry/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924"
+        ],
+        "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924",
+        "fresh": false
+      },
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_registry-30152f1b62ed4924",
+      "sha256": "05a464e1668ade2cdee1c8bde920ddc70b7e6379a4764031618cb7ba4cfff445"
+    },
+    "tcl-spec-studio": {
+      "artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spec-studio#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp/rust/tcl-spec-studio/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_spec_studio",
+          "src_path": "/workspace/tcl-lsp/rust/tcl-spec-studio/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spec_studio-1ce408a3ca4670fa"
+        ],
+        "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spec_studio-1ce408a3ca4670fa",
+        "fresh": false
+      },
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spec_studio-1ce408a3ca4670fa",
+      "sha256": "487b0cacce1187ce2e0bfbfef915bcad7d4c34b516886f371aa65a1dfafa83b3"
+    },
+    "tcl-spectcl": {
+      "artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_spectcl",
+          "src_path": "/workspace/tcl-lsp/rust/tcl-spectcl/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": true
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f"
+        ],
+        "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+        "fresh": false
+      },
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_spectcl-f16a13ce76c8c76f",
+      "sha256": "c42ce8a621db17bfdc2b11c3a998f271f16505baeae9a7d4446e62c3902673e5"
+    }
+  },
+  "conservative_local_packages": 26,
+  "frozen_files": 11803,
+  "source_changes": [],
+  "source_scope": "Actual common frozen six-package selected build; shared current source, no isolation claim.",
+  "oracle_execution": false,
+  "controls_repeated": false,
+  "full_suite_run": false,
+  "cache_released": true
+}

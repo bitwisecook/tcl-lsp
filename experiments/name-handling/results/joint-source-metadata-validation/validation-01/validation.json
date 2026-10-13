@@ -1,0 +1,27 @@
+{
+  "build_exit_code": 0,
+  "build_invocation_count": 1,
+  "executed_controls": 15,
+  "passed": 13,
+  "failed": 2,
+  "metadata": {
+    "passed": 10,
+    "failed": 2
+  },
+  "compiler": {
+    "passed": 2,
+    "failed": 0
+  },
+  "vm": {
+    "passed": 1,
+    "failed": 0
+  },
+  "source_changes": [],
+  "conservative_local_packages": 26,
+  "frozen_files": 11803,
+  "changed_owner_images": 21,
+  "artifact_records": 165,
+  "cache_released": true,
+  "source_or_fixture_updates_during_run": false,
+  "oracle_execution": false
+}
