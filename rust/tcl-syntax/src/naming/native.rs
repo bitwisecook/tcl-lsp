@@ -1967,6 +1967,8 @@ impl NativeVariableDiagnosticReason {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeVariableFailureSite {
     NameLookup,
+    /// Early element lookup by an actually admitted indexed local instruction.
+    IndexedNameLookup,
     ValueRead,
     ValueWrite,
     ValueUnset,
@@ -2137,10 +2139,22 @@ fn native_variable_failure_code(
         Constant, DetachedElement, IsArray, MissingParentNamespace, NoSuchElement, NoSuchVariable,
         NotArray, RetiredNamespace,
     };
-    use NativeVariableFailureSite::{NameLookup, ValueRead, ValueUnset, ValueWrite};
+    use NativeVariableFailureSite::{
+        IndexedNameLookup, NameLookup, ValueRead, ValueUnset, ValueWrite,
+    };
     let error_code = if matches!(protocol, NativeNameProtocol::C(version) if version >= TclVersion::V8_6)
     {
         let words: &[&[u8]] = match (site, reason) {
+            (IndexedNameLookup, RetiredNamespace)
+                if operation == NativeVariableDiagnosticOperation::Write && element.is_some() =>
+            {
+                &[b"TCL", b"LOOKUP", b"VARNAME"]
+            }
+            (NameLookup, RetiredNamespace)
+                if operation == NativeVariableDiagnosticOperation::Write && element.is_some() =>
+            {
+                &[b"TCL", b"LOOKUP", b"VARNAME", root]
+            }
             (NameLookup, NoSuchVariable | MissingParentNamespace | NotArray) => {
                 &[b"TCL", b"LOOKUP", b"VARNAME", root]
             }
@@ -2186,7 +2200,14 @@ pub fn report_native_variable_diagnostic_at(
 ) -> Result<NativeVariableDiagnosticProjection, NameProjectionUnavailable> {
     use NativeVariableDiagnosticOperation::{Increment, Read, Unset, Write};
     use NativeVariableDiagnosticReason::{Constant, NoSuchElement, NoSuchVariable, NotArray};
-    use NativeVariableFailureSite::{ValueRead, ValueUnset, ValueWrite};
+    use NativeVariableFailureSite::{IndexedNameLookup, ValueRead, ValueUnset, ValueWrite};
+    if site == IndexedNameLookup
+        && !(matches!(protocol, NativeNameProtocol::C(_))
+            && operation == Write
+            && reason == NativeVariableDiagnosticReason::RetiredNamespace)
+    {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    }
     if let Some(projection) =
         special_variable_failure_projection(protocol, operation, reason, site, input)?
     {
@@ -2222,6 +2243,9 @@ pub fn report_native_variable_diagnostic_at(
     };
     let root = c_string_extent(parts.root().original());
     let element = parts.element().map(|part| c_string_extent(part.original()));
+    if site == IndexedNameLookup && element.is_none() {
+        return Err(NameProjectionUnavailable::PurposeNotModelled);
+    }
     let reconstructed = || {
         let mut name = root.to_vec();
         if let Some(element) = element {
@@ -3079,6 +3103,158 @@ mod tests {
         assert_eq!(unset.name, b"a(k");
         assert_eq!(unset.reason, NoSuchElement);
         assert_eq!(unset.error_code, None);
+    }
+
+    #[test]
+    fn retired_namespace_write_sites_match_retained_original_c_rows() {
+        use NativeVariableDiagnosticOperation::Write;
+        use NativeVariableDiagnosticReason::RetiredNamespace;
+        use NativeVariableFailureSite::{IndexedNameLookup, NameLookup, ValueWrite};
+        let inputs = [
+            (
+                TclVersion::V8_4,
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.4.20/stdout.txt"
+                ),
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.4.20/stdout.txt"
+                ),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.5.19/stdout.txt"
+                ),
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.5.19/stdout.txt"
+                ),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
+                ),
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+                ),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.0.4/stdout.txt"
+                ),
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.0.4/stdout.txt"
+                ),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.1.0/stdout.txt"
+                ),
+                include_str!(
+                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt"
+                ),
+            ),
+        ];
+        for (version, compiled, object_command) in inputs {
+            let protocol = crate::native_string::NativeStringProtocol::C(version);
+            for (capture, label, site, original) in [
+                (compiled, "literal-scalar", ValueWrite, b"foo".as_slice()),
+                (
+                    compiled,
+                    "literal-element",
+                    IndexedNameLookup,
+                    b"foo(3)".as_slice(),
+                ),
+                (
+                    object_command,
+                    "variable-head-element",
+                    NameLookup,
+                    b"foo(3)".as_slice(),
+                ),
+            ] {
+                let prefix = format!("ROW {label} ");
+                let line = capture
+                    .lines()
+                    .find(|line| line.starts_with(&prefix))
+                    .unwrap();
+                let row = crate::list::split_native_list_bytes(line.as_bytes(), protocol).unwrap();
+                let expected = crate::list::split_native_list_bytes(&row[3], protocol).unwrap();
+                let projection = report_native_variable_diagnostic_at(
+                    NativeNameProtocol::C(version),
+                    Write,
+                    RetiredNamespace,
+                    site,
+                    NativeVariableInputForm::Combined(original),
+                )
+                .unwrap();
+                let mut message = b"can't set \"".to_vec();
+                message.extend_from_slice(&projection.name);
+                message.extend_from_slice(b"\": ");
+                message.extend_from_slice(projection.reason.message().as_bytes());
+                assert_eq!(message.as_slice(), expected[3].as_ref());
+                let code = if expected[4].as_ref() == b"NONE" {
+                    None
+                } else {
+                    Some(
+                        crate::list::split_native_list_bytes(&expected[4], protocol)
+                            .unwrap()
+                            .into_iter()
+                            .map(|word| word.into_owned())
+                            .collect::<Vec<_>>(),
+                    )
+                };
+                assert_eq!(projection.error_code, code);
+                assert_eq!(
+                    projection.missing_lookup_root.as_deref(),
+                    (version >= TclVersion::V8_6 && site == NameLookup)
+                        .then_some(b"foo".as_slice())
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_retired_lookup_rejects_missing_or_incompatible_purpose() {
+        use NativeVariableDiagnosticOperation::{Read, Write};
+        use NativeVariableDiagnosticReason::{IsArray, RetiredNamespace};
+        use NativeVariableFailureSite::IndexedNameLookup;
+        for version in VERSIONS {
+            let protocol = NativeNameProtocol::C(version);
+            assert!(
+                report_native_variable_diagnostic_at(
+                    protocol,
+                    Write,
+                    RetiredNamespace,
+                    IndexedNameLookup,
+                    NativeVariableInputForm::Combined(b"foo")
+                )
+                .is_err()
+            );
+            for (operation, reason) in [(Read, RetiredNamespace), (Write, IsArray)] {
+                assert!(
+                    report_native_variable_diagnostic_at(
+                        protocol,
+                        operation,
+                        reason,
+                        IndexedNameLookup,
+                        NativeVariableInputForm::Combined(b"foo(3)")
+                    )
+                    .is_err()
+                );
+            }
+        }
+        assert!(
+            report_native_variable_diagnostic_at(
+                NativeNameProtocol::Jim084,
+                Write,
+                RetiredNamespace,
+                IndexedNameLookup,
+                NativeVariableInputForm::Combined(b"foo(3)")
+            )
+            .is_err()
+        );
     }
 
     #[test]

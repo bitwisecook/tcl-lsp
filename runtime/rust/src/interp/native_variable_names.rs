@@ -5066,6 +5066,83 @@ mod tests {
     }
 
     #[test]
+    fn retired_namespace_c86_source_entries_preserve_scalar_and_element_sites() {
+        trace_source_observation(
+            "tcl8.6",
+            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"),
+            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"),
+        );
+    }
+
+    #[test]
+    fn retired_namespace_c86_variable_heads_preserve_original_root_tuple() {
+        trace_source_observation(
+            "tcl8.6",
+            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"),
+            include_bytes!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"),
+        );
+    }
+
+    #[test]
+    fn retired_namespace_original_object_vector_keeps_root_despite_compiled_cell() {
+        fn original_vector(interp: &mut Interp, _args: &[*mut TclObj]) -> Code {
+            let head = Owned::fresh(obj::new_string_bytes(b"set"));
+            let name = Owned::fresh(obj::new_string_bytes(b"foo(3)"));
+            let value = Owned::fresh(obj::new_string_bytes(b"3"));
+            let code =
+                interp.eval_original_object_vector(&[head.as_ptr(), name.as_ptr(), value.as_ptr()]);
+            let root = obj::native_variable_name::with_parsed(name.as_ptr(), |cache| {
+                cache.array.as_ref().map(|(root, _)| root.as_ptr())
+            })
+            .flatten()
+            .expect("original parsed root retained after failure");
+            assert!(interp.original_c_local_index(root).is_some());
+            code
+        }
+        let mut interp = Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp.register_builtin(b"original_vector_write", original_vector);
+        assert_eq!(
+            interp.eval_str(
+                br#"
+            namespace eval test_ns_var {variable foo 2}
+            proc p {} {
+                variable ::test_ns_var::foo
+                set live [set foo]
+                namespace delete ::test_ns_var
+                set code [catch {original_vector_write} result]
+                list $code $result $::errorCode
+            }
+            p
+        "#
+            ),
+            Code::Ok,
+            "{:?}",
+            interp.native_execution_refusal()
+        );
+        let protocol =
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        let capture = include_str!("../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt");
+        let line = capture
+            .lines()
+            .find(|line| line.starts_with("ROW variable-head-element "))
+            .unwrap();
+        let row = tcl_syntax::list::split_native_list_bytes(line.as_bytes(), protocol).unwrap();
+        let expected = tcl_syntax::list::split_native_list_bytes(&row[3], protocol).unwrap();
+        let result = interp.result_bytes();
+        let actual = tcl_syntax::list::split_native_list_bytes(&result, protocol).unwrap();
+        assert_eq!(actual.len(), 3);
+        for (actual, expected) in actual.iter().zip(&expected[2..]) {
+            assert_eq!(actual.as_ref(), expected.as_ref());
+        }
+        assert!(!interp.host_refusal_pending());
+    }
+
+    #[test]
     fn array_root_write_diagnostics_match_five_original_source_controls() {
         // Native proof: naming.variable.original-array-root-write-diagnostic
         // docs/design/analysis/name-resolution-proofs/variable-original-array-root-write-diagnostic.md

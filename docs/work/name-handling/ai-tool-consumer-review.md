@@ -91,70 +91,63 @@ excluded from the corrected owned-package count; raw Cargo output is unchanged.
 No literal/event controls repeated, full suite, codegen, interpreter oracle or
 F5 TMM/MCPD test ran. All source/cache leases are released.
 
-## Remaining obligations
-
-The unchanged generator datagroup assertion remains unresolved. Read-only
-inspection locates the first loss in `tcl-irules/src/source_object.rs:155`:
-custom class/persist reference selection requires every operand literal, so
-the Dynamic ITEM in `class match [HTTP::uri] equals helper_dg` withdraws the
-known literal reference. MCP merely gathers the returned shared categories.
-Registry ownership review approved a narrow typed structured-reference layout;
-no private consumer name/layout helper is approved. The independent review rejects a new
-hardcoded class-match layout in `source_object.rs` because it would multiply
-per-command knowledge. The recommended extension is typed reference metadata
-on the selected Registry subcommand, with projection through `ResolvedInvocation`
-and existing actual option topology; the iRules consumer maps the typed family
-through its existing object-kind table and retains original literal/span guards.
-Dynamic ITEM advice stays conditional, including its uncertain option/data value.
-Actual cardinality, known operator, unknown selection and currentness remain
-separate premises; no accepted argv or native object identity follows.
-The [scratch proposal](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-proposal-01/README.md)
-retains the concrete Registry/iRules patch, preimages and planned bounded
-positive/adverse controls. The single optional SubCommand enum variant has
-full declarative SpecTcl/Studio parity planned under separate owners, with no
-GAPS or new public descriptor framework. The exact [applied patch](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-applied-01/README.md)
-is preimage-checked and scoped-formatting clean after VM restoration. Registry
-and iRules owners match the prepared scratch; parity owners apply separately.
-New controls are authored but no new-source typecheck/build/test ran. Existing
-central dynamic ITEM, inert-expression, DTO-counterfactual and currentness
-controls were inspected but not run. Wait for all parity owners ready and root's
-explicit selected joint build/cache lease; that scope includes current shared
-code and makes no isolation claim. Preserve every
-original fixture/assertion and sealed failure.
-
-Proposed future finite consumer comparisons remain unexecuted: dynamic
-procedure declarations followed by rename; a literal callback alias before
-and after an unknown writer; namespace-imported cursor locations before rename
-and with an unknown intervening writer. Tie conformance claims to the retained
-interpreter/native-context oracle for the exact question.
-
 ## Current typed-reference validation
 
+Registry owns the optional typed `SubCommand.source_configuration_reference`
+DataGroupComparison layout and six comparison operators. Genuine original
+roles/ordinals, known option topology, exact cardinality and literal reference
+geometry guard the projection; Dynamic ITEM stays conditional. iRules maps
+the typed configuration-object family and suppresses legacy fallback whenever
+the selected descriptor owns the layout, including when projection declines.
+The shared `proves_non_option` premise preserves DynamicNonOption distinction.
+Public literal compatibility/search behavior remains unchanged. Full authored
+SpecTcl/Studio declaration, loader, renderer and form parity is implemented;
+no GAPS or Native object/handler identity follows from this metadata.
+
 The [joint six-library capture](../../../experiments/name-handling/results/joint-source-metadata-validation/validation-01/README.md)
-build passed; fifteen exact controls ran once each with 13 passes/two failures.
-Metadata10/2 included the Registry DynamicNonOption bit failure and unchanged
-braced-expression datagroup failure. Both Compiler source-selector controls
-and corrected VM SamePosition fixture passed on that exact preimage. Its 26
+build passed; fifteen exact controls ran once with 13 passes/two failures.
+Metadata10/2 included the original Registry DynamicNonOption bit failure and
+unchanged braced-expression datagroup failure. Compiler source-selector2 and
+corrected VM SamePosition1 passed on that exact dependency preimage. Its26
 packages/11,803 source-data hashes and six binary hashes stayed unchanged.
-First failures and all raw logs are sealed; no whole-suite/provider promotion.
+Both failures and full raw logs remain sealed.
 
-The approved [two-file boundary refinements](../../../experiments/name-handling/results/joint-source-metadata-validation/reference-refinement-01/README.md)
-now build and pass all four selected Registry/iRules controls. Registry
-preserves the shared proves_non_option premise; typed descriptor presence
-suppresses legacy fallback even when projection declines. New literal adverse
-cases retain public legacy resolver behavior. Original expectations/fixtures
-are unchanged. Current projection hash is 793554f0...924a; object-operand hash
-93a5f642...5c03. Its actual25-package/11,764-hash source scope and both binary
-hashes remained unchanged through the one build/four controls. Compiler/VM
-acceptance remains scoped to the earlier dependency preimage.
+The [two-file refinements](../../../experiments/name-handling/results/joint-source-metadata-validation/reference-refinement-01/README.md)
+build passed all four selected Registry/iRules controls once, preserving old
+expectations/fixtures. Finite literal unknown-option/operator/cardinality/NUL
+controls passed and public legacy compatibility remains tested. Current
+Registry projection SHA-256793554f0...924a and iRules object operand
+SHA-25693a5f642...5c03 were unchanged through the25-package/11,764-hash scope
+and both pinned binaries. Compiler/VM acceptance retains its earlier exact
+dependency preimage. Studio schema/reference documentation integration2 and
+field-document regeneration passed in the separate
+[Studio capture](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-studio-doc-01/README.md).
 
-The unchanged braced-expression failure remains unresolved and was not rerun.
-Read-only inspection narrows the candidate loss to authentic original-vector
-retention, which visits Registry Syntax bodies and lexical executable command
-parts without asking the existing source_expression_script_bodies issuer.
-Final [] does not prove the first rejected guard. A bounded temporary logging
-probe is being prepared in scratch for original body origin, Expr-issued child
-geometry and SourceContext vector admission; no third production repair or
-probe build is approved yet. Separate Studio integration/doc generation is
-awaiting its root-coordinated lease. No MCP generator/default-target build ran
-after these shared changes. All completed source/cache leases are released.
+The [fresh current MCP generator capture](../../../experiments/name-handling/results/mcp-static-name-inventory/current-generator-validation-01/README.md)
+selected the actual tcl-mcp binary on explicit default target and passed the
+unchanged generator control once:1passed/132filtered. The original single
+request-closure, helper_dg, multi-TMM, live/static and inert exclusion assertions
+all reached. Its39-package/12,059-hash source scope and binary
+SHA-2562e99d5ba...32ebd stayed unchanged. Prior literal, inventory, helper and
+event controls retain their own source-pinned receipts; none repeated here.
+No full-suite or interpreter/F5 provider result follows. Completed leases are
+released; root owns subsequent source/cache coordination.
+
+## Remaining obligations
+
+The unchanged braced-expression failure remains independently open and was
+not rerun after the boundary refinements. Read-only inspection narrows a
+candidate loss to authentic original-vector retention, which visits Registry
+Syntax bodies and lexical executable command parts without asking the existing
+`source_expression_script_bodies` issuer. Final[] does not establish the first
+rejected guard. A bounded temporary Compiler/SourceContext logging probe is
+being prepared in scratch to observe original body origin, Expr-issued child
+geometry and source-vector admission. No third production repair or probe
+build is approved. Preserve the original fixture/assertions and every sealed
+failure; apply a probe only under a new root-coordinated source/cache lease.
+
+Future finite consumer comparisons remain unexecuted: dynamic procedure
+requests followed by rename; literal callback alias before/after unknown
+writer; namespace-imported cursor location before rename and unknown writer.
+Tie any conformance claim to the retained interpreter/native-context oracle
+for the exact question. Canonical proof/provider records are unchanged.

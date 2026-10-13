@@ -2693,7 +2693,16 @@ impl Interp {
             self.check_body_variable_stage(stage)?;
             let captured = captured
                 .map_err(|error| {
-                    self.body_variable_receiver_error_with_check(evaluated, purpose, Site::NameLookup, error, stage)
+                    let site = if creates && error == crate::frame::VarError::DeletedNamespace {
+                        if element.is_some() {
+                            Site::IndexedNameLookup
+                        } else {
+                            Site::ValueWrite
+                        }
+                    } else {
+                        Site::NameLookup
+                    };
+                    self.body_variable_receiver_error_with_check(evaluated, purpose, site, error, stage)
                 })?
                 .ok_or_else(|| {
                     if creates {

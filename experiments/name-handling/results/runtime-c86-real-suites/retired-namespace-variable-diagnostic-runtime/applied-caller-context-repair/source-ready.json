@@ -1,0 +1,60 @@
+{
+  "status": "Three reviewed source owners APPLIED/FROZEN after scoped edition-correct rustfmt. No Cargo; five authored checks remain UNEXECUTED.",
+  "sources": {
+    "rust/tcl-syntax/src/naming/native.rs": {
+      "preimage_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+      "applied_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb"
+    },
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "preimage_sha256": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+      "applied_sha256": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe"
+    },
+    "runtime/rust/src/interp/native_variable_names.rs": {
+      "preimage_sha256": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb",
+      "applied_sha256": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473"
+    }
+  },
+  "tests": {
+    "rust/tcl-syntax/src/naming/native.rs": [
+      "retired_namespace_write_sites_match_retained_original_c_rows",
+      "indexed_retired_lookup_rejects_missing_or_incompatible_purpose"
+    ],
+    "runtime/rust/src/interp/native_variable_names.rs": [
+      "retired_namespace_c86_source_entries_preserve_scalar_and_element_sites",
+      "retired_namespace_c86_variable_heads_preserve_original_root_tuple",
+      "retired_namespace_original_object_vector_keeps_root_despite_compiled_cell"
+    ]
+  },
+  "enum_consumers": [
+    "runtime/rust/src/state_traits.rs",
+    "runtime/rust/src/interp.rs",
+    "runtime/rust/src/interp/native_variable_names.rs",
+    "runtime/rust/src/interp/native_variable_names/native_array.rs",
+    "runtime/rust/src/interp/native_variable_names/native_unset.rs",
+    "runtime/rust/src/interp/native_variable_names/native_tcloo.rs",
+    "runtime/rust/src/interp/native_body_artifact.rs",
+    "rust/tcl-vm/src/interp/native_compiled_locals.rs",
+    "rust/tcl-vm/src/interp.rs",
+    "rust/tcl-syntax/src/native_jim_lookup.rs",
+    "rust/tcl-syntax/src/naming/native.rs",
+    "rust/tcl-syntax/src/naming.rs",
+    "rust/tcl-cmd-core/src/array.rs",
+    "rust/tcl-runtime-api/src/lib.rs"
+  ],
+  "original_reviewed_patch_sha256": "f9e007723b8773e0d5d1ccad936ee6352b8a325fe6b15abf50560691f15572d3",
+  "applied_patch_sha256": "b01b9bd40cbffcdc441d2b8ed3566e8d71c5b93dfcb5f701c3a2101c76074e08",
+  "oracle_seals": [
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question",
+      "count": 46,
+      "sha256": "63a349b1cd5e9a59157cd0305811dcdf3c42acb9cb57de43cb08fb2f95b1c932",
+      "changed": []
+    },
+    {
+      "path": "experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-runtime/route-diagnostic-01",
+      "count": 20,
+      "sha256": "c229134d7c87e3df01aff52729f1b5085373db24c7e07831f2bc6335dff0483d",
+      "changed": []
+    }
+  ]
+}
