@@ -51,9 +51,8 @@ the retained historical Wasmtime notice. Genuine linked execution remains pendin
 
 The active cadence is a tracking-document update plus reviewed commit/push every
 15 minutes, and a high-level user progress report every hour. It started at
-16:05 BST on13 October2026. This checkpoint is16:21 BST; the next tracking
-checkpoint is17:05 BST and the next hourly report17:05 BST. The current
-checkpoint is16:49 BST. Root checks the clock between bounded operations;
+16:05 BST on13 October2026. This checkpoint is17:07 BST; the next tracking
+checkpoint is17:20 BST and the next hourly report18:05 BST. Root checks the clock between bounded operations;
 source captures retain their exclusive build/cache leases. Checkpoints may be
 red, but must state exact failures and unexecuted checks.
 
@@ -83,11 +82,26 @@ The [surface roster](surface-roster.json) enumerates52 workspace and11 excluded
 packages plus editor/script/AI surfaces; unexamined rows remain unfinished.
 
 The current source-read flow, private member catalogue, descriptor-roster and
-namespace.which hook adapters are applied and formatted, awaiting production
-acceptance. Compiler production captures01/02 execute zero tests after a slice
-iterator error and an omitted Core obligation conversion respectively; both
-errors are corrected and production03 is running under a new source freeze.
-The exact failed captures remain separate from all later test outcomes.
+namespace.which hook adapters are applied and formatted. Compiler production
+captures01/02 execute zero tests after a slice iterator error and an omitted
+Core obligation conversion respectively; both errors are corrected. Production03
+compiles and completes three controls, then its original #2286 program remains
+busy. The bounded capture is terminated with SIGTERM after915 seconds total,
+without a failed assertion or completed result for the remaining32 controls.
+Its exact source and binary remain unchanged. Worklist convergence needs
+measurement; #2286 remains unaccepted.
+
+The follow-up four exact Compiler catalogue controls pass under that same
+unchanged production binary: two new member-body source/authority/currency
+controls and two existing conditional receiver catalogue controls. Core
+callback/hosted/export tests are building. No completed Core result is claimed.
+
+Implementation priority is adoption by every audited consumer. Agents move
+to isolated source checkouts with exclusive build targets so Runtime variables,
+Registry/VM, source-frame/LSP and compiler/codegen migrations can proceed in
+parallel. A dedicated audit agent reconciles the remaining package/callsite
+roster and routes concrete gaps to the implementation owners. The primary
+checkout owns reviewed integration, tracking, regular commits/pushes and gates.
 
 [Runtime namespace geometry](../../../experiments/name-handling/results/runtime-namespace-geometry-20261013/README.md)
 passes five exact selectors:60 actual original-object namespace rows across C5,

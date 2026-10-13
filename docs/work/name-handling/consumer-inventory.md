@@ -20,6 +20,11 @@ WASM and BPF emitters, contract-only target families, and remaining #1778 map
 consumers. String labels, DSL map symbols and genuine command slots have
 separate contracts; a map audit is not execution acceptance.
 
+[Registry consumers](registry-consumers.md) adds62 audited paths plus byte-prefix
+and F5-domain preconditions. Its recorded source predates the latest exact
+descriptor-roster and namespace.which edits, which are applied with validation
+pending; those gaps are not completed simply because their proposals exist.
+
 | Callsite | Operation/input/context | Shared owner/API and disposition | Tests/evidence or next action |
 | --- | --- | --- | --- |
 | `rust/tcl-cli/src/commands/lookup.rs::run_command_info` | User-provided exact registry command name + dialect + actual pack-layered store; JSON/human output | Implementation ready; consumer tests pending. Uses one `ResolvedContext::resolve_spec` call, removing independent trim/case-insensitive candidate scan and supplied-empty-name rejection. Retains literal output spelling; metadata, not live binding. | New `tests/cli.rs::command_info_preserves_exact_command_names` (2 positive/9 negative); existing project pack discovery control. No Rust test run yet. Original C5/Jim custom probe retained under `experiments/name-handling/results/cli-command-name-literal`. |
