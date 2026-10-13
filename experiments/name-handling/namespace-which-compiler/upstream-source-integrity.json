@@ -1,0 +1,57 @@
+{
+  "authority": "GitHub immutable upstream commit and Git blob SHA returned independently of measured source",
+  "rows": [
+    {
+      "release": "8.5.19",
+      "ref": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+      "path": "generic/tclCompCmds.c",
+      "result": {
+        "content": "/*\n * tclCompCmds.c --",
+        "encoding": "utf-8",
+        "sha": "3b234b0fe84bae86145af63e106874cbb9014346",
+        "display_url": "https://github.com/tcltk/tcl/blob/160d612a6b2b1c2c0db27236d648b7bc1364570c/generic/tclCompCmds.c",
+        "display_title": "tclCompCmds.c"
+      },
+      "isError": false
+    },
+    {
+      "release": "8.6.18",
+      "ref": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+      "path": "generic/tclCompCmdsGR.c",
+      "result": {
+        "content": "/*\n * tclCompCmdsGR.c --",
+        "encoding": "utf-8",
+        "sha": "6db9520c655c2dc07260ffdb51fd0c046133b689",
+        "display_url": "https://github.com/tcltk/tcl/blob/515167c897a7c8066abfbd71e8fe7bd8bf3569de/generic/tclCompCmdsGR.c",
+        "display_title": "tclCompCmdsGR.c"
+      },
+      "isError": false
+    },
+    {
+      "release": "9.0.4",
+      "ref": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+      "path": "generic/tclCompCmdsGR.c",
+      "result": {
+        "content": "/*\n * tclCompCmdsGR.c --",
+        "encoding": "utf-8",
+        "sha": "d7d4af247dda886375dd24985e2aa47659261e92",
+        "display_url": "https://github.com/tcltk/tcl/blob/c655b4770b1d6d32a8cbffd6cef59db6029fe19e/generic/tclCompCmdsGR.c",
+        "display_title": "tclCompCmdsGR.c"
+      },
+      "isError": false
+    },
+    {
+      "release": "9.1.0",
+      "ref": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+      "path": "generic/tclCompCmdsGR.c",
+      "result": {
+        "content": "/*\n * tclCompCmdsGR.c --",
+        "encoding": "utf-8",
+        "sha": "60af16bb1796dbdf377f5d9cc3b02f0fee0a5349",
+        "display_url": "https://github.com/tcltk/tcl/blob/0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985/generic/tclCompCmdsGR.c",
+        "display_title": "tclCompCmdsGR.c"
+      },
+      "isError": false
+    }
+  ]
+}

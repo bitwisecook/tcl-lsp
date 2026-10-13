@@ -785,6 +785,8 @@ pub enum NativeCompilationGrammar {
     NamespaceLegacy,
     /// C8.6+ original private namespace-upvar worker compiler.
     NamespaceUpvarBindings,
+    /// C8.6+ namespace command-query hook; variable queries decline its opcode.
+    NamespaceWhich,
     /// A procedure-only hook from this release; script frames decline the hook.
     /// Procedure grammar remains unmodelled and cannot license an opcode.
     ProcedureHookFrom(TclVersion),
@@ -1953,6 +1955,7 @@ impl NativeCompilationSpec {
             // command literal preparation, or an unauthored compiler hook.
             NativeCompilationGrammar::Unresolved
             | NativeCompilationGrammar::HookFrom(_)
+            | NativeCompilationGrammar::NamespaceWhich
             | NativeCompilationGrammar::ProcedureHookFrom(_)
             | NativeCompilationGrammar::NamedEnsembleInvocation { .. }
             | NativeCompilationGrammar::Array { .. }
@@ -2120,6 +2123,7 @@ impl NativeCompilationSpec {
                     compiler.grammar,
                     NativeCompilationGrammar::NoHook
                         | NativeCompilationGrammar::HookFrom(_)
+                        | NativeCompilationGrammar::NamespaceWhich
                         | NativeCompilationGrammar::TclOoHelper(_)
                         | NativeCompilationGrammar::StringTrim { .. }
                         | NativeCompilationGrammar::StringMatch(_)
@@ -2278,6 +2282,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::NamespaceLegacy
             | NativeCompilationGrammar::Switch => version >= TclVersion::V8_5,
             NativeCompilationGrammar::NamespaceUpvarBindings
+            | NativeCompilationGrammar::NamespaceWhich
             | NativeCompilationGrammar::StringTrim { .. }
             | NativeCompilationGrammar::Array { .. }
             | NativeCompilationGrammar::Error
@@ -2319,6 +2324,10 @@ impl NativeCompilationSpec {
         }
         if let NativeCompilationGrammar::Array { lookup, .. } = self.grammar {
             return implementation_version_matches(dialect, TclVersion::V8_6).then_some(*lookup);
+        }
+        if self.grammar == NativeCompilationGrammar::NamespaceWhich {
+            return implementation_version_matches(dialect, TclVersion::V8_6)
+                .then_some(NAMESPACE_WHICH_IMPLEMENTATION);
         }
         if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
             return implementation_version_matches(dialect, TclVersion::V8_6).then_some(
@@ -3101,6 +3110,9 @@ impl NativeCompilationSpec {
                 Selection::Generic
             };
         }
+        if self.grammar == NativeCompilationGrammar::NamespaceWhich {
+            return original_namespace_which_grammar(words, operand_from, version);
+        }
         if let Some(selection) = self.select_shape_grammar(shapes, version, context) {
             return selection;
         }
@@ -3270,6 +3282,7 @@ impl NativeCompilationSpec {
                 | NativeCompilationGrammar::NamespaceOrigin
                 | NativeCompilationGrammar::NamespaceCode
                 | NativeCompilationGrammar::NamespaceString(_)
+                | NativeCompilationGrammar::NamespaceWhich
         ) {
             let private = dialect.and_then(|dialect| self.implementation_lookup(dialect));
             if private.is_some_and(|lookup| {
@@ -3852,6 +3865,11 @@ impl NativeCompilationSpec {
                 substitution_template_compiler_grammar(words, shapes, version, self.operation)
             }
             NativeCompilationGrammar::HookFrom(first) => unmodelled_hook_selection(version, first),
+            NativeCompilationGrammar::NamespaceWhich => namespace_which_selection(
+                shapes,
+                words.arguments().literal_at(0).map(str::as_bytes),
+                version,
+            ),
             NativeCompilationGrammar::NamespaceUpvarBindings => {
                 if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
                 {
@@ -4292,6 +4310,15 @@ const INFO_LEVEL_IMPLEMENTATION: NativeCompilerImplementationLookup =
         prepended: &["level"],
     };
 
+const NAMESPACE_WHICH_IMPLEMENTATION: NativeCompilerImplementationLookup =
+    NativeCompilerImplementationLookup {
+        ensemble: "::namespace",
+        member: "which",
+        slot: "::tcl::namespace::which",
+        command: "namespace",
+        prepended: &["which"],
+    };
+
 const NAMESPACE_CURRENT_IMPLEMENTATION: NativeCompilerImplementationLookup =
     NativeCompilerImplementationLookup {
         ensemble: "::namespace",
@@ -4351,6 +4378,50 @@ fn namespace_code_grammar(
             protocol: NativeNamedInvocationProtocol::EnsembleRewrite,
         }
     }
+}
+
+// Accepted command syntax retains its independent resolveCmd obligation.
+fn namespace_which_selection(
+    shapes: &[NativeCompilationWordShape],
+    option: Option<&[u8]>,
+    version: TclVersion,
+) -> NativeCompilationSelection {
+    use NativeCompilationSelection as Selection;
+    use NativeCompilationWordShape as Shape;
+    if version < TclVersion::V8_6 || !(1..=2).contains(&shapes.len()) {
+        return Selection::Generic;
+    }
+    if shapes.len() == 1 {
+        return Selection::Unknown;
+    }
+    match shapes[0] {
+        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral => {
+            let Some(option) = option else {
+                return Selection::Unknown;
+            };
+            if (2..=8).contains(&option.len()) && b"-command".starts_with(option) {
+                Selection::Unknown
+            } else {
+                Selection::Generic
+            }
+        }
+        Shape::BackslashLiteral | Shape::Substituted => Selection::Generic,
+        Shape::Expanded | Shape::Opaque => Selection::Unknown,
+    }
+}
+
+fn original_namespace_which_grammar(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+) -> NativeCompilationSelection {
+    if words.source_protocol() != tcl_syntax::native_string::NativeStringProtocol::C(version) {
+        return NativeCompilationSelection::Unknown;
+    }
+    let Some(shapes) = words.shapes().get(operand_from..) else {
+        return NativeCompilationSelection::Unknown;
+    };
+    namespace_which_selection(shapes, words.literal(operand_from), version)
 }
 
 fn namespace_origin_grammar(
@@ -8540,3 +8611,7 @@ mod native_command_currency_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "native_compilation/namespace_which_tests.rs"]
+mod namespace_which_tests;

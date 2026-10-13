@@ -6386,7 +6386,7 @@ impl WorkspaceIndex {
         call: CallSite<'_>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
-        if word.contains("::") {
+        if tcl_syntax::naming::is_qualified(word.as_bytes()) {
             return None;
         }
         for cand in resolution_candidates {

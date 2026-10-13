@@ -1902,7 +1902,7 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     use tcl_compiler::analyser::ScopeKind;
     // Qualified Logical advice first queries its constructed namespace; literal
     // qualified writes can also be recorded on the active lexical scope chain.
-    if name.contains("::") {
+    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
         // Variable advice does not borrow command-only namespace overrides.
         let here = namespace_context_at(scope, byte_offset, &[]);
         let qualified = tcl_compiler::naming::qualify(&here, name);
@@ -1916,7 +1916,7 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     let chain = scope_chain_at(scope, byte_offset);
     // Bare namespace-frame advice tries its own table and the selected global
     // alternate, never an intermediate enclosing namespace.
-    if !name.contains("::")
+    if !tcl_syntax::naming::is_qualified(name.as_bytes())
         && chain.len() > 1
         && chain
             .last()

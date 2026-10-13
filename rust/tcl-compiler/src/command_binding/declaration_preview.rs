@@ -48,6 +48,55 @@ pub(super) struct DeclaredProcedureBody {
     pub(super) frame: crate::var_resolve::VariableExecutionFrame,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DeclaredProcedureHeader {
+    pub(super) declaration: CommandAllocationSite,
+    candidate: super::SourceCommandTarget,
+    slot: super::SourceCommandKey,
+    pub(super) namespace: super::SourceNamespaceKey,
+    pub(super) parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    pub(super) original_parameters: Option<super::formal_topology::OriginalFormalTopology>,
+    pub(super) frame: crate::var_resolve::VariableExecutionFrame,
+    written: usize,
+    value: String,
+}
+
+/// Checked original body scope for conditional source diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OriginalProcedureReadFlowEntry {
+    pub(super) header: DeclaredProcedureHeader,
+    pub(super) read: OriginalProcedureReadDeclaration,
+    pub(super) snapshot: Arc<super::SourceLookupSnapshot>,
+}
+
+impl OriginalProcedureReadFlowEntry {
+    pub(super) fn owns_source(&self, origin: &Arc<super::SourceOriginId>, offset: u32) -> bool {
+        &self.header.declaration.source == origin
+            && self
+                .read
+                .original_body_span()
+                .is_some_and(|body| offset < body.end())
+            && self
+                .read
+                .owns_original_read(tcl_lexer::Span::new(offset, offset))
+    }
+    pub(super) fn owns_original_procedure(
+        &self,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+    ) -> bool {
+        self.header.declaration.offset == procedure.span.start()
+            && self.read.original_image() == image
+            && self
+                .read
+                .original_body_span()
+                .is_some_and(|span| span.start() == procedure.body_offset)
+            && self.read.original_body_text() == procedure.body_source.as_deref()
+            && self.read.parameters_text() == Some(procedure.params_raw.as_str())
+            && self.read.parameter_names() == procedure.params
+    }
+}
+
 impl DeclaredProcedureBody {
     /// Closed formal-name geometry in the retained Logical declaration. This
     /// does not select Native formal storage, an entered frame or alias cells.
@@ -527,6 +576,56 @@ impl SourceCommandBindings {
                     return None;
                 }
                 agreed = Some(recipe);
+            }
+        }
+        agreed
+    }
+
+    pub(super) fn original_procedure_read_flow_entry(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<OriginalProcedureReadFlowEntry> {
+        let read = self.original_procedure_read_declaration(tokens, registry, input)?;
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )?;
+        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+        let mut agreed = None;
+        for row in original_declaration_layouts(self.declaration_layouts.get(site)?)? {
+            if row.config != input.lexer_config()
+                || declaration_tokens(site, row)?.words() != tokens.words()
+            {
+                return None;
+            }
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            if advice.dialect() != super::source_analysis_entry::source_input_dialect(input) {
+                return None;
+            }
+            for target in advice.targets() {
+                let entry = procedure_read_flow_for_target(
+                    site,
+                    tokens,
+                    row,
+                    target,
+                    &advice,
+                    &OriginalProcedureReadFlowRequest {
+                        registry,
+                        metadata,
+                        read: &read,
+                    },
+                )?;
+                if agreed.as_ref().is_some_and(|previous| previous != &entry) {
+                    return None;
+                }
+                agreed = Some(entry);
             }
         }
         agreed
@@ -1451,14 +1550,14 @@ fn original_declaration_operand_input(
     }
 }
 
-fn procedure_body_recipe(
+fn procedure_declaration_header(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
     observation: &DeclarationLayoutObservation,
     facts: &tcl_registry::InvocationFacts,
     candidate: &super::SourceCommandTarget,
     operands: &ProcedureOperands<'_>,
-) -> Option<DeclaredProcedureBody> {
+) -> Option<DeclaredProcedureHeader> {
     use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition};
     let ProcedureOperands {
         effective,
@@ -1529,28 +1628,144 @@ fn procedure_body_recipe(
     let EffectiveInvocationWord::Literal(value) = values.get(body_index)? else {
         return None;
     };
+    written.checked_sub(1)?;
+    tokens.words().get(*written)?;
+    let frame = declared_procedure_frame(site, &namespace);
+    Some(DeclaredProcedureHeader {
+        declaration: site.clone(),
+        candidate: candidate.clone(),
+        slot: key,
+        namespace,
+        parameters,
+        original_parameters,
+        frame,
+        written: *written,
+        value: value.to_owned(),
+    })
+}
+
+fn procedure_body_recipe(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    facts: &tcl_registry::InvocationFacts,
+    candidate: &super::SourceCommandTarget,
+    operands: &ProcedureOperands<'_>,
+) -> Option<DeclaredProcedureBody> {
+    let header =
+        procedure_declaration_header(site, tokens, observation, facts, candidate, operands)?;
     let source = ExecutedScriptSource::from_word(
         site.clone(),
-        written.checked_sub(1)?,
-        tokens.words().get(*written)?,
-        value,
+        header.written.checked_sub(1)?,
+        tokens.words().get(header.written)?,
+        &header.value,
         observation.config,
     );
     if source.origin != site.source {
         return None;
     }
-    let frame = declared_procedure_frame(site, &namespace);
     Some(DeclaredProcedureBody {
-        declaration: site.clone(),
-        candidate: candidate.clone(),
-        slot: key,
+        declaration: header.declaration,
+        candidate: header.candidate,
+        slot: header.slot,
         source,
-        namespace,
-        parameters,
+        namespace: header.namespace,
+        parameters: header.parameters,
         logical_name: None,
         logical_parameters_text: None,
-        original_parameters,
-        frame,
+        original_parameters: header.original_parameters,
+        frame: header.frame,
+    })
+}
+
+struct OriginalProcedureReadFlowRequest<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+    read: &'a OriginalProcedureReadDeclaration,
+}
+
+fn procedure_read_flow_for_target(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &DeclarationLayoutObservation,
+    target: &super::SourceCommandTarget,
+    advice: &super::OriginalCompilationLookupAdvice,
+    request: &OriginalProcedureReadFlowRequest<'_>,
+) -> Option<OriginalProcedureReadFlowEntry> {
+    if !target.registry_backed {
+        return None;
+    }
+    let effective = effective_words_for_target(tokens, target)?;
+    let dialect = advice.dialect();
+    let values = effective
+        .words
+        .iter()
+        .map(|word| {
+            effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+        })
+        .collect::<Vec<_>>();
+    let words = values
+        .iter()
+        .map(EffectiveInvocationWord::as_registry_word)
+        .collect::<Vec<_>>();
+    let RegistryInvocationResolution::Resolved(facts) =
+        crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+            request.registry,
+            Some(request.metadata),
+            &words,
+            Some(dialect),
+            advice.realm(),
+        )
+        .ok()?
+    else {
+        return None;
+    };
+    let header = procedure_declaration_header(
+        site,
+        tokens,
+        row,
+        &facts,
+        target,
+        &ProcedureOperands {
+            effective: &effective,
+            values: &values,
+            dialect,
+        },
+    )?;
+    if header
+        .parameters
+        .iter()
+        .map(|formal| formal.name.as_str())
+        .collect::<Vec<_>>()
+        != request
+            .read
+            .parameter_names()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    {
+        return None;
+    }
+    let mut state = row.snapshot.state.clone();
+    state.variable_frame = header.frame.clone();
+    state.source_variables = Arc::new(
+        state
+            .source_variables
+            .in_frame(&header.frame)
+            .with_namespace_identity(header.namespace.clone()),
+    );
+    header
+        .original_parameters
+        .as_ref()?
+        .seed_unknown(Arc::make_mut(&mut state.source_variables), request.registry);
+    state.current_source_origin = Some(Arc::clone(&site.source));
+    Some(OriginalProcedureReadFlowEntry {
+        header,
+        read: request.read.clone(),
+        snapshot: Arc::new(super::SourceLookupSnapshot::in_realm(
+            state,
+            row.snapshot.realm,
+        )),
     })
 }
 
@@ -1715,7 +1930,7 @@ fn original_procedure_parameter_topology(
         })
 }
 
-fn retains_successor_layout(
+pub(super) fn retains_successor_layout(
     site: &CommandAllocationSite,
     tokens: &crate::ir::CommandTokens,
     snapshot: &Arc<SourceLookupSnapshot>,

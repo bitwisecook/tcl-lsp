@@ -78,9 +78,10 @@ fn compare_public_rows(engine: &str, observation: &str) {
             row[0]
         );
         if !completion.code.is_ok() {
-            let error_code = vm
-                .get_var("::errorCode")
-                .expect("a guest error publishes errorCode");
+            let error_code =
+                crate::command::opt_get_checked(vm, &completion.options, b"-errorcode")
+                    .expect("actual completion options remain readable")
+                    .expect("a guest error retains its error-code option");
             assert_eq!(
                 error_code.native_string_bytes(protocol).unwrap().as_ref(),
                 row[3].as_bytes(),

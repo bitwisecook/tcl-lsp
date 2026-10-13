@@ -1,0 +1,15 @@
+{
+  "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "latest_verification_authority": "parent independently verified upstream HEAD 2026-10-13; raw measurement records its own binary/patchlevel only",
+  "measurement_utc": "2026-10-13T15:51:29.596731+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input.tcl"
+  ],
+  "input_sha256": "0722948a38184d97a9f7420885a5eb4c5e29a0d7148ee7f19037dcdfec0da31e",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "exit_code": 1,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "96ffd3565568869d5eac149102e557b1c93e5346802bb616330b6ab38d997d26",
+  "scope": "real original ASCII command-query source; returned strings are output only, never reconstructed namespace/command identity; no Vm/F5/native C API allocation proof"
+}

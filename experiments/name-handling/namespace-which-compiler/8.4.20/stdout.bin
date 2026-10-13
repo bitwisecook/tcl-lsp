@@ -1,0 +1,17 @@
+IDENTITY 8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/library
+OBSERVATION bare {namespace which g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION command {namespace which -command g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION command-short {namespace which -c g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION command-prefix {namespace which -comman g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION variable {namespace which -variable g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION variable-short {namespace which -v g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION command-long {namespace which -commandx g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION single-dash {namespace which - g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION wrong-option {namespace which -unknown g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION too-few {namespace which} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION too-many {namespace which -command g extra} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION dynamic-option {namespace which $option g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION dynamic-name {namespace which -command $name} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION escaped-command {namespace which -co\mmand g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION quoted-command {namespace which "-command" g} 1 {invalid command name "::tcl::unsupported::disassemble"}
+OBSERVATION braced-command {namespace which {-command} g} 1 {invalid command name "::tcl::unsupported::disassemble"}

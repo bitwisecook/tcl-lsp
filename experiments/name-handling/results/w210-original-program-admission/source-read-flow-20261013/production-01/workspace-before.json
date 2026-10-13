@@ -1,0 +1,8 @@
+{
+  "captured_utc": "2026-10-13T15:38:16.488945+00:00",
+  "paths": {
+    "Cargo.toml": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+    "rust-toolchain.toml": "0ab20c8fa9c7ec3f0663987ba9e84c60e5f8fad77aab1f33dda8a013445a80d0"
+  }
+}

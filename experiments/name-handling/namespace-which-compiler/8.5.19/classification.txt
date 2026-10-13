@@ -1,0 +1,17 @@
+label catch-code resolveCmd invokeStk invokeReplace
+bare 0 0 1 0
+command 0 0 1 0
+command-short 0 0 1 0
+command-prefix 0 0 1 0
+variable 0 0 1 0
+variable-short 0 0 1 0
+command-long 0 0 1 0
+single-dash 0 0 1 0
+wrong-option 0 0 1 0
+too-few 0 0 1 0
+too-many 0 0 1 0
+dynamic-option 0 0 1 0
+dynamic-name 0 0 1 0
+escaped-command 0 0 1 0
+quoted-command 0 0 1 0
+braced-command 0 0 1 0

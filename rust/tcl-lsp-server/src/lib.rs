@@ -15196,10 +15196,10 @@ impl Backend {
         let absolute: Vec<String> = candidates
             .iter()
             .map(|cand| {
-                if cand.starts_with("::") {
+                if tcl_syntax::naming::unroot_rooted_key(cand).is_some() {
                     cand.clone()
                 } else {
-                    format!("::{cand}")
+                    tcl_syntax::naming::root_unrooted_key(cand)
                 }
             })
             .collect();

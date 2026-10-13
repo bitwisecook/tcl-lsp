@@ -1,0 +1,4 @@
+/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input.tcl:1: Error: info, unknown command "library": should be alias, aliases, args, body, channels, commands, complete, exists, frame, globals, help, hostname, level, locals, nameofexecutable, patchlevel, procs, references, returncodes, script, source, stacktrace, statics, tainted, usage, vars, version
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input.tcl", line 1
+    info library

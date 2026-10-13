@@ -964,12 +964,21 @@ pub struct EffectiveCommandSemantics {
 
 const JIM_COMMANDS: &str = "* + - / after alarm alias append apply array binary binary::nextarg break catch cd class clock close collect concat continue curry defer dict ensemble env eof error errorInfo eval exec exists exit expr fconfigure file fileevent finalize flush for foreach format function getref gets glob glob.explode glob.glob glob.globdir global history if incr info interp join json::decode json::encode json::subencode kill lambda lambda.finalizer lappend lassign lindex linsert list llength lmap load load_ssl_certs local loop lrange lrepeat lreplace lreverse lsearch lset lsort lsubst namespace open os.fork os.gethostname os.getids os.umask os.uptime pack package parray pid pipe popen proc puts pwd rand range read readdir ref regexp regsub rename return scan seek set setref signal sleep socket source split stackdump stacktrace stderr stdin stdout string subst super switch syslog tailcall taint tcl::autocomplete tcl::prefix tcl::stdhint tell throw time timerate tree try unpack unset untaint upcall update uplevel upvar variable vwait wait while xtrace zlib";
 
+// Descriptor labels permit one optional root marker; other bytes remain exact.
+fn rooted_descriptor_binding_name(name: &str) -> String {
+    if name.is_empty() || tcl_syntax::naming::unroot_rooted_key(name).is_some() {
+        name.to_owned()
+    } else {
+        tcl_syntax::naming::root_unrooted_key(name)
+    }
+}
+
 fn jim_fresh_command_names() -> &'static BTreeSet<String> {
     static NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
     NAMES.get_or_init(|| {
         JIM_COMMANDS
             .split_whitespace()
-            .map(tcl_syntax::naming::normalise_qualified_name)
+            .map(rooted_descriptor_binding_name)
             .collect()
     })
 }
@@ -996,15 +1005,12 @@ impl EffectiveCommandSemantics {
 
 /// Cached semantic projection of one complete [`CommandRegistry`] generation.
 ///
-/// The projection is built in one pass over registry spellings. Its compact
+/// The projection is built in one pass over registry spellings. Its
 /// per-command facts select the same effective row as
-/// [`CommandRegistry::get_for_surface`] for the registry's own profile. Its
-/// binding domain deliberately preserves the command-binding lattice's
-/// historical union semantics (`command_names` plus last-registered unknown
-/// handlers): profile registries retain all release rows so compiler binding
-/// analysis has always treated every indexed spelling as initially bound.
-/// Dynamic pack registries get their own projection; authored insertion and
-/// profile changes invalidate it before the next read.
+/// [`CommandRegistry::get_for_surface`] for the registry's own profile. The
+/// binding domain includes every indexed descriptor across release rows and
+/// the last registered unresolved-command handlers. Authored insertion and
+/// profile changes invalidate this immutable projection.
 #[derive(Debug, Default)]
 pub struct EffectiveRegistrySemantics {
     commands: FxHashMap<&'static str, EffectiveCommandSemantics>,
@@ -1014,14 +1020,14 @@ pub struct EffectiveRegistrySemantics {
 }
 
 impl EffectiveRegistrySemantics {
-    /// Canonical, rooted command names in this registry's indexed binding
-    /// domain (the historical `command_names` union across release rows).
+    /// Rooted descriptor labels in the indexed binding domain across release
+    /// rows. Literal colons and empty final components remain unchanged.
     #[must_use]
     pub const fn binding_names(&self) -> &BTreeSet<String> {
         &self.binding_names
     }
 
-    /// Canonical, rooted fallback carriers for unresolved command heads.
+    /// Rooted descriptor labels for unresolved-command fallback carriers.
     #[must_use]
     pub const fn unresolved_command_handlers(&self) -> &BTreeSet<String> {
         &self.unresolved_command_handlers
@@ -3314,13 +3320,13 @@ impl CommandRegistry {
             let mut unresolved_command_handlers = BTreeSet::new();
 
             for (&name, specs) in &self.by_name {
-                let canonical = tcl_syntax::naming::normalise_qualified_name(name);
-                binding_names.insert(canonical.clone());
+                let binding_name = rooted_descriptor_binding_name(name);
+                binding_names.insert(binding_name.clone());
                 if specs
                     .last()
                     .is_some_and(|spec| spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER))
                 {
-                    unresolved_command_handlers.insert(canonical);
+                    unresolved_command_handlers.insert(binding_name);
                 }
                 let selected = match query {
                     Some(query) => self.best_visible(specs, Some(query)),
@@ -3415,17 +3421,17 @@ impl CommandRegistry {
             let Some(spec) = context.resolve_spec_in_realm(self, name, realm) else {
                 continue;
             };
-            let canonical = tcl_syntax::naming::normalise_qualified_name(name);
+            let binding_name = rooted_descriptor_binding_name(name);
             // Source metadata remains known for hosted packages, but their
             // names are not initial bindings until this context activates them.
             let binding_available = spec
                 .owning_package()
                 .is_none_or(|package| context.package_provider_active(package));
-            if binding_available && rooted_fallback_allowed(&canonical, spec) {
-                binding_names.insert(canonical.clone());
+            if binding_available && rooted_fallback_allowed(&binding_name, spec) {
+                binding_names.insert(binding_name.clone());
             }
             if binding_available && spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER) {
-                unresolved_command_handlers.insert(canonical);
+                unresolved_command_handlers.insert(binding_name);
             }
             commands.insert(
                 name,
@@ -3499,9 +3505,9 @@ impl CommandRegistry {
             let Some(spec) = self.selected_entry_descriptor(specs, dialect, query) else {
                 continue;
             };
-            let canonical = tcl_syntax::naming::normalise_qualified_name(name);
+            let binding_name = rooted_descriptor_binding_name(name);
             if jim {
-                if !audited_jim || !jim_names.contains(&canonical) {
+                if !audited_jim || !jim_names.contains(&binding_name) {
                     continue;
                 }
             } else {
@@ -3522,8 +3528,8 @@ impl CommandRegistry {
                 {
                     continue;
                 }
-                if rooted_fallback_allowed(&canonical, spec) {
-                    binding_names.insert(canonical.clone());
+                if rooted_fallback_allowed(&binding_name, spec) {
+                    binding_names.insert(binding_name.clone());
                 }
             }
             commands.insert(
@@ -3534,7 +3540,7 @@ impl CommandRegistry {
                 },
             );
             if spec.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER) {
-                unresolved_command_handlers.insert(canonical);
+                unresolved_command_handlers.insert(binding_name);
             }
         }
         if !jim
@@ -4222,9 +4228,7 @@ impl CommandRegistry {
             == Some(tcl_dialect::model::DialectPoint::canonical(
                 tcl_dialect::model::Release::JIM_0_84,
             )))
-        .then(|| {
-            jim_fresh_command_names().contains(&tcl_syntax::naming::normalise_qualified_name(name))
-        })
+        .then(|| jim_fresh_command_names().contains(&rooted_descriptor_binding_name(name)))
     }
 
     /// Discard derived command facts after a mutation to the command surface.
@@ -14320,7 +14324,7 @@ mod tests {
         let index = registry.effective_semantics();
         let mut expected_bindings: BTreeSet<String> = registry
             .command_names()
-            .map(tcl_syntax::naming::normalise_qualified_name)
+            .map(rooted_descriptor_binding_name)
             .collect();
         // Authored private implementation slots are bindings even when they
         // have no public command catalogue row.
@@ -14369,7 +14373,7 @@ mod tests {
         let expected_handlers: BTreeSet<String> = registry
             .commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER)
             .into_iter()
-            .map(tcl_syntax::naming::normalise_qualified_name)
+            .map(rooted_descriptor_binding_name)
             .collect();
         assert_eq!(index.binding_names(), &expected_bindings);
         assert_eq!(index.unresolved_command_handlers(), &expected_handlers);
@@ -17627,6 +17631,107 @@ mod tests {
         assert!(
             native.binding_names().is_empty(),
             "a source model cannot fill an unaudited Native roster"
+        );
+    }
+
+    #[test]
+    fn binding_rosters_preserve_exact_custom_descriptor_components() {
+        let mut registry = CommandRegistry::build_default();
+        let rows = [
+            ("NAME_BINDING::", "::NAME_BINDING::"),
+            ("NAME_BINDING:::member", "::NAME_BINDING:::member"),
+            ("::NAME_BINDING::::member", "::NAME_BINDING::::member"),
+            ("::::NAME_BINDING", "::::NAME_BINDING"),
+            (":NAME_BINDING", ":::NAME_BINDING"),
+        ];
+        for (name, _) in rows {
+            registry.insert(CommandSpec {
+                name,
+                traits: Traits::UNRESOLVED_COMMAND_HANDLER,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let union = registry.effective_semantics();
+        let context =
+            crate::model::ingress::resolve_environment("tcl9.1").default_context_registry();
+        let source = registry.authored_source_semantics_in_context(
+            context.context(),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let mut models = vec![union, source];
+        models.extend(tcl_dialect::TclVersion::ALL.into_iter().map(|version| {
+            registry.effective_semantics_for_dialect(crate::InvocationDialect::for_version(version))
+        }));
+        for model in models {
+            for (label, rooted) in rows {
+                assert!(model.command(label).is_some(), "{label}");
+                assert!(model.binding_names().contains(rooted), "{label}");
+                assert!(
+                    model.unresolved_command_handlers().contains(rooted),
+                    "{label}"
+                );
+            }
+            for folded in ["::NAME_BINDING", "::NAME_BINDING::member"] {
+                assert!(!model.binding_names().contains(folded), "{folded}");
+                assert!(
+                    !model.unresolved_command_handlers().contains(folded),
+                    "{folded}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn jim_stock_admission_compares_exact_descriptor_components() {
+        let dialect = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        for name in ["namespace", "::namespace", "json::decode", "::json::decode"] {
+            assert_eq!(
+                CommandRegistry::native_stock_registration_admission(dialect, name),
+                Some(true),
+                "{name}"
+            );
+        }
+        for name in [
+            "namespace::",
+            "::::namespace",
+            "json:::decode",
+            "::json::::decode",
+            ":::",
+            "",
+        ] {
+            assert_eq!(
+                CommandRegistry::native_stock_registration_admission(dialect, name),
+                Some(false),
+                "{name}"
+            );
+        }
+        let mut registry = CommandRegistry::build_default();
+        for name in ["namespace::", "::::namespace", "json:::decode"] {
+            registry.insert(CommandSpec {
+                name,
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let model = registry.effective_semantics_for_dialect(dialect);
+        for name in ["namespace::", "::::namespace", "json:::decode"] {
+            assert!(model.command(name).is_none(), "{name}");
+        }
+        assert!(model.command("namespace").is_some());
+        assert!(model.binding_names().contains("::namespace"));
+        let unaudited = crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        );
+        assert_eq!(
+            CommandRegistry::native_stock_registration_admission(unaudited, "namespace"),
+            None
+        );
+        assert!(
+            registry
+                .effective_semantics_for_dialect(unaudited)
+                .binding_names()
+                .is_empty()
         );
     }
 

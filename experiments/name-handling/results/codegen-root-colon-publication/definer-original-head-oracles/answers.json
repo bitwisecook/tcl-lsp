@@ -1,0 +1,198 @@
+{
+  "utc": "2026-10-13T15:38:53Z",
+  "scope": "Direct source naming/argv positives; no compiler/native-entry acceptance, no Tcltest or F5 execution. Jim freshness is independently retained by root, not checked here.",
+  "runs": [
+    {
+      "case": "renamed-stock-definer",
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-8.4.20.stdout",
+      "stderr": "renamed-stock-definer-8.4.20.stderr"
+    },
+    {
+      "case": "renamed-stock-definer",
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-8.5.19.stdout",
+      "stderr": "renamed-stock-definer-8.5.19.stderr"
+    },
+    {
+      "case": "renamed-stock-definer",
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-8.6.18.stdout",
+      "stderr": "renamed-stock-definer-8.6.18.stderr"
+    },
+    {
+      "case": "renamed-stock-definer",
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-9.0.4.stdout",
+      "stderr": "renamed-stock-definer-9.0.4.stderr"
+    },
+    {
+      "case": "renamed-stock-definer",
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-9.1.0.stdout",
+      "stderr": "renamed-stock-definer-9.1.0.stderr"
+    },
+    {
+      "case": "renamed-stock-definer",
+      "version": "jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/codegen-definer-original-head-probes/renamed-stock-definer.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "input_sha256": "b5492b13a37765c54ae46fa0a846b43cb3b7261788f3dd172276a30415b19955",
+      "exit_code": 0,
+      "stdout": "renamed-stock-definer-jim.stdout",
+      "stderr": "renamed-stock-definer-jim.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-8.4.20.stdout",
+      "stderr": "constant-name-8.4.20.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-8.5.19.stdout",
+      "stderr": "constant-name-8.5.19.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-8.6.18.stdout",
+      "stderr": "constant-name-8.6.18.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-9.0.4.stdout",
+      "stderr": "constant-name-9.0.4.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-9.1.0.stdout",
+      "stderr": "constant-name-9.1.0.stderr"
+    },
+    {
+      "case": "constant-name",
+      "version": "jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/codegen-definer-original-head-probes/constant-name.tcl"
+      ],
+      "environment_changes": {
+        "TCL_LIBRARY": "unset"
+      },
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "input_sha256": "b262a089490192a2314a8d8b78d6e5b018d087130ef12985a4a29ccc6e4fe96c",
+      "exit_code": 0,
+      "stdout": "constant-name-jim.stdout",
+      "stderr": "constant-name-jim.stderr"
+    }
+  ]
+}

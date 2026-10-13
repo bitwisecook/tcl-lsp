@@ -2063,10 +2063,9 @@ fn callback_command_keys(
     if !invocation.resolution_candidates.is_empty() {
         return invocation.resolution_candidates.clone();
     }
-    if invocation.name.contains("::") {
-        return invocation
-            .name
-            .starts_with("::")
+    if tcl_syntax::naming::is_qualified(invocation.name.as_bytes()) {
+        return tcl_syntax::naming::unroot_rooted_key(&invocation.name)
+            .is_some()
             .then(|| tcl_compiler::naming::canonical_written_command(&invocation.name))
             .into_iter()
             .collect();

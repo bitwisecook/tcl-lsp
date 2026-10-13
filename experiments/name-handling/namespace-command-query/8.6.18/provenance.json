@@ -1,0 +1,18 @@
+{
+  "source_tag": "core-8-6-18",
+  "upstream_commit": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+  "upstream_integrity_sha256": "b547c6da1e097ab8063845a9a1e3ca825e13b995e88da69e4025747f43547c85",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+  "measurement_utc": "2026-10-13T15:51:29.557335+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input.tcl"
+  ],
+  "input_sha256": "0722948a38184d97a9f7420885a5eb4c5e29a0d7148ee7f19037dcdfec0da31e",
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "exit_code": 0,
+  "stdout_sha256": "d433cf62604222b625707d867d3c2850e9df81e7adf307c87fa0c0a257f3d194",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "real original ASCII command-query source; returned strings are output only, never reconstructed namespace/command identity; no Vm/F5/native C API allocation proof"
+}

@@ -75,9 +75,54 @@ impl std::fmt::Debug for SourceDeclarationFlowCache {
             .finish_non_exhaustive()
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeclarationFlowFrame {
+    Existing(super::declaration_layout::OriginalDiagnosticFrameEntry),
+    Read(Arc<super::declaration_preview::OriginalProcedureReadFlowEntry>),
+}
+impl DeclarationFlowFrame {
+    fn origin(&self) -> &Arc<super::SourceOriginId> {
+        match self {
+            Self::Existing(entry) => &entry.source().origin,
+            Self::Read(entry) => &entry.header.declaration.source,
+        }
+    }
+    fn owns_read(&self, origin: &Arc<super::SourceOriginId>, span: tcl_lexer::Span) -> bool {
+        match self {
+            Self::Existing(entry) => entry.owns_source(origin, span.start()),
+            Self::Read(entry) => {
+                &entry.header.declaration.source == origin && entry.read.owns_original_read(span)
+            }
+        }
+    }
+    fn owns_original_context(&self, context: &crate::var_resolve::ResolveContext) -> bool {
+        match self {
+            Self::Existing(entry) => entry.owns_original_context(context),
+            Self::Read(entry) => super::SourceCommandBindings::context_owns_frame(
+                context,
+                &entry.header.frame,
+                Some(&entry.header.namespace),
+            ),
+        }
+    }
+    fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        match self {
+            Self::Existing(entry) => entry.parameters(),
+            Self::Read(entry) => &entry.header.parameters,
+        }
+    }
+    fn original_formal_topology(&self) -> Option<&super::formal_topology::OriginalFormalTopology> {
+        match self {
+            Self::Existing(entry) => entry.original_formal_topology(),
+            Self::Read(entry) => entry.header.original_parameters.as_ref(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 struct DeclarationFlowKey {
-    entry: Arc<super::declaration_layout::OriginalDiagnosticFrameEntry>,
+    entry: Arc<DeclarationFlowFrame>,
     config: tcl_lexer::LexerConfig,
     dialect: tcl_registry::InvocationDialect,
     registry: tcl_registry::RegistrySemanticKey,
@@ -174,7 +219,7 @@ pub(crate) struct DeclarationFlowReport {
     conditional_caller_alias_prefixes: BTreeSet<u32>,
     aliases: BTreeSet<String>,
     stores: BTreeSet<(u32, String)>,
-    frame: super::declaration_layout::OriginalDiagnosticFrameEntry,
+    frame: DeclarationFlowFrame,
 }
 
 struct DeclaredOverwrite {
@@ -213,7 +258,12 @@ impl DeclarationFlowReport {
         procedure: &crate::ir::Procedure,
         image: &tcl_lexer::SourceImage,
     ) -> bool {
-        original_procedure_entry_matches(&self.frame, procedure, image)
+        match &self.frame {
+            DeclarationFlowFrame::Existing(frame) => {
+                original_procedure_entry_matches(frame, procedure, image)
+            }
+            DeclarationFlowFrame::Read(entry) => entry.owns_original_procedure(procedure, image),
+        }
     }
 
     pub(crate) fn owns_invocation(&self, site: &CommandAllocationSite) -> bool {
@@ -432,7 +482,7 @@ impl SourceInvocationBinding {
             return None;
         }
         let key = DeclarationFlowKey {
-            entry: Arc::clone(&first.entry),
+            entry: Arc::new(DeclarationFlowFrame::Existing(first.entry.as_ref().clone())),
             config,
             dialect,
             registry: registry.snapshot().semantic_key(),
@@ -441,15 +491,17 @@ impl SourceInvocationBinding {
             return Some(report);
         }
         // Nested source queries must never run under the cache lock.
+        let frame = DeclarationFlowFrame::Existing(first.entry.as_ref().clone());
         let mut builder = Builder {
             inventory,
             registry,
             config,
             dialect,
-            entry: &first.entry,
+            entry: &frame,
             nodes: vec![Node::default()],
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
         };
         let entry = builder.placeholder();
         builder.jobs.push(Job {
@@ -471,6 +523,67 @@ impl SourceInvocationBinding {
 }
 
 impl super::SourceCommandBindings {
+    pub(crate) fn original_procedure_read_flow(
+        &self,
+        procedure: &crate::ir::Procedure,
+        image: &tcl_lexer::SourceImage,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Arc<DeclarationFlowReport>> {
+        if !self.matches_original_source_image(image, input.lexer_config()) {
+            return None;
+        }
+        let binding = self.invocation_at_source("", procedure.span.start());
+        let (_, mut tokens) = binding.original_recorded_command()?;
+        tokens.source_binding = Some(binding);
+        let read = Arc::new(self.original_procedure_read_flow_entry(&tokens, registry, input)?);
+        if !read.owns_original_procedure(procedure, image) {
+            return None;
+        }
+        let config = input.lexer_config();
+        let dialect = super::source_analysis_entry::source_input_dialect(input);
+        let inventory = self.current_declaration_flow_inventory();
+        let frame = DeclarationFlowFrame::Read(Arc::clone(&read));
+        let key = DeclarationFlowKey {
+            entry: Arc::new(frame.clone()),
+            config,
+            dialect,
+            registry: registry.snapshot().semantic_key(),
+        };
+        if let Some(report) = inventory.reports.get(&key) {
+            return Some(report);
+        }
+        let body = read.read.original_body_span()?;
+        let source = tcl_lexer::SourceImage::from_bytes(
+            image.bytes().get(body.as_range())?,
+            image.channel(),
+        );
+        let mut builder = Builder {
+            inventory: &inventory,
+            registry,
+            config,
+            dialect,
+            entry: &frame,
+            nodes: vec![Node::default()],
+            jobs: Vec::new(),
+            conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
+        };
+        let entry = builder.placeholder();
+        builder.original_script(
+            &source,
+            body.start(),
+            &read.header.declaration.source,
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+            entry,
+            Exits::all(0),
+        );
+        while let Some(job) = builder.jobs.pop() {
+            builder.script(&job);
+        }
+        Some(inventory.reports.retain(key, builder.evaluate(entry)))
+    }
+
     /// Original declaration graph, independent of executable CFG carriers.
     /// Every returned report validates the declaration allocation, original
     /// image, body and native formals; it supplies only conditional advice.
@@ -636,15 +749,22 @@ struct Job {
     entry: usize,
     exits: Exits,
 }
+struct DeclarationSelectionScope<'a> {
+    snapshot: &'a Arc<super::SourceLookupSnapshot>,
+    namespace: &'a super::SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+}
+
 struct Builder<'a> {
     inventory: &'a DeclarationFlowInventory,
     registry: &'a tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
     dialect: tcl_registry::InvocationDialect,
-    entry: &'a super::declaration_layout::OriginalDiagnosticFrameEntry,
+    entry: &'a DeclarationFlowFrame,
     nodes: Vec<Node>,
     jobs: Vec<Job>,
     conditional_overwrites: Vec<(usize, DeclaredOverwrite)>,
+    read_sites: BTreeSet<CommandAllocationSite>,
 }
 impl Builder<'_> {
     fn placeholder(&mut self) -> usize {
@@ -658,40 +778,56 @@ impl Builder<'_> {
         self.nodes[id].successors = vec![next];
     }
     fn script(&mut self, job: &Job) {
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        self.original_script(
             &job.source.text,
             job.source.base(),
-            job.purpose.config(self.config),
+            &job.source.origin,
+            job.purpose,
+            job.entry,
+            job.exits,
+        );
+    }
+    fn original_script(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        origin: &Arc<super::SourceOriginId>,
+        purpose: tcl_lexer::SourceSegmentationPurpose,
+        entry: usize,
+        exits: Exits,
+    ) {
+        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+            image,
+            base,
+            purpose.config(self.config),
         ) else {
-            self.unknown(job.entry, job.exits.normal);
+            self.unknown(entry, exits.normal);
             return;
         };
-        let mut next = job.exits.normal;
+        self.retain_read_sites(image, base, origin, &segments);
+        let mut next = exits.normal;
         let mut next_original = None;
         for segment in segments.iter().rev() {
             if segment.is_partial {
                 let unavailable = self.placeholder();
-                self.unknown(unavailable, job.exits.other);
+                self.unknown(unavailable, exits.other);
                 next = unavailable;
                 next_original = None;
                 continue;
             }
             let tokens = CommandTokens::from_segmented(
-                &job.source
-                    .text
-                    .source_map()
-                    .with_base(job.source.base(), 0, 0),
+                &image.source_map().with_base(base, 0, 0),
                 self.config,
                 segment,
             );
             let id = self.placeholder();
             let site = CommandAllocationSite {
-                source: Arc::clone(&job.source.origin),
+                source: Arc::clone(origin),
                 offset: segment.span.start(),
             };
             let exits = Exits {
                 normal: next,
-                ..job.exits
+                ..exits
             };
             self.command(id, &tokens, &site, exits);
             if let Some((next_tokens, next_site)) = &next_original {
@@ -700,7 +836,42 @@ impl Builder<'_> {
             next_original = Some((tokens, site));
             next = id;
         }
-        self.nodes[job.entry].successors = vec![next];
+        self.nodes[entry].successors = vec![next];
+    }
+
+    fn retain_read_sites(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        origin: &Arc<super::SourceOriginId>,
+        segments: &[crate::segmenter::SegmentedCommand],
+    ) {
+        if let DeclarationFlowFrame::Read(read) = self.entry {
+            for segment in segments {
+                if segment.is_partial {
+                    break;
+                }
+                let tokens = super::source_command_tokens_boxed(image, base, self.config, segment);
+                let site = CommandAllocationSite {
+                    source: Arc::clone(origin),
+                    offset: segment.span.start(),
+                };
+                if !read.owns_source(origin, site.offset) {
+                    break;
+                }
+                self.read_sites.insert(site.clone());
+                if !super::declaration_preview::retains_successor_layout(
+                    &site,
+                    &tokens,
+                    &read.snapshot,
+                    &read.header.namespace,
+                    self.config,
+                    self.registry,
+                ) {
+                    break;
+                }
+            }
+        }
     }
 
     fn retain_conditional_overwrite(
@@ -768,6 +939,72 @@ impl Builder<'_> {
         let target = tokens.words().get(*written)?.source().span;
         Some((name.clone(), target))
     }
+    fn selection_scopes(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<Vec<DeclarationSelectionScope<'_>>> {
+        Some(match self.entry {
+            DeclarationFlowFrame::Existing(entry) => {
+                let observations = super::declaration_layout::original_declaration_layouts(
+                    self.inventory.layouts.get(site)?,
+                )?;
+                let mut scopes = Vec::new();
+                for observation in observations {
+                    if observation.entry.as_ref() != entry
+                        || observation.config != self.config
+                        || observation.words.as_ref() != tokens.words()
+                    {
+                        return None;
+                    }
+                    scopes.push(DeclarationSelectionScope {
+                        snapshot: &observation.snapshot,
+                        namespace: &observation.namespace,
+                        config: observation.config,
+                    });
+                }
+                scopes
+            }
+            DeclarationFlowFrame::Read(entry) => {
+                if !self.read_sites.contains(site) || !entry.owns_source(&site.source, site.offset)
+                {
+                    return None;
+                }
+                let source = entry.header.declaration.source.source_image();
+                let text = source.try_text().ok()?;
+                let first = tcl_lexer::word_span_at(text, tokens.words().first()?.source().span);
+                let last = tcl_lexer::word_span_at(text, tokens.words().last()?.source().span);
+                if first.start() != site.offset {
+                    return None;
+                }
+                let image = tcl_lexer::SourceImage::from_bytes(
+                    source
+                        .bytes()
+                        .get(first.start() as usize..last.end() as usize)?,
+                    source.channel(),
+                );
+                let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
+                    &image,
+                    first.start(),
+                    self.config.nested(),
+                )?;
+                let [segment] = segments.as_slice() else {
+                    return None;
+                };
+                let original =
+                    super::source_command_tokens_boxed(&image, first.start(), self.config, segment);
+                if original.words() != tokens.words() {
+                    return None;
+                }
+                vec![DeclarationSelectionScope {
+                    snapshot: &entry.snapshot,
+                    namespace: &entry.header.namespace,
+                    config: self.config,
+                }]
+            }
+        })
+    }
+
     fn selection(
         &self,
         tokens: &CommandTokens,
@@ -776,23 +1013,15 @@ impl Builder<'_> {
         crate::registry_invocation::DeclarationInvocationFlow,
         Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
     )> {
-        let observations = super::declaration_layout::original_declaration_layouts(
-            self.inventory.layouts.get(site)?,
-        )?;
         let mut agreed = None;
-        for observation in observations {
-            if observation.entry.as_ref() != self.entry
-                || observation.config != self.config
-                || observation.words.as_ref() != tokens.words()
-            {
-                return None;
-            }
+        for DeclarationSelectionScope {
+            snapshot,
+            namespace,
+            config,
+        } in self.selection_scopes(tokens, site)?
+        {
             let advice = super::original_site_operand_layout_advice(
-                site,
-                tokens,
-                &observation.snapshot,
-                &observation.namespace,
-                observation.config,
+                site, tokens, snapshot, namespace, config,
             )?;
             if advice.dialect() != self.dialect {
                 return None;
@@ -813,7 +1042,7 @@ impl Builder<'_> {
                     point.dispatch
                         && point.offset == site.offset
                         && point.state.current_source_origin.as_ref() == Some(&site.source)
-                        && point.state.variable_frame == observation.snapshot.state.variable_frame
+                        && point.state.variable_frame == snapshot.state.variable_frame
                 });
             let mut points = points.peekable();
             if points.peek().is_some() {
@@ -826,11 +1055,12 @@ impl Builder<'_> {
                 &advice,
             )?;
             let lifecycle = if selected.flow == ScriptBodyFlow::CapturedLifecycle {
-                Some(advice.scoped_declaration_lifecycle_advice(
-                    &retained,
-                    self.registry,
-                    self.entry,
-                )?)
+                Some(match self.entry {
+                    DeclarationFlowFrame::Existing(entry) => advice
+                        .scoped_declaration_lifecycle_advice(&retained, self.registry, entry)?,
+                    DeclarationFlowFrame::Read(entry) => advice
+                        .scoped_procedure_read_lifecycle_advice(&retained, self.registry, entry)?,
+                })
             } else {
                 None
             };
@@ -1419,7 +1649,7 @@ impl Builder<'_> {
             }
             return Some(false);
         }
-        if !name.contains("::") && self.entry.owns_source(&site.source, span.start()) {
+        if !name.contains("::") && self.entry.owns_read(&site.source, span) {
             events.push(Event::AuthoredRead(name.to_owned(), span));
         }
         if !self.retained_local_read(site, span, text, name, true) {
@@ -1669,9 +1899,7 @@ impl Builder<'_> {
                         output.push(Event::Unknown);
                         continue;
                     };
-                    if !name.contains("::")
-                        && self.entry.owns_source(&site.source, read_span.start())
-                    {
+                    if !name.contains("::") && self.entry.owns_read(&site.source, read_span) {
                         output.push(Event::AuthoredRead(name.to_owned(), read_span));
                     }
                     if self.retained_local_read(site, read_span, original, name, false) {
@@ -1800,7 +2028,7 @@ impl Builder<'_> {
         }
     }
     fn evaluate(self, entry: usize) -> DeclarationFlowReport {
-        let source = Arc::clone(&self.entry.source().origin);
+        let source = Arc::clone(self.entry.origin());
         let mut report = DeclarationFlowReport {
             source,
             reads: BTreeMap::new(),
@@ -2331,15 +2559,17 @@ mod tests {
         .unwrap()
         .next()
         .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
         let mut builder = Builder {
             inventory,
             registry: &registry,
             config,
             dialect: tcl_registry::InvocationDialect::of_profile(profile),
-            entry: &observation.entry,
+            entry: &frame,
             nodes: Vec::new(),
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
         };
         let (selected, lifecycle) = builder.selection(&tokens, site).unwrap();
         let lifecycle = lifecycle.unwrap();
@@ -2383,16 +2613,18 @@ mod tests {
             .source_variables
             .invocation_dialect
             .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
         let selection = |inventory| {
             let builder = Builder {
                 inventory,
                 registry,
                 config,
                 dialect,
-                entry: &observation.entry,
+                entry: &frame,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
+                read_sites: BTreeSet::new(),
             };
             let mut raw = tokens.clone();
             raw.source_binding = None;
@@ -2486,11 +2718,14 @@ mod tests {
             .semantic_key();
         assert!(inventory.reports.get(&changed).is_none());
         changed = key.clone();
+        let DeclarationFlowFrame::Existing(original_entry) = key.entry.as_ref() else {
+            panic!("retained original diagnostic frame");
+        };
         let super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
             source,
             frame,
             namespace,
-        } = key.entry.as_ref()
+        } = original_entry
         else {
             panic!("original root entry");
         };
@@ -2499,13 +2734,13 @@ mod tests {
         foreign_source.origin = Arc::new(super::super::SourceOriginId::authored_image(
             foreign_source.text.clone(),
         ));
-        changed.entry = Arc::new(
+        changed.entry = Arc::new(DeclarationFlowFrame::Existing(
             super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
                 source: foreign_source,
                 frame: frame.clone(),
                 namespace: namespace.clone(),
             },
-        );
+        ));
         assert!(inventory.reports.get(&changed).is_none());
         let clone = bindings.clone();
         assert!(clone.declaration_flow_cache.0.lock().unwrap().is_none());

@@ -390,15 +390,12 @@ pub(super) fn selected_read(
 
 pub(super) fn helper_name_is_free(analysis: &AnalysisResult, helper: &str) -> bool {
     if analysis.has_original_vendor_source_names() {
-        use tcl_syntax::naming::VendorSourceNamePurpose;
+        let expected = tcl_syntax::naming::root_unrooted_key(helper);
         for row in analysis.original_vendor_procedure_declarations() {
-            let Some(name) = row
-                .name_input()
-                .literal_units(VendorSourceNamePurpose::ProcedureName)
-            else {
+            let Some(name) = row.name_input().root_procedure_coordinate() else {
                 return false;
             };
-            if name == helper.as_bytes() || name == format!("::{helper}").as_bytes() {
+            if name.as_bytes() == expected.as_bytes() {
                 return false;
             }
         }
@@ -407,7 +404,7 @@ pub(super) fn helper_name_is_free(analysis: &AnalysisResult, helper: &str) -> bo
         // The emitted helper and its call are explicitly rooted. This
         // independently selected lexical branch asks that exact publication,
         // without borrowing an unrelated namespace's reporting tail.
-        let qualified = format!("::{helper}");
+        let qualified = tcl_syntax::naming::root_unrooted_key(helper);
         !analysis.all_procs.contains_key(&qualified)
             && !analysis.all_classes.contains_key(&qualified)
     } else {
@@ -914,6 +911,28 @@ mod tests {
                 "{actual}"
             );
         }
+    }
+
+    #[test]
+    fn hosted_helper_publication_keeps_unknown_name_geometry_unavailable() {
+        let body = "when HTTP_REQUEST {set x [HTTP::query]; HTTP::respond 200 content $x}\n";
+        for name in [
+            "::html_encode",
+            "::::html_encode",
+            "N::other",
+            ":other",
+            "other\\u0061",
+        ] {
+            let source = format!("proc {{{name}}} {{value}} {{return $value}}\n{body}");
+            let (analysis, diagnostic) = issued(&source, "f5-irules", "IRULE3001");
+            assert!(
+                actions(&source, &analysis, &diagnostic).is_empty(),
+                "{name}"
+            );
+        }
+        let source = format!("proc ::other {{value}} {{return $value}}\n{body}");
+        let (analysis, diagnostic) = issued(&source, "f5-irules", "IRULE3001");
+        assert_eq!(actions(&source, &analysis, &diagnostic).len(), 1);
     }
 
     #[test]

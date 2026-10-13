@@ -3730,7 +3730,7 @@ impl<'r> Lowerer<'r> {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "empty-simple-name proc".into(),
-                command: "proc".into(),
+                command: seg.name().into(),
                 canonical_command: None,
                 args: args_borrow.to_vec(),
                 tokens: Some(self.cmd_tokens(seg)),
@@ -3768,7 +3768,7 @@ impl<'r> Lowerer<'r> {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "malformed proc params".into(),
-                command: "proc".into(),
+                command: seg.name().into(),
                 canonical_command: None,
                 args: seg.args().to_vec(),
                 tokens: Some(self.cmd_tokens(seg)),
@@ -3825,9 +3825,9 @@ impl<'r> Lowerer<'r> {
 
         Statement::Call {
             span: seg.span,
-            command: "proc".into(),
+            command: seg.name().into(),
             canonical_command: None,
-            args: args.to_vec(),
+            args: seg.args().to_vec(),
             defs: vec![],
             reads: vec![],
             reads_own_defs: false,
@@ -4018,7 +4018,7 @@ impl<'r> Lowerer<'r> {
             return Err(Box::new(Statement::Barrier {
                 span: seg.span,
                 reason: "dynamic proc name".into(),
-                command: "proc".into(),
+                command: seg.name().into(),
                 canonical_command: None,
                 args: args_borrow.to_vec(),
                 tokens: Some(self.cmd_tokens(seg)),
@@ -4092,7 +4092,7 @@ impl<'r> Lowerer<'r> {
                     "dynamic proc body"
                 }
                 .into(),
-                command: "proc".into(),
+                command: seg.name().into(),
                 canonical_command: None,
                 args: seg.args().to_vec(),
                 tokens: Some(self.cmd_tokens(seg)),

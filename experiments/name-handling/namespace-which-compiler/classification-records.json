@@ -1,0 +1,62 @@
+[
+  {
+    "release": "8.4.20",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/classify.tcl",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/8.4.20/stdout.bin"
+    ],
+    "exit_code": 0,
+    "stdout_sha256": "a64fdfac575c4d49f127e6d638e59fea3dafc9a9863e7018afc967f812445d1f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "derived Tcl-list parse/opcode classification of retained original oracle output, not a new namespace execution observation"
+  },
+  {
+    "release": "8.5.19",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/classify.tcl",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/8.5.19/stdout.bin"
+    ],
+    "exit_code": 0,
+    "stdout_sha256": "4e937f240ffa9678023b2b801fa4e229ad639b58e5a129f431250d74fb3785ca",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "derived Tcl-list parse/opcode classification of retained original oracle output, not a new namespace execution observation"
+  },
+  {
+    "release": "8.6.18",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/classify.tcl",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/8.6.18/stdout.bin"
+    ],
+    "exit_code": 0,
+    "stdout_sha256": "995b5f63086c34863996d49727a969984789847ec457f596877bd1215874138f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "derived Tcl-list parse/opcode classification of retained original oracle output, not a new namespace execution observation"
+  },
+  {
+    "release": "9.0.4",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/classify.tcl",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/9.0.4/stdout.bin"
+    ],
+    "exit_code": 0,
+    "stdout_sha256": "995b5f63086c34863996d49727a969984789847ec457f596877bd1215874138f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "derived Tcl-list parse/opcode classification of retained original oracle output, not a new namespace execution observation"
+  },
+  {
+    "release": "9.1.0",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/classify.tcl",
+      "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/9.1.0/stdout.bin"
+    ],
+    "exit_code": 0,
+    "stdout_sha256": "995b5f63086c34863996d49727a969984789847ec457f596877bd1215874138f",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "scope": "derived Tcl-list parse/opcode classification of retained original oracle output, not a new namespace execution observation"
+  }
+]

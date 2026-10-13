@@ -1,0 +1,34 @@
+IDENTITY 0.84-9-g5bac7c9
+OBSERVATION root-bare 0 ::__nh_shared {}
+OBSERVATION root-command 0 ::__nh_shared {}
+OBSERVATION root-command-short 1 {wrong # args: should be "namespace which ?-command? ?-variable? name"} NONE
+OBSERVATION root-command-prefix 1 {wrong # args: should be "namespace which ?-command? ?-variable? name"} NONE
+OBSERVATION root-absolute 0 ::__nh_shared {}
+OBSERVATION root-extra-colons 0 ::__nh_shared {}
+OBSERVATION root-missing 0 {} {}
+OBSERVATION root-tail-colon 0 ::__nh_tail: {}
+OBSERVATION root-single-colon 0 {} {}
+OBSERVATION root-single-colon-display 0 {} {}
+OBSERVATION alias-setup 1 {wrong # args: should be "interp"} NONE
+OBSERVATION alias-query 0 {} {}
+OBSERVATION current-shadow 0 ::__nh_context::__nh_shared {}
+OBSERVATION current-absolute-root 0 ::__nh_shared {}
+OBSERVATION current-alias-root 0 {} {}
+OBSERVATION path-setup 1 {namespace, unknown command "path": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which} NONE
+OBSERVATION path-current-shadow 0 ::__nh_context::__nh_shared {}
+OBSERVATION path-first 0 {} {}
+OBSERVATION path-over-root 0 ::__nh_shared {}
+OBSERVATION path-reverse-setup 1 {namespace, unknown command "path": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which} NONE
+OBSERVATION path-reverse 0 {} {}
+OBSERVATION path-clear-setup 1 {namespace, unknown command "path": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which} NONE
+OBSERVATION cleared-root-fallback 0 ::__nh_shared {}
+OBSERVATION current-missing 0 {} {}
+OBSERVATION export-setup 0 {} {}
+OBSERVATION import-setup 0 {} {}
+OBSERVATION import-query 0 ::__nh_target::exported {}
+OBSERVATION colon-left-current 0 ::__nh_a:::b {}
+OBSERVATION colon-left-query 0 ::__nh_a:::b::marker {}
+OBSERVATION colon-left-display-query 0 ::__nh_a:::b::marker {}
+OBSERVATION colon-right-current 0 ::__nh_a:::b {}
+OBSERVATION colon-right-query 0 ::__nh_a:::b::marker {}
+OBSERVATION colon-right-display-query 0 ::__nh_a:::b::marker {}

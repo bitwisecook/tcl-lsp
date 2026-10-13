@@ -1,0 +1,198 @@
+IDENTITY 8.6.18 /workspace/tcl-lsp/tmp/tcl8.6.18/library
+OBSERVATION bare {namespace which g} 0 {ByteCode 0x0x561b685f4cb0, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which g"
+  Cmds 1, src 17, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-16
+  Command 1: "namespace which g"
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}
+OBSERVATION command {namespace which -command g} 0 {ByteCode 0x0x561b685f4fb0, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -command g"
+  Cmds 1, src 26, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-25
+  Command 1: "namespace which -command g"
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}
+OBSERVATION command-short {namespace which -c g} 0 {ByteCode 0x0x561b685f51b0, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -c g"
+  Cmds 1, src 20, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-19
+  Command 1: "namespace which -c g"
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}
+OBSERVATION command-prefix {namespace which -comman g} 0 {ByteCode 0x0x561b685f53b0, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -comman g"
+  Cmds 1, src 25, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-24
+  Command 1: "namespace which -comman g"
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}
+OBSERVATION variable {namespace which -variable g} 0 {ByteCode 0x0x561b68617230, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -variable g"
+  Cmds 1, src 27, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-26
+  Command 1: "namespace which -variable g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-variable"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION variable-short {namespace which -v g} 0 {ByteCode 0x0x561b68617630, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -v g"
+  Cmds 1, src 20, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-19
+  Command 1: "namespace which -v g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-v"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION command-long {namespace which -commandx g} 0 {ByteCode 0x0x561b68617430, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -commandx g"
+  Cmds 1, src 27, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-26
+  Command 1: "namespace which -commandx g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-commandx"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION single-dash {namespace which - g} 0 {ByteCode 0x0x561b68617830, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which - g"
+  Cmds 1, src 19, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-18
+  Command 1: "namespace which - g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION wrong-option {namespace which -unknown g} 0 {ByteCode 0x0x561b68617a30, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -unknown g"
+  Cmds 1, src 26, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-25
+  Command 1: "namespace which -unknown g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-unknown"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION too-few {namespace which} 0 {ByteCode 0x0x561b685f52b0, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which"
+  Cmds 1, src 15, inst 13, litObjs 3, aux 0, stkDepth 3, code/src 0.00
+  Commands 1:
+      1: pc 0-11, src 0-14
+  Command 1: "namespace which"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "::tcl::namespace::which"
+    (6) invokeReplace 2 2 
+    (12) done 
+}
+OBSERVATION too-many {namespace which -command g extra} 0 {ByteCode 0x0x561b68617e30, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -command g extra"
+  Cmds 1, src 32, inst 19, litObjs 6, aux 0, stkDepth 6, code/src 0.00
+  Commands 1:
+      1: pc 0-17, src 0-31
+  Command 1: "namespace which -command g extra"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-command"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "extra"
+    (10) push1 5 	# "::tcl::namespace::which"
+    (12) invokeReplace 5 2 
+    (18) done 
+}
+OBSERVATION dynamic-option {namespace which $option g} 0 {ByteCode 0x0x561b68617c30, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which $option g"
+  Cmds 1, src 25, inst 18, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-16, src 0-24
+  Command 1: "namespace which $option g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "option"
+    (6) loadStk 
+    (7) push1 3 	# "g"
+    (9) push1 4 	# "::tcl::namespace::which"
+    (11) invokeReplace 4 2 
+    (17) done 
+}
+OBSERVATION dynamic-name {namespace which -command $name} 0 {ByteCode 0x0x561b6863a930, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -command $name"
+  Cmds 1, src 30, inst 5, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-3, src 0-29
+  Command 1: "namespace which -command $name"
+    (0) push1 0 	# "name"
+    (2) loadStk 
+    (3) resolveCmd 
+    (4) done 
+}
+OBSERVATION escaped-command {namespace which -co\mmand g} 0 {ByteCode 0x0x561b68618230, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which -co\mmand g"
+  Cmds 1, src 27, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-15, src 0-26
+  Command 1: "namespace which -co\mmand g"
+    (0) push1 0 	# "namespace"
+    (2) push1 1 	# "which"
+    (4) push1 2 	# "-command"
+    (6) push1 3 	# "g"
+    (8) push1 4 	# "::tcl::namespace::which"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+OBSERVATION quoted-command {namespace which "-command" g} 0 {ByteCode 0x0x561b6863ac30, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which \"-command\"..."
+  Cmds 1, src 28, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-27
+  Command 1: "namespace which \"-command\"..."
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}
+OBSERVATION braced-command {namespace which {-command} g} 0 {ByteCode 0x0x561b6863ad30, refCt 1, epoch 17, interp 0x0x561b685cc130 (epoch 17)
+  Source "namespace which {-command} g"
+  Cmds 1, src 28, inst 4, litObjs 1, aux 0, stkDepth 1, code/src 0.00
+  Commands 1:
+      1: pc 0-2, src 0-27
+  Command 1: "namespace which {-command} g"
+    (0) push1 0 	# "g"
+    (2) resolveCmd 
+    (3) done 
+}

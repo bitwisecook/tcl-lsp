@@ -89,6 +89,32 @@ impl super::OriginalCompilationLookupAdvice {
             &self.namespace,
         )
     }
+    pub(super) fn scoped_procedure_read_lifecycle_advice(
+        &self,
+        tokens: &CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        entry: &super::declaration_preview::OriginalProcedureReadFlowEntry,
+    ) -> Option<SourceScopedLifecycleAdvice> {
+        if !entry.owns_source(&self.site.source, self.site.offset)
+            || &entry.header.frame != self.frame()
+            || tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.entered_execution_observer.observed())
+        {
+            return None;
+        }
+        let invocation = crate::registry_invocation::DeclarationLifecycleInvocation::for_layout(
+            registry, tokens, self,
+        )?;
+        SourceScopedLifecycleAdvice::retained(
+            invocation,
+            &self.snapshot.state,
+            &self.site,
+            &entry.header.frame,
+            &entry.header.namespace,
+        )
+    }
 }
 
 impl SourceScopedLifecycleAdvice {

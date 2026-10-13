@@ -225,17 +225,18 @@ pub trait NamespaceExportOracle {
     fn exported_at_original(
         &self,
         slot: &tcl_core_types::ByteCommandSlot,
-        _policy: tcl_syntax::naming::NamePolicyProtocol,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
         import_site: RunPoint<'_>,
     ) -> ExportVerdict {
         let Ok(name) = slot.simple.try_utf8() else {
             return ExportVerdict::Unknown;
         };
-        let Ok(components) = tcl_syntax::naming::checked_namespace_path_utf8(&slot.namespace)
+        let Some(namespace) =
+            tcl_syntax::naming::native_namespace_source_spelling(policy.recipe(), &slot.namespace)
         else {
             return ExportVerdict::Unknown;
         };
-        self.exported_at(&format!("::{}", components.join("::")), name, import_site)
+        self.exported_at(&namespace, name, import_site)
     }
 }
 

@@ -233,6 +233,8 @@ pub enum SourceCommandTransitionObligation {
     /// Actual original declaration entry/frame and before-argv alternatives.
     /// This does not establish that the body or handler is entered.
     ConditionalDeclarationApplicability,
+    /// Authentic member-body source catalogue, without a member or frame entry.
+    ConditionalMemberBodyCatalogueApplicability,
     /// A complete Logical source body and its authentic parent schema own
     /// this conditional header. No runtime activation or frame is supplied.
     DeferredLogicalBodyApplicability,
@@ -370,6 +372,8 @@ pub struct OriginalSourceCommandTransitionAdvice {
     c_source_namespace: Option<ByteNamespacePath>,
     c_source_path: Option<Vec<ByteNamespacePath>>,
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    member_catalogue_body:
+        Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
 }
 impl OriginalSourceCommandTransitionAdvice {
     /// Actual lexical source occurrence; not a fabricated dispatch point.
@@ -455,6 +459,13 @@ impl OriginalSourceCommandTransitionAdvice {
                             && word.span().end() <= body.content_span().end()
                     })
             })
+            && self.member_catalogue_body.as_ref().is_none_or(|body| {
+                body.matches_source(image, config)
+                    && self.original.iter().all(|word| {
+                        word.span().start() >= body.content_span().start()
+                            && word.span().end() <= body.content_span().end()
+                    })
+            })
             && self.declaration.as_ref().is_none_or(|rows| {
                 rows.iter().all(|row| {
                     row.config == config
@@ -484,6 +495,10 @@ impl OriginalSourceCommandTransitionAdvice {
                 .is_none_or(|body| body.matches_context(context))
             && self
                 .c_source_body
+                .as_ref()
+                .is_none_or(|body| body.matches_context(context))
+            && self
+                .member_catalogue_body
                 .as_ref()
                 .is_none_or(|body| body.matches_context(context))
             && self
@@ -552,6 +567,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     interpreter_bodies: BTreeMap<u32, OriginalSourceInterpreterHandleBody>,
     interpreter_paths: BTreeMap<u32, Vec<OriginalSourceInterpreterPathBinding>>,
     authored_prefixes: BTreeMap<u32, Option<OriginalSourceAuthoredCommandPrefix>>,
+    member_catalogue: BTreeMap<u32, Option<OriginalSourceCommandTransitionAdvice>>,
     produced_prefixes: BTreeMap<u32, Option<OriginalSourceProducedCommandPrefix>>,
     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
@@ -635,7 +651,17 @@ impl OriginalSourceTransitionAdviceTape {
         self.registry_barriers.contains(&offset)
     }
 
+    pub(crate) fn member_catalogue(
+        &self,
+        offset: u32,
+    ) -> Option<&OriginalSourceCommandTransitionAdvice> {
+        self.member_catalogue.get(&offset)?.as_ref()
+    }
+
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, receipt) in other.member_catalogue {
+            source_class::merge_receipt(&mut self.member_catalogue, offset, receipt);
+        }
         self.scanned_procedure_declarations
             .extend(other.scanned_procedure_declarations);
         for (offset, receipt) in other.class_instance_calls {
@@ -1743,6 +1769,7 @@ impl AdviceInvocationContext<'_> {
             c_source_namespace,
             c_source_path,
             procedure_body: graph.procedure_body.clone(),
+            member_catalogue_body: None,
             logical_input: match self.policy {
                 AdviceNamingPolicy::Logical(input) => Some(input.clone()),
                 AdviceNamingPolicy::Native(_) => None,

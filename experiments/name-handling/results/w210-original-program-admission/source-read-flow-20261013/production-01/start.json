@@ -1,0 +1,26 @@
+{
+  "started_utc": "2026-10-13T15:37:57.769204+00:00",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "--",
+    "tcltest_",
+    "selected_formal_read_scope_",
+    "native_read_scope_requires_matching_complete_metadata",
+    "original_procedure_read_scope_preserves_continuation_occurrences",
+    "declaration_read_advice_requires_original_unchanged_body_and_formals",
+    "provider_read_domain_requires_the_same_current_complete_input",
+    "command_binding::declaration_flow::tests::",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34621,
+  "diagnostics_enabled": false
+}

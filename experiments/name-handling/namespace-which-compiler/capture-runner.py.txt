@@ -1,0 +1,34 @@
+from pathlib import Path
+import datetime,hashlib,json,os,re,subprocess
+root=Path('/workspace/tcl-lsp'); output=root/'experiments/name-handling/namespace-which-compiler'
+script=output/'input.tcl'
+def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+rows=[]
+for release in ['8.4.20','8.5.19','8.6.18','9.0.4','9.1.0']:
+    dest=output/release;dest.mkdir(exist_ok=False)
+    source=root/'tmp'/('tcl'+release);binary=source/'unix/tclsh'
+    env=os.environ.copy();env['TCL_LIBRARY']=str(source/'library');env['LD_LIBRARY_PATH']=str(source/'unix')
+    command=[str(binary),str(script)]
+    started=datetime.datetime.now(datetime.timezone.utc).isoformat()
+    process=subprocess.run(command,cwd=root,env=env,capture_output=True,check=False)
+    (dest/'stdout.bin').write_bytes(process.stdout);(dest/'stderr.bin').write_bytes(process.stderr)
+    prior=json.loads((root/'experiments/name-handling/namespace-address-purpose'/release/'provenance.json').read_text())
+    assert sha(binary)==prior['binary_sha256']
+    assert sha(source/'library/init.tcl')==prior['init_sha256']
+    assert process.stdout.startswith(f'IDENTITY {release} {source}/library\n'.encode())
+    provenance={key:prior[key] for key in ['source_tag','upstream_commit','upstream_integrity_sha256','reference_manifest_sha256']}
+    provenance.update({'measurement_utc':started,'command':command,'input_sha256':sha(script),'binary_sha256':sha(binary),'init_sha256':sha(source/'library/init.tcl'),'exit_code':process.returncode,'stdout_sha256':sha(dest/'stdout.bin'),'stderr_sha256':sha(dest/'stderr.bin'),'channel':'real original C source-level disassembly; compiled queried scripts are not executed','scope':'namespace which compiler choice only; no Vm/compiler admission/Jim/F5 measurement'})
+    compiler_files={}
+    for name in ['tclCompCmds.c','tclCompCmdsGR.c']:
+        path=source/'generic'/name
+        if not path.exists():continue
+        text=path.read_text()
+        if 'TclCompileNamespaceWhichCmd(' in text or 'TclCompileNamespaceCmd(' in text:
+            compiler_files[str(path.relative_to(source))]=sha(path)
+            (dest/(name+'.txt')).write_bytes(path.read_bytes())
+    provenance['observed_compiler_source_sha256']=compiler_files
+    (dest/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
+    rows.append(provenance)
+    print(release,process.returncode,len(process.stdout),process.stderr.decode(),flush=True)
+(output/'capture-runner.py.txt').write_bytes(Path(__file__).read_bytes())
+(output/'records.json').write_text(json.dumps(rows,indent=2)+'\n')

@@ -693,6 +693,90 @@ mod tests {
         );
     }
 
+    fn native_read_fixture(
+        source: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> (tcl_vm::Vm, crate::analyser::AnalysisResult) {
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    &input,
+                )),
+            native_entry: Some(std::sync::Arc::new(captured)),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let analysis = crate::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .with_source_analysis_entry(std::sync::Arc::new(entry))
+            .analyse(source, profile.name);
+        (owner, analysis)
+    }
+
+    #[test]
+    fn native_read_scope_requires_matching_complete_metadata() {
+        use crate::registry_invocation::OwnedInvocationMetadataContext as Metadata;
+        let source = "proc p {arg} {puts $missing}";
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let foreign_profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let foreign = crate::analyser::ResolvedAnalysisInput::new(
+            foreign_profile,
+            foreign_profile,
+            tcl_registry::model::ingress::context_for_profile(foreign_profile),
+            tcl_lexer::LexerConfig::for_file_grammar(foreign_profile.grammar),
+        );
+        for metadata in [
+            Metadata::Standalone,
+            Metadata::Unavailable,
+            Metadata::Supplied(input.context_registry()),
+            Metadata::for_source_input(Some(&input.for_nested_source())),
+            Metadata::for_source_input(Some(&foreign)),
+        ] {
+            let (_owner, captured) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            let entry = crate::command_binding::SourceAnalysisEntry {
+                metadata_context: metadata,
+                native_entry: Some(std::sync::Arc::new(captured)),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            };
+            let analysis = crate::analyser::Analyser::new()
+                .with_resolved_input(input.clone())
+                .with_source_analysis_entry(std::sync::Arc::new(entry))
+                .analyse(source, profile.name);
+            let realm = analysis.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let Some((_, mut tokens)) = binding.original_recorded_command() else {
+                continue;
+            };
+            tokens.source_binding = Some(binding);
+            assert!(
+                realm
+                    .source_bindings_ref()
+                    .original_procedure_read_declaration(
+                        &tokens,
+                        input.context_registry().commands(),
+                        &input
+                    )
+                    .is_none()
+            );
+        }
+    }
+
     #[test]
     fn selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate() {
         // naming.compiler.original-analysis-metadata-context
@@ -708,16 +792,7 @@ mod tests {
         ] {
             let source = format!("proc ::missing::p {{{formals}}} {{puts $missing}}");
             let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
-            let (_owner, captured) =
-                crate::environment_ingress::captured_native_entry_with_owner(profile);
-            let entry = crate::command_binding::SourceAnalysisEntry {
-                native_entry: Some(std::sync::Arc::new(captured)),
-                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-                ..Default::default()
-            };
-            let analysis = crate::analyser::Analyser::new()
-                .with_source_analysis_entry(std::sync::Arc::new(entry))
-                .analyse(&source, dialect);
+            let (_owner, analysis) = native_read_fixture(&source, profile);
             let input = analysis.resolved_input.as_ref().unwrap();
             let context = input.context_registry();
             let realm = analysis.retained_command_realm().unwrap();
@@ -821,16 +896,7 @@ mod tests {
 
     fn native_read_scope(source: &str, declaration: &str) -> bool {
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let (_owner, captured) =
-            crate::environment_ingress::captured_native_entry_with_owner(profile);
-        let entry = crate::command_binding::SourceAnalysisEntry {
-            native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-            ..Default::default()
-        };
-        let analysis = crate::analyser::Analyser::new()
-            .with_source_analysis_entry(std::sync::Arc::new(entry))
-            .analyse(source, profile.name);
+        let (_owner, analysis) = native_read_fixture(source, profile);
         let input = analysis.resolved_input.as_ref().unwrap();
         let context = input.context_registry();
         let realm = analysis.retained_command_realm().unwrap();

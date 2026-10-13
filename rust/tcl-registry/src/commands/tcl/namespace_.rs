@@ -1472,9 +1472,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "which",
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
-                tcl_dialect::TclVersion::V8_6,
-            ),
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamespaceWhich,
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Direct,
         }),

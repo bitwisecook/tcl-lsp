@@ -38,6 +38,8 @@ struct BodyWalk<'context, 'source> {
     inventory: Option<OriginalSourceTransitionAdviceTape>,
     authored_prefixes: OriginalSourceTransitionAdviceTape,
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    member_catalogue_body:
+        Option<Arc<crate::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>,
 }
 
 /// Original substitution order, omitting descendants visited with their parent.
@@ -101,6 +103,7 @@ impl AdviceInvocationContext<'_> {
             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            member_catalogue_body: None,
         };
         if walk.regions(&mut branch, &advice, schema, depth).is_some()
             && let Some(inventory) = walk.inventory
@@ -171,6 +174,7 @@ impl AdviceInvocationContext<'_> {
                         inventory: None,
                         authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
                         source_body: None,
+                        member_catalogue_body: Some(Arc::clone(&body)),
                     };
                     if walk.script(&mut branch, body.content_span(), 0).is_none() {
                         continue;
@@ -209,6 +213,7 @@ impl AdviceInvocationContext<'_> {
                 inventory: matches!(self.policy, AdviceNamingPolicy::Logical(_))
                     .then(OriginalSourceTransitionAdviceTape::default),
                 source_body: None,
+                member_catalogue_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             };
             walk.substitutions(graph, native, 0)?;
@@ -243,6 +248,7 @@ impl AdviceInvocationContext<'_> {
                                 .contains(tcl_registry::Traits::DECLARES_NAMESPACE)))))
             .then(OriginalSourceTransitionAdviceTape::default),
             source_body: None,
+            member_catalogue_body: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
         };
         #[cfg(test)]
@@ -812,6 +818,41 @@ impl BodyWalk<'_, '_> {
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
+        if let Some(body) = &self.member_catalogue_body {
+            let offset = invocation.native.first()?.span().start();
+            if self.authored_prefixes.member_catalogue.len() < 256 {
+                let receipt = (|| {
+                    let policy = self.context.policy.native()?;
+                    let selected = policy
+                        .recipe()
+                        .command_lookup_projection(
+                            super::root_context(policy),
+                            invocation.head.bytes(),
+                        )
+                        .ok()?;
+                    if selected.namespace_route()
+                        != tcl_syntax::naming::NativeCommandNamespaceRoute::Root
+                        || graph.blocks_registry_source(invocation.head)
+                        || !body
+                            .matches_source(self.context.origin.source_image(), self.context.config)
+                        || !body.matches_context(self.context.context)
+                    {
+                        return None;
+                    }
+                    let mut advice = self.context.schema_advice(invocation, graph, schema)?;
+                    advice.member_catalogue_body = Some(Arc::clone(body));
+                    advice.obligations.push(SourceCommandTransitionObligation::ConditionalMemberBodyCatalogueApplicability);
+                    (advice.matches_source(self.context.origin.source_image(), self.context.config)
+                        && advice.matches_context(self.context.context))
+                    .then_some(advice)
+                })();
+                super::source_class::merge_receipt(
+                    &mut self.authored_prefixes.member_catalogue,
+                    offset,
+                    receipt,
+                );
+            }
+        }
         if let (Some(tape), None) = (&mut self.inventory, &self.source_body) {
             // Immediate original operands use their root point, not a made-up
             // body descriptor or a future frame's applicability.
@@ -1471,6 +1512,7 @@ mod original_expression_purpose_frontier_tests {
             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            member_catalogue_body: None,
         };
         assert!(
             logical
@@ -1497,6 +1539,7 @@ mod original_expression_purpose_frontier_tests {
             inventory: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
+            member_catalogue_body: None,
         };
         assert!(
             native

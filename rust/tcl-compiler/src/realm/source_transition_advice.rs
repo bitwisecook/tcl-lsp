@@ -552,6 +552,89 @@ impl super::CommandBindingRealm {
             .then(|| prefix.clone())
     }
 
+    /// Absolute member-body source catalogue retains its original issuer.
+    /// The returned schema cannot provide selected dispatch or an entered frame.
+    pub(crate) fn original_member_source_catalogue_advice(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<OriginalSourceCommandTransitionAdvice> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        if tokens.synthetic.is_some() {
+            return None;
+        }
+        let context = input.borrowed_context_registry();
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let binding = tokens.source_binding.as_ref()?;
+        if binding.lookup_state.is_some() && !binding.unknown && binding.targets.is_empty() {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let original = crate::registry_invocation::original_native_compiler_words(
+            image,
+            tokens.words(),
+            offset,
+            config,
+        )?;
+        let prepared = self.source_advice.get_or_prepare(context, || {
+            self.bindings
+                .original_source_transition_advice_tape(context)
+        });
+        let tape = prepared.as_ref().as_ref()?;
+        if tape.blocks_registry_source(offset) {
+            return None;
+        }
+        let advice = tape.member_catalogue(offset)?;
+        if !advice.matches_context(context)
+            || !advice.matches_source(image, config)
+            || original.as_slice() != advice.original_words()
+        {
+            return None;
+        }
+        let spec = tcl_registry::model::SpecKey::new(context.commands().get(advice.command())?);
+        let captured = advice
+            .arguments()
+            .iter()
+            .take_while(|word| {
+                matches!(
+                    word.origin,
+                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        for target in &binding.targets {
+            if target
+                .registry_identity()
+                .and_then(|identity| context.commands().get(identity))
+                .map(tcl_registry::model::SpecKey::new)
+                != Some(spec)
+                || target.prepended.len() != captured.len()
+            {
+                return None;
+            }
+            if target.prepended.iter().zip(&captured).any(|(value, word)| {
+                value.literal_bytes().is_none() || value.literal_bytes() != word.value.as_deref()
+            }) {
+                return None;
+            }
+            if !captured.is_empty() {
+                let inputs = target.original_prepended_name_inputs()?;
+                if inputs.iter().zip(&captured).any(|(input, word)| {
+                    word.input
+                        .as_ref()
+                        .and_then(crate::command_binding::SourceAdviceNameInput::native_input)
+                        != Some(input)
+                }) {
+                    return None;
+                }
+            }
+        }
+        Some(advice.clone())
+    }
+
     /// Source-only aliases and moves do not fill absent execution lookup.
     /// Full context and immutable source/Registry/configuration guard the tape.
     pub(crate) fn original_source_transition_advice(

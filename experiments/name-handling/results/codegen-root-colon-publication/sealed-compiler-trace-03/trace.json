@@ -1,0 +1,17 @@
+{
+  "scope": "Replay of exact sealed Compiler executable against the captured build closure, independently of currently edited checkout. Existing compiled environment trace only; no production source edits or builds.",
+  "binary": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4",
+  "sha256": "a3162c6d2ad72558c8ef729b070e41ce0be68665e7ae303f1c94f61693ea0772",
+  "prior_validation_sha256": "fa3d60bb767d7abc567c5faeda24166e99d2349143ec1675e4eb6d1f2deaf05d",
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-78463101920c36d4",
+    "native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "environment_change": {
+    "TCL_LSP_TRACE_NATIVE_BOOLEAN_SOURCE": "1"
+  },
+  "exit_code": 101,
+  "utc": "2026-10-13T15:29:40Z"
+}

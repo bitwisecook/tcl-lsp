@@ -1,0 +1,34 @@
+IDENTITY 8.4.20 /workspace/tcl-lsp/tmp/tcl8.4.20/library
+OBSERVATION root-bare 0 ::__nh_shared {}
+OBSERVATION root-command 0 ::__nh_shared {}
+OBSERVATION root-command-short 1 {wrong # args: should be "namespace which ?-command? ?-variable? name"} NONE
+OBSERVATION root-command-prefix 1 {wrong # args: should be "namespace which ?-command? ?-variable? name"} NONE
+OBSERVATION root-absolute 0 ::__nh_shared {}
+OBSERVATION root-extra-colons 0 ::__nh_shared {}
+OBSERVATION root-missing 0 {} {}
+OBSERVATION root-tail-colon 0 ::__nh_tail: {}
+OBSERVATION root-single-colon 0 :::__nh_literal {}
+OBSERVATION root-single-colon-display 0 {} {}
+OBSERVATION alias-setup 0 ::__nh_alias {}
+OBSERVATION alias-query 0 ::__nh_alias {}
+OBSERVATION current-shadow 0 ::__nh_context::__nh_shared {}
+OBSERVATION current-absolute-root 0 ::__nh_shared {}
+OBSERVATION current-alias-root 0 ::__nh_alias {}
+OBSERVATION path-setup 1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} NONE
+OBSERVATION path-current-shadow 0 ::__nh_context::__nh_shared {}
+OBSERVATION path-first 0 {} {}
+OBSERVATION path-over-root 0 ::__nh_shared {}
+OBSERVATION path-reverse-setup 1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} NONE
+OBSERVATION path-reverse 0 {} {}
+OBSERVATION path-clear-setup 1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which} NONE
+OBSERVATION cleared-root-fallback 0 ::__nh_shared {}
+OBSERVATION current-missing 0 {} {}
+OBSERVATION export-setup 0 {} {}
+OBSERVATION import-setup 0 {} {}
+OBSERVATION import-query 0 ::__nh_target::exported {}
+OBSERVATION colon-left-current 0 ::__nh_a:::b {}
+OBSERVATION colon-left-query 0 {} {}
+OBSERVATION colon-left-display-query 0 {} {}
+OBSERVATION colon-right-current 0 ::__nh_a:::b {}
+OBSERVATION colon-right-query 0 {} {}
+OBSERVATION colon-right-display-query 0 {} {}

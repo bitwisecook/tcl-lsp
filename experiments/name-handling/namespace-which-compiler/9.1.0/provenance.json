@@ -1,0 +1,22 @@
+{
+  "source_tag": "core-9-1-0",
+  "upstream_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+  "upstream_integrity_sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "measurement_utc": "2026-10-13T15:13:32.799971+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-which-compiler/input.tcl"
+  ],
+  "input_sha256": "e1d886c24fa997e4936f7a13ce80eaea9be87c67ae08aac8ee93bbe069fbea20",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "exit_code": 0,
+  "stdout_sha256": "fe907b96379b01396602b11d9211343df59039c4b2e80ba43160ae686ccb6538",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "channel": "real original C source-level disassembly; compiled queried scripts are not executed",
+  "scope": "namespace which compiler choice only; no Vm/compiler admission/Jim/F5 measurement",
+  "observed_compiler_source_sha256": {
+    "generic/tclCompCmdsGR.c": "3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1"
+  }
+}

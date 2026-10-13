@@ -1,0 +1,16 @@
+{
+  "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "latest_verification_authority": "parent independently verified upstream HEAD 2026-10-13; raw measurement records its own binary/patchlevel only",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "scope": "real original ASCII command-query source; returned strings are output only, never reconstructed namespace/command identity; no Vm/F5/native C API allocation proof",
+  "measurement_utc": "2026-10-13T15:52:40.067625+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input-portable.tcl"
+  ],
+  "input_sha256": "28df82db2093c5c1dd3fed4ee57dd711a7a7d04c512a3dbd941f6612d82c9a6c",
+  "exit_code": 0,
+  "stdout_sha256": "d667b91275b3de01c113273bf186292eadef65738b17debac4a3452e68d74786",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "identity_channel": "portable actual patchlevel; prior C captures retain matching library identity, Jim info library is unsupported"
+}

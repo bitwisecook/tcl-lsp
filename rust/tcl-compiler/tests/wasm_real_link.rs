@@ -1712,3 +1712,38 @@ fn native_original_definition_preserves_a_replaced_definer() {
         "SHADOW {}",
     );
 }
+
+#[test]
+fn general_original_definition_preserves_a_renamed_stock_definer() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source =
+        "rename proc stock_proc\nstock_proc :audit {} {return ORIGINAL}\nset answer [:audit]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_renamed_stock_definer",
+            source,
+            "list $answer [info commands audit]",
+        ),
+        "ORIGINAL {}",
+    );
+}
+
+#[test]
+fn general_original_definition_preserves_a_materialised_name_word() {
+    let Some(runtime) = real_link_runtime() else {
+        return;
+    };
+    let source = "set name :audit\nproc $name {} {return ORIGINAL}\nset answer [:audit]\n";
+    assert_eq!(
+        run_real_link_argv(
+            &runtime,
+            "original_argv_materialised_name",
+            source,
+            "list $answer [info commands audit]",
+        ),
+        "ORIGINAL {}",
+    );
+}

@@ -1574,6 +1574,16 @@ file; this call falls through to the 'unknown' handler."
         let original_image = tcl_lexer::SourceImage::document(&self.source);
         let declared_flow = ir_proc.and_then(|procedure| {
             function_declaration_flow(fu, procedure, &original_image, &self.profile_registry())
+                .or_else(|| {
+                    self.head_identities
+                        .source_bindings()
+                        .original_procedure_read_flow(
+                            procedure,
+                            &original_image,
+                            &self.profile_registry(),
+                            self.result.resolved_input.as_ref()?,
+                        )
+                })
         });
 
         // Unknown writers retire physical absence proofs. Declaration advice

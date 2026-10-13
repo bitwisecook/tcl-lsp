@@ -72,7 +72,27 @@ impl VendorSourceNameInput {
     /// catalogue and stored-body callers must retain their own applicability.
     #[must_use]
     pub fn root_command_coordinate(&self) -> Option<tcl_core_types::NameBytes> {
-        let units = self.literal_units(VendorSourceNamePurpose::CommandHead)?;
+        self.root_coordinate(VendorSourceNamePurpose::CommandHead)
+    }
+
+    /// Nominal authored procedure coordinate for conservative source collisions.
+    /// This supplies no installed procedure, actual namespace or Native recipe.
+    #[must_use]
+    pub fn root_procedure_coordinate(&self) -> Option<tcl_core_types::NameBytes> {
+        let units = self.literal_units(VendorSourceNamePurpose::ProcedureName)?;
+        let written = std::str::from_utf8(units).ok()?;
+        let simple = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
+        if simple.is_empty() || simple.contains(':') {
+            return None;
+        }
+        self.root_coordinate(VendorSourceNamePurpose::ProcedureName)
+    }
+
+    fn root_coordinate(
+        &self,
+        purpose: VendorSourceNamePurpose,
+    ) -> Option<tcl_core_types::NameBytes> {
+        let units = self.literal_units(purpose)?;
         let written = std::str::from_utf8(units).ok()?;
         let mut candidates = tcl_syntax::naming::command_resolution_candidates_from_namespace_keys(
             "::",

@@ -1,0 +1,19 @@
+{
+  "source_tag": "core-8-5-19",
+  "upstream_commit": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+  "upstream_integrity_sha256": "78c99229a589a330c2c669474c365041f2d6f918a09744e849ac571b678ef268",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "scope": "real original ASCII command-query source; returned strings are output only, never reconstructed namespace/command identity; no Vm/F5/native C API allocation proof",
+  "measurement_utc": "2026-10-13T15:52:40.018744+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/namespace-command-query/input-portable.tcl"
+  ],
+  "input_sha256": "28df82db2093c5c1dd3fed4ee57dd711a7a7d04c512a3dbd941f6612d82c9a6c",
+  "exit_code": 0,
+  "stdout_sha256": "dd0fed89b147ba476ca419c0cfc77ed826e5b6f90daf5c1e79bb31831e3eb92e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "identity_channel": "portable actual patchlevel; prior C captures retain matching library identity, Jim info library is unsupported"
+}

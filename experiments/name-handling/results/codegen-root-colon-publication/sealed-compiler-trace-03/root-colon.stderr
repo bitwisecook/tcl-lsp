@@ -1,0 +1,9 @@
+NATIVE_BOOLEAN_SOURCE path=[] statements=2 source=Some((0, 40, Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 58, 97, 117, 100, 105, 116, 32, 123, 125, 32, 123, 114, 101, 116, 117, 114, 110, 32, 79, 82, 73, 71, 73, 78, 65, 76, 125, 10, 58, 97, 117, 100, 105, 116, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 5734116396271882949, line_index: Some(LineIndex { line_starts: [0, 33, 40] }) } }))) namespace=None sites=0
+NATIVE_BOOLEAN_STATEMENT path=[] index=0 kind=Call reason=None span=Span { start: 0, end: 32 } inline_words=Some(4) retained_words=Some(4) synthetic=None
+NATIVE_BOOLEAN_STATEMENT path=[] index=1 kind=Call reason=None span=Span { start: 33, end: 39 } inline_words=Some(1) retained_words=Some(1) synthetic=None
+
+thread 'native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand' (63194) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1278:9:
+assertion `left == right` failed: a QName-only or wholly declined control cannot establish the transport
+  left: [GenericInvoke, GenericInvoke]
+ right: [NativeDefinition, GenericInvoke]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
