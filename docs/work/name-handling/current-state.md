@@ -31,8 +31,8 @@ implement independently while the consumer audit continues.
 | Consumer group | Current implementation and evidence | Remaining implementation or validation |
 | --- | --- | --- |
 | Shared naming | A fresh Main capture passes139 exact Syntax naming controls; its harness-selected source inventory is stable, without a complete compiled-closure claim. Current/path/root owner serves Syntax, source metadata, Compiler, Runtime API, Runtime and VM.133 Syntax controls, C command3/Jim5, Runtime115, VM209 and7 publication/retained-holder controls pass. Original braced-source mapping passes25 Syntax/6 Registry controls with original C5/Jim LF/CRLF evidence. | Close every adapter in the [consumer inventory](consumer-inventory.md) and [outstanding audit](outstanding-consumer-audit.md); pure owner tests do not certify consumers. |
-| Registry, Compiler selection and VM queries | Exact descriptors, original registration cache labels, typed role hooks and shared query geometry are integrated or isolated for review. Earlier Registry129 and descriptor/cache83 controls pass. Corrected VM namespace/query capture passes13 selectors, including60 C5 ASCII namespace and48 C5/Jim query rows. | The latest49 intended controls all pass across two honest frozen captures:43 first-capture passes with6 test-import build blocks, followed by6 exact Compiler passes after the test-only public import correction. Provider-specific Which parsing, Jim actual-object candidates, named-role/layout separation and ensemble selected-worker repairs are integrated. Fresh combined Main gates remain pending. Distinct Jim origin sequencer and VM caller/root adapters are integrated with original42 rows/provider retained; its16 fresh selectors are unexecuted. |
-| #2286 and source reads | Conditional original procedure read-flow carrier is integrated. Original C5 factory assertions pass on unchanged instrumented source in two captures. Isolated production35 controls pass31/fail4; Main production run was incomplete. All C5 Native source records are present. | Finish original conditional-body source selection. The Jim formal control failed at a catalog-alias unwrap; central environment ingress correction is prepared. Main diagnostic4 controls execute1pass/3fail. Original source rows and reached metadata are present; repeated-iteration read selection loses source advice through an opaque lookup snapshot. The shared SourceReadScope/CompletePrefix source-purpose producer is authored in11 isolated owners, unbuilt, with38 selectors queued. Three other measured producer/layout failures remain. Preserve execution/frame guards and all original assertions. |
+| Registry, Compiler selection and VM queries | Exact descriptors, original registration cache labels, typed role hooks and shared query geometry are integrated or isolated for review. Earlier Registry129 and descriptor/cache83 controls pass. Corrected VM namespace/query capture passes13 selectors, including60 C5 ASCII namespace and48 C5/Jim query rows. | The latest49 intended controls all pass across two honest frozen captures:43 first-capture passes with6 test-import build blocks, followed by6 exact Compiler passes after the test-only public import correction. Provider-specific Which parsing, Jim actual-object candidates, named-role/layout separation and ensemble selected-worker repairs are integrated. Fresh combined Main gates remain pending. Distinct Jim origin sequencer and VM caller/root adapters are integrated with original42 rows/provider retained; its original16-selector plan remains unexecuted. The measured C84 alias-registration owner and VM actual-token adapter are authored separately, with17 updated selectors queued. |
+| #2286 and source reads | Conditional original procedure read-flow carrier is integrated. Original C5 factory assertions pass on unchanged instrumented source in two captures. Isolated production35 controls pass31/fail4; Main production run was incomplete. All C5 Native source records are present. | Finish original conditional-body source selection. The Jim formal control failed at a catalog-alias unwrap; central environment ingress correction is prepared. Main diagnostic4 controls execute1pass/3fail. Original source rows and reached metadata are present; repeated-iteration read selection loses source advice through an opaque lookup snapshot. The shared SourceReadScope/CompletePrefix source-purpose producer is authored in11 isolated owners, unbuilt, with38 selectors. Two fresh builds stop before tests at genuine issuer-type and documentation errors; corrections preserve both original issuer types and remove the unused method. Third frozen build is active; no fresh production test has run. Three other measured producer/layout failures remain. Preserve execution/frame guards and all original assertions. |
 | Callback catalogue and database/server | Shared original conditional member/receiver catalogue is integrated. Frozen Compiler4/Core12 controls pass, including all4 unchanged callback assertions and hosted/export/colon controls. DB8/server8 fresh controls pass. | Finish remaining source-scope and class-navigation consumers; source catalogue acceptance issues no Native execution authority. |
 | LSP | Definition, completion, workspace variable coordinates and rename consume shared LogicalVariableScopeAdvice. Root/current/unknown-caller distinction, exact source image/configuration, child-interpreter refusal and unknown namespace coordinates are integrated. | Combined Core capture01 compiled zero tests because the new measurement insertion duplicated two fixture definitions. Duplicate removal preserves assertions. Frozen capture02 executes22 selectors:15 pass/7 fail. The12 existing callback/vendor/export/colon controls still pass; three new source-scope controls pass, six fail, and the Native class-fallback measurement exposes deleted-head navigation. Fresh Main diagnostic10 controls execute3pass/7fail. Repairs for qualified-reference production, checked original-write fallback and current source-publication advice are integrated in5 owners, with3 new adversarial controls; all fresh repair tests remain unexecuted. Editor/extension inventory traversal is under audit. |
 | Runtime variables and namespaces | Shared ordinary-variable bases, Jim global/cache handling, counted namespace geometry and destination selection are integrated. Ordinary variables16 controls pass; namespace geometry5 selectors include60 C5 rows and the48 C5/Jim query comparisons. | Retained aliases, generations, imports, traces and original publication contexts still require consumer closure. |
@@ -64,8 +64,8 @@ and oracle provenance are retained. Sparse fixtures are checked against Git
 before claiming an input absent.
 
 Tracking documents and coherent development commits/pushes are updated every15
-minutes, even while red. The current checkpoint is19:31 UTC on13 October2026;
-next tracking checkpoint19:46 UTC and next hourly progress report20:06 UTC.
+minutes, even while red. The current checkpoint is19:46 UTC on13 October2026;
+next tracking checkpoint20:01 UTC and next hourly progress report20:06 UTC.
 Root checks the clock between bounded operations. The last checkpoint's brief
 integration delay is explicit; no missed check is represented as executed.
 
@@ -101,9 +101,9 @@ authorised.
 
 ## Active implementation queue
 
-The priority is moving every consumer to the shared owners. Runtime owns the
-current serial build lease while diagnosing the14 real failures. SourceReadScope
-38-selector capture is next, followed by Jim origin/query controls, LSP scope and
+The priority is moving every consumer to the shared owners. Runtime released its
+serial build lease after sealed genuine10/10 replay controls and query31=29pass/2fail. Engine host compilation stops at an unchanged baseline error-completion variant; a raw guest-error transport correction and receiver-root replay guard are prepared but uncompiled. SourceReadScope
+38-selector capture currently owns the lease, followed by Jim origin/alias17, LSP scope and
 publication repair, revised typed procedure-ID typecheck, and combined Main
 CLI/SpecTcl/generator gates. Editing proceeds in separate worktrees; no target is
 shared. Root has an unapplied six-owner reporting draft for typed body-ID snapshots, IR rows, assembly source-range joins, diagram traversal and genuine dead-store producer/annotation joins. Primary Compiler typecheck and adapter controls remain pending. Root reviews and integrates bounded owned patches and keeps failed
@@ -128,3 +128,16 @@ Original command-trace/rename production uses genuine command generations and
 physical slots. Actual Runtime acceptance for these Main changes remains queued.
 A proposal for optional compiled body entry is still unapplied: genuine selected
 definer, source-body identity and current Native permission remain mandatory.
+
+C84 original alias creation retains registration-name-to-actual-token lifetime
+independently of command placement. Reusing that name deletes the prior token
+even after rename; C85+ keeps separate unique alias tokens. Shared purpose/version
+policy and VM/Runtime physical token adapters are being implemented. This is an
+active naming issue, not an excluded baseline exception.
+
+The separate Logical read-recorder repair delegates declaration-table eligibility
+and Core definition to the same scope owner, with real C5 root/current/caller
+observations retained. Two-owner patch and its reference control are authored,
+uncompiled, and remain separate from the integrated13-selector LSP repair set.
+Root's typed-ID drafts cover report rows, exact database memo ingresses and
+dataflow graph envelopes; all are unapplied pending Compiler typecheck.

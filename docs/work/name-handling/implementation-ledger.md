@@ -28,8 +28,8 @@ digests or restore scrubbed sensitive material.
 
 Implementation editing is parallel in isolated checkouts. Heavy builds use one
 explicit lease and distinct targets; jobs1/test-debug0 bounds resource use.
-Runtime currently owns that lease. The prepared queue is SourceReadScope,
-Jim-origin, LSP scope/publication, revised ProcedureId typecheck, then combined
+SourceReadScope currently owns that lease; its first2 builds stop before tests and the third is active. The prepared queue is SourceReadScope,
+Jim-origin/alias17, LSP scope/publication13, revised ProcedureId typecheck, then combined
 Main CLI/SpecTcl/generator controls. Root reviews owned source patches and sealed
 receipts before integration. Failed builds, zero-test attempts and real test
 failures remain distinct from passes.
