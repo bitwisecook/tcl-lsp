@@ -66,7 +66,9 @@ pub mod value;
 pub use tcl_core_types::{NativeIndexCache, ResidentStringMutation};
 
 /// Full operational failure shared by the engines, outside guest completion.
-pub use tcl_runtime_api::{NativeExecutionError, engine_interpreter_identity};
+pub use tcl_runtime_api::{
+    NativeExecutionError, engine_command_replay, engine_interpreter_identity,
+};
 
 use std::rc::Rc;
 use std::time::Duration;

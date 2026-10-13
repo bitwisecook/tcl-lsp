@@ -1,0 +1,47 @@
+{
+  "provider": "8.4.20",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/name-implementation-worktrees/runtime/experiments/name-handling/runtime-command-query-string-observer/which.tcl"
+  ],
+  "input_sha256": "c9ce94bfde117331f7cddb813e26d4c359e61fa7ea4fed9cf1ad8cfe9613b06d",
+  "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "linked_inputs": {
+    "/usr/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+    "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+  },
+  "library_script_inputs": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/safe.tcl": "c975b8db8a368d4eee415eaa2d9cfca0cf98445c314772f82a64ebde07bce906",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/package.tcl": "3373e053b6b698e9aaf66542b97be199b59beb9a7eb73878238c0915a844343f",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/history.tcl": "6c7262b1ed5b376d84776d347e1d3ade7d565fabf1ac956a61649b95318a5d5b",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/parray.tcl": "cff00c9471fa6941bca5a934ea331cc63ecf750c93c320f3cb378cd27c77b89a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/auto.tcl": "a04176d99af9264972f25f115bf3a354a47d6791b0fb65dc956698147454fd13",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/ldAout.tcl": "695157c85d3a27c435abd2998ba06fb24cad7b1e7ecb280fc1c60986749634f0",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/word.tcl": "c4b31e1a407db7566ab0f0b1e36eecc5e5d72dd9eac1916c5d69304e0df4c26e",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/dde/pkgIndex.tcl": "21668d84700b94eb650c902000b9490106267b444c632148dfcf5b60e3621fcd",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/optparse.tcl": "a7665fe9abcc7340f34e6470b94001c67d6c68824f214ed736dd27e8d62a8d32",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/opt/pkgIndex.tcl": "c4a5c0dc93486d7ac086313410983f34717e431128212a4e2c4dec82ae834f77",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/shell.tcl": "6611d96f69fff00d09b625786298b001c7b794147057a1f57163d910cf2b5d0a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/platform.tcl": "d2c0e68e0b9d53faf7d9a34ecc49560b14eaae108eb25681335f51e231755c6e",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/platform/pkgIndex.tcl": "fbb2ece354ab60a262509773cc9c28b77940e26af005963ea1402547d43fae8a",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/tcltest.tcl": "edda8af864f40c3d92c318472213497477616cc18089028c72c03852ecc9f587",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/tcltest/pkgIndex.tcl": "30d8ec3404ae35102274f991e84f7cdda6bb84181d60328ae50c2c6143ccd4de",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/http.tcl": "88220b059956d3f331b29c514f0d4ad77fbd840efb27f0c2621510800a9b9094",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http1.0/pkgIndex.tcl": "420c4b3088c9dacd21bc348011cac61d7cb283b9bee78ae72eed764ab094651c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/http.tcl": "d9ce3119271af29ac600a3cbec9866be750a306c01c3d28897f655e3e9b35c46",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/http/pkgIndex.tcl": "0e8c796d23795489ca9f710ee963f685a67ce6a0052ebcde4eefe40295221779",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/msgcat.tcl": "21ed0584bad0589bad98c5684cea7c113ef0d0339599ee20fa45d835683eb64e",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/msgcat/pkgIndex.tcl": "df9750e9a99622ca48727f45f32db3313d1d6487c3f92de60d730209708622c7",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/reg/pkgIndex.tcl": "24561d73e6fced367e6a09b824afd107ef20de2d476425b15019dfa6130662df"
+  },
+  "exit_code": 0,
+  "stdout_sha256": "3c92979f0f6ceed965e6eb91a3897e8a35cc3bda2189a756715ce4012e1c09ae",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 33,
+  "measurement_utc": "2026-10-13T19:27:34.828425+00:00",
+  "scope": "Original executable; same query operands; observer uses string matching without numeric catch-result admission. Separate input from retained originals.",
+  "unchanged_original_report_rows": true
+}

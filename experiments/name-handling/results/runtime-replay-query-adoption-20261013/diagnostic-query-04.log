@@ -1,0 +1,17 @@
+
+running 1 test
+test namespace_command_queries_match_original_portable_source_reports ... 
+thread 'namespace_command_queries_match_original_portable_source_reports' (124991) panicked at tests/native_namespace_command_query.rs:63:9:
+assertion `left == right` failed: tcl8.4: result=[]; refusal=Some(ValueAccessRefusal(ScalarNumericInputUnavailable)); stdout=[73, 68, 69, 78, 84, 73, 84, 89, 32, 56, 46, 52, 46, 50, 48, 10]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_command_queries_match_original_portable_source_reports
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.63s
+

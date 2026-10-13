@@ -1,0 +1,56 @@
+{
+  "probe_sha256": "508122a1c15992077af342950ed6b990f8c0eec39715e69816b906b95e03dabb",
+  "results": [
+    {
+      "version": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "stdout": "version 8.4.20\nhas-apply 0\n",
+      "stderr": "",
+      "init_tcl_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "version": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "stdout": "version 8.5.19\nhas-apply 1\nqualified-root ROOT_TARGET\nqualified-current LOCAL_TARGET\nqualified-caller CALLER_TARGET\nbare-root-in-procedure 1 can't read \"lambda\": no such variable\nouter-local-in-inner 1 can't read \"lambda\": no such variable\n",
+      "stderr": "",
+      "init_tcl_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "version": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "stdout": "version 8.6.18\nhas-apply 1\nqualified-root ROOT_TARGET\nqualified-current LOCAL_TARGET\nqualified-caller CALLER_TARGET\nbare-root-in-procedure 1 can't read \"lambda\": no such variable\nouter-local-in-inner 1 can't read \"lambda\": no such variable\n",
+      "stderr": "",
+      "init_tcl_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "version": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "stdout": "version 9.0.4\nhas-apply 1\nqualified-root ROOT_TARGET\nqualified-current LOCAL_TARGET\nqualified-caller CALLER_TARGET\nbare-root-in-procedure 1 can't read \"lambda\": no such variable\nouter-local-in-inner 1 can't read \"lambda\": no such variable\n",
+      "stderr": "",
+      "init_tcl_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "version": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "stdout": "version 9.1.0\nhas-apply 1\nqualified-root ROOT_TARGET\nqualified-current LOCAL_TARGET\nqualified-caller CALLER_TARGET\nbare-root-in-procedure 1 can't read \"lambda\": no such variable\nouter-local-in-inner 1 can't read \"lambda\": no such variable\n",
+      "stderr": "",
+      "init_tcl_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  ],
+  "scope": "Direct real C Tcl oracle for conditional variable value-frame consumer review. No Tcltest, Rust consumer, Jim or F5 acceptance."
+}

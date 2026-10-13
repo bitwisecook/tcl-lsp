@@ -1882,34 +1882,7 @@ pub(crate) fn lookup_var_in_logical_scope<'a>(
     advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'a>,
     name: &str,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
-    if tcl_syntax::naming::is_qualified(name.as_bytes()) {
-        if let Some(qualified) = advice.namespace_variable_coordinate(name) {
-            let (holder, tail) = tcl_compiler::naming::key_holder_and_tail(&qualified);
-            if let Some(definition) =
-                tcl_compiler::analyser::lookup_var_in_namespace(advice.root(), holder, tail)
-            {
-                return Some(definition);
-            }
-        }
-    }
-    let current = || {
-        advice
-            .eligible_scopes()
-            .rev()
-            .find_map(|scope| scope.variables.get(name))
-    };
-    if !tcl_syntax::naming::is_qualified(name.as_bytes()) && advice.is_namespace_frame() {
-        return tcl_syntax::naming::variable_namespace_lookup_bases(
-            false,
-            advice,
-            advice.namespace_global_fallback(),
-        )
-        .find_map(|base| match base {
-            tcl_syntax::naming::VariableLookupBase::Context(_) => current(),
-            tcl_syntax::naming::VariableLookupBase::Root => advice.root().variables.get(name),
-        });
-    }
-    current()
+    advice.variable_definition(name)
 }
 
 /// Every reference span (other than `var_def`'s own declaration) for the
@@ -8855,6 +8828,40 @@ mod logical_variable_scope_owner_tests {
                     "{release}: {source}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables() {
+        let analysis = Analyser::new().analyse(SCOPED, "tcl");
+        for (needle, expected) in [
+            ("uplevel #0 {puts $x", Some(0)),
+            ("uplevel 0 {puts $x", Some(4)),
+            ("uplevel 1 {puts $x", None),
+        ] {
+            let (_, line, character) = cursor(SCOPED, needle);
+            let spans = crate::references::references(
+                SCOPED,
+                analysis.resolved_profile().unwrap(),
+                line,
+                character,
+                &analysis,
+                true,
+            );
+            let lines = spans.iter().map(|span| span.start_line).collect::<Vec<_>>();
+            if let Some(declaration) = expected {
+                assert!(lines.contains(&declaration), "{needle}: {lines:?}");
+                assert!(
+                    lines.contains(&line),
+                    "original selected read {needle}: {lines:?}"
+                );
+            } else {
+                assert!(lines.is_empty(), "unknown caller {needle}: {lines:?}");
+            }
+            assert!(
+                !lines.contains(&2),
+                "namespace cannot replace frame {needle}: {lines:?}"
+            );
         }
     }
 

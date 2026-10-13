@@ -1,0 +1,6 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-registry)
+error: could not compile `tcl-registry` (lib) due to 10 previous errors

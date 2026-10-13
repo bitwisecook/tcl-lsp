@@ -2114,6 +2114,12 @@ pub fn namespace_variable_rename_edits(
     if !is_safe_symbol_name(new_name) {
         return Vec::new();
     }
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
+        return Vec::new();
+    }
     let target = cell;
     // Collision gate, the in-document half of the workspace one the server
     // applies: renaming onto a cell this document already declares would
@@ -5235,6 +5241,23 @@ mod tests {
         assert!(
             !applied.contains("$v\n"),
             "no stale read may survive: {applied}"
+        );
+    }
+
+    #[test]
+    fn namespace_variable_rename_requires_the_retained_consumer_image() {
+        let source = "namespace eval N {variable x 1}\nputs $::N::x\n";
+        let analysis = analyse(source);
+        let edits = namespace_variable_rename_edits(source, &analysis, "::N::x", "total");
+        assert_eq!(
+            apply_edits(source, &edits),
+            "namespace eval N {variable total 1}\nputs $::N::total\n"
+        );
+        let changed_source = source.replace(" x 1", " y 1").replace("::N::x", "::N::y");
+        assert!(
+            namespace_variable_rename_edits(&changed_source, &analysis, "::N::x", "total")
+                .is_empty(),
+            "retained x spans cannot rename the changed document's y"
         );
     }
 

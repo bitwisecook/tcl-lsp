@@ -1,0 +1,53 @@
+{
+  "query_receipt": {
+    "path": "/tmp/engine-wasm-replay-purpose-20261013/final-query-capture/result.json",
+    "sha256": "27e11de1f39b4e09ebfcb2ec5f4cf5915cae522d3451ce019bb470ecec5961e7",
+    "tests": 31,
+    "passed": 29,
+    "failed": [
+      "namespace_origin_original_c84",
+      "namespace_origin_string_observer_c84"
+    ],
+    "compiled_inputs": 5037,
+    "missing": [],
+    "unresolved": [],
+    "input_drift": {},
+    "artifact_drift": {}
+  },
+  "runtime_receipt": {
+    "path": "/tmp/engine-wasm-replay-purpose-20261013/observer-harness-capture/result.json",
+    "sha256": "7168431bb2704378d13d29ff275561aeeff85f49cd75735f140ec1a1bb0f2ce3",
+    "scoped_tests": 10,
+    "passed": 10,
+    "inputs": 5037,
+    "input_drift": {},
+    "artifact_drift": {},
+    "extra18_harness_failures_retained": true
+  },
+  "full_source_paths": 13714,
+  "source_before": {
+    "path": "/tmp/engine-wasm-replay-purpose-20261013/source-before-06.json.gz",
+    "sha256": "a014e4a3a8435f1ba47429b6c2eb0c514992344ebbef6e514a781c112556f0e9"
+  },
+  "source_after_current": {
+    "path": "/tmp/engine-wasm-replay-purpose-20261013/source-after-current.json.gz",
+    "sha256": "bb7bbde7b385a020e1f6cb67572f9e02c336c6ad31582e8cb775321212a5f23d"
+  },
+  "post_test_source_changes": {
+    "/workspace/name-implementation-worktrees/runtime/rust/tcl-engine-wasm/src/host_call.rs": {
+      "before": "6080492093f256434594339e58d1a4cd0c5ce85a5e281618bc01bf382dbac274",
+      "after": "93aa4994c514d71de0578f720db5e46fe32f67e2d2283221fc71bd46e611f13e"
+    }
+  },
+  "new_paths": {},
+  "engine_attempt": {
+    "exit_code": 101,
+    "diagnostics": "unchanged baseline host_call.rs247 nonexistent CompletionCode::Error",
+    "log": "/tmp/engine-wasm-replay-purpose-20261013/build-engine-01.jsonl",
+    "sha256": "6e0cd1808df3f8bedbf741c884c6e8f0e1adda8ea7e9708a7b7d670e6523f5da",
+    "fresh_repair": "raw existing completion transport with integerTCL_ERROR1; no enum fabrication; UNCOMPILED",
+    "host_guest_tests": "unexecuted",
+    "lease": "released to SourceReadFlow"
+  },
+  "query_scope": "150 original Which queryrows pass all six;37 originrows C85-C91/Jim pass;5helper-rootrows all6 pass. C84 original+observer same1alias lifecycle mismatch. No physical originalheader equivalence claim."
+}

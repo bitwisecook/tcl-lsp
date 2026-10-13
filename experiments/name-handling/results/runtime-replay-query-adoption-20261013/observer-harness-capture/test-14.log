@@ -1,0 +1,17 @@
+
+running 1 test
+test namespace_which_string_observer_c90 ... 
+thread 'namespace_which_string_observer_c90' (127000) panicked at tests/native_namespace_command_query.rs:96:5:
+assertion `left == right` failed: tcl9.0: result=[]; refusal=Some(ValueAccessRefusal(ScalarNumericInputUnavailable)); stdout=[73, 68, 69, 78, 84, 73, 84, 89, 32, 57, 46, 48, 46, 52, 10]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_which_string_observer_c90
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 1.38s
+

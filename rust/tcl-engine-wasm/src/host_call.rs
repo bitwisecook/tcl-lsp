@@ -34,10 +34,10 @@ use tcl_engine_api::{
 };
 use wasmtime::{Caller, Func, Store};
 
-/// Authored setup retaining actual publication addresses for fresh replay.
+/// Fresh setup retains original operands and actual namespace context separately.
 pub(crate) enum Defined {
-    Command(Vec<u8>, Rc<dyn HostCommand>),
-    Removed(Vec<u8>),
+    Command(command_receipts::CommandReplay, Rc<dyn HostCommand>),
+    Removed(command_receipts::CommandReplay),
     Package(String, String),
 }
 
@@ -172,14 +172,32 @@ fn answer(
     interp: i32,
     outcome: &HostOutcome,
 ) -> wasmtime::Result<i32> {
-    let value = match imported(caller, exports, interp, &outcome.value) {
+    answer_parts(
+        caller,
+        exports,
+        interp,
+        &outcome.value,
+        &outcome.options,
+        outcome.code.as_int(),
+    )
+}
+
+fn answer_parts(
+    caller: &mut Caller<'_, HostState>,
+    exports: &Exports,
+    interp: i32,
+    result: &Value,
+    options: &Value,
+    completion_code: i32,
+) -> wasmtime::Result<i32> {
+    let value = match imported(caller, exports, interp, result) {
         Ok(value) => value,
         Err(error) => return fail(caller, exports, interp, error),
     };
-    let options = if matches!(outcome.options, Value::Empty) {
+    let options = if matches!(options, Value::Empty) {
         0
     } else {
-        match imported(caller, exports, interp, &outcome.options) {
+        match imported(caller, exports, interp, options) {
             Ok(options) => options,
             Err(error) => {
                 exports.release.call(&mut *caller, value)?;
@@ -187,10 +205,9 @@ fn answer(
             }
         }
     };
-    let code = exports.complete.call(
-        &mut *caller,
-        (interp, value, options, outcome.code.as_int()),
-    )?;
+    let code = exports
+        .complete
+        .call(&mut *caller, (interp, value, options, completion_code))?;
     exports.release.call(&mut *caller, value)?;
     if options != 0 {
         exports.release.call(&mut *caller, options)?;
@@ -238,15 +255,13 @@ fn fail(
         EngineError::Unsupported(reason) => return refuse(caller, exports, interp, reason),
     };
     if let Some(options) = options {
-        return answer(
+        return answer_parts(
             caller,
             exports,
             interp,
-            &HostOutcome {
-                value: Value::string_bytes(message),
-                code: tcl_engine_api::CompletionCode::Error,
-                options: Value::string_bytes(options),
-            },
+            &Value::string_bytes(message),
+            &Value::string_bytes(options),
+            1,
         );
     }
     let message = command_receipts::object(caller, exports, &message)
@@ -293,6 +308,14 @@ impl CommandRegistrar for WasmRegistrar<'_, '_> {
             ))?;
         let client = i32::try_from(self.caller.data().commands.len())
             .map_err(|_| EngineError::Unsupported("so many host commands"))?;
+        let replay = command_receipts::replay_input(
+            self.caller,
+            self.exports,
+            self.interp,
+            tcl_engine_api::engine_command_replay::EngineCommandReplayPurpose::Create,
+            name,
+        )
+        .map_err(crate::session::Failure::into_engine_error)?;
         let receipt = command_receipts::create(
             self.caller,
             self.exports,
@@ -307,7 +330,7 @@ impl CommandRegistrar for WasmRegistrar<'_, '_> {
         self.caller
             .data_mut()
             .defined
-            .push(Defined::Command(receipt.qualified, command));
+            .push(Defined::Command(replay, command));
         Ok(())
     }
 
@@ -316,6 +339,14 @@ impl CommandRegistrar for WasmRegistrar<'_, '_> {
     }
 
     fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        let replay = command_receipts::replay_input(
+            self.caller,
+            self.exports,
+            self.interp,
+            tcl_engine_api::engine_command_replay::EngineCommandReplayPurpose::Remove,
+            name,
+        )
+        .map_err(crate::session::Failure::into_engine_error)?;
         let receipt = command_receipts::remove(self.caller, self.exports, self.interp, name)
             .map_err(crate::session::Failure::into_engine_error)?;
         if let Some(receipt) = receipt {
@@ -326,7 +357,7 @@ impl CommandRegistrar for WasmRegistrar<'_, '_> {
             self.caller
                 .data_mut()
                 .defined
-                .push(Defined::Removed(receipt.qualified));
+                .push(Defined::Removed(replay));
             Ok(true)
         } else {
             Ok(false)

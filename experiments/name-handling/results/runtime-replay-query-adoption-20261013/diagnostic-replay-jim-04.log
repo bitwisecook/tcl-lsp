@@ -1,0 +1,17 @@
+
+running 1 test
+test engine_abi::command_replay::tests::jim_replay_retains_counted_namespace_holder_without_c_component_reparsing ... 
+thread 'engine_abi::command_replay::tests::jim_replay_retains_counted_namespace_holder_without_c_component_reparsing' (124993) panicked at src/engine_abi/command_replay.rs:369:13:
+assertion `left == right` failed: result=[]; refusal=Some(HostCommandRefusal(NativeHostCommandRefusal { reason: "public command constructor purpose has no selected native recipe", source_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, evaluation_evidence: Unmeasured, libraries: [], help_terms: [] }, native_profile: DialectProfileKey { core_point: Some(DialectPoint { release: Release { family: Jim, ordinal: 8 }, build: Canonical }), name: "jim", aliases: ["jimsh", "jimtcl"], display_name: "Jim Tcl", short_name: "Jim Tcl", editor_language_id: None, filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [], grammar_union: [Core(Jim)], version_ceiling: None, signature_base: None, runtime_base: None, leading_zero_is_octal: Inert, expr_grammar_base: None, grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: FirstClose, array_index: Tcl8, script_skips_leading_bom: false, expr_comments: Hash, word_separators: Jim, brace_backslash_newline: Literal, quote_termination: Concatenating, var_syntax: Jim, list_parse: Lenient, numbers: Jim080, escapes: Jim }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, evaluation_evidence: Unmeasured, libraries: [], help_terms: [] }, interpreter: NativeInterpreterIdentity { owner: 2, interpreter: 0 }, frame: 0, namespace: "::", namespace_token: 0 }))
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    engine_abi::command_replay::tests::jim_replay_retains_counted_namespace_holder_without_c_component_reparsing
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2121 filtered out; finished in 2.00s
+

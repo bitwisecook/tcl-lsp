@@ -1,0 +1,35 @@
+{
+  "policy": "Executables retained outsideGit; original manifests/logs preserve their hashes.",
+  "files": [
+    {
+      "path": "final-query-capture/native_namespace_command_query-fd47746255346199",
+      "bytes": 59424856,
+      "sha256": "ea86fa58da05a50c1206049bb3999d5c65266a6ec0dc3eac930f72f3061c8ec8"
+    },
+    {
+      "path": "final-query-capture/tcl_runtime-26c05934d3bea235",
+      "bytes": 88121880,
+      "sha256": "599c149b023cf3883338e76c2913df0197fa8437b85c5c204c9c4b41998514e0"
+    },
+    {
+      "path": "observer-harness-capture/native_namespace_command_query-fd47746255346199",
+      "bytes": 59345640,
+      "sha256": "4f49237cd311392f44d0d136bb5f06ecfe10238aa63aa6bb18bfd4cab9ff4295"
+    },
+    {
+      "path": "observer-harness-capture/tcl_runtime-26c05934d3bea235",
+      "bytes": 88121880,
+      "sha256": "599c149b023cf3883338e76c2913df0197fa8437b85c5c204c9c4b41998514e0"
+    },
+    {
+      "path": "initial-runtime-capture/native_namespace_command_query-fd47746255346199",
+      "bytes": 59319192,
+      "sha256": "4d20e174b279a24b1563ef2079f5cb02143babbe01a383039ff4dde5d2575c0f"
+    },
+    {
+      "path": "initial-runtime-capture/tcl_runtime-26c05934d3bea235",
+      "bytes": 88117608,
+      "sha256": "fab7e52d3c86ec5dfc058c71103900aa7fc7e4b64bb5c05ff4095979f11a215a"
+    }
+  ]
+}

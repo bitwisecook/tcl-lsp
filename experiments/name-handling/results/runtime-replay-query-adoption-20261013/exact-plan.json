@@ -1,0 +1,126 @@
+[
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_command_queries_match_original_portable_source_reports"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_jim"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_jim"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_which_string_observer_jim"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_string_observer_jim"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_string_observer_jim"
+  }
+]

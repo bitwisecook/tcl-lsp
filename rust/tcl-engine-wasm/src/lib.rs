@@ -198,8 +198,8 @@ impl Extension {
 /// unusable can be rebuilt as it was.
 enum Setup {
     Extension(Extension),
-    Command(Vec<u8>, Rc<dyn HostCommand>),
-    Removed(Vec<u8>),
+    Command(command_receipts::CommandReplay, Rc<dyn HostCommand>),
+    Removed(command_receipts::CommandReplay),
     Package(String, String),
     Restrict(Vec<String>),
     Confine,
@@ -285,16 +285,10 @@ impl WasmEngine {
 
     /// Apply `setup` to the instance and keep it, so a rebuilt instance has it
     /// too.
-    fn apply(&mut self, mut setup: Setup) -> Result<(), EngineError> {
+    fn apply(&mut self, setup: Setup) -> Result<(), EngineError> {
         let session = self.session()?;
         session.begin_entry().map_err(Failure::into_engine_error)?;
-        let applied = if let Setup::Command(name, command) = &mut setup {
-            session
-                .define_command(name, Rc::clone(command))
-                .map(|receipt| *name = receipt.qualified)
-        } else {
-            replay(session, &setup)
-        };
+        let applied = replay(session, &setup);
         match applied {
             Ok(()) => {
                 self.setup.push(setup);
@@ -338,8 +332,10 @@ impl WasmEngine {
 fn replay(session: &mut Session, setup: &Setup) -> Result<(), Failure> {
     match setup {
         Setup::Extension(extension) => session.load(extension),
-        Setup::Command(name, command) => session.define_command(name, Rc::clone(command)).map(drop),
-        Setup::Removed(name) => session.delete_command(name).map(drop),
+        Setup::Command(input, command) => {
+            session.replay_command(input, Rc::clone(command)).map(drop)
+        }
+        Setup::Removed(input) => session.replay_remove(input).map(drop),
         Setup::Package(name, version) => session.provide_package(name, version),
         Setup::Restrict(allowed) => session.restrict(allowed),
         Setup::Confine => session.confine(),
@@ -380,7 +376,10 @@ impl Engine for WasmEngine {
         name: &[u8],
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
-        self.apply(Setup::Command(name.to_vec(), command))
+        self.apply(Setup::Command(
+            command_receipts::CommandReplay::root(name),
+            command,
+        ))
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
@@ -394,8 +393,9 @@ impl Engine for WasmEngine {
             Ok(receipt) => receipt,
             Err(failure) => return Err(self.failed(failure)),
         };
-        if let Some(receipt) = receipt {
-            self.setup.push(Setup::Removed(receipt.qualified));
+        if receipt.is_some() {
+            self.setup
+                .push(Setup::Removed(command_receipts::CommandReplay::root(name)));
             Ok(true)
         } else {
             Ok(false)

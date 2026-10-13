@@ -1,0 +1,7 @@
+version 8.6.18
+has-apply 1
+qualified-root ROOT_TARGET
+qualified-current LOCAL_TARGET
+qualified-caller CALLER_TARGET
+bare-root-in-procedure 1 can't read "lambda": no such variable
+outer-local-in-inner 1 can't read "lambda": no such variable

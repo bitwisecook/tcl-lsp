@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/libtcl_runtime.a",
+    "bytes": 199587544,
+    "sha256": "8dfad3b5883509f068dbb682efc8a2176e9f11319e424885407c9ae6f0f3356c",
+    "reason": "obsolete non-test Runtime link output; current bounded tests use separately retained executable"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/libtcl_runtime.so",
+    "bytes": 59553360,
+    "sha256": "8bab0b8dabe84a2f91a76aad0bd8e9c653c0ac2adb10320a23bbb16c0f7dffc3",
+    "reason": "obsolete non-test Runtime link output; current bounded tests use separately retained executable"
+  }
+]

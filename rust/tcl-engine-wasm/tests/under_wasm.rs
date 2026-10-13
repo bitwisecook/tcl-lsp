@@ -890,6 +890,89 @@ fn an_extension_reads_nothing_of_the_machine() {
 }
 
 #[test]
+fn root_replay_retains_original_publication_and_removal_bytes_after_a_trap() {
+    let Some(built) = built() else {
+        eprintln!(
+            "SKIPPING root_replay_retains_original_publication_and_removal_bytes_after_a_trap"
+        );
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    for name in [
+        b":literal\0unused".as_slice(),
+        b"R::::interior",
+        b"::R::::absolute",
+    ] {
+        engine.define_command_bytes(name, Rc::new(Echo)).unwrap();
+    }
+    engine
+        .define_command_bytes(b":gone\0unused", Rc::new(Echo))
+        .unwrap();
+    assert!(engine.remove_command_bytes(b":gone\0unused").unwrap());
+    let body = "list [:literal L] [R::interior I] [::R::absolute A] [info commands :gone] [info commands literal]";
+    assert_eq!(run(&mut engine, body), Ok("L I A {} {}".to_owned()));
+    engine
+        .set_budget(Budget::of_commands(1_000_000).with_wall_clock(Duration::from_millis(50)))
+        .unwrap();
+    assert_eq!(
+        run(&mut engine, "while 1 {}"),
+        Err(EngineError::BudgetExceeded(BudgetKind::WallClock))
+    );
+    engine.set_budget(Budget::default()).unwrap();
+    assert_eq!(run(&mut engine, body), Ok("L I A {} {}".to_owned()));
+}
+
+struct ContextMaker;
+impl HostCommand for ContextMaker {
+    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+        Err(EngineError::Unsupported(
+            "context maker requires the registrar",
+        ))
+    }
+    fn invoke_with_registrar(
+        &self,
+        registrar: &mut dyn tcl_engine_api::CommandRegistrar,
+        _: &[Value],
+    ) -> Result<HostOutcome, EngineError> {
+        registrar.define_command_bytes(b"child::kept\0unused", Rc::new(Echo))?;
+        registrar.define_command_bytes(b"child::gone\0unused", Rc::new(Echo))?;
+        assert!(registrar.remove_command_bytes(b"child::gone\0unused")?);
+        registrar.define_command_bytes(b":root_host\0unused", Rc::new(Echo))?;
+        Ok(Value::Empty.into())
+    }
+}
+
+#[test]
+fn callback_replay_keeps_actual_namespace_components_and_original_operation_bytes() {
+    let Some(built) = built() else {
+        eprintln!(
+            "SKIPPING callback_replay_keeps_actual_namespace_components_and_original_operation_bytes"
+        );
+        return;
+    };
+    let mut engine = WasmEngine::new(&built.runtime).unwrap();
+    engine
+        .define_command("context_maker", Rc::new(ContextMaker))
+        .unwrap();
+    run(
+        &mut engine,
+        "namespace eval :outer {namespace eval :inner {::context_maker}}",
+    )
+    .unwrap();
+    let body = "list [namespace eval :outer {namespace eval :inner {namespace eval child {kept K}}}] [:root_host ROOT] [namespace eval :outer {namespace eval :inner {namespace eval child {info commands gone}}}] [info commands root_host]";
+    assert_eq!(run(&mut engine, body), Ok("K ROOT {} {}".to_owned()));
+    engine
+        .set_budget(Budget::of_commands(1_000_000).with_wall_clock(Duration::from_millis(50)))
+        .unwrap();
+    assert_eq!(
+        run(&mut engine, "while 1 {}"),
+        Err(EngineError::BudgetExceeded(BudgetKind::WallClock))
+    );
+    engine.set_budget(Budget::default()).unwrap();
+    assert_eq!(run(&mut engine, body), Ok("K ROOT {} {}".to_owned()));
+}
+
+#[test]
 fn installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements() {
     // Software integration: naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

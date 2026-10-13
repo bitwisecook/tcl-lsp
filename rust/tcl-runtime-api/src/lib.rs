@@ -710,6 +710,7 @@ pub mod codegen_abi;
 /// Runtime-issued guards for speculative compiler fast paths.
 pub mod guard;
 
+pub mod engine_command_replay;
 /// Closed live interpreter snapshots for runtime compilation.
 pub mod engine_interpreter_identity;
 pub mod native_command_name;

@@ -247,6 +247,45 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
         self.namespace.as_deref()
     }
 
+    /// A declaration table selected by this source frame's naming policy.
+    /// The result establishes no entered storage cell or editable identity.
+    #[must_use]
+    pub fn variable_definition(&self, name: &str) -> Option<&'a VarDef> {
+        if crate::naming::is_qualified(name.as_bytes())
+            && let Some(qualified) = self.namespace_variable_coordinate(name)
+        {
+            let (holder, tail) = crate::naming::key_holder_and_tail(&qualified);
+            if let Some(definition) = lookup_var_in_namespace(self.root(), holder, tail) {
+                return Some(definition);
+            }
+        }
+        self.variable_declaration_scope(name)?.variables.get(name)
+    }
+
+    fn variable_declaration_scope(&self, name: &str) -> Option<&'a Scope> {
+        let current = || {
+            self.eligible_scopes()
+                .rev()
+                .find(|scope| scope.variables.contains_key(name))
+        };
+        if !crate::naming::is_qualified(name.as_bytes()) && self.is_namespace_frame() {
+            return crate::naming::variable_namespace_lookup_bases(
+                false,
+                self,
+                self.namespace_global_fallback(),
+            )
+            .find_map(|base| match base {
+                crate::naming::VariableLookupBase::Context(_) => current(),
+                crate::naming::VariableLookupBase::Root => self
+                    .root()
+                    .variables
+                    .contains_key(name)
+                    .then(|| self.root()),
+            });
+        }
+        current()
+    }
+
     /// Namespace variable coordinate from this checked Logical source frame.
     /// Local names and relative names in unknown callers supply no coordinate.
     #[must_use]
@@ -1997,6 +2036,30 @@ impl Analyser {
             .1
             .filter(|e| !e.is_empty())
             .map(ToString::to_string);
+
+        if self.result.allows_lexical_declaration_advice() {
+            let image = tcl_lexer::SourceImage::document(&self.source);
+            let selected_path = self
+                .result
+                .logical_variable_scope_advice(&image, self.file_lexer_config(), read_span.start())
+                .and_then(|advice| {
+                    let selected = advice.variable_declaration_scope(base_name)?;
+                    ancestor_paths(scope_path).find(|path| {
+                        scope_at(&self.result.global_scope, path)
+                            .is_some_and(|scope| std::ptr::eq(scope, selected))
+                    })
+                });
+            if let Some(path) = selected_path
+                && let Some(var) = scope_at_mut(&mut self.result.global_scope, &path)
+                    .and_then(|scope| scope.variables.get_mut(base_name))
+            {
+                var.push_reference(read_span);
+                if let Some(element) = element {
+                    var.array_indices.insert(element);
+                }
+            }
+            return;
+        }
 
         // Local scope first.
         let path = scope_path.to_vec();

@@ -1,0 +1,32 @@
+--- a/rust/tcl-engine-wasm/src/lib.rs
++++ b/rust/tcl-engine-wasm/src/lib.rs
+@@ -285,16 +285,10 @@
+ 
+     /// Apply `setup` to the instance and keep it, so a rebuilt instance has it
+     /// too.
+-    fn apply(&mut self, mut setup: Setup) -> Result<(), EngineError> {
++    fn apply(&mut self, setup: Setup) -> Result<(), EngineError> {
+         let session = self.session()?;
+         session.begin_entry().map_err(Failure::into_engine_error)?;
+-        let applied = if let Setup::Command(name, command) = &mut setup {
+-            session
+-                .define_command(name, Rc::clone(command))
+-                .map(|receipt| *name = receipt.qualified)
+-        } else {
+-            replay(session, &setup)
+-        };
++        let applied = replay(session, &setup);
+         match applied {
+             Ok(()) => {
+                 self.setup.push(setup);
+@@ -394,8 +388,8 @@
+             Ok(receipt) => receipt,
+             Err(failure) => return Err(self.failed(failure)),
+         };
+-        if let Some(receipt) = receipt {
+-            self.setup.push(Setup::Removed(receipt.qualified));
++        if receipt.is_some() {
++            self.setup.push(Setup::Removed(name.to_vec()));
+             Ok(true)
+         } else {
+             Ok(false)

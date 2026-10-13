@@ -50,6 +50,11 @@ impl ChildInterpreterCommand {
 }
 
 impl Interp {
+    /// The actual child factory tag survives the temporary parent-call scope.
+    pub(crate) fn engine_replay_root_interpreter(&self) -> bool {
+        !self.native_child_interpreter.get()
+    }
+
     /// A retained activation keeps storage alive, without permitting further eval.
     pub(super) fn evaluation_is_live(&mut self) -> bool {
         if self.check_entered_native_operation().is_err() {

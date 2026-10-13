@@ -1,0 +1,68 @@
+{
+  "owned": {
+    "runtime/rust/src/engine_abi.rs": {
+      "preimage_sha256": "535616e5158f68fd783e03451edf44a3658566d5cee5092c4e9dd9cf5bc0a299",
+      "proposed_sha256": "614f76c781122df5d1e98745476d96805ab7a98d7fa79f2d1c9b17cc73dd3c11",
+      "new_file": false
+    },
+    "runtime/rust/src/engine_abi/command_receipts.rs": {
+      "preimage_sha256": "55e1084ca41ab33738d09d5d5bbcaf4f9bb1970fa091b95d478e897d8e2935ac",
+      "proposed_sha256": "31c8d6ee6c4665e304e538735e29f5cd232b8f873958ba92d6ec25f71035533c",
+      "new_file": false
+    },
+    "runtime/rust/src/engine_abi/command_replay.rs": {
+      "preimage_sha256": null,
+      "proposed_sha256": "6af06c45d9533dcf4abf74e6419538b672bf2ce7f18205f6a6fc279dd4168efd",
+      "new_file": true
+    },
+    "rust/tcl-runtime-api/src/lib.rs": {
+      "preimage_sha256": "d00d8a46607175d40d04e2d4a781d591f87a637ad8976e23aa7c05c1cd782c5d",
+      "proposed_sha256": "0bab1528512b64e6c871402ce751dc331c86f9887dbf81c0b3552cdbb0723d73",
+      "new_file": false
+    },
+    "rust/tcl-runtime-api/src/engine_command_replay.rs": {
+      "preimage_sha256": null,
+      "proposed_sha256": "3b6850761979c2ab1872bf33b2054fcc1e04a19b58476e1ee9fd6a13b7d71fa1",
+      "new_file": true
+    },
+    "rust/tcl-engine-api/src/lib.rs": {
+      "preimage_sha256": "fd346d854b77f3ef2306099beccf68055c0d2089c672e913b19fa3ae5a98776d",
+      "proposed_sha256": "28ab3c2d4c5a6708dff570f2390998c166dbc7cd9948b4df6766302a3d9a11ba",
+      "new_file": false
+    },
+    "rust/tcl-engine-wasm/src/lib.rs": {
+      "preimage_sha256": "3ee013acfc4b77bdfd2892c26f1858de00359a158a1845f878cb321e7cded859",
+      "proposed_sha256": "274589c73956beaca9d3c131beebb933a3008e828db6febf597c88b282046ddd",
+      "new_file": false
+    },
+    "rust/tcl-engine-wasm/src/command_receipts.rs": {
+      "preimage_sha256": "0486b631f886c6ddf73eeb8ff8708b1c55260d781908ab2572598261b7f654df",
+      "proposed_sha256": "7c575bb0341778f40e3e48dc84a30a98e6fc059e111ec57ef71480c7ad5acc8b",
+      "new_file": false
+    },
+    "rust/tcl-engine-wasm/src/session.rs": {
+      "preimage_sha256": "4828f2342f5c7f07638881af21146382f5674d9e005337fb9813c6f1fb4a76f6",
+      "proposed_sha256": "78c78f07679ebe712aa1559d83079b8956a22e7f32048fe8ada71606491005d1",
+      "new_file": false
+    },
+    "rust/tcl-engine-wasm/src/host_call.rs": {
+      "preimage_sha256": "9e07ebe687339ab3d781bc8d2383df901a8c61ef6e1f250f5456670c677b0b4e",
+      "proposed_sha256": "6080492093f256434594339e58d1a4cd0c5ce85a5e281618bc01bf382dbac274",
+      "new_file": false
+    },
+    "rust/tcl-engine-wasm/tests/under_wasm.rs": {
+      "preimage_sha256": "29162392e0cc62b521e2d903f9bb917004322eed24f4eed6f0536c373998a799",
+      "proposed_sha256": "859e4197f71f199904cc283f5654945f650994e72d805116a2cf74cf6118b82b",
+      "new_file": false
+    },
+    "runtime/rust/src/interp/native_children.rs": {
+      "preimage_sha256": "51df830e1207ade3d7b6e3347051e4d6b651e50178bc895781ba6c6b204940ad",
+      "proposed_sha256": "3fb712341de14b5faf4b8159099be5e6a738faaa52202648ad698f49c43d7386",
+      "new_file": false
+    }
+  },
+  "patch_sha256": "e1991e058f25968e936030ad531ff534163c7c8893ecbaf3b43d00d3bf1f372e",
+  "scope": "12 Engine replay adapter files; existing receipt wire/current identity guards unchanged; original bytes+actual namespace geometry+genuine child tag fresh recipe; child and retired-holder fresh replay refuse; Jim counted creation stays unsupported.",
+  "validation": "current Runtime bounded capture running; EngineWasm host/guest not compiled yet",
+  "prior_proposal_superseded": "/tmp/engine-wasm-replay-purpose-20261013/implementation.patch"
+}

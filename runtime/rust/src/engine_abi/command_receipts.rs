@@ -74,7 +74,7 @@ impl From<EngineCommandReceipt> for EngineCommandIdentity {
     }
 }
 
-fn original_bytes<'a>(
+pub(super) fn original_bytes<'a>(
     interp: &mut Interp,
     bytes: *const u8,
     length: c_int,

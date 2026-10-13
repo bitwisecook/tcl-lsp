@@ -576,6 +576,8 @@ mod procedure_publication_tests {
 
 mod command_receipts;
 pub use command_receipts::*;
+mod command_replay;
+pub use command_replay::*;
 
 pub(crate) mod value_carriers;
 pub use value_carriers::*;

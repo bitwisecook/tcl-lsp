@@ -1,0 +1,1524 @@
+--- a/runtime/rust/src/engine_abi.rs
++++ b/runtime/rust/src/engine_abi.rs
+@@ -576,6 +576,8 @@
+ 
+ mod command_receipts;
+ pub use command_receipts::*;
++mod command_replay;
++pub use command_replay::*;
+ 
+ pub(crate) mod value_carriers;
+ pub use value_carriers::*;
+--- a/runtime/rust/src/engine_abi/command_receipts.rs
++++ b/runtime/rust/src/engine_abi/command_receipts.rs
+@@ -74,7 +74,7 @@
+     }
+ }
+ 
+-fn original_bytes<'a>(
++pub(super) fn original_bytes<'a>(
+     interp: &mut Interp,
+     bytes: *const u8,
+     length: c_int,
+--- /dev/null
++++ b/runtime/rust/src/engine_abi/command_replay.rs
+@@ -0,0 +1,678 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Operation-specific fresh replay from actual namespace geometry and original bytes.
++
++use super::command_receipts::original_bytes;
++use super::{EngineCommandReceipt, TCL_ERROR};
++use crate::interp::{new_string, Interp};
++use crate::namespace::{NsId, GLOBAL};
++use crate::obj::{self, Owned, TclObj};
++use core::ffi::{c_int, c_void};
++use std::rc::Rc;
++use tcl_runtime_api::engine_command_replay::{
++    EngineCommandReplayContext as Context, EngineCommandReplayNamespace as Namespace,
++    EngineCommandReplayPurpose as Purpose,
++};
++use tcl_syntax::naming::NamePolicyAuthority;
++
++fn capture(interp: &Interp, purpose: Purpose) -> Option<Context> {
++    let policy = interp.name_policy_protocol()?;
++    if policy.authority() != NamePolicyAuthority::Native {
++        return None;
++    }
++    let protocol = policy.recipe();
++    let names = interp.namespaces();
++    let current = interp.current_ns();
++    let namespace = if protocol.is_jim084() {
++        let _holder = names.jim_namespace_original_owner(current)?;
++        Namespace::Jim(names.jim_namespace_bytes(current)?.into())
++    } else {
++        let command_path = names
++            .path(current)
++            .iter()
++            .filter(|ns| names.namespace_is_live(**ns))
++            .map(|ns| names.native_context_path(*ns))
++            .collect::<Option<Vec<_>>>()?;
++        Namespace::C {
++            namespace: names.native_context_path(current)?,
++            live: names.namespace_is_live(current),
++            command_path,
++        }
++    };
++    Some(Context {
++        root_interpreter: interp.engine_replay_root_interpreter(),
++        protocol,
++        purpose,
++        namespace,
++    })
++}
++
++/// Capture fresh replay data from the actual current namespace holder.
++/// It grants no old command generation, object or namespace identity.
++///
++/// # Safety
++/// `interp` must be live. The caller adopts the returned object reference.
++#[no_mangle]
++pub unsafe extern "C" fn tcl_engine_command_replay_context(
++    interp: *mut Interp,
++    purpose: c_int,
++) -> *mut TclObj {
++    // SAFETY: caller guarantees a live interpreter.
++    let interp = unsafe { &mut *interp };
++    if interp.host_refusal_pending() {
++        return core::ptr::null_mut();
++    }
++    let purpose = match purpose {
++        1 => Purpose::Create,
++        2 => Purpose::Remove,
++        _ => {
++            interp.refuse_host_command("engine replay has no selected command purpose");
++            return core::ptr::null_mut();
++        }
++    };
++    let Some(bytes) = capture(interp, purpose).and_then(|context| context.encode()) else {
++        interp.refuse_host_command("engine replay has no actual namespace context");
++        return core::ptr::null_mut();
++    };
++    let original = new_string(&bytes);
++    // SAFETY: caller adopts one independent original reference.
++    unsafe {
++        obj::incr_ref_count(original);
++    }
++    original
++}
++
++struct ReplayScope {
++    interp: Interp,
++    saved: NsId,
++    target: NsId,
++    _jim_holder: Option<Rc<Owned>>,
++}
++
++impl ReplayScope {
++    fn enter(interp: &mut Interp, context: Context, purpose: Purpose) -> Option<Self> {
++        if !context.root_interpreter || !interp.engine_replay_root_interpreter() {
++            interp.refuse_host_command(
++                "engine replay of a child interpreter requires authentic child ownership transport",
++            );
++            return None;
++        }
++        if interp.name_policy_protocol().is_none_or(|policy| {
++            policy.authority() != NamePolicyAuthority::Native || policy.recipe() != context.protocol
++        }) || context.purpose != purpose
++        {
++            interp.refuse_host_command("engine replay command purpose or protocol changed");
++            return None;
++        }
++        let (target, jim_holder) = match context.namespace {
++            Namespace::C {
++                namespace,
++                live,
++                command_path,
++            } => {
++                if !live {
++                    interp.refuse_host_command("engine replay source namespace has retired");
++                    return None;
++                }
++                let mut names = interp.namespaces_mut();
++                let target = names.ensure_namespace_at_components(GLOBAL, namespace.as_segments());
++                let path = command_path
++                    .iter()
++                    .map(|path| names.ensure_namespace_at_components(GLOBAL, path.as_segments()))
++                    .collect();
++                names.set_path(target, path);
++                (target, None)
++            }
++            Namespace::Jim(namespace) => {
++                let holder = Owned::fresh(new_string(namespace.as_bytes()));
++                let Ok(context) = interp.native_jim_object_context() else {
++                    interp.refuse_host_command("Jim replay original object context unavailable");
++                    return None;
++                };
++                if crate::native_source::bind_context(holder.as_ptr(), &context).is_err() {
++                    interp.refuse_host_command("Jim replay namespace holder unavailable");
++                    return None;
++                }
++                let mut names = interp.namespaces_mut();
++                let target = names.retain_jim_namespace(holder, Rc::from(namespace.as_bytes()));
++                let holder = names.take_jim_namespace_owner(target)?;
++                (target, Some(holder))
++            }
++        };
++        let saved = interp.current_ns();
++        interp.enter_namespace_activation(target);
++        interp.set_current_ns(target);
++        Some(Self {
++            interp: interp.clone(),
++            saved,
++            target,
++            _jim_holder: jim_holder,
++        })
++    }
++}
++
++impl Drop for ReplayScope {
++    fn drop(&mut self) {
++        self.interp.set_current_ns(self.saved);
++        self.interp.leave_namespace_activation(Some(self.target));
++    }
++}
++
++fn replay_scope(
++    interp: &mut Interp,
++    bytes: *const u8,
++    length: c_int,
++    purpose: Purpose,
++) -> Option<ReplayScope> {
++    if interp.host_refusal_pending() {
++        return None;
++    }
++    let original = original_bytes(interp, bytes, length).ok()?;
++    let Some(context) = Context::decode(original) else {
++        interp.refuse_host_command("engine replay context has no counted original recipe");
++        return None;
++    };
++    ReplayScope::enter(interp, context, purpose)
++}
++
++/// Replay counted C API publication in a fresh actual namespace context.
++/// Existing publication selects its own input extent and returns a new receipt.
++///
++/// # Safety
++/// Interpreter, counted inputs, callback and output receipt must be live.
++#[no_mangle]
++pub unsafe extern "C" fn tcl_engine_replay_create_command_counted(
++    interp: *mut Interp,
++    context: *const u8,
++    context_length: c_int,
++    name: *const u8,
++    length: c_int,
++    procedure: Option<crate::interp::TclObjCmdProc>,
++    client: *mut c_void,
++    out: *mut EngineCommandReceipt,
++) -> c_int {
++    // SAFETY: caller guarantees a live original interpreter.
++    if unsafe { &*interp }.host_refusal_pending() {
++        return TCL_ERROR;
++    }
++    if procedure.is_none() || out.is_null() {
++        // SAFETY: preserve the original publication's pre-effect refusal order.
++        return unsafe {
++            super::tcl_engine_create_command_counted(interp, name, length, procedure, client, out)
++        };
++    }
++    if original_bytes(unsafe { &mut *interp }, name, length).is_err() {
++        return TCL_ERROR;
++    }
++    let creation = unsafe { &*interp }
++        .native_invocation_dialect()
++        .native_command_creation_protocol()
++        .and_then(|protocol| protocol.public_registration_recipe(
++            tcl_registry::native_command_creation::NativeObjectCommandCreationPurpose::CountedEngineObjectCommand,
++        ));
++    if creation.is_none() {
++        // SAFETY: the original facade owns the unsupported purpose's refusal.
++        return unsafe {
++            super::tcl_engine_create_command_counted(interp, name, length, procedure, client, out)
++        };
++    }
++    let Some(_scope) = replay_scope(
++        unsafe { &mut *interp },
++        context,
++        context_length,
++        Purpose::Create,
++    ) else {
++        return TCL_ERROR;
++    };
++    // SAFETY: original counted operation owns publication and the fresh receipt.
++    unsafe {
++        super::tcl_engine_create_command_counted(interp, name, length, procedure, client, out)
++    }
++}
++
++/// Replay original counted retirement with its authentic namespace lookup bases.
++/// Existing deletion returns a fresh selected pre-retirement receipt.
++///
++/// # Safety
++/// Interpreter, counted inputs and output receipt must be live.
++#[no_mangle]
++pub unsafe extern "C" fn tcl_engine_replay_delete_command_counted(
++    interp: *mut Interp,
++    context: *const u8,
++    context_length: c_int,
++    name: *const u8,
++    length: c_int,
++    out: *mut EngineCommandReceipt,
++) -> c_int {
++    // SAFETY: caller guarantees a live original interpreter.
++    if unsafe { &*interp }.host_refusal_pending() {
++        return TCL_ERROR;
++    }
++    if out.is_null() {
++        // SAFETY: the original deletion refuses its missing output before effects.
++        return unsafe { super::tcl_engine_delete_command_counted(interp, name, length, out) };
++    }
++    if original_bytes(unsafe { &mut *interp }, name, length).is_err() {
++        return TCL_ERROR;
++    }
++    let Some(_scope) = replay_scope(
++        unsafe { &mut *interp },
++        context,
++        context_length,
++        Purpose::Remove,
++    ) else {
++        return TCL_ERROR;
++    };
++    // SAFETY: original counted deletion owns lookup, retirement and its receipt.
++    unsafe { super::tcl_engine_delete_command_counted(interp, name, length, out) }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use tcl_core_types::NameBytes;
++
++    fn core(profile: &str) -> Interp {
++        Interp::with_native_core(
++            Interp::new().host(),
++            tcl_registry::model::resolve_environment(profile).unit_profile(),
++            tcl_registry::special_vars::NativeBootstrapInputs::default(),
++        )
++        .unwrap()
++    }
++
++    unsafe extern "C" fn callback(
++        _: *mut c_void,
++        interp: *mut Interp,
++        _: c_int,
++        _: *const *mut TclObj,
++    ) -> c_int {
++        // SAFETY: actual native dispatcher supplies its live interpreter.
++        unsafe { &mut *interp }.set_result_bytes(b"REPLAY\0\xff");
++        super::super::TCL_OK
++    }
++
++    fn context(interp: &mut Interp, purpose: c_int) -> Vec<u8> {
++        // SAFETY: actual interpreter supplies an independent counted context object.
++        let original = unsafe { tcl_engine_command_replay_context(interp, purpose) };
++        assert!(!original.is_null());
++        // SAFETY: successful producer transfers exactly one original reference.
++        let original = unsafe { Owned::from_raw(original) };
++        obj::bytes_of(original.as_ptr()).to_vec()
++    }
++
++    fn create(
++        interp: &mut Interp,
++        name: &[u8],
++        context: Option<&[u8]>,
++    ) -> super::super::EngineCommandIdentity {
++        let mut receipt = core::mem::MaybeUninit::uninit();
++        // SAFETY: original counted inputs, actual callback and writable receipt are live.
++        let code = unsafe {
++            match context {
++                Some(context) => tcl_engine_replay_create_command_counted(
++                    interp,
++                    context.as_ptr(),
++                    context.len().try_into().unwrap(),
++                    name.as_ptr(),
++                    name.len().try_into().unwrap(),
++                    Some(callback),
++                    core::ptr::null_mut(),
++                    receipt.as_mut_ptr(),
++                ),
++                None => super::super::tcl_engine_create_command_counted(
++                    interp,
++                    name.as_ptr(),
++                    name.len().try_into().unwrap(),
++                    Some(callback),
++                    core::ptr::null_mut(),
++                    receipt.as_mut_ptr(),
++                ),
++            }
++        };
++        assert_eq!(code, super::super::TCL_OK, "{:?}", interp.result_bytes());
++        // SAFETY: genuine successful producer initialized the receipt.
++        let receipt = unsafe { receipt.assume_init() };
++        // SAFETY: this test inspects identity, then retires the independent report reference.
++        drop(unsafe { Owned::from_raw(receipt.qualified) });
++        receipt.into()
++    }
++
++    fn actual(interp: &Interp, parts: &[&[u8]]) -> NsId {
++        let parts = parts
++            .iter()
++            .map(|part| NameBytes::from(*part))
++            .collect::<Vec<_>>();
++        interp
++            .namespaces()
++            .namespace_at_components(GLOBAL, &parts)
++            .unwrap()
++    }
++
++    unsafe extern "C" fn capture_callback(
++        client: *mut c_void,
++        interp: *mut Interp,
++        _: c_int,
++        _: *const *mut TclObj,
++    ) -> c_int {
++        // SAFETY: original dispatcher supplies a live interpreter and fixture purpose.
++        let original =
++            unsafe { tcl_engine_command_replay_context(interp, client as usize as c_int) };
++        if original.is_null() {
++            return TCL_ERROR;
++        }
++        // SAFETY: actual context producer transfers one owned reference.
++        let original = unsafe { Owned::from_raw(original) };
++        unsafe { &mut *interp }.set_result(original.as_ptr());
++        super::super::TCL_OK
++    }
++
++    #[test]
++    fn jim_replay_retains_counted_holder_and_refuses_unavailable_creation() {
++        use crate::interp::ObjCommand;
++        let mut source = core("jim");
++        for (name, purpose) in [
++            (b"capture_creation".as_slice(), 1usize),
++            (b"capture_retirement", 2),
++        ] {
++            assert!(source
++                .create_obj_command(
++                    name,
++                    ObjCommand::new(capture_callback, purpose as *mut c_void, None)
++                )
++                .is_some());
++        }
++        let creation = source
++            .eval_completion(b"namespace eval :outer {capture_creation}")
++            .unwrap()
++            .result;
++        let retirement = source
++            .eval_completion(b"namespace eval :outer {capture_retirement}")
++            .unwrap()
++            .result;
++        assert!(matches!(
++            Context::decode(&creation).unwrap().namespace,
++            Namespace::Jim(_)
++        ));
++        let mut refused = core("jim");
++        let mut receipt = core::mem::MaybeUninit::uninit();
++        // SAFETY: live counted context, original name, callback and writable output.
++        assert_eq!(
++            unsafe {
++                tcl_engine_replay_create_command_counted(
++                    &mut refused,
++                    creation.as_ptr(),
++                    creation.len().try_into().unwrap(),
++                    b"kept".as_ptr(),
++                    4,
++                    Some(callback),
++                    core::ptr::null_mut(),
++                    receipt.as_mut_ptr(),
++                )
++            },
++            TCL_ERROR
++        );
++        assert!(format!("{:?}", refused.native_execution_refusal())
++            .contains("public command constructor purpose has no selected native recipe"));
++        assert_eq!(refused.current_ns(), GLOBAL);
++        assert!(refused
++            .namespaces()
++            .command_generation(GLOBAL, b"kept")
++            .is_none());
++        let mut fresh = core("jim");
++        let selected = fresh
++            .create_obj_command(
++                b":outer::kept",
++                ObjCommand::new(callback, core::ptr::null_mut(), None),
++            )
++            .unwrap();
++        let global = fresh
++            .create_obj_command(
++                b"kept",
++                ObjCommand::new(callback, core::ptr::null_mut(), None),
++            )
++            .unwrap();
++        // SAFETY: actual captured holder, original name and writable receipt.
++        assert_eq!(
++            unsafe {
++                tcl_engine_replay_delete_command_counted(
++                    &mut fresh,
++                    retirement.as_ptr(),
++                    retirement.len().try_into().unwrap(),
++                    b"kept".as_ptr(),
++                    4,
++                    receipt.as_mut_ptr(),
++                )
++            },
++            super::super::TCL_OK,
++            "{:?}",
++            fresh.native_execution_refusal()
++        );
++        // SAFETY: actual retirement transfers its selected pre-retirement report.
++        let retired = unsafe { receipt.assume_init() };
++        drop(unsafe { Owned::from_raw(retired.qualified) });
++        assert_eq!(retired.generation, selected);
++        assert_eq!(fresh.resolve_cmd_token(b"kept"), Some(global));
++        assert_eq!(fresh.current_ns(), GLOBAL);
++        assert!(!fresh.host_refusal_pending());
++    }
++
++    #[test]
++    fn actual_child_receiver_refuses_root_replay_data_before_publication() {
++        let mut parent = core("tcl9.0");
++        let root_context = context(&mut parent, 1);
++        assert!(Context::decode(&root_context).unwrap().root_interpreter);
++        let name = parent.create_child(Some(b"receiver".to_vec()));
++        parent
++            .with_child(&name, |child| {
++                let installed = create(child, b"existing::kept", None);
++                let existing = actual(child, &[b"existing"]);
++                let mut receipt = core::mem::MaybeUninit::uninit();
++                // SAFETY: actual child, root capture data, original name and writable receipt.
++                assert_eq!(
++                    unsafe {
++                        tcl_engine_replay_create_command_counted(
++                            child,
++                            root_context.as_ptr(),
++                            root_context.len().try_into().unwrap(),
++                            b"replayed::kept".as_ptr(),
++                            14,
++                            Some(callback),
++                            core::ptr::null_mut(),
++                            receipt.as_mut_ptr(),
++                        )
++                    },
++                    TCL_ERROR
++                );
++                assert!(child.host_refusal_pending());
++                assert!(child
++                    .namespaces()
++                    .namespace_at_components(GLOBAL, &[NameBytes::from(b"replayed".as_slice())])
++                    .is_none());
++                assert_eq!(
++                    child.namespaces().command_generation(existing, b"kept"),
++                    Some(installed.generation)
++                );
++            })
++            .unwrap();
++    }
++
++    #[test]
++    fn actual_child_publication_succeeds_and_fresh_root_replay_refuses_its_realm() {
++        let mut parent = core("tcl9.0");
++        let name = parent.create_child(Some(b"child".to_vec()));
++        let captured = parent
++            .with_child(&name, |child| {
++                child.eval_completion(b"namespace eval local {}").unwrap();
++                child.set_current_ns(actual(child, &[b"local"]));
++                let captured = context(child, 1);
++                let installed = create(child, b"nested::kept", None);
++                let holder = actual(child, &[b"local", b"nested"]);
++                assert_eq!(
++                    child
++                        .namespaces()
++                        .native_command_slot_at_node(installed.generation),
++                    Some((holder, b"kept".to_vec()))
++                );
++                assert!(!child.host_refusal_pending());
++                captured
++            })
++            .unwrap();
++        assert!(!Context::decode(&captured).unwrap().root_interpreter);
++        let mut fresh = core("tcl9.0");
++        let before = fresh.namespaces().native_command_generations();
++        let children = fresh.namespaces().children(GLOBAL);
++        let mut receipt = core::mem::MaybeUninit::uninit();
++        // SAFETY: captured actual child data, original input and a writable, refused receipt.
++        assert_eq!(
++            unsafe {
++                tcl_engine_replay_create_command_counted(
++                    &mut fresh,
++                    captured.as_ptr(),
++                    captured.len().try_into().unwrap(),
++                    b"nested::kept".as_ptr(),
++                    12,
++                    Some(callback),
++                    core::ptr::null_mut(),
++                    receipt.as_mut_ptr(),
++                )
++            },
++            TCL_ERROR
++        );
++        assert!(fresh.host_refusal_pending());
++        assert_eq!(fresh.namespaces().native_command_generations(), before);
++        assert_eq!(fresh.namespaces().children(GLOBAL), children);
++        assert_eq!(fresh.current_ns(), GLOBAL);
++    }
++
++    #[test]
++    fn fresh_replay_keeps_actual_literal_colon_context_and_original_c_api_input() {
++        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++            let mut source = core(profile);
++            source
++                .eval_completion(b"namespace eval :outer {namespace eval :inner {}} ")
++                .unwrap();
++            source.set_current_ns(actual(&source, &[b":outer", b":inner"]));
++            let captured = context(&mut source, 1);
++            let original = b"child::kept\0unused";
++            let old = create(&mut source, original, None);
++            let mut fresh = core(profile);
++            fresh.eval_completion(b"namespace eval outer {namespace eval inner {namespace eval child {proc kept {} {return REPLACEMENT}}}} ").unwrap();
++            let replacement = fresh
++                .resolve_cmd_token(b"::outer::inner::child::kept")
++                .unwrap();
++            let replayed = create(&mut fresh, original, Some(&captured));
++            assert_ne!(old.owner, replayed.owner);
++            let holder = actual(&fresh, &[b":outer", b":inner", b"child"]);
++            assert_eq!(
++                fresh
++                    .namespaces()
++                    .native_command_slot_at_node(replayed.generation),
++                Some((holder, b"kept".to_vec())),
++                "{profile}"
++            );
++            assert_eq!(
++                fresh.resolve_cmd_token(b"::outer::inner::child::kept"),
++                Some(replacement)
++            );
++            assert_eq!(fresh.current_ns(), GLOBAL);
++            assert_eq!(fresh.eval_completion(b"namespace eval :outer {namespace eval :inner {namespace eval child {kept}}}").unwrap().result, b"REPLAY\0\xff", "{profile}");
++            assert!(!fresh.host_refusal_pending());
++        }
++    }
++
++    #[test]
++    fn fresh_retirement_uses_actual_command_path_and_preserves_the_global_replacement() {
++        for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++            let mut source = core(profile);
++            source
++                .eval_completion(b"namespace eval :caller {}; namespace eval search {}")
++                .unwrap();
++            source.set_current_ns(actual(&source, &[b"search"]));
++            let creation_context = context(&mut source, 1);
++            create(&mut source, b"nested::victim", None);
++            source.set_current_ns(GLOBAL);
++            source
++                .eval_completion(b"namespace eval :caller {namespace path ::search::nested}")
++                .unwrap();
++            source.set_current_ns(actual(&source, &[b":caller"]));
++            let retirement_context = context(&mut source, 2);
++            let mut fresh = core(profile);
++            let selected = create(&mut fresh, b"nested::victim", Some(&creation_context));
++            let global = create(&mut fresh, b"victim", None);
++            let mut receipt = core::mem::MaybeUninit::uninit();
++            // SAFETY: real captured context, original counted name and writable receipt.
++            assert_eq!(
++                unsafe {
++                    tcl_engine_replay_delete_command_counted(
++                        &mut fresh,
++                        retirement_context.as_ptr(),
++                        retirement_context.len().try_into().unwrap(),
++                        b"victim".as_ptr(),
++                        6,
++                        receipt.as_mut_ptr(),
++                    )
++                },
++                super::super::TCL_OK
++            );
++            // SAFETY: actual deletion transferred its selected pre-retirement receipt.
++            let retired = unsafe { receipt.assume_init() };
++            drop(unsafe { Owned::from_raw(retired.qualified) });
++            assert_eq!(retired.generation, selected.generation, "{profile}");
++            assert!(fresh
++                .namespaces()
++                .native_command_slot_at_node(selected.generation)
++                .is_none());
++            assert_eq!(fresh.resolve_cmd_token(b"victim"), Some(global.generation));
++            assert_eq!(fresh.current_ns(), GLOBAL);
++        }
++    }
++
++    #[test]
++    fn retired_or_wrong_purpose_replay_context_refuses_before_fresh_publication() {
++        let mut source = core("tcl9.0");
++        source
++            .eval_completion(b"namespace eval :retired {}")
++            .unwrap();
++        let holder = actual(&source, &[b":retired"]);
++        source.enter_namespace_activation(holder);
++        source.set_current_ns(holder);
++        source.delete_namespace_by_id(holder);
++        let retired = context(&mut source, 1);
++        source.set_current_ns(GLOBAL);
++        source.leave_namespace_activation(Some(holder));
++        let wrong_purpose = context(&mut source, 2);
++        for bytes in [
++            &retired[..],
++            &wrong_purpose[..],
++            b"NCR1\x01\x04\x01\x01\xff\xff\xff\xff",
++        ] {
++            let mut fresh = core("tcl9.0");
++            let before = fresh.namespaces().native_command_generations();
++            let children = fresh.namespaces().children(GLOBAL);
++            let mut receipt = core::mem::MaybeUninit::uninit();
++            // SAFETY: counted fixture bytes and real interpreter; refused receipt is unread.
++            assert_eq!(
++                unsafe {
++                    tcl_engine_replay_create_command_counted(
++                        &mut fresh,
++                        bytes.as_ptr(),
++                        bytes.len().try_into().unwrap(),
++                        b"child::kept".as_ptr(),
++                        11,
++                        Some(callback),
++                        core::ptr::null_mut(),
++                        receipt.as_mut_ptr(),
++                    )
++                },
++                TCL_ERROR
++            );
++            assert!(fresh.host_refusal_pending());
++            assert_eq!(fresh.namespaces().native_command_generations(), before);
++            assert_eq!(fresh.namespaces().children(GLOBAL), children);
++            assert_eq!(fresh.current_ns(), GLOBAL);
++        }
++    }
++}
+--- a/rust/tcl-runtime-api/src/lib.rs
++++ b/rust/tcl-runtime-api/src/lib.rs
+@@ -710,6 +710,7 @@
+ /// Runtime-issued guards for speculative compiler fast paths.
+ pub mod guard;
+ 
++pub mod engine_command_replay;
+ /// Closed live interpreter snapshots for runtime compilation.
+ pub mod engine_interpreter_identity;
+ pub mod native_command_name;
+--- /dev/null
++++ b/rust/tcl-runtime-api/src/engine_command_replay.rs
+@@ -0,0 +1,182 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Fresh command setup data from actual namespace holders, without live identity.
++
++use tcl_core_types::{ByteNamespacePath, NameBytes};
++use tcl_dialect::TclVersion;
++use tcl_syntax::naming::NativeNameProtocol;
++
++/// The existing counted operation to repeat in a fresh interpreter.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum EngineCommandReplayPurpose {
++    /// Counted C object-command publication through its selected recipe.
++    Create,
++    /// Original command lookup followed by retirement.
++    Remove,
++}
++
++/// Namespace data retains C component boundaries or Jim's counted holder bytes.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum EngineCommandReplayNamespace {
++    /// Actual C constructed edges and live command-path holders at capture.
++    C {
++        /// Current namespace's exact component geometry.
++        namespace: ByteNamespacePath,
++        /// A retired source holder cannot be recreated as a live holder.
++        live: bool,
++        /// Ordered live command-search holders in the source context.
++        command_path: Vec<ByteNamespacePath>,
++    },
++    /// Actual canonical Jim namespace object bytes; not a C component path.
++    Jim(NameBytes),
++}
++
++/// Portable replay data grants neither a native operation nor an old generation.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct EngineCommandReplayContext {
++    /// Actual source was a root interpreter, not a child factory's receiver.
++    pub root_interpreter: bool,
++    /// Exact selected original naming recipe.
++    pub protocol: NativeNameProtocol,
++    /// Independently selected operation purpose.
++    pub purpose: EngineCommandReplayPurpose,
++    /// Actual holder geometry, never parsed from a displayed command name.
++    pub namespace: EngineCommandReplayNamespace,
++}
++
++impl EngineCommandReplayContext {
++    /// Encode counted components independently of Rust layout or Tcl list syntax.
++    #[must_use]
++    pub fn encode(&self) -> Option<Vec<u8>> {
++        let mut out = b"NCR1".to_vec();
++        out.push(u8::from(self.root_interpreter));
++        out.push(match self.protocol {
++            NativeNameProtocol::C(TclVersion::V8_4) => 1,
++            NativeNameProtocol::C(TclVersion::V8_5) => 2,
++            NativeNameProtocol::C(TclVersion::V8_6) => 3,
++            NativeNameProtocol::C(TclVersion::V9_0) => 4,
++            NativeNameProtocol::C(TclVersion::V9_1) => 5,
++            NativeNameProtocol::Jim084 => 6,
++        });
++        out.push(match self.purpose {
++            EngineCommandReplayPurpose::Create => 1,
++            EngineCommandReplayPurpose::Remove => 2,
++        });
++        match &self.namespace {
++            EngineCommandReplayNamespace::C {
++                namespace,
++                live,
++                command_path,
++            } => {
++                if self.protocol.is_jim084() {
++                    return None;
++                }
++                out.push(u8::from(*live));
++                write_path(&mut out, namespace)?;
++                write_count(&mut out, command_path.len())?;
++                for path in command_path {
++                    write_path(&mut out, path)?;
++                }
++            }
++            EngineCommandReplayNamespace::Jim(namespace) => {
++                if !self.protocol.is_jim084() {
++                    return None;
++                }
++                write_bytes(&mut out, namespace.as_bytes())?;
++            }
++        }
++        Some(out)
++    }
++
++    /// Decode data only. The receiving runtime authenticates its own operation.
++    #[must_use]
++    pub fn decode(mut bytes: &[u8]) -> Option<Self> {
++        if take(&mut bytes, 4)? != b"NCR1" {
++            return None;
++        }
++        let root_interpreter = match take(&mut bytes, 1)?[0] {
++            0 => false,
++            1 => true,
++            _ => return None,
++        };
++        let protocol = match take(&mut bytes, 1)?[0] {
++            1 => NativeNameProtocol::C(TclVersion::V8_4),
++            2 => NativeNameProtocol::C(TclVersion::V8_5),
++            3 => NativeNameProtocol::C(TclVersion::V8_6),
++            4 => NativeNameProtocol::C(TclVersion::V9_0),
++            5 => NativeNameProtocol::C(TclVersion::V9_1),
++            6 => NativeNameProtocol::Jim084,
++            _ => return None,
++        };
++        let purpose = match take(&mut bytes, 1)?[0] {
++            1 => EngineCommandReplayPurpose::Create,
++            2 => EngineCommandReplayPurpose::Remove,
++            _ => return None,
++        };
++        let namespace = if protocol.is_jim084() {
++            EngineCommandReplayNamespace::Jim(NameBytes::from(read_bytes(&mut bytes)?))
++        } else {
++            let live = match take(&mut bytes, 1)?[0] {
++                0 => false,
++                1 => true,
++                _ => return None,
++            };
++            let namespace = read_path(&mut bytes)?;
++            let count = read_count(&mut bytes)?;
++            let mut command_path = Vec::new();
++            for _ in 0..count {
++                command_path.push(read_path(&mut bytes)?);
++            }
++            EngineCommandReplayNamespace::C {
++                namespace,
++                live,
++                command_path,
++            }
++        };
++        bytes.is_empty().then_some(Self {
++            root_interpreter,
++            protocol,
++            purpose,
++            namespace,
++        })
++    }
++}
++
++fn write_count(out: &mut Vec<u8>, count: usize) -> Option<()> {
++    out.extend_from_slice(&u32::try_from(count).ok()?.to_le_bytes());
++    Some(())
++}
++fn write_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Option<()> {
++    write_count(out, bytes.len())?;
++    out.extend_from_slice(bytes);
++    Some(())
++}
++fn write_path(out: &mut Vec<u8>, path: &ByteNamespacePath) -> Option<()> {
++    write_count(out, path.as_segments().len())?;
++    for part in path.as_segments() {
++        write_bytes(out, part.as_bytes())?;
++    }
++    Some(())
++}
++fn take<'a>(bytes: &mut &'a [u8], count: usize) -> Option<&'a [u8]> {
++    let (taken, remaining) = bytes.split_at_checked(count)?;
++    *bytes = remaining;
++    Some(taken)
++}
++fn read_count(bytes: &mut &[u8]) -> Option<usize> {
++    usize::try_from(u32::from_le_bytes(take(bytes, 4)?.try_into().ok()?)).ok()
++}
++fn read_bytes<'a>(bytes: &mut &'a [u8]) -> Option<&'a [u8]> {
++    let count = read_count(bytes)?;
++    take(bytes, count)
++}
++fn read_path(bytes: &mut &[u8]) -> Option<ByteNamespacePath> {
++    let count = read_count(bytes)?;
++    let mut parts = Vec::new();
++    for _ in 0..count {
++        parts.push(NameBytes::from(read_bytes(bytes)?));
++    }
++    Some(ByteNamespacePath::from_segments(parts))
++}
+--- a/rust/tcl-engine-api/src/lib.rs
++++ b/rust/tcl-engine-api/src/lib.rs
+@@ -66,7 +66,9 @@
+ pub use tcl_core_types::{NativeIndexCache, ResidentStringMutation};
+ 
+ /// Full operational failure shared by the engines, outside guest completion.
+-pub use tcl_runtime_api::{NativeExecutionError, engine_interpreter_identity};
++pub use tcl_runtime_api::{
++    NativeExecutionError, engine_command_replay, engine_interpreter_identity,
++};
+ 
+ use std::rc::Rc;
+ use std::time::Duration;
+--- a/rust/tcl-engine-wasm/src/lib.rs
++++ b/rust/tcl-engine-wasm/src/lib.rs
+@@ -198,8 +198,8 @@
+ /// unusable can be rebuilt as it was.
+ enum Setup {
+     Extension(Extension),
+-    Command(Vec<u8>, Rc<dyn HostCommand>),
+-    Removed(Vec<u8>),
++    Command(command_receipts::CommandReplay, Rc<dyn HostCommand>),
++    Removed(command_receipts::CommandReplay),
+     Package(String, String),
+     Restrict(Vec<String>),
+     Confine,
+@@ -285,16 +285,10 @@
+ 
+     /// Apply `setup` to the instance and keep it, so a rebuilt instance has it
+     /// too.
+-    fn apply(&mut self, mut setup: Setup) -> Result<(), EngineError> {
++    fn apply(&mut self, setup: Setup) -> Result<(), EngineError> {
+         let session = self.session()?;
+         session.begin_entry().map_err(Failure::into_engine_error)?;
+-        let applied = if let Setup::Command(name, command) = &mut setup {
+-            session
+-                .define_command(name, Rc::clone(command))
+-                .map(|receipt| *name = receipt.qualified)
+-        } else {
+-            replay(session, &setup)
+-        };
++        let applied = replay(session, &setup);
+         match applied {
+             Ok(()) => {
+                 self.setup.push(setup);
+@@ -338,8 +332,10 @@
+ fn replay(session: &mut Session, setup: &Setup) -> Result<(), Failure> {
+     match setup {
+         Setup::Extension(extension) => session.load(extension),
+-        Setup::Command(name, command) => session.define_command(name, Rc::clone(command)).map(drop),
+-        Setup::Removed(name) => session.delete_command(name).map(drop),
++        Setup::Command(input, command) => {
++            session.replay_command(input, Rc::clone(command)).map(drop)
++        }
++        Setup::Removed(input) => session.replay_remove(input).map(drop),
+         Setup::Package(name, version) => session.provide_package(name, version),
+         Setup::Restrict(allowed) => session.restrict(allowed),
+         Setup::Confine => session.confine(),
+@@ -380,7 +376,10 @@
+         name: &[u8],
+         command: Rc<dyn HostCommand>,
+     ) -> Result<(), EngineError> {
+-        self.apply(Setup::Command(name.to_vec(), command))
++        self.apply(Setup::Command(
++            command_receipts::CommandReplay::root(name),
++            command,
++        ))
+     }
+ 
+     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+@@ -394,8 +393,9 @@
+             Ok(receipt) => receipt,
+             Err(failure) => return Err(self.failed(failure)),
+         };
+-        if let Some(receipt) = receipt {
+-            self.setup.push(Setup::Removed(receipt.qualified));
++        if receipt.is_some() {
++            self.setup
++                .push(Setup::Removed(command_receipts::CommandReplay::root(name)));
+             Ok(true)
+         } else {
+             Ok(false)
+--- a/rust/tcl-engine-wasm/src/command_receipts.rs
++++ b/rust/tcl-engine-wasm/src/command_receipts.rs
+@@ -5,6 +5,9 @@
+ //! Counted transport of receipts issued by the runtime's installed-command owner.
+ //! A replay address is data; only its current instance's receipt grants access.
+ 
++use tcl_engine_api::engine_command_replay::{
++    EngineCommandReplayContext, EngineCommandReplayPurpose,
++};
+ use tcl_engine_api::{EngineError, engine_interpreter_identity::EngineInterpreterIdentity};
+ use wasmtime::{AsContextMut, TypedFunc, WasmParams, WasmResults};
+ 
+@@ -16,6 +19,71 @@
+     interpreter: u64,
+     pub(crate) generation: u64,
+     pub(crate) qualified: Vec<u8>,
++}
++
++/// Fresh setup retains original bytes and separately captured holder geometry.
++#[derive(Clone, Debug)]
++pub(crate) struct CommandReplay {
++    pub(crate) original: Vec<u8>,
++    pub(crate) context: Option<EngineCommandReplayContext>,
++    pub(crate) interpreter: ReplayInterpreter,
++}
++
++#[derive(Clone, Copy, Debug)]
++pub(crate) enum ReplayInterpreter {
++    Root,
++    Unsupported,
++}
++
++impl CommandReplay {
++    pub(crate) fn root(original: &[u8]) -> Self {
++        Self {
++            original: original.to_vec(),
++            context: None,
++            interpreter: ReplayInterpreter::Root,
++        }
++    }
++}
++
++pub(crate) fn replay_input<C: AsContextMut<Data = HostState>>(
++    context: &mut C,
++    exports: &Exports,
++    interp: i32,
++    purpose: EngineCommandReplayPurpose,
++    original: &[u8],
++) -> Result<CommandReplay, Failure> {
++    let purpose_number = match purpose {
++        EngineCommandReplayPurpose::Create => 1,
++        EngineCommandReplayPurpose::Remove => 2,
++    };
++    let object = call(context, &exports.replay_context, (interp, purpose_number))?;
++    settle(context, exports, interp)?;
++    if object == 0 {
++        return Err(Failure::ExecutionRefusal(
++            "actual command replay context unavailable".into(),
++        ));
++    }
++    let bytes = string_bytes(context, exports, interp, object);
++    call(context, &exports.release, object)?;
++    let replay_context = EngineCommandReplayContext::decode(&bytes?).ok_or_else(|| {
++        Failure::ExecutionRefusal("actual command replay context has no counted recipe".into())
++    })?;
++    if replay_context.purpose != purpose {
++        return Err(Failure::ExecutionRefusal(
++            "actual command replay purpose changed".into(),
++        ));
++    }
++    let identity = interpreter_identity(context, exports, interp)?;
++    let is_root = context.as_context().data().root_interpreter == Some((interp, identity));
++    Ok(CommandReplay {
++        original: original.to_vec(),
++        context: Some(replay_context),
++        interpreter: if is_root {
++            ReplayInterpreter::Root
++        } else {
++            ReplayInterpreter::Unsupported
++        },
++    })
+ }
+ 
+ impl CommandReceipt {
+@@ -189,13 +257,39 @@
+     procedure: i32,
+     client: i32,
+ ) -> Result<CommandReceipt, Failure> {
++    create_with_context(context, exports, interp, name, procedure, client, None)
++}
++
++pub(crate) fn create_with_context<C: AsContextMut<Data = HostState>>(
++    context: &mut C,
++    exports: &Exports,
++    interp: i32,
++    name: &[u8],
++    procedure: i32,
++    client: i32,
++    replay: Option<&EngineCommandReplayContext>,
++) -> Result<CommandReceipt, Failure> {
+     let (input, length) = buffer(context, exports, name)?;
+     let out = call(context, &exports.alloc, (32, 8))?;
+-    let status = call(
+-        context,
+-        &exports.create_command,
+-        (interp, input, length, procedure, client, out),
+-    )?;
++    let status = if let Some(replay) = replay {
++        let bytes = replay.encode().ok_or_else(|| {
++            Failure::ExecutionRefusal("command replay context is unavailable".into())
++        })?;
++        let (source, count) = buffer(context, exports, &bytes)?;
++        let status = call(
++            context,
++            &exports.replay_create_command,
++            (interp, source, count, input, length, procedure, client, out),
++        )?;
++        call(context, &exports.free, source)?;
++        status
++    } else {
++        call(
++            context,
++            &exports.create_command,
++            (interp, input, length, procedure, client, out),
++        )?
++    };
+     call(context, &exports.free, input)?;
+     let answer = settle(context, exports, interp).and_then(|()| {
+         if status != 0 {
+@@ -215,13 +309,37 @@
+     interp: i32,
+     name: &[u8],
+ ) -> Result<Option<CommandReceipt>, Failure> {
++    remove_with_context(context, exports, interp, name, None)
++}
++
++pub(crate) fn remove_with_context<C: AsContextMut<Data = HostState>>(
++    context: &mut C,
++    exports: &Exports,
++    interp: i32,
++    name: &[u8],
++    replay: Option<&EngineCommandReplayContext>,
++) -> Result<Option<CommandReceipt>, Failure> {
+     let (input, length) = buffer(context, exports, name)?;
+     let out = call(context, &exports.alloc, (32, 8))?;
+-    let status = call(
+-        context,
+-        &exports.delete_command,
+-        (interp, input, length, out),
+-    )?;
++    let status = if let Some(replay) = replay {
++        let bytes = replay.encode().ok_or_else(|| {
++            Failure::ExecutionRefusal("command replay context is unavailable".into())
++        })?;
++        let (source, count) = buffer(context, exports, &bytes)?;
++        let status = call(
++            context,
++            &exports.replay_delete_command,
++            (interp, source, count, input, length, out),
++        )?;
++        call(context, &exports.free, source)?;
++        status
++    } else {
++        call(
++            context,
++            &exports.delete_command,
++            (interp, input, length, out),
++        )?
++    };
+     call(context, &exports.free, input)?;
+     let answer = settle(context, exports, interp).and_then(|()| match status {
+         0 => read_receipt(context, exports, interp, out).map(Some),
+--- a/rust/tcl-engine-wasm/src/session.rs
++++ b/rust/tcl-engine-wasm/src/session.rs
+@@ -51,6 +51,8 @@
+ pub(crate) struct HostState {
+     /// The runtime's exports, once it is instantiated.
+     pub(crate) exports: Option<Rc<Exports>>,
++    /// Actual installed root pointer and diagnostic identity, never a guessed ID.
++    pub(crate) root_interpreter: Option<(i32, EngineInterpreterIdentity)>,
+     /// The cap on the memory's growth for the running evaluation.
+     cap: MemoryCap,
+     /// The host commands, by the client data each was registered with.
+@@ -138,6 +140,9 @@
+     pub(crate) capture: TypedFunc<(i32, i32, i32), i32>,
+     pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
+     pub(crate) delete_command: TypedFunc<(i32, i32, i32, i32), i32>,
++    pub(crate) replay_context: TypedFunc<(i32, i32), i32>,
++    pub(crate) replay_create_command: TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>,
++    pub(crate) replay_delete_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
+     set_limits: TypedFunc<(i32, i64, i64), ()>,
+     begin: TypedFunc<i32, ()>,
+     exceeded: TypedFunc<i32, i32>,
+@@ -191,6 +196,12 @@
+                 .get_typed_func(&mut *store, "tcl_engine_create_command_counted")?,
+             delete_command: instance
+                 .get_typed_func(&mut *store, "tcl_engine_delete_command_counted")?,
++            replay_context: instance
++                .get_typed_func(&mut *store, "tcl_engine_command_replay_context")?,
++            replay_create_command: instance
++                .get_typed_func(&mut *store, "tcl_engine_replay_create_command_counted")?,
++            replay_delete_command: instance
++                .get_typed_func(&mut *store, "tcl_engine_replay_delete_command_counted")?,
+             set_limits: instance.get_typed_func(&mut *store, "tcl_engine_set_limits")?,
+             begin: instance.get_typed_func(&mut *store, "tcl_engine_begin")?,
+             exceeded: instance.get_typed_func(&mut *store, "tcl_engine_exceeded")?,
+@@ -306,6 +317,9 @@
+             instance.get_typed_func::<i32, ()>(&mut store, "tcl_runtime_set_current_interp")?;
+         let interp = create.call(&mut store, ())?;
+         current.call(&mut store, interp)?;
++        let identity = command_receipts::interpreter_identity(&mut store, &exports, interp)
++            .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
++        store.data_mut().root_interpreter = Some((interp, identity));
+         let scratch = exports.alloc.call(&mut store, (16, 8))?;
+         let mut session = Self {
+             store,
+@@ -602,6 +616,24 @@
+         name: &[u8],
+         command: Rc<dyn HostCommand>,
+     ) -> Result<CommandReceipt, Failure> {
++        self.define_command_with_context(name, command, None)
++    }
++
++    pub(crate) fn replay_command(
++        &mut self,
++        input: &command_receipts::CommandReplay,
++        command: Rc<dyn HostCommand>,
++    ) -> Result<CommandReceipt, Failure> {
++        admit_replay_interpreter(input)?;
++        self.define_command_with_context(&input.original, command, input.context.as_ref())
++    }
++
++    fn define_command_with_context(
++        &mut self,
++        name: &[u8],
++        command: Rc<dyn HostCommand>,
++        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
++    ) -> Result<CommandReceipt, Failure> {
+         let procedure = if let Some(procedure) = self.store.data().host_procedure {
+             procedure
+         } else {
+@@ -618,13 +650,14 @@
+         };
+         let client = i32::try_from(self.store.data().commands.len())
+             .map_err(|_| Failure::Refused("too many host commands".to_owned()))?;
+-        let receipt = command_receipts::create(
++        let receipt = command_receipts::create_with_context(
+             &mut self.store,
+             &self.exports,
+             self.interp,
+             name,
+             procedure,
+             client,
++            context,
+         )?;
+         self.store.data_mut().commands.push(command);
+         self.store.data_mut().host_receipts.push(receipt.clone());
+@@ -636,7 +669,29 @@
+         &mut self,
+         name: &[u8],
+     ) -> Result<Option<CommandReceipt>, Failure> {
+-        let receipt = command_receipts::remove(&mut self.store, &self.exports, self.interp, name)?;
++        self.delete_command_with_context(name, None)
++    }
++
++    pub(crate) fn replay_remove(
++        &mut self,
++        input: &command_receipts::CommandReplay,
++    ) -> Result<Option<CommandReceipt>, Failure> {
++        admit_replay_interpreter(input)?;
++        self.delete_command_with_context(&input.original, input.context.as_ref())
++    }
++
++    fn delete_command_with_context(
++        &mut self,
++        name: &[u8],
++        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
++    ) -> Result<Option<CommandReceipt>, Failure> {
++        let receipt = command_receipts::remove_with_context(
++            &mut self.store,
++            &self.exports,
++            self.interp,
++            name,
++            context,
++        )?;
+         if let Some(receipt) = &receipt {
+             self.store
+                 .data_mut()
+@@ -854,6 +909,15 @@
+         return EngineError::Crashed(exit.to_string());
+     }
+     EngineError::Crashed(format!("{error:#}"))
++}
++
++fn admit_replay_interpreter(input: &command_receipts::CommandReplay) -> Result<(), Failure> {
++    match input.interpreter {
++        command_receipts::ReplayInterpreter::Root => Ok(()),
++        command_receipts::ReplayInterpreter::Unsupported => Err(Failure::ExecutionRefusal(
++            "fresh command replay from a child or foreign interpreter requires authentic interpreter ownership transport".into(),
++        )),
++    }
+ }
+ 
+ /// A linear-memory address as an offset.
+--- a/rust/tcl-engine-wasm/src/host_call.rs
++++ b/rust/tcl-engine-wasm/src/host_call.rs
+@@ -34,10 +34,10 @@
+ };
+ use wasmtime::{Caller, Func, Store};
+ 
+-/// Authored setup retaining actual publication addresses for fresh replay.
++/// Fresh setup retains original operands and actual namespace context separately.
+ pub(crate) enum Defined {
+-    Command(Vec<u8>, Rc<dyn HostCommand>),
+-    Removed(Vec<u8>),
++    Command(command_receipts::CommandReplay, Rc<dyn HostCommand>),
++    Removed(command_receipts::CommandReplay),
+     Package(String, String),
+ }
+ 
+@@ -172,14 +172,32 @@
+     interp: i32,
+     outcome: &HostOutcome,
+ ) -> wasmtime::Result<i32> {
+-    let value = match imported(caller, exports, interp, &outcome.value) {
++    answer_parts(
++        caller,
++        exports,
++        interp,
++        &outcome.value,
++        &outcome.options,
++        outcome.code.as_int(),
++    )
++}
++
++fn answer_parts(
++    caller: &mut Caller<'_, HostState>,
++    exports: &Exports,
++    interp: i32,
++    result: &Value,
++    options: &Value,
++    completion_code: i32,
++) -> wasmtime::Result<i32> {
++    let value = match imported(caller, exports, interp, result) {
+         Ok(value) => value,
+         Err(error) => return fail(caller, exports, interp, error),
+     };
+-    let options = if matches!(outcome.options, Value::Empty) {
++    let options = if matches!(options, Value::Empty) {
+         0
+     } else {
+-        match imported(caller, exports, interp, &outcome.options) {
++        match imported(caller, exports, interp, options) {
+             Ok(options) => options,
+             Err(error) => {
+                 exports.release.call(&mut *caller, value)?;
+@@ -187,10 +205,9 @@
+             }
+         }
+     };
+-    let code = exports.complete.call(
+-        &mut *caller,
+-        (interp, value, options, outcome.code.as_int()),
+-    )?;
++    let code = exports
++        .complete
++        .call(&mut *caller, (interp, value, options, completion_code))?;
+     exports.release.call(&mut *caller, value)?;
+     if options != 0 {
+         exports.release.call(&mut *caller, options)?;
+@@ -238,15 +255,13 @@
+         EngineError::Unsupported(reason) => return refuse(caller, exports, interp, reason),
+     };
+     if let Some(options) = options {
+-        return answer(
++        return answer_parts(
+             caller,
+             exports,
+             interp,
+-            &HostOutcome {
+-                value: Value::string_bytes(message),
+-                code: tcl_engine_api::CompletionCode::Error,
+-                options: Value::string_bytes(options),
+-            },
++            &Value::string_bytes(message),
++            &Value::string_bytes(options),
++            1,
+         );
+     }
+     let message = command_receipts::object(caller, exports, &message)
+@@ -293,6 +308,14 @@
+             ))?;
+         let client = i32::try_from(self.caller.data().commands.len())
+             .map_err(|_| EngineError::Unsupported("so many host commands"))?;
++        let replay = command_receipts::replay_input(
++            self.caller,
++            self.exports,
++            self.interp,
++            tcl_engine_api::engine_command_replay::EngineCommandReplayPurpose::Create,
++            name,
++        )
++        .map_err(crate::session::Failure::into_engine_error)?;
+         let receipt = command_receipts::create(
+             self.caller,
+             self.exports,
+@@ -307,7 +330,7 @@
+         self.caller
+             .data_mut()
+             .defined
+-            .push(Defined::Command(receipt.qualified, command));
++            .push(Defined::Command(replay, command));
+         Ok(())
+     }
+ 
+@@ -316,6 +339,14 @@
+     }
+ 
+     fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
++        let replay = command_receipts::replay_input(
++            self.caller,
++            self.exports,
++            self.interp,
++            tcl_engine_api::engine_command_replay::EngineCommandReplayPurpose::Remove,
++            name,
++        )
++        .map_err(crate::session::Failure::into_engine_error)?;
+         let receipt = command_receipts::remove(self.caller, self.exports, self.interp, name)
+             .map_err(crate::session::Failure::into_engine_error)?;
+         if let Some(receipt) = receipt {
+@@ -326,7 +357,7 @@
+             self.caller
+                 .data_mut()
+                 .defined
+-                .push(Defined::Removed(receipt.qualified));
++                .push(Defined::Removed(replay));
+             Ok(true)
+         } else {
+             Ok(false)
+--- a/rust/tcl-engine-wasm/tests/under_wasm.rs
++++ b/rust/tcl-engine-wasm/tests/under_wasm.rs
+@@ -890,6 +890,89 @@
+ }
+ 
+ #[test]
++fn root_replay_retains_original_publication_and_removal_bytes_after_a_trap() {
++    let Some(built) = built() else {
++        eprintln!(
++            "SKIPPING root_replay_retains_original_publication_and_removal_bytes_after_a_trap"
++        );
++        return;
++    };
++    let mut engine = WasmEngine::new(&built.runtime).unwrap();
++    for name in [
++        b":literal\0unused".as_slice(),
++        b"R::::interior",
++        b"::R::::absolute",
++    ] {
++        engine.define_command_bytes(name, Rc::new(Echo)).unwrap();
++    }
++    engine
++        .define_command_bytes(b":gone\0unused", Rc::new(Echo))
++        .unwrap();
++    assert!(engine.remove_command_bytes(b":gone\0unused").unwrap());
++    let body = "list [:literal L] [R::interior I] [::R::absolute A] [info commands :gone] [info commands literal]";
++    assert_eq!(run(&mut engine, body), Ok("L I A {} {}".to_owned()));
++    engine
++        .set_budget(Budget::of_commands(1_000_000).with_wall_clock(Duration::from_millis(50)))
++        .unwrap();
++    assert_eq!(
++        run(&mut engine, "while 1 {}"),
++        Err(EngineError::BudgetExceeded(BudgetKind::WallClock))
++    );
++    engine.set_budget(Budget::default()).unwrap();
++    assert_eq!(run(&mut engine, body), Ok("L I A {} {}".to_owned()));
++}
++
++struct ContextMaker;
++impl HostCommand for ContextMaker {
++    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
++        Err(EngineError::Unsupported(
++            "context maker requires the registrar",
++        ))
++    }
++    fn invoke_with_registrar(
++        &self,
++        registrar: &mut dyn tcl_engine_api::CommandRegistrar,
++        _: &[Value],
++    ) -> Result<HostOutcome, EngineError> {
++        registrar.define_command_bytes(b"child::kept\0unused", Rc::new(Echo))?;
++        registrar.define_command_bytes(b"child::gone\0unused", Rc::new(Echo))?;
++        assert!(registrar.remove_command_bytes(b"child::gone\0unused")?);
++        registrar.define_command_bytes(b":root_host\0unused", Rc::new(Echo))?;
++        Ok(Value::Empty.into())
++    }
++}
++
++#[test]
++fn callback_replay_keeps_actual_namespace_components_and_original_operation_bytes() {
++    let Some(built) = built() else {
++        eprintln!(
++            "SKIPPING callback_replay_keeps_actual_namespace_components_and_original_operation_bytes"
++        );
++        return;
++    };
++    let mut engine = WasmEngine::new(&built.runtime).unwrap();
++    engine
++        .define_command("context_maker", Rc::new(ContextMaker))
++        .unwrap();
++    run(
++        &mut engine,
++        "namespace eval :outer {namespace eval :inner {::context_maker}}",
++    )
++    .unwrap();
++    let body = "list [namespace eval :outer {namespace eval :inner {namespace eval child {kept K}}}] [:root_host ROOT] [namespace eval :outer {namespace eval :inner {namespace eval child {info commands gone}}}] [info commands root_host]";
++    assert_eq!(run(&mut engine, body), Ok("K ROOT {} {}".to_owned()));
++    engine
++        .set_budget(Budget::of_commands(1_000_000).with_wall_clock(Duration::from_millis(50)))
++        .unwrap();
++    assert_eq!(
++        run(&mut engine, "while 1 {}"),
++        Err(EngineError::BudgetExceeded(BudgetKind::WallClock))
++    );
++    engine.set_budget(Budget::default()).unwrap();
++    assert_eq!(run(&mut engine, body), Ok("K ROOT {} {}".to_owned()));
++}
++
++#[test]
+ fn installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements() {
+     // Software integration: naming.embedding.original-host-publication-and-fact-transport
+     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+--- a/runtime/rust/src/interp/native_children.rs
++++ b/runtime/rust/src/interp/native_children.rs
+@@ -50,6 +50,11 @@
+ }
+ 
+ impl Interp {
++    /// The actual child factory tag survives the temporary parent-call scope.
++    pub(crate) fn engine_replay_root_interpreter(&self) -> bool {
++        !self.native_child_interpreter.get()
++    }
++
+     /// A retained activation keeps storage alive, without permitting further eval.
+     pub(super) fn evaluation_is_live(&mut self) -> bool {
+         if self.check_entered_native_operation().is_err() {

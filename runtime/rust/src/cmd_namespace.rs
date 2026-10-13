@@ -1490,6 +1490,12 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"name");
     }
+    if interp.name_policy_protocol().is_some_and(|policy| policy.recipe().is_jim084()) {
+        return match interp.original_jim_namespace_origin(argv[2]) {
+            Ok(result) => result.publish(interp),
+            Err(error) => interp.report_cmd_error(error),
+        };
+    }
     let origin = if interp
         .native_invocation_dialect()
         .native_command_name_protocol()

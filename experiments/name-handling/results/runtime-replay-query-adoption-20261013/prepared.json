@@ -1,0 +1,11 @@
+{
+  "source": "rust/tcl-engine-wasm/src/lib.rs",
+  "preimage_sha256": "3ee013acfc4b77bdfd2892c26f1858de00359a158a1845f878cb321e7cded859",
+  "proposed_sha256": "402cb9bcfc030435b2835b179c472f082a881b4beb0e594dd2f7ab741bcbbb4a",
+  "patch_sha256": "9c014652090ae170835a0e3878f74fe4dbe0825163714c2487d69d411e66834c",
+  "applied": false,
+  "compiled": false,
+  "tests_executed": false,
+  "scope": "outside-callback root entry setup/removal original byte retention only",
+  "callback_relative_context_complete": false
+}

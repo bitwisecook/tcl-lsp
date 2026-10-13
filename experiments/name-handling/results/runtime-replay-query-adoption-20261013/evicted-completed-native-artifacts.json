@@ -1,0 +1,38 @@
+[
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-d16b323745d6e16a",
+    "bytes": 11321264,
+    "sha256": "26720617920da6ac7358e91a4186738ef097306bcfd11f47ab4fafe5310f195a",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_query_bases-1a3cc40d7f7663fe",
+    "bytes": 59253904,
+    "sha256": "9144c83031fd5c971c67bf6066dba64cdbfcb5d66bddb4851c2d50c1b4cc155c",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "bytes": 88121880,
+    "sha256": "599c149b023cf3883338e76c2913df0197fa8437b85c5c204c9c4b41998514e0",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/libtcl_runtime.rlib",
+    "bytes": 83313016,
+    "sha256": "c9d9feec1ba1e9e6ece15f7cd13d77a5e73647cac839648cfe532df004c00b1a",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_syntax-88fc50aa79bbd375",
+    "bytes": 23769968,
+    "sha256": "c1c6fec53534534c7d2bdd43fe0605f84a983770c58cb10f650c6cd69eca45e2",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  },
+  {
+    "path": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "bytes": 59424856,
+    "sha256": "ea86fa58da05a50c1206049bb3999d5c65266a6ec0dc3eac930f72f3061c8ec8",
+    "reason": "completed native-only Runtime controls retained as immutable binary/source/input receipts; not EngineWasm host dependency"
+  }
+]

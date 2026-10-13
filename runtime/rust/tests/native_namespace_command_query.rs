@@ -35,6 +35,26 @@ impl Host for CaptureHost {
     fn env(&self) -> &dyn Env {
         self.native.env()
     }
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        self.native.numeric_environment()
+    }
+    fn native_list_sorting_environment(
+        &self,
+    ) -> Option<&dyn tcl_platform::NativeListSortingEnvironment> {
+        self.native.native_list_sorting_environment()
+    }
+    fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+        self.native.native_integer_formatter()
+    }
+    fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.native.system_encoding()
+    }
+    fn encoding_catalogue(&self) -> Option<&dyn tcl_platform::EncodingCatalogue> {
+        self.native.encoding_catalogue()
+    }
+    fn sockets(&self) -> Option<&dyn tcl_platform::Sockets> {
+        self.native.sockets()
+    }
     fn filesystem(&self) -> Option<&dyn Filesystem> {
         self.native.filesystem()
     }
@@ -60,7 +80,7 @@ fn namespace_command_queries_match_original_portable_source_reports() {
         let mut interp = Interp::with_native_core(host.clone(),
             tcl_registry::model::resolve_environment(environment).unit_profile(),
             tcl_registry::special_vars::NativeBootstrapInputs::default()).unwrap();
-        assert_eq!(interp.eval_str(source), Code::Ok, "{environment}: {:?}", interp.result_bytes());
+        assert_eq!(interp.eval_str(source), Code::Ok, "{environment}: result={:?}; refusal={:?}; stdout={:?}", interp.result_bytes(), interp.native_execution_refusal(), host.stdout.borrow());
         assert!(!interp.host_refusal_pending(), "{environment}");
         assert!(host.stderr.borrow().is_empty(), "{environment}: {:?}", host.stderr.borrow());
         let actual = host.stdout.borrow();
@@ -79,4 +99,313 @@ fn namespace_command_queries_match_original_portable_source_reports() {
         assert_eq!(expected.split(|byte| *byte == b'\n').filter(|row| !row.is_empty()).count(), 33, "{environment}");
         assert_eq!(actual, expected, "{environment}: original query/setup/context rows");
     }
+}
+
+fn compare_reports(environment: &str, source: &[u8], expected: &[u8], rows: usize) {
+    let host = Rc::new(CaptureHost {
+        native: NativeHost::new(),
+        stdout: RefCell::new(Vec::new()),
+        stderr: RefCell::new(Vec::new()),
+    });
+    let mut interp = Interp::with_native_core(
+        host.clone(),
+        tcl_registry::model::resolve_environment(environment).unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        interp.eval_str(source),
+        Code::Ok,
+        "{environment}: result={:?}; refusal={:?}; stdout={:?}",
+        interp.result_bytes(),
+        interp.native_execution_refusal(),
+        host.stdout.borrow()
+    );
+    assert!(!interp.host_refusal_pending(), "{environment}");
+    assert!(
+        host.stderr.borrow().is_empty(),
+        "{environment}: {:?}",
+        host.stderr.borrow()
+    );
+    let actual = host.stdout.borrow();
+    let split = |bytes: &[u8]| bytes.iter().position(|byte| *byte == b'\n').unwrap();
+    let actual_split = split(&actual);
+    let expected_split = split(expected);
+    if environment == "jim" {
+        assert_eq!(&actual[..actual_split], b"IDENTITY 0.84");
+        assert_eq!(&expected[..expected_split], b"IDENTITY 0.84-9-g5bac7c9");
+    } else {
+        assert_eq!(
+            &actual[..actual_split],
+            &expected[..expected_split],
+            "{environment}: selected C release"
+        );
+    }
+    let actual = &actual[actual_split + 1..];
+    let expected = &expected[expected_split + 1..];
+    assert_eq!(
+        actual
+            .split(|byte| *byte == b'\n')
+            .filter(|row| !row.is_empty())
+            .count(),
+        rows,
+        "{environment}"
+    );
+    assert_eq!(
+        expected
+            .split(|byte| *byte == b'\n')
+            .filter(|row| !row.is_empty())
+            .count(),
+        rows,
+        "{environment}"
+    );
+    assert_eq!(
+        actual, expected,
+        "{environment}: original query/setup/context rows"
+    );
+}
+
+#[test]
+fn namespace_origin_original_c84() {
+    compare_reports(
+        "tcl8.4",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/8.4.20/stdout.bin"
+        ),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.4.20/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_origin_original_c85() {
+    compare_reports(
+        "tcl8.5",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/8.5.19/stdout.bin"
+        ),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.5.19/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_origin_original_c86() {
+    compare_reports(
+        "tcl8.6",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/8.6.18/stdout.bin"
+        ),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.6.18/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_origin_original_c90() {
+    compare_reports(
+        "tcl9.0",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/9.0.4/stdout.bin"
+        ),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/9.0.4/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_origin_original_c91() {
+    compare_reports(
+        "tcl9.1",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/9.1.0/stdout.bin"
+        ),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/9.1.0/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_origin_original_jim() {
+    compare_reports(
+        "jim",
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim/stdout.bin"),
+        37,
+    );
+}
+
+#[test]
+fn namespace_helper_root_original_jim() {
+    compare_reports(
+        "jim",
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"
+        ),
+        include_bytes!(
+            "../../../experiments/name-handling/namespace-origin-query/helper-root/jim/stdout.bin"
+        ),
+        5,
+    );
+}
+
+#[test]
+fn namespace_which_string_observer_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.4.20/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.4.20/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_c84() {
+    compare_reports("tcl8.4",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.4.20/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_which_string_observer_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.5.19/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.5.19/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_c85() {
+    compare_reports("tcl8.5",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.5.19/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_which_string_observer_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.6.18/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.6.18/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_c86() {
+    compare_reports("tcl8.6",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.6.18/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_which_string_observer_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/9.0.4/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.0.4/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_c90() {
+    compare_reports("tcl9.0",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.0.4/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_which_string_observer_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/9.1.0/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.1.0/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_c91() {
+    compare_reports("tcl9.1",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.1.0/stdout.bin"), 5);
+}
+
+#[test]
+fn namespace_which_string_observer_jim() {
+    compare_reports("jim",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/jim/stdout.bin"), 33);
+}
+
+#[test]
+fn namespace_origin_string_observer_jim() {
+    compare_reports("jim",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/jim/stdout.bin"), 37);
+}
+
+#[test]
+fn namespace_helper_root_string_observer_jim() {
+    compare_reports("jim",
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/jim/stdout.bin"), 5);
 }

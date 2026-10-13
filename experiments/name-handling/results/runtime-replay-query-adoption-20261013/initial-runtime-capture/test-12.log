@@ -1,0 +1,17 @@
+
+running 1 test
+test namespace_origin_original_c84 ... 
+thread 'namespace_origin_original_c84' (124195) panicked at tests/native_namespace_command_query.rs:89:5:
+assertion `left == right` failed: tcl8.4: []
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_origin_original_c84
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.60s
+

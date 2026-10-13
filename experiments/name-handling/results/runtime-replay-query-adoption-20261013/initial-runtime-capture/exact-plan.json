@@ -1,0 +1,94 @@
+[
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_replay::tests::fresh_replay_keeps_actual_literal_colon_context_and_original_c_api_input"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_replay::tests::fresh_retirement_uses_actual_command_path_and_preserves_the_global_replacement"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_replay::tests::retired_or_wrong_purpose_replay_context_refuses_before_fresh_publication"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_replay::tests::jim_replay_retains_counted_namespace_holder_without_c_component_reparsing"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_replay::tests::actual_child_publication_succeeds_and_fresh_root_replay_refuses_its_realm"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_receipts::tests::counted_command_publication_keeps_installed_context_and_native_extent"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_receipts::tests::receipt_restriction_keeps_renamed_handler_and_drops_replacement_at_old_name"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_receipts::tests::command_receipt_guard_rejects_replacement_and_foreign_owner_before_effects"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "engine_abi::command_receipts::tests::counted_host_refusal_stays_outside_catch_and_nullable_guest_getters"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/tcl_runtime-26c05934d3bea235",
+    "selector": "interp::native_body_artifact::native_introspection::tests::compiled_namespace_which_uses_the_original_command_operand_and_plain_result"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_command_queries_match_original_portable_source_reports"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_origin_original_jim"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c84"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c85"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c86"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c90"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_c91"
+  },
+  {
+    "binary": "/workspace/name-implementation-worktrees/runtime/target/debug/deps/native_namespace_command_query-fd47746255346199",
+    "selector": "namespace_helper_root_original_jim"
+  }
+]

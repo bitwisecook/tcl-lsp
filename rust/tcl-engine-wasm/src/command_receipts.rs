@@ -5,6 +5,9 @@
 //! Counted transport of receipts issued by the runtime's installed-command owner.
 //! A replay address is data; only its current instance's receipt grants access.
 
+use tcl_engine_api::engine_command_replay::{
+    EngineCommandReplayContext, EngineCommandReplayPurpose,
+};
 use tcl_engine_api::{EngineError, engine_interpreter_identity::EngineInterpreterIdentity};
 use wasmtime::{AsContextMut, TypedFunc, WasmParams, WasmResults};
 
@@ -16,6 +19,71 @@ pub(crate) struct CommandReceipt {
     interpreter: u64,
     pub(crate) generation: u64,
     pub(crate) qualified: Vec<u8>,
+}
+
+/// Fresh setup retains original bytes and separately captured holder geometry.
+#[derive(Clone, Debug)]
+pub(crate) struct CommandReplay {
+    pub(crate) original: Vec<u8>,
+    pub(crate) context: Option<EngineCommandReplayContext>,
+    pub(crate) interpreter: ReplayInterpreter,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ReplayInterpreter {
+    Root,
+    Unsupported,
+}
+
+impl CommandReplay {
+    pub(crate) fn root(original: &[u8]) -> Self {
+        Self {
+            original: original.to_vec(),
+            context: None,
+            interpreter: ReplayInterpreter::Root,
+        }
+    }
+}
+
+pub(crate) fn replay_input<C: AsContextMut<Data = HostState>>(
+    context: &mut C,
+    exports: &Exports,
+    interp: i32,
+    purpose: EngineCommandReplayPurpose,
+    original: &[u8],
+) -> Result<CommandReplay, Failure> {
+    let purpose_number = match purpose {
+        EngineCommandReplayPurpose::Create => 1,
+        EngineCommandReplayPurpose::Remove => 2,
+    };
+    let object = call(context, &exports.replay_context, (interp, purpose_number))?;
+    settle(context, exports, interp)?;
+    if object == 0 {
+        return Err(Failure::ExecutionRefusal(
+            "actual command replay context unavailable".into(),
+        ));
+    }
+    let bytes = string_bytes(context, exports, interp, object);
+    call(context, &exports.release, object)?;
+    let replay_context = EngineCommandReplayContext::decode(&bytes?).ok_or_else(|| {
+        Failure::ExecutionRefusal("actual command replay context has no counted recipe".into())
+    })?;
+    if replay_context.purpose != purpose {
+        return Err(Failure::ExecutionRefusal(
+            "actual command replay purpose changed".into(),
+        ));
+    }
+    let identity = interpreter_identity(context, exports, interp)?;
+    let is_root = context.as_context().data().root_interpreter == Some((interp, identity));
+    Ok(CommandReplay {
+        original: original.to_vec(),
+        context: Some(replay_context),
+        interpreter: if is_root {
+            ReplayInterpreter::Root
+        } else {
+            ReplayInterpreter::Unsupported
+        },
+    })
 }
 
 impl CommandReceipt {
@@ -189,13 +257,39 @@ pub(crate) fn create<C: AsContextMut<Data = HostState>>(
     procedure: i32,
     client: i32,
 ) -> Result<CommandReceipt, Failure> {
+    create_with_context(context, exports, interp, name, procedure, client, None)
+}
+
+pub(crate) fn create_with_context<C: AsContextMut<Data = HostState>>(
+    context: &mut C,
+    exports: &Exports,
+    interp: i32,
+    name: &[u8],
+    procedure: i32,
+    client: i32,
+    replay: Option<&EngineCommandReplayContext>,
+) -> Result<CommandReceipt, Failure> {
     let (input, length) = buffer(context, exports, name)?;
     let out = call(context, &exports.alloc, (32, 8))?;
-    let status = call(
-        context,
-        &exports.create_command,
-        (interp, input, length, procedure, client, out),
-    )?;
+    let status = if let Some(replay) = replay {
+        let bytes = replay.encode().ok_or_else(|| {
+            Failure::ExecutionRefusal("command replay context is unavailable".into())
+        })?;
+        let (source, count) = buffer(context, exports, &bytes)?;
+        let status = call(
+            context,
+            &exports.replay_create_command,
+            (interp, source, count, input, length, procedure, client, out),
+        )?;
+        call(context, &exports.free, source)?;
+        status
+    } else {
+        call(
+            context,
+            &exports.create_command,
+            (interp, input, length, procedure, client, out),
+        )?
+    };
     call(context, &exports.free, input)?;
     let answer = settle(context, exports, interp).and_then(|()| {
         if status != 0 {
@@ -215,13 +309,37 @@ pub(crate) fn remove<C: AsContextMut<Data = HostState>>(
     interp: i32,
     name: &[u8],
 ) -> Result<Option<CommandReceipt>, Failure> {
+    remove_with_context(context, exports, interp, name, None)
+}
+
+pub(crate) fn remove_with_context<C: AsContextMut<Data = HostState>>(
+    context: &mut C,
+    exports: &Exports,
+    interp: i32,
+    name: &[u8],
+    replay: Option<&EngineCommandReplayContext>,
+) -> Result<Option<CommandReceipt>, Failure> {
     let (input, length) = buffer(context, exports, name)?;
     let out = call(context, &exports.alloc, (32, 8))?;
-    let status = call(
-        context,
-        &exports.delete_command,
-        (interp, input, length, out),
-    )?;
+    let status = if let Some(replay) = replay {
+        let bytes = replay.encode().ok_or_else(|| {
+            Failure::ExecutionRefusal("command replay context is unavailable".into())
+        })?;
+        let (source, count) = buffer(context, exports, &bytes)?;
+        let status = call(
+            context,
+            &exports.replay_delete_command,
+            (interp, source, count, input, length, out),
+        )?;
+        call(context, &exports.free, source)?;
+        status
+    } else {
+        call(
+            context,
+            &exports.delete_command,
+            (interp, input, length, out),
+        )?
+    };
     call(context, &exports.free, input)?;
     let answer = settle(context, exports, interp).and_then(|()| match status {
         0 => read_receipt(context, exports, interp, out).map(Some),

@@ -1,0 +1,10 @@
+    Checking bitflags v2.13.2
+    Checking tcl-core-types v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-core-types)
+    Checking thiserror v2.0.21
+    Checking bytecount v0.6.9
+    Checking libm v0.2.16
+    Checking tcl-dialect v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-dialect)
+    Checking tcl-lexer v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-lexer)
+    Checking tcl-syntax v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/name-implementation-worktrees/runtime/rust/tcl-runtime-api)
+    Finished `dev` profile [unoptimized] target(s) in 3.73s

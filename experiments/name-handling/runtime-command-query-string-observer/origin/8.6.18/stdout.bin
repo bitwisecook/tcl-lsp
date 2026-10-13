@@ -1,0 +1,38 @@
+IDENTITY 8.6.18
+OBSERVATION root-bare 0 ::__no_target {}
+OBSERVATION root-absolute 0 ::__no_target {}
+OBSERVATION root-extra-colons 0 ::__no_target {}
+OBSERVATION root-single-colon 0 :::__no_literal {}
+OBSERVATION root-single-colon-display 1 {invalid command name ":::__no_literal"} {TCL LOOKUP COMMAND :::__no_literal}
+OBSERVATION root-tail-colon 0 ::__no_tail: {}
+OBSERVATION root-missing 1 {invalid command name "__no_absent"} {TCL LOOKUP COMMAND __no_absent}
+OBSERVATION alias-setup 0 {} {}
+OBSERVATION alias-query 0 ::__no_alias {}
+OBSERVATION alias-absolute-query 0 ::__no_alias {}
+OBSERVATION alias-prefix-setup 0 {} {}
+OBSERVATION alias-prefix-query 0 ::__no_prefix {}
+OBSERVATION alias-missing-setup 0 {} {}
+OBSERVATION alias-missing-query 0 ::__no_missing_alias {}
+OBSERVATION alias-chain-setup 0 {} {}
+OBSERVATION alias-chain-query 0 ::__no_chain {}
+OBSERVATION retained-alias-before 0 ::__no_alias {}
+OBSERVATION alias-rename-setup 0 {} {}
+OBSERVATION alias-replacement-setup 0 {} {}
+OBSERVATION retained-alias-after 0 ::__no_alias {}
+OBSERVATION renamed-alias-query 0 ::__no_old_alias {}
+OBSERVATION chain-after-replacement 0 ::__no_chain {}
+OBSERVATION local-shadow 0 ::__no_context::__no_target {}
+OBSERVATION absolute-root 0 ::__no_target {}
+OBSERVATION root-fallback 0 ::__no_other {}
+OBSERVATION local-alias-setup 0 {} {}
+OBSERVATION local-alias-query 0 ::__no_local_alias {}
+OBSERVATION root-alias-from-child 0 ::__no_alias {}
+OBSERVATION export-setup 0 {} {}
+OBSERVATION import-setup 0 {} {}
+OBSERVATION import-origin 0 ::__no_source::exported {}
+OBSERVATION left-current 0 ::__no_a:::b {}
+OBSERVATION left-origin 0 ::__no_a:::b::marker {}
+OBSERVATION left-report-requery 1 {invalid command name "::__no_a:::b::marker"} {TCL LOOKUP COMMAND ::__no_a:::b::marker}
+OBSERVATION right-current 0 ::__no_a:::b {}
+OBSERVATION right-origin 0 ::__no_a:::b::marker {}
+OBSERVATION right-report-requery 1 {invalid command name "::__no_a:::b::marker"} {TCL LOOKUP COMMAND ::__no_a:::b::marker}

@@ -51,6 +51,8 @@ const SIDE_STACK: i32 = 64 * 1024;
 pub(crate) struct HostState {
     /// The runtime's exports, once it is instantiated.
     pub(crate) exports: Option<Rc<Exports>>,
+    /// Actual installed root pointer and diagnostic identity, never a guessed ID.
+    pub(crate) root_interpreter: Option<(i32, EngineInterpreterIdentity)>,
     /// The cap on the memory's growth for the running evaluation.
     cap: MemoryCap,
     /// The host commands, by the client data each was registered with.
@@ -138,6 +140,9 @@ pub(crate) struct Exports {
     pub(crate) capture: TypedFunc<(i32, i32, i32), i32>,
     pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     pub(crate) delete_command: TypedFunc<(i32, i32, i32, i32), i32>,
+    pub(crate) replay_context: TypedFunc<(i32, i32), i32>,
+    pub(crate) replay_create_command: TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>,
+    pub(crate) replay_delete_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     set_limits: TypedFunc<(i32, i64, i64), ()>,
     begin: TypedFunc<i32, ()>,
     exceeded: TypedFunc<i32, i32>,
@@ -191,6 +196,12 @@ impl Exports {
                 .get_typed_func(&mut *store, "tcl_engine_create_command_counted")?,
             delete_command: instance
                 .get_typed_func(&mut *store, "tcl_engine_delete_command_counted")?,
+            replay_context: instance
+                .get_typed_func(&mut *store, "tcl_engine_command_replay_context")?,
+            replay_create_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_replay_create_command_counted")?,
+            replay_delete_command: instance
+                .get_typed_func(&mut *store, "tcl_engine_replay_delete_command_counted")?,
             set_limits: instance.get_typed_func(&mut *store, "tcl_engine_set_limits")?,
             begin: instance.get_typed_func(&mut *store, "tcl_engine_begin")?,
             exceeded: instance.get_typed_func(&mut *store, "tcl_engine_exceeded")?,
@@ -306,6 +317,9 @@ impl Session {
             instance.get_typed_func::<i32, ()>(&mut store, "tcl_runtime_set_current_interp")?;
         let interp = create.call(&mut store, ())?;
         current.call(&mut store, interp)?;
+        let identity = command_receipts::interpreter_identity(&mut store, &exports, interp)
+            .map_err(|failure| wasmtime::Error::msg(failure.into_engine_error().to_string()))?;
+        store.data_mut().root_interpreter = Some((interp, identity));
         let scratch = exports.alloc.call(&mut store, (16, 8))?;
         let mut session = Self {
             store,
@@ -602,6 +616,24 @@ impl Session {
         name: &[u8],
         command: Rc<dyn HostCommand>,
     ) -> Result<CommandReceipt, Failure> {
+        self.define_command_with_context(name, command, None)
+    }
+
+    pub(crate) fn replay_command(
+        &mut self,
+        input: &command_receipts::CommandReplay,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<CommandReceipt, Failure> {
+        admit_replay_interpreter(input)?;
+        self.define_command_with_context(&input.original, command, input.context.as_ref())
+    }
+
+    fn define_command_with_context(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
+    ) -> Result<CommandReceipt, Failure> {
         let procedure = if let Some(procedure) = self.store.data().host_procedure {
             procedure
         } else {
@@ -618,13 +650,14 @@ impl Session {
         };
         let client = i32::try_from(self.store.data().commands.len())
             .map_err(|_| Failure::Refused("too many host commands".to_owned()))?;
-        let receipt = command_receipts::create(
+        let receipt = command_receipts::create_with_context(
             &mut self.store,
             &self.exports,
             self.interp,
             name,
             procedure,
             client,
+            context,
         )?;
         self.store.data_mut().commands.push(command);
         self.store.data_mut().host_receipts.push(receipt.clone());
@@ -636,7 +669,29 @@ impl Session {
         &mut self,
         name: &[u8],
     ) -> Result<Option<CommandReceipt>, Failure> {
-        let receipt = command_receipts::remove(&mut self.store, &self.exports, self.interp, name)?;
+        self.delete_command_with_context(name, None)
+    }
+
+    pub(crate) fn replay_remove(
+        &mut self,
+        input: &command_receipts::CommandReplay,
+    ) -> Result<Option<CommandReceipt>, Failure> {
+        admit_replay_interpreter(input)?;
+        self.delete_command_with_context(&input.original, input.context.as_ref())
+    }
+
+    fn delete_command_with_context(
+        &mut self,
+        name: &[u8],
+        context: Option<&tcl_engine_api::engine_command_replay::EngineCommandReplayContext>,
+    ) -> Result<Option<CommandReceipt>, Failure> {
+        let receipt = command_receipts::remove_with_context(
+            &mut self.store,
+            &self.exports,
+            self.interp,
+            name,
+            context,
+        )?;
         if let Some(receipt) = &receipt {
             self.store
                 .data_mut()
@@ -854,6 +909,15 @@ pub(crate) fn trap_error(error: &wasmtime::Error) -> EngineError {
         return EngineError::Crashed(exit.to_string());
     }
     EngineError::Crashed(format!("{error:#}"))
+}
+
+fn admit_replay_interpreter(input: &command_receipts::CommandReplay) -> Result<(), Failure> {
+    match input.interpreter {
+        command_receipts::ReplayInterpreter::Root => Ok(()),
+        command_receipts::ReplayInterpreter::Unsupported => Err(Failure::ExecutionRefusal(
+            "fresh command replay from a child or foreign interpreter requires authentic interpreter ownership transport".into(),
+        )),
+    }
 }
 
 /// A linear-memory address as an offset.

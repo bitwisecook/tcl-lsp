@@ -1,0 +1,17 @@
+
+running 1 test
+test namespace_which_string_observer_jim ... 
+thread 'namespace_which_string_observer_jim' (127004) panicked at tests/native_namespace_command_query.rs:96:5:
+assertion `left == right` failed: jim: result=[]; refusal=Some(ValueAccessRefusal(ScalarNumericInputUnavailable)); stdout=[73, 68, 69, 78, 84, 73, 84, 89, 32, 48, 46, 56, 52, 10]
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_which_string_observer_jim
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.42s
+
