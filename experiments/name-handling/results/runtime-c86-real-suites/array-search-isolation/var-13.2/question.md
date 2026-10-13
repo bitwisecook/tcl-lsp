@@ -1,0 +1,7 @@
+# Original array-search test var-13.2
+
+Does the unchanged C Tcl 8.6.18 `var-13.2` test complete in a fresh production Runtime process, and does its actual Tcltest result match C Tcl 8.6.18? The original broader run stopped after this test start without a final Tcltest count, so this selection measures the isolated test rather than inferring its outcome from a progress marker.
+
+`wrapper.tcl` differs from the original wrapper only by adding `-match var-13.2` to Tcltest configuration. The actual original `init.tcl`, `tcltest.tcl`, `all.tcl`, and `var.test` remain unchanged. Runtime uses its existing production runner; C Tcl uses its original shell. No test body is replaced, no source is modified, and no F5 process is used. Limits are 60 seconds, a further 5 seconds before forced termination, 1 GiB address space and disabled core files. Synthetic clock environment controls match the broader run; inherited environment contents are not recorded.
+
+The retained conservative source envelope has one user-sanitised JSON fixture difference, explicitly recorded in the receipt. That fixture is not in the runner dep-info and is not included by production Rust sources. All 2,787 tracked dep-info inputs are unchanged from the build commit. The generated dialect input and libtommath directory are noted separately; no build or target-cache mutation is performed. No historical scrubbed fixture is restored.

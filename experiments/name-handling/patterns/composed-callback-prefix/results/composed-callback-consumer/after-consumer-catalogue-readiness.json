@@ -1,0 +1,102 @@
+{
+  "inspection_utc": "2026-10-13T11:38:09.545825+00:00",
+  "inspection_commit": "049c0fc7a",
+  "status": "source-inspection-only; build and execution not performed",
+  "selector": "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+  "cargo_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "environment_prelude": "source /tmp/name-env.sh",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+    "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+    "TCL_LSP_TRACE_ORIGINAL_DECLARATION": "1",
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+  },
+  "old_binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+    "sha256": "9abbee7ab24cbd1feb10a940d7485194178be33a5f02686a63d958476aa13e86",
+    "bytes": 178663304,
+    "state": "noncurrent TEMP diagnostic binary; must rebuild",
+    "execution_receipt": "source-only-central-projection-diagnostic-1/result.json"
+  },
+  "old_scope_fields": 3478,
+  "current_changed_scope_fields": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/commands.rs",
+      "old_sha256": "1990e4e137c55d2261926a6be4ebed599dbdbae5318b21d5aa659220bc901887",
+      "current_sha256": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+      "old_sha256": "cdc954a58e0ad4837af2012e85f7cd448329a842ba7a66830c715661ae12aa42",
+      "current_sha256": "24c2ef683860c1f4bd714e4a78242a4e44b93afa32963dce1f50f239bff45651"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "old_sha256": "6a132935c7016cc2af026d34309f796a8fe1c1bf8f060324ddee160da30cb55a",
+      "current_sha256": "80bb56d68a3148ec8b4abdfaa97bceca98e833c28881afc87118d1c5e0c53279"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "old_sha256": "666e34ce0de8b4454572d0de4f00e810a66c3cf9b82adb9d7f5a281dd32877b4",
+      "current_sha256": "17b1bd17208f0c6fd80f89f7a3e3b49c547ab74b866b4723d6d1d5db4a6fdf98"
+    },
+    {
+      "path": "rust/tcl-irules/src/lib.rs",
+      "old_sha256": "9d89beceb7971be5e2006747c5086817b110828f8ea124d7fd11253f5d5fc3a4",
+      "current_sha256": "84b2e4e45a4b1220d70285f4b584458e89e273faf8fbf19ff799a7291ab9473b"
+    },
+    {
+      "path": "rust/tcl-irules/src/source_object.rs",
+      "old_sha256": "1c8d39bab7e31d404902350423590cc591b794458a43ac51020c5f54de6ecf4a",
+      "current_sha256": "93a5f64241b1db2ad19a6730912c9304c89bb198e4f8ef9b21f3c307f9225c03"
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/irules/class.rs",
+      "old_sha256": "a90361fd2b05f54e80d5ce7f76380b9d74ca2003808a31db152ed9c8cd8933cd",
+      "current_sha256": "954037d051d6aec96acf2629477e8923801e32518760684faae02a857a73f07f"
+    },
+    {
+      "path": "rust/tcl-registry/src/lib.rs",
+      "old_sha256": "470180fd53f131b4b6d628c7e42e7d3640e720d4e5a9107de86d0f0309a906d6",
+      "current_sha256": "f1a55687fcb46dca181e088f38b27f322b0dcdd95ed14569adf1f0fbc4c261ce"
+    },
+    {
+      "path": "rust/tcl-registry/src/spec.rs",
+      "old_sha256": "553a01b03ae5834bf1650fbc573c9a38562906492ebbe726d45da9e920b11381",
+      "current_sha256": "78bf56ea8166e327ca19a152050838c6057f119b576ca2beaf514e5014d9022f"
+    },
+    {
+      "path": "rust/tcl-sslictcl/src/trust.rs",
+      "old_sha256": "bdf881f6121d3c98f059dcb0e1d8c38485f16cbad9163a2475a74152c2ce78ec",
+      "current_sha256": "12ba1ed65745da9920e5eeb11cb79abc00e58d87f121e7ba1149e05bf248201b"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/native.rs",
+      "old_sha256": "bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8",
+      "current_sha256": "814ce903919809bdf6fa627b186d26b8c3bc3f8205c8c2b898c6f20647bc8fcb"
+    }
+  ],
+  "disk": {
+    "observed_available_bytes_approx": 2400000000,
+    "fresh_build_capacity": "not proved"
+  },
+  "capture_requirements": [
+    "capture complete raw stdout/stderr without echoing source/configuration material",
+    "report synthetic offsets and booleans only",
+    "freeze actual local input and artifact scopes",
+    "record no inference for unreached predicates"
+  ]
+}
