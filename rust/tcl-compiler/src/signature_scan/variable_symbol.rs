@@ -145,6 +145,8 @@ pub struct OriginalVariableWriteAdvice {
     frame: Option<crate::command_binding::SourceOriginalVariableFrame>,
     namespace: Option<SignatureNamespaceScope>,
     conditional_metadata: Option<crate::registry_invocation::OriginalConditionalRegistryMetadata>,
+    registry: tcl_registry::RegistrySemanticKey,
+    context: tcl_registry::model::ResolvedContext,
 }
 
 impl OriginalVariableWriteAdvice {
@@ -157,6 +159,7 @@ impl OriginalVariableWriteAdvice {
         conditional_metadata: Option<
             crate::registry_invocation::OriginalConditionalRegistryMetadata,
         >,
+        context: &tcl_registry::model::ContextRegistry,
     ) -> Self {
         Self {
             span,
@@ -165,7 +168,17 @@ impl OriginalVariableWriteAdvice {
             frame,
             namespace,
             conditional_metadata,
+            registry: context.commands().snapshot().semantic_key(),
+            context: context.context().clone(),
         }
+    }
+
+    /// Same immutable source availability and command-store semantics.
+    /// This establishes card currency, never a selected cell or successful write.
+    #[must_use]
+    pub fn matches_context(&self, context: &tcl_registry::model::ContextRegistry) -> bool {
+        self.registry == context.commands().snapshot().semantic_key()
+            && self.context == *context.context()
     }
 
     /// Original written receiver extent in the consumer source.

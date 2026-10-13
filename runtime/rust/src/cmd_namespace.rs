@@ -728,11 +728,14 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(error) => return interp.report_cmd_error(error.into()),
     };
     let Some(protocol) = interp.name_policy_protocol() else {
-        return interp.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-            "namespace which protocol",
-        ).into());
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("namespace which protocol")
+                .into(),
+        );
     };
-    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &args) else {
+    let Some((kind, name_index)) =
+        tcl_cmd_core::namespace::which_request_in(protocol.recipe(), &args)
+    else {
         return interp.wrong_args_for_prefix(argv, 2, b"?-command? ?-variable? name");
     };
     let name = &args[name_index];

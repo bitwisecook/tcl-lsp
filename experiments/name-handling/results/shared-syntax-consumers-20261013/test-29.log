@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::namespace_spans::original_namespace_rename_tests::original_namespace_rename_preserves_colon_runs_and_omitted_components ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

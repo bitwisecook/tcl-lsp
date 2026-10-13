@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::variable_geometry::tests::logical_variable_namespace_bases_use_only_the_supplied_fallback_policy ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::vendor_source::tests::vendor_source_context_and_observed_variable_purpose_are_independent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

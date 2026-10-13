@@ -74,7 +74,6 @@ impl crate::CommandSpec {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

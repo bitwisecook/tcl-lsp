@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::native::command_source_word_tests::command_source_word_preserves_opaque_slots_and_original_channel ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

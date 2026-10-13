@@ -701,22 +701,27 @@ pub fn select(
             _ => None,
         });
     }
+    let Some(registry) = analysis.resolved_registry() else {
+        return ControlFlow::Break(None);
+    };
     let headers = analysis
         .original_procedure_declarations()
         .filter_map(|row| {
             OriginalDeclarationIdentity::for_procedure(uri, source, analysis, row)
-                .map(|identity| (row.name(), identity))
+                .map(|identity| (row.name(), row.declaration_site(), identity))
         })
         .chain(analysis.original_class_declarations().filter_map(|row| {
             OriginalDeclarationIdentity::for_class(uri, source, analysis, row)
-                .map(|identity| (row.name(), identity))
+                .map(|identity| (row.name(), row.declaration_site(), identity))
         }));
-    ControlFlow::Break(lookup.matching_publications(headers).and_then(|matched| {
-        match matched.as_slice() {
-            [one] => Some(one.clone()),
-            _ => None,
-        }
-    }))
+    ControlFlow::Break(
+        lookup
+            .matching_source_advice_publications(registry, headers)
+            .and_then(|matched| match matched.as_slice() {
+                [one] => Some(one.clone()),
+                _ => None,
+            }),
+    )
 }
 
 /// Readonly local references to this exact source declaration. Terminal command

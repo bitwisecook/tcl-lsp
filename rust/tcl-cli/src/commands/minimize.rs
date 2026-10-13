@@ -142,7 +142,7 @@ where
 /// or `None` for names that must never be renamed.
 fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<String> {
     if RESERVED_NAMES.contains(&name)
-        || name.contains("::")
+        || tcl_syntax::naming::is_qualified(name.as_bytes())
         || name.is_empty()
         || name.chars().next().is_some_and(|c| c.is_ascii_digit())
     {

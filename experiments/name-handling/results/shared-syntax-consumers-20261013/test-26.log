@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::namespace_spans::namespace_source_word_tests::namespace_source_words_reselect_exact_opaque_components_and_jim_objects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

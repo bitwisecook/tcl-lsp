@@ -247,6 +247,26 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
         self.namespace.as_deref()
     }
 
+    /// Namespace variable coordinate from this checked Logical source frame.
+    /// Local names and relative names in unknown callers supply no coordinate.
+    #[must_use]
+    pub fn namespace_variable_coordinate(&self, written: &str) -> Option<String> {
+        let namespace = if crate::naming::unroot_rooted_key(written).is_some() {
+            "::"
+        } else {
+            if !crate::naming::is_qualified(written.as_bytes())
+                && !matches!(
+                    self.kind,
+                    LogicalVariableScopeKind::Root | LogicalVariableScopeKind::Namespace
+                )
+            {
+                return None;
+            }
+            self.namespace()?
+        };
+        Some(crate::naming::qualify(namespace, written))
+    }
+
     /// Namespace tables use their selected root alternative independently.
     #[must_use]
     pub fn is_namespace_frame(&self) -> bool {
@@ -2135,11 +2155,26 @@ impl Analyser {
                 self.result.original_variable_symbols.push(site);
             }
         }
-        if !base_name.contains("::") {
+        if !crate::naming::is_qualified(base_name.as_bytes()) {
             return;
         }
-        let ns = self.command_resolution_namespace(scope_path);
-        let qualified = crate::naming::qualify(&ns, base_name);
+        let qualified = if self.result.allows_lexical_declaration_advice() {
+            let image = tcl_lexer::SourceImage::document(&self.source);
+            let Some(advice) = self.result.logical_variable_scope_advice(
+                &image,
+                self.file_lexer_config(),
+                span.start(),
+            ) else {
+                return;
+            };
+            let Some(qualified) = advice.namespace_variable_coordinate(base_name) else {
+                return;
+            };
+            qualified
+        } else {
+            let ns = self.command_resolution_namespace(scope_path);
+            crate::naming::qualify(&ns, base_name)
+        };
         if let Some(last) = self
             .result
             .qualified_var_refs
@@ -2224,6 +2259,7 @@ impl Analyser {
             });
         let namespace = scope_at(&self.result.global_scope, scope_path)
             .and_then(|scope| scope.naming_scope.clone());
+        let context = self.analysis_context();
         let advice = crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice::new(
             span,
             input,
@@ -2231,10 +2267,12 @@ impl Analyser {
             frame,
             namespace,
             conditional_metadata.cloned(),
+            &context,
         );
         let same_card =
             |existing: &crate::signature_scan::variable_symbol::OriginalVariableWriteAdvice| {
-                existing.span() == advice.span()
+                existing.matches_context(&context)
+                    && existing.span() == advice.span()
                     && existing.original_name_input() == advice.original_name_input()
                     && existing.receiver_form() == advice.receiver_form()
                     && existing.original_frame() == advice.original_frame()

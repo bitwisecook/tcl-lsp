@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::native::tests::trace_subject_registration_keeps_escaped_zero_distinct_from_raw_zero ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

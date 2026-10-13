@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::native::tests::ensemble_map_prefix_construction_preserves_counted_heads_before_lookup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

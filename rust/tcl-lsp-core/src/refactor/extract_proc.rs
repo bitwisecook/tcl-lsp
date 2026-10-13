@@ -1074,7 +1074,7 @@ fn unique_proc_name(
 ) -> Result<String, String> {
     if analysis.allows_lexical_declaration_advice() {
         return first_fresh_proc_name(|candidate| {
-            let global = format!("::{candidate}");
+            let global = tcl_syntax::naming::root_unrooted_key(candidate);
             Some(
                 registry.get(candidate).is_some()
                     || analysis

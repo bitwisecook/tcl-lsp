@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::tests::command_lookup_bases_visit_path_only_after_current ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::native::tests::jim_context_composition_does_not_borrow_c_namespace_parsing ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

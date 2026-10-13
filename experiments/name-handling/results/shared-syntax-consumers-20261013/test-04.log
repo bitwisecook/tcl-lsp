@@ -1,0 +1,6 @@
+
+running 1 test
+test naming::aliases::tests::local_tail_preserves_unqualified_full_object_but_qualified_cstring ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s
+

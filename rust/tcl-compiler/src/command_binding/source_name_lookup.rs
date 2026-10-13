@@ -84,6 +84,105 @@ impl OriginalCommandLookup {
         )
     }
 
+    /// Readonly source publication advice, preserving positioned table refusals.
+    /// Conditional body entries supply no future installation or edit authority.
+    #[must_use]
+    pub fn matching_source_advice_publications<'a, T: Clone + Eq>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        declarations: impl IntoIterator<
+            Item = (
+                &'a crate::signature_scan::scope::SignatureSourceCommand,
+                &'a super::CommandAllocationSite,
+                T,
+            ),
+        >,
+    ) -> Option<Vec<T>> {
+        use super::declaration_layout::OriginalDiagnosticFrameEntry;
+        let declarations = declarations.into_iter().collect::<Vec<_>>();
+        let selected =
+            self.matching_slot_publications(declarations.iter().map(|(name, site, value)| {
+                (name.slot(), name.policy(), ((*site).clone(), value.clone()))
+            }))?;
+        if self.observations.is_empty() {
+            return None;
+        }
+        let registry_key = registry.snapshot().semantic_key();
+        let mut unanimous = None;
+        for row in &self.observations {
+            if row.snapshot.state.baseline.registry_snapshot.as_ref() != Some(&registry_key)
+                || !row.entry.owns_source(&self.site.source, self.site.offset)
+                || row
+                    .snapshot
+                    .state
+                    .baseline
+                    .execution_name_policy
+                    .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                    != Some(self.policy())
+                || row.snapshot.state.source_step_observed()
+            {
+                return None;
+            }
+            let conditional_body = matches!(
+                row.entry.as_ref(),
+                OriginalDiagnosticFrameEntry::Body(_)
+                    | OriginalDiagnosticFrameEntry::DeclaredProcedure(_)
+                    | OriginalDiagnosticFrameEntry::DeclaredReceiver(_)
+            );
+            let state = &row.snapshot.state;
+            if state.has_opaque_domain() || state.baseline.unknown_entry {
+                return None;
+            }
+            let mut admitted = Vec::new();
+            for (name, site, value) in &declarations {
+                if !selected
+                    .iter()
+                    .any(|(picked, metadata)| picked == *site && metadata == value)
+                {
+                    continue;
+                }
+                let explicit =
+                    state.original_catalogue_bindings_for_slot(name.slot(), name.policy());
+                let baseline;
+                let bindings = if explicit.is_empty() && !conditional_body {
+                    let key = state.original_command_key_for_slot(name.slot(), name.policy())?;
+                    baseline = state.original_bindings_for_key(&key)?;
+                    baseline.iter().collect::<Vec<_>>()
+                } else {
+                    explicit
+                };
+                let agrees = bindings.iter().all(|binding| match binding {
+                    super::MayBinding::Target(target) => target
+                        .implementation_allocation
+                        .as_ref()
+                        .is_some_and(|allocation| &allocation.site == *site),
+                    super::MayBinding::Imported(imported) => {
+                        state.objects.get(&imported.origin).is_some_and(|targets| {
+                            !targets.is_empty()
+                                && targets.iter().all(|binding| {
+                                    matches!(binding, super::MayBinding::Target(target)
+                                    if target.implementation_allocation.as_ref()
+                                        .is_some_and(|allocation| &allocation.site == *site))
+                                })
+                        })
+                    }
+                    super::MayBinding::Missing | super::MayBinding::Unknown => false,
+                });
+                if agrees && !admitted.contains(value) {
+                    admitted.push(value.clone());
+                }
+            }
+            if unanimous
+                .as_ref()
+                .is_some_and(|previous| previous != &admitted)
+            {
+                return None;
+            }
+            unanimous = Some(admitted);
+        }
+        unanimous
+    }
+
     /// First matching exact slots under their independently selected policies.
     /// Every original lookup alternative must select the same metadata set.
     /// Publications can belong to another source; the caller owns that join.

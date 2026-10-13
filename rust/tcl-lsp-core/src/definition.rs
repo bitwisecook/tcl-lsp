@@ -1883,13 +1883,7 @@ pub(crate) fn lookup_var_in_logical_scope<'a>(
     name: &str,
 ) -> Option<&'a tcl_compiler::analyser::VarDef> {
     if tcl_syntax::naming::is_qualified(name.as_bytes()) {
-        let namespace = if tcl_syntax::naming::unroot_rooted_key(name).is_some() {
-            Some("::")
-        } else {
-            advice.namespace()
-        };
-        if let Some(namespace) = namespace {
-            let qualified = tcl_compiler::naming::qualify(namespace, name);
+        if let Some(qualified) = advice.namespace_variable_coordinate(name) {
             let (holder, tail) = tcl_compiler::naming::key_holder_and_tail(&qualified);
             if let Some(definition) =
                 tcl_compiler::analyser::lookup_var_in_namespace(advice.root(), holder, tail)
@@ -2053,12 +2047,7 @@ pub fn qualified_variable_cell_at(
         if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
             return None;
         }
-        let namespace = if tcl_syntax::naming::unroot_rooted_key(base).is_some() {
-            "::"
-        } else {
-            scope.namespace()?
-        };
-        return Some(tcl_compiler::naming::qualify(namespace, base));
+        return scope.namespace_variable_coordinate(base);
     }
     // A bareword sitting on a namespace-scoped declaration (or a later
     // same-cell write): the scope tree already knows the cell's qualified
@@ -2068,9 +2057,54 @@ pub fn qualified_variable_cell_at(
         .find(|(_, var)| {
             let contains =
                 |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
-            contains(var.definition_span) || var.references.iter().any(|&r| contains(r))
+            contains(var.definition_span)
         })
         .map(|(qualified, _)| qualified)
+        .or_else(|| logical_variable_write_coordinate(source, analysis, cursor_off, &scope))
+}
+
+fn logical_variable_write_coordinate(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    scope: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+) -> Option<String> {
+    let context = analysis.resolved_input.as_ref()?.context_registry();
+    let mut coordinate = None;
+    for advice in &analysis.original_variable_write_advice {
+        let span = advice.span();
+        if !(span.start() <= cursor && cursor < span.end())
+            || !advice.matches_context(&context)
+            || !crate::original_name_edit::original_input_matches_source(
+                source,
+                analysis,
+                advice.original_name_input(),
+                span,
+            )
+        {
+            continue;
+        }
+        let input = advice.original_name_input();
+        let protocol = input.policy().recipe();
+        let selected = match advice.receiver_form().input_form(protocol, input.bytes())? {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let written = std::str::from_utf8(selected.root().selected()).ok()?;
+        let current = scope.namespace_variable_coordinate(written)?;
+        if coordinate
+            .as_ref()
+            .is_some_and(|previous| previous != &current)
+        {
+            return None;
+        }
+        coordinate = Some(current);
+    }
+    coordinate
 }
 
 /// Whether a retained original namespace-variable producer or conflict covers
@@ -8691,6 +8725,136 @@ mod logical_variable_scope_owner_tests {
                 )
                 .is_empty()
             );
+        }
+    }
+
+    #[test]
+    fn logical_namespace_write_coordinates_require_current_source_and_store_cards() {
+        use std::sync::Arc;
+        use tcl_compiler::analyser::ResolvedAnalysisInput;
+        let source = "namespace eval N {variable x FIRST; set x AGAIN; puts $x}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let offset = u32::try_from(source.find("set x AGAIN").unwrap() + "set ".len()).unwrap();
+        let position = LineIndex::new(source).position_at_utf16(offset, source);
+        let query = |source: &str, analysis: &AnalysisResult| {
+            qualified_variable_cell_at(
+                source,
+                analysis.resolved_profile().unwrap(),
+                analysis,
+                position.line,
+                position.character.get(),
+            )
+        };
+        assert_eq!(query(source, &analysis).as_deref(), Some("::N::x"));
+        let mut missing = analysis.clone();
+        missing.original_variable_write_advice.clear();
+        assert!(query(source, &missing).is_none());
+        assert!(query(&format!("{source} "), &analysis).is_none());
+
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let mut registry = analysis
+            .resolved_registry()
+            .unwrap()
+            .project_for_profile(input.unit_profile());
+        let mut changed = registry.get("puts").unwrap().clone();
+        if changed
+            .traits
+            .contains(tcl_registry::Traits::EVALUATES_CODE)
+        {
+            changed.traits.remove(tcl_registry::Traits::EVALUATES_CODE);
+        } else {
+            changed.traits.insert(tcl_registry::Traits::EVALUATES_CODE);
+        }
+        registry.insert(changed);
+        let context = Arc::new(
+            input
+                .context_registry()
+                .with_command_store(Arc::new(registry)),
+        );
+        let foreign_input = ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            context,
+            input.lexer_config(),
+        );
+        let foreign = Analyser::new()
+            .with_resolved_input(foreign_input)
+            .analyse(source, "tcl");
+        assert!(!foreign.original_variable_write_advice.is_empty());
+        let mut donated = analysis.clone();
+        donated.original_variable_write_advice = foreign.original_variable_write_advice;
+        assert!(query(source, &donated).is_none());
+    }
+
+    #[test]
+    fn logical_bare_procedure_writes_cannot_publish_namespace_coordinates() {
+        let source = "set x ROOT\nproc p {} {set x FIRST; set x AGAIN; set N::x QUALIFIED}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        for (needle, expected) in [
+            ("set x AGAIN", None),
+            ("set N::x QUALIFIED", Some("::N::x")),
+        ] {
+            let offset = u32::try_from(source.find(needle).unwrap() + "set ".len()).unwrap();
+            let position = LineIndex::new(source).position_at_utf16(offset, source);
+            assert_eq!(
+                qualified_variable_cell_at(
+                    source,
+                    analysis.resolved_profile().unwrap(),
+                    &analysis,
+                    position.line,
+                    position.character.get(),
+                )
+                .as_deref(),
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn native_conditional_publication_navigation_preserves_source_table_refusals() {
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (source, needle, expected) in [
+                (
+                    "oo::class create C {}\nproc p {} {C new}\n",
+                    "C new",
+                    Some(0),
+                ),
+                (
+                    "proc p {} {Future new}\noo::class create Future {}\n",
+                    "Future new",
+                    Some(1),
+                ),
+                (
+                    "oo::class create C {}\nrename C {}\nproc p {} {C new}\n",
+                    "C new",
+                    None,
+                ),
+                (
+                    "oo::class create C {}\nproc C args {}\nproc p {} {C new}\n",
+                    "C new",
+                    Some(1),
+                ),
+                (
+                    "oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
+                    "C new",
+                    None,
+                ),
+            ] {
+                let analysis = Analyser::new().analyse(source, release);
+                assert!(!analysis.allows_lexical_declaration_advice());
+                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+                let position = LineIndex::new(source).position_at_utf16(offset, source);
+                let selected =
+                    definition(source, position.line, position.character.get(), &analysis)
+                        .into_iter()
+                        .map(|range| range.start_line)
+                        .collect::<Vec<_>>();
+                assert_eq!(
+                    selected,
+                    expected.into_iter().collect::<Vec<_>>(),
+                    "{release}: {source}"
+                );
+            }
         }
     }
 
