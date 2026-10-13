@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/runtime-naming-final-capture-20261013/execute-engine.py", line 15, in <module>
+    assert not uncovered and not unresolved,(uncovered,unresolved)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ([], ['/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath', '/workspace/tcl-lsp/tmp/tcl9.0.4/libtommath'])

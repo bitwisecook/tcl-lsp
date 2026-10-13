@@ -365,7 +365,12 @@ pub unsafe extern "C" fn tcl_engine_complete_original(
     let options = (!options.is_null())
         .then_some(options)
         .or_else(|| empty.as_ref().map(Owned::as_ptr));
-    c_int::try_from(complete(interp, value, options, code).as_int()).unwrap_or(1)
+    let code = complete(interp, value, options, code);
+    if code == Code::Error && !interp.host_refusal_pending() {
+        // The object-command boundary must preserve these explicitly stated options.
+        interp.note_c_api_error();
+    }
+    c_int::try_from(code.as_int()).unwrap_or(1)
 }
 
 /// Capture the original guest result and complete options with their real owners.
@@ -423,6 +428,43 @@ mod tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn original_error_completion_survives_the_object_command_boundary() {
+        unsafe extern "C" fn callback(
+            _: *mut core::ffi::c_void,
+            interp: *mut Interp,
+            _: c_int,
+            _: *const *mut TclObj,
+        ) -> c_int {
+            let result = Owned::fresh(crate::interp::new_string(b"ERR\0\xff"));
+            let options = Owned::fresh(crate::interp::new_string(
+                b"-code 1 -level 0 -errorcode {HOST OPAQUE} -errorinfo {opaque\0\xff}",
+            ));
+            // SAFETY: the callback retains both originals and its actual interpreter.
+            unsafe { tcl_engine_complete_original(interp, result.as_ptr(), options.as_ptr(), 1) }
+        }
+
+        let mut interp = core();
+        assert!(
+            interp
+                .create_counted_engine_obj_command(
+                    b"completion",
+                    crate::interp::ObjCommand::new(callback, core::ptr::null_mut(), None),
+                )
+                .is_some()
+        );
+        let completion = interp.eval_completion(b"completion").unwrap();
+        assert_eq!(completion.code, Code::Error);
+        assert_eq!(completion.result, b"ERR\0\xff");
+        assert_eq!(interp.error_code_bytes_checked().unwrap(), b"HOST OPAQUE");
+        assert!(
+            completion
+                .options
+                .windows(8)
+                .any(|bytes| bytes == b"opaque\0\xff")
+        );
     }
 
     #[test]

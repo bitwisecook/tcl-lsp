@@ -1,0 +1,31 @@
+
+running 7 tests
+test callback_replay_keeps_actual_namespace_components_and_original_operation_bytes ... 
+thread 'callback_replay_keeps_actual_namespace_components_and_original_operation_bytes' (148947) panicked at rust/tcl-engine-wasm/tests/under_wasm.rs:274:50:
+compiles: ExecutionRefusal("fresh command replay from a child or foreign interpreter requires authentic interpreter ownership transport")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test compiled_receipts_refuse_foreign_and_replaced_handles_before_effects ... ok
+test counted_publication_and_guest_completions_preserve_opaque_bytes ... 
+thread 'counted_publication_and_guest_completions_preserve_opaque_bytes' (150284) panicked at rust/tcl-engine-wasm/tests/under_wasm.rs:1088:5:
+assertion `left == right` failed
+  left: Some([78, 79, 78, 69])
+ right: Some([72, 79, 83, 84, 32, 79, 80, 65, 81, 85, 69])
+FAILED
+test host_refusal_bypasses_guest_catch_and_keeps_prior_effects ... ok
+test installed_receipts_keep_renamed_hosts_and_remove_old_name_replacements ... ok
+test root_replay_retains_original_publication_and_removal_bytes_after_a_trap ... ok
+test what_was_set_up_survives_a_trap ... 
+thread 'what_was_set_up_survives_a_trap' (150348) panicked at rust/tcl-engine-wasm/tests/under_wasm.rs:274:50:
+compiles: ExecutionRefusal("fresh command replay from a child or foreign interpreter requires authentic interpreter ownership transport")
+FAILED
+
+failures:
+
+failures:
+    callback_replay_keeps_actual_namespace_components_and_original_operation_bytes
+    counted_publication_and_guest_completions_preserve_opaque_bytes
+    what_was_set_up_survives_a_trap
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 39 filtered out; finished in 413.75s
+

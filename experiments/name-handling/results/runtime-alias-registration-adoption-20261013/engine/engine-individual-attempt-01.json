@@ -1,0 +1,7 @@
+{
+  "selector": "what_was_set_up_survives_a_trap",
+  "status": "interrupted during first Wasmtime module compilation; no completed assertion/result; retain original log",
+  "parent_pid": 148304,
+  "child_pid": 148305,
+  "reason": "replace repeated per-process compilation with exact7-name libtest batch using existing OnceLock; no source/assertion change"
+}

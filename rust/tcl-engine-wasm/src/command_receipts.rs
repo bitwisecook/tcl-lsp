@@ -74,7 +74,13 @@ pub(crate) fn replay_input<C: AsContextMut<Data = HostState>>(
         ));
     }
     let identity = interpreter_identity(context, exports, interp)?;
-    let is_root = context.as_context().data().root_interpreter == Some((interp, identity));
+    // Callback Interp wrappers can move while retaining the installed owner.
+    let is_root = replay_context.root_interpreter
+        && context
+            .as_context()
+            .data()
+            .root_interpreter
+            .is_some_and(|(_, installed)| installed == identity);
     Ok(CommandReplay {
         original: original.to_vec(),
         context: Some(replay_context),

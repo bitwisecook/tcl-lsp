@@ -1,0 +1,17 @@
+{
+  "owned": {
+    "rust/tcl-engine-wasm/src/command_receipts.rs": {
+      "before": "7c575bb0341778f40e3e48dc84a30a98e6fc059e111ec57ef71480c7ad5acc8b",
+      "after": "0d0a393f07996742b06c97e57d2da8d0f08c99a4df68ab302ed6e748dd94d01c"
+    },
+    "runtime/rust/src/engine_abi/value_carriers.rs": {
+      "before": "5cb5d4dc95d64fcf8246a68eae36283af12c85be37b6837db819459e232d159a",
+      "after": "5a6ab85ab799c04cf7eac98d41801a7f744984e10e025f59635ab6657cc7f0f0"
+    }
+  },
+  "patch_sha256": "e25efbdf2d3a30687724e0aed487230889f6622f0eb98f431ca29a37410896d7",
+  "status": "UNCOMPILED; fixes measured Engine7 failures after immutable capture; no heavy lease",
+  "before_acceptance": "/tmp/runtime-naming-final-capture-20261013/engine-validation-seal.json",
+  "before_acceptance_sha256": "42234c1370f483399f1080cbc0228e19ac2df454f727b9e372bee24bccdf66c3",
+  "controls": "All original Engine7 assertions unchanged; new genuine Native callback error-completion boundary control. Root receiving-child negative and live receipt guards unchanged."
+}
