@@ -1,0 +1,138 @@
+{
+  "status": "One fresh diagnostic example build and unchanged original orchestration executed; same typed refusal. Both temporary owners restored exactly; diagnostic binary is noncurrent production.",
+  "scratch_ready": {
+    "scope": "SCRATCH temporary passive observation only; do not apply/build while six-package source freeze holds. No name/header/pointer/frame/host/environment dump. Existing refusal remains unchanged.",
+    "sources": {
+      "runtime/rust/src/interp/native_body_artifact.rs": {
+        "preimage_sha256": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+        "scratch_sha256": "50c2c2ef815f738b48595e7c8f68ec594d70d65e099b61dd76b0ab422004c8ee"
+      },
+      "runtime/rust/src/interp/native_variable_names.rs": {
+        "preimage_sha256": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb",
+        "scratch_sha256": "475b05443947c1830ca9406e50365ea0f59729cc6cf91a86918451c88cb9e001"
+      }
+    },
+    "patch_sha256": "29295e0eea68db6d1312d2d424dd26de8470ade40f017ea8b3e45e47233bdc2d",
+    "expected_observation": "On the original refusing route, a body_indexed marker establishes actual admitted slot presence only if reached; diagnostic_policy marker retains the same operation/site/reason immediately before existing unmodified projection/refusal. Absence of body marker does not infer a generic caller; classify it as unreached until an independently owned entry marker is observed. Original_parts_lookup marker observes the actual parts capture failure without treating selected-cell compiled metadata as instruction provenance. It labels slot presence unselected and cannot manufacture an indexed entry.",
+    "prospective_three_owner_fix": {
+      "rust/tcl-syntax/src/naming/native.rs": "Add narrow Site::IndexedNameLookup admission for Write/RetiredNamespace: LOOKUP/VARNAME with no root. Existing ordinary NameLookup Write/RetiredNamespace issues original root word. Preserve ValueWrite scalar WRITE/VARNAME and refusal for missing/incompatible context.",
+      "runtime/rust/src/interp/native_body_artifact.rs": "At the actual slotSome indexed receiver failure, carry IndexedNameLookup for the measured retired-root lookup case; do not derive origin from EvaluatedTarget spelling or selected cell compiled flag.",
+      "runtime/rust/src/interp/native_variable_names.rs": "Carry the typed reached site unchanged through actual receiver error and original reporting; retain ordinary original-root NameLookup separately."
+    }
+  },
+  "original_orchestration_executed": true,
+  "initial_disk_free_bytes": 2811305984,
+  "metadata": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "metadata",
+      "--offline",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--format-version=1"
+    ],
+    "exit_code": 0,
+    "sha256": "e28be139edabddf2ed120ab1b862165faa844583e898e1797037f16115a44e8c"
+  },
+  "source_scope": {
+    "packages": [
+      "tcl-bytecode",
+      "tcl-cmd-core",
+      "tcl-core-types",
+      "tcl-dialect",
+      "tcl-host-c-abi",
+      "tcl-host-native",
+      "tcl-lexer",
+      "tcl-platform",
+      "tcl-regex",
+      "tcl-registry",
+      "tcl-runtime",
+      "tcl-runtime-api",
+      "tcl-syntax",
+      "tcl-test-support"
+    ],
+    "count": 14191,
+    "scope": "Actual standalone production example local Cargo dependency closure, root all dependency kinds and nonroot normal/build, conservatively local rs/c/h/tcl/txt/json/manifests plus unchanged actual provider/header/input hashes. Compiler/VM/LSP/MCP/IRules/xtask excluded; not all-workspace or every-file-compiled evidence."
+  },
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script",
+      "--message-format=json"
+    ],
+    "status": "completed",
+    "exit_code": 0,
+    "messages_sha256": "62d9dfb13ae220a4e4386f05a4e234c35bdf9c9c32eb59c29cbb8285eea4f2ad",
+    "stderr_sha256": "53cb6fd51e6b1a6592225df7bb1337e730617f000d65d67f2bf4e623d3cb593e",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "binary_sha256": "7edaa1762f254eebba9ff94dc497c98cf35a95ea199cd48326b74aa0fb7a57e0",
+    "artifact_fresh": false,
+    "temporary_source_scope": true,
+    "cargo_profile": {
+      "opt_level": "0",
+      "debuginfo": 2,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": false
+    },
+    "rustc_depinfo_sha256": "4075435646e799a521a7ef652310db25171a91a823bf5ce282ce4ac086a6ba1e"
+  },
+  "source_changed_during_build": [],
+  "orchestration": {
+    "argv": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+      "--quiet",
+      "--tcl-version",
+      "8.6",
+      "--init",
+      "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+    ],
+    "exit_code": 2,
+    "seconds": 7.039,
+    "stdout_sha256": "6f0eda9ff4fff4b90411a49efdd7dbe46c2f4e17a608c57a361836c610d229b8",
+    "stderr_sha256": "6b4cb373cd6bf6130e807405c7d0a2410f41b66fdb536f6c3a779bf4e154708b",
+    "binary_sha256_after": "7edaa1762f254eebba9ff94dc497c98cf35a95ea199cd48326b74aa0fb7a57e0",
+    "limits": {
+      "address_space_bytes": 1073741824,
+      "core_bytes": 0,
+      "timeout_seconds": 60
+    },
+    "environment": "Same prior named benign NH_CLOCK_GETENV synthetic controls/TCL_LIBRARY and overlay/test-selector removals; inherited host/environment data never logged or dumped."
+  },
+  "restoration": {
+    "actual_sha256": {
+      "runtime/rust/src/interp/native_body_artifact.rs": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+      "runtime/rust/src/interp/native_variable_names.rs": "80398ef7669af392170bfea3a69ddfc228e7b4513e055a1684611fe8b9f7bdbb"
+    },
+    "byte_exact": true,
+    "diagnostic_binary_current": false,
+    "scope": "Only two passive observation owners restored; binary built against temporary source is not current production."
+  },
+  "production_source_changed_after_restore": [],
+  "observed_route": {
+    "passive_markers": [
+      "NATIVE_RETIRED_LOOKUP entry=body_indexed slot_present=true site=NameLookup reason=DeletedNamespace",
+      "NATIVE_RETIRED_LOOKUP entry=diagnostic_policy operation=Write site=NameLookup reason=RetiredNamespace"
+    ],
+    "last_test_start": "var-1.15",
+    "test_start_count": 15,
+    "actual_selected_file": "var.test",
+    "final_test_counts": null,
+    "same_typed_refusal": "original variable lookup diagnostic native handler policy is not selected",
+    "limit": "Actual indexed slot and Write/NameLookup/RetiredNamespace are measured. Element presence and exact inner source command were not logged; indexed slot alone does not establish an element lookup. capture_original_indexed_receiver rejects DeletedNamespace before checking element, so scalar capture may report too early as NameLookup."
+  },
+  "original_question": {
+    "sealed_count": 46,
+    "seal_sha256": "63a349b1cd5e9a59157cd0305811dcdf3c42acb9cb57de43cb08fb2f95b1c932",
+    "changed": []
+  }
+}

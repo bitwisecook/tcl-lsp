@@ -1,0 +1,3 @@
+NATIVE_RETIRED_LOOKUP entry=body_indexed slot_present=true site=NameLookup reason=DeletedNamespace
+NATIVE_RETIRED_LOOKUP entry=diagnostic_policy operation=Write site=NameLookup reason=RetiredNamespace
+run_script: execution refused: original variable lookup diagnostic native handler policy is not selected

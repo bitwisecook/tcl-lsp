@@ -1,0 +1,34 @@
+--- a/runtime/rust/src/interp/native_body_artifact.rs
++++ b/runtime/rust/src/interp/native_body_artifact.rs
+@@ -2693,6 +2693,9 @@
+             self.check_body_variable_stage(stage)?;
+             let captured = captured
+                 .map_err(|error| {
++                    if error == crate::frame::VarError::DeletedNamespace {
++                        eprintln!("NATIVE_RETIRED_LOOKUP entry=body_indexed slot_present=true site=NameLookup reason=DeletedNamespace");
++                    }
+                     self.body_variable_receiver_error_with_check(evaluated, purpose, Site::NameLookup, error, stage)
+                 })?
+                 .ok_or_else(|| {
+--- a/runtime/rust/src/interp/native_variable_names.rs
++++ b/runtime/rust/src/interp/native_variable_names.rs
+@@ -2014,6 +2014,9 @@
+         let protocol = self
+             .native_c_variable_name_protocol()
+             .expect("actual C original lookup");
++        if reason == tcl_syntax::naming::NativeVariableDiagnosticReason::RetiredNamespace {
++            eprintln!("NATIVE_RETIRED_LOOKUP entry=diagnostic_policy operation={operation:?} site={site:?} reason=RetiredNamespace");
++        }
+         let diagnostic = match report_native_variable_diagnostic_at(
+             tcl_syntax::naming::NativeNameProtocol::C(protocol.version()),
+             operation,
+@@ -2261,6 +2264,9 @@
+                 Ok(input) => input,
+                 Err(code) => return code,
+             };
++            if error == crate::frame::VarError::DeletedNamespace {
++                eprintln!("NATIVE_RETIRED_LOOKUP entry=original_parts_lookup slot_presence=unselected site=NameLookup reason=DeletedNamespace");
++            }
+             self.original_c_variable_receiver_error_using(
+                 input.input(),
+                 purpose,
