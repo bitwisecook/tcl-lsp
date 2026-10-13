@@ -1,0 +1,34 @@
+{
+  "selected_roots": [
+    "tcl-compiler",
+    "tcl-irules"
+  ],
+  "package_dirs": {
+    "tcl-bigip": "rust/tcl-bigip",
+    "tcl-bytecode": "rust/tcl-bytecode",
+    "tcl-cmd-core": "rust/tcl-cmd-core",
+    "tcl-compiler": "rust/tcl-compiler",
+    "tcl-core-types": "rust/tcl-core-types",
+    "tcl-dialect": "rust/tcl-dialect",
+    "tcl-engine-api": "rust/tcl-engine-api",
+    "tcl-engine-tclvm": "rust/tcl-engine-tclvm",
+    "tcl-host-c-abi": "rust/tcl-host-c-abi",
+    "tcl-host-native": "rust/tcl-host-native",
+    "tcl-irules": "rust/tcl-irules",
+    "tcl-lexer": "rust/tcl-lexer",
+    "tcl-lsp-core": "rust/tcl-lsp-core",
+    "tcl-pkg-model": "rust/tcl-pkg-model",
+    "tcl-platform": "rust/tcl-platform",
+    "tcl-regex": "rust/tcl-regex",
+    "tcl-registry": "rust/tcl-registry",
+    "tcl-runtime-api": "rust/tcl-runtime-api",
+    "tcl-spec-hooks": "rust/tcl-spec-hooks",
+    "tcl-spectcl": "rust/tcl-spectcl",
+    "tcl-sslictcl": "rust/tcl-sslictcl",
+    "tcl-syntax": "rust/tcl-syntax",
+    "tcl-test-support": "rust/tcl-test-support",
+    "tcl-userdirs": "rust/tcl-userdirs",
+    "tcl-vm": "rust/tcl-vm"
+  },
+  "scope": "Actual conservative local normal/build and selected-root dev, all target/optional manifest paths; not a compiled graph."
+}

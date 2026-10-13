@@ -1,0 +1,4 @@
+
+thread 'registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container' (277331) panicked at rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:2042:13:
+expr {[format hidden]} + 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

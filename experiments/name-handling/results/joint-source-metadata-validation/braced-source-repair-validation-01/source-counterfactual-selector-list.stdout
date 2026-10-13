@@ -1,0 +1,3 @@
+walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses: test
+
+1 test, 0 benchmarks

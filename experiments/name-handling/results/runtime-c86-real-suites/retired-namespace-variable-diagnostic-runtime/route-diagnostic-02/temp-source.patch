@@ -1,0 +1,128 @@
+--- a/runtime/rust/src/interp/native_variable_names.rs
++++ b/runtime/rust/src/interp/native_variable_names.rs
+@@ -103,6 +103,23 @@
+ }
+ 
+ impl Interp {
++    pub(super) fn temp_variable_diagnostic_state(&self, phase: &str) -> bool {
++        static REMAINING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(64);
++        if REMAINING
++            .fetch_update(
++                std::sync::atomic::Ordering::Relaxed,
++                std::sync::atomic::Ordering::Relaxed,
++                |left| left.checked_sub(1),
++            )
++            .is_err()
++        {
++            return false;
++        }
++        let exc = self.exc.borrow();
++        eprintln!("NATIVE_VARIABLE_ROUTE phase={} code_bytes_len={} private_code_present={} episode_in_progress={} global_code_set={} already_logged={} host_refusal={}", phase, exc.code.len(), exc.native.code.is_some(), exc.native.legacy_copy, exc.native.global_code_set, exc.already_logged, self.host_refusal_pending());
++        true
++    }
++
+     pub(crate) fn native_c_variable_name_protocol(
+         &self,
+     ) -> Option<tcl_syntax::native_variable_name::NativeVariableNameProtocol> {
+@@ -2030,6 +2047,20 @@
+                 );
+             }
+         };
++        let temp_observed = matches!(
++            reason,
++            tcl_syntax::naming::NativeVariableDiagnosticReason::RetiredNamespace
++                | tcl_syntax::naming::NativeVariableDiagnosticReason::DetachedElement
++        );
++        if temp_observed && self.temp_variable_diagnostic_state("diagnostic_before_publication") {
++            eprintln!(
++                "NATIVE_VARIABLE_ROUTE purpose={:?} site={:?} reason={:?} error_code_words={:?}",
++                purpose,
++                site,
++                reason,
++                diagnostic.error_code.as_ref().map(Vec::len)
++            );
++        }
+         let mut message = format!("can't {} \"", purpose.diagnostic_verb()).into_bytes();
+         message.extend_from_slice(&diagnostic.name);
+         message.extend_from_slice(b"\": ");
+@@ -2039,7 +2070,7 @@
+                 return self.report_cmd_error_using(error, stage);
+             }
+         }
+-        self.report_cmd_error_using(
++        let code = self.report_cmd_error_using(
+             tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
+                 message,
+                 string_result: protocol.diagnostic_string_protocol(),
+@@ -2055,7 +2086,11 @@
+                 primitive_getter: None,
+             }),
+             stage,
+-        )
++        );
++        if temp_observed {
++            self.temp_variable_diagnostic_state("diagnostic_after_publication");
++        }
++        code
+     }
+ 
+     pub(super) fn capture_original_c_variable_report(
+@@ -2222,6 +2257,10 @@
+         self.check_original_c_name_stage(stage)
+             .map_err(|error| self.report_cmd_error_using(error, stage))?;
+         reached.map_err(|error| {
++            if matches!(error, crate::frame::VarError::DeletedNamespace | crate::frame::VarError::DeletedArray)
++                && self.temp_variable_diagnostic_state("combined_capture_failed") {
++                eprintln!("NATIVE_VARIABLE_ROUTE purpose={:?} reason={:?} element_present={} materialised_target_present={}", purpose, error, selected.element.is_some(), selected.materialised.is_some());
++            }
+             self.original_c_lookup_var_error_using(original, purpose, error, stage)
+         })
+     }
+@@ -2732,6 +2771,11 @@
+             }
+             _ => Site::NameLookup,
+         });
++        if matches!(error, VarError::DeletedNamespace | VarError::DeletedArray)
++            && self.temp_variable_diagnostic_state("selected_receiver_error")
++        {
++            eprintln!("NATIVE_VARIABLE_ROUTE purpose={:?} reason={:?} reached_site_present={} selected_site={:?}", purpose, error, reached_site.is_some(), site);
++        }
+         self.original_c_variable_failure_input_using(input, purpose, reason, site, stage)
+     }
+ 
+@@ -3015,6 +3059,18 @@
+                 .original(2)
+                 .map_err(|error| self.report_cmd_error_using(error, stage))?;
+             stored.map_err(|error| {
++                if matches!(
++                    error,
++                    crate::frame::VarError::DeletedNamespace | crate::frame::VarError::DeletedArray
++                ) && self.temp_variable_diagnostic_state("late_receiver_store_failed")
++                {
++                    eprintln!(
++                        "NATIVE_VARIABLE_ROUTE purpose={:?} reason={:?} element_present={}",
++                        purpose,
++                        error,
++                        selected.element.is_some()
++                    );
++                }
+                 self.original_c_lookup_var_error_using(original, purpose, error, stage)
+             })?;
+             if self.original_variable_trace_requires_name(
+--- a/runtime/rust/src/interp/native_body_artifact.rs
++++ b/runtime/rust/src/interp/native_body_artifact.rs
+@@ -2702,6 +2702,14 @@
+                     } else {
+                         Site::NameLookup
+                     };
++                    if matches!(error, crate::frame::VarError::DeletedNamespace | crate::frame::VarError::DeletedArray)
++                        && self.temp_variable_diagnostic_state("indexed_capture_failed") {
++                        let link_kind = self.frames.borrow().original_compiled_link(slot).map(|link| (
++                            link.elem.is_some(), link.native_element_entry.is_some(),
++                            link.array_cell.is_some(), link.native_scalar_entry.is_some(),
++                        ));
++                        eprintln!("NATIVE_VARIABLE_ROUTE slot_present=true creates={} purpose={:?} evaluated_element_present={} site={:?} reason={:?} actual_link_kind={:?}", creates, purpose, element.is_some(), site, error, link_kind);
++                    }
+                     self.body_variable_receiver_error_with_check(evaluated, purpose, site, error, stage)
+                 })?
+                 .ok_or_else(|| {

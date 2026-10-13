@@ -1,0 +1,11 @@
+
+running 1 test
+test registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container ... FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9563 filtered out; finished in 0.98s
+

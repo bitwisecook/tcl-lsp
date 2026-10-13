@@ -1,0 +1,172 @@
+{
+  "build": {
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j2",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-irules",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "start_utc": "2026-10-13T01:54:18.379111+00:00",
+    "end_utc": "2026-10-13T01:57:35.104422+00:00",
+    "elapsed_seconds": 196.72531823300233,
+    "exit_code": 0,
+    "abort": null,
+    "disk_minimum_free_bytes": 2194866176
+  },
+  "abort": null,
+  "results": [
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:57:38.151734+00:00",
+      "end_utc": "2026-10-13T01:57:39.152963+00:00",
+      "elapsed_seconds": 1.0012472629969125,
+      "exit_code": 101,
+      "abort": null,
+      "disk_minimum_free_bytes": 2529144832,
+      "package": "tcl-compiler",
+      "test": "registry_invocation::source_scoped_body::script_purpose_tests::original_expression_script_regions_use_actual_grammar_and_container",
+      "test_result": {
+        "status": "FAILED",
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 9563
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "a4566a9913baaf5fa64d5126c440a37349fddc425c1c9ccf2e97990dc3196500"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "analyser::commands::original_script_body_inventory_tests::original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:57:41.854793+00:00",
+      "end_utc": "2026-10-13T01:57:42.605914+00:00",
+      "elapsed_seconds": 0.7511407400015742,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2529144832,
+      "package": "tcl-compiler",
+      "test": "analyser::commands::original_script_body_inventory_tests::original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 9563
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "a4566a9913baaf5fa64d5126c440a37349fddc425c1c9ccf2e97990dc3196500"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:57:45.141668+00:00",
+      "end_utc": "2026-10-13T01:57:45.642562+00:00",
+      "elapsed_seconds": 0.500911561997782,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2529144832,
+      "package": "tcl-irules",
+      "test": "walker::tests::braced_expr_command_substitution_keeps_its_data_group_reference",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 71
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "db706f255413ade8968a42af260fc8b770a84ec929ede958fdd14700a1f9aafb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::tests::braced_expr_text_does_not_invent_object_references",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:57:48.116527+00:00",
+      "end_utc": "2026-10-13T01:57:48.867623+00:00",
+      "elapsed_seconds": 0.7511168769997312,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2529144832,
+      "package": "tcl-irules",
+      "test": "walker::tests::braced_expr_text_does_not_invent_object_references",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 71
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "db706f255413ade8968a42af260fc8b770a84ec929ede958fdd14700a1f9aafb"
+    },
+    {
+      "argv": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+        "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses",
+        "--exact",
+        "--nocapture"
+      ],
+      "start_utc": "2026-10-13T01:57:51.299372+00:00",
+      "end_utc": "2026-10-13T01:57:52.300662+00:00",
+      "elapsed_seconds": 1.0013111760054016,
+      "exit_code": 0,
+      "abort": null,
+      "disk_minimum_free_bytes": 2529144832,
+      "package": "tcl-irules",
+      "test": "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses",
+      "test_result": {
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered_out": 71
+      },
+      "source_unchanged_after": true,
+      "binary_sha256_after": "db706f255413ade8968a42af260fc8b770a84ec929ede958fdd14700a1f9aafb"
+    }
+  ],
+  "controls_executed": 5,
+  "passed": 4,
+  "failed": 1,
+  "conservative_packages": 25,
+  "frozen_files": 11764,
+  "artifacts": 161,
+  "observed_owned_packages": 25,
+  "source_changes": [],
+  "binary_hashes_after": {
+    "tcl-irules": "db706f255413ade8968a42af260fc8b770a84ec929ede958fdd14700a1f9aafb",
+    "tcl-compiler": "a4566a9913baaf5fa64d5126c440a37349fddc425c1c9ccf2e97990dc3196500"
+  },
+  "original_fixture_assertions_unchanged": true,
+  "temporary_instrumentation_present": false,
+  "cache_released": true,
+  "MCP_runtime_fullsuite_oracle_executed": false
+}

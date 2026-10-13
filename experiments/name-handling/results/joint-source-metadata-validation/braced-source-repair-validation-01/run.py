@@ -1,0 +1,30 @@
+from pathlib import Path
+import json,hashlib,gzip,subprocess,datetime,time,os,signal,shutil,re,ast,tomllib,glob
+prefix=Path('/tmp/mcp-reference-refinement-validation-run.py').read_text().split('before=capture();')[0]
+prefix=prefix.replace("out=Path('/tmp/mcp-reference-refinement-validation-01')","out=Path('/tmp/braced-source-repair-validation-01')").replace("roots=['tcl-registry','tcl-irules']","roots=['tcl-compiler','tcl-irules']")
+exec(prefix)
+ready=json.loads(Path('/tmp/braced-original-source-repair-01/readiness.json').read_text());before=capture();save('before-sources.json',before);save('manifest-closure.json',closure);save('source-readiness.json',ready);owner=ready['path'];assert before[owner]==ready['current_sha256'];save('changed-owner-image.json',{owner:(repo/owner).read_text()});save('baseline.json',{'packages':len(closure['package_dirs']),'files':len(before),'actual_selected_roots':roots,'new_owner_image_only':owner,'current_contract_path':ready['contract_path'],'current_contract_sha256':digest(repo/ready['contract_path']),'old_braced_failure_receipt':'experiments/name-handling/results/joint-source-metadata-validation/validation-01/metadata','diagnostic_receipt':'experiments/name-handling/results/joint-source-metadata-validation/braced-source-probe-capture-01','original_fixture_assertions_unchanged':True,'source_hashes':{p:before.get(p) for p in [owner,'rust/tcl-irules/src/source_context.rs','rust/tcl-irules/src/walker.rs','rust/tcl-registry/src/source_configuration_reference.rs','rust/tcl-irules/src/source_object.rs','rust/tcl-syntax/src/naming/native.rs','rust/tcl-compiler/src/registry_invocation.rs','rust/tcl-compiler/src/registry_invocation/source_structure.rs']},'explicit_target':str(target)})
+print('FROZEN',json.dumps({'packages':len(closure['package_dirs']),'files':len(before),'owner_hash':before[owner],'target':str(target)}),flush=True)
+build=run('offline-build',['cargo','test','--offline','-j2','-p','tcl-compiler','-p','tcl-irules','--lib','--no-run','--message-format=json'],space_guard=True);print('BUILD',json.dumps(build),flush=True)
+records=[]
+for line in (out/'offline-build.stdout').read_text().splitlines():
+ try:records.append(json.loads(line))
+ except json.JSONDecodeError:pass
+artifacts=[r for r in records if r.get('reason')=='compiler-artifact'];save('artifacts.json',artifacts);save('diagnostics.json',[r for r in records if r.get('reason')=='compiler-message']);owned_manifests={str(repo/d/'Cargo.toml') for d in closure['package_dirs'].values()};owned=[a for a in artifacts if a['manifest_path'] in owned_manifests];save('observed-owned-artifacts.json',owned);bins={}
+for a in artifacts:
+ if a.get('executable') and a['profile']['test'] and a['target']['kind']==['lib']:
+  for name in roots:
+   if a['manifest_path']==str(repo/closure['package_dirs'][name]/'Cargo.toml'):bins[name]={'artifact':a,'executable':a['executable'],'sha256':digest(Path(a['executable']))}
+save('binaries.json',bins)
+tests=[('expr-owner','tcl-compiler',ready['existing_owner_guard_control']),('expr-input-guards','tcl-compiler',ready['new_guard_selector']),('braced-positive','tcl-irules',ready['planned_existing_acceptance'][0]),('braced-inert-negative','tcl-irules',ready['planned_existing_acceptance'][1]),('source-counterfactual','tcl-irules',ready['planned_controls'][-1])];save('planned-controls.json',tests);results=[];abort=None
+if build['exit_code'] or build['abort']:abort='first compilation failed; zero assertions'
+elif len(bins)!=2:abort='selected library binary set incomplete'
+elif capture()!=before:abort='source changed during build'
+if not abort:
+ for label,name,selector in tests:
+  assert capture()==before and digest(Path(bins[name]['executable']))==bins[name]['sha256']
+  listing=run(label+'-selector-list',[bins[name]['executable'],selector,'--exact','--list'],timeout=60);rawlist=(out/(label+'-selector-list.stdout')).read_text()
+  if listing['exit_code'] or rawlist.count(selector+': test')!=1:abort='exact selector absent/multiple '+selector;break
+  info=run(label,[bins[name]['executable'],selector,'--exact','--nocapture'],timeout=60);raw=(out/(label+'.stdout')).read_text();match=re.search(r'test result: (\w+)\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out',raw)
+  info.update({'package':name,'test':selector,'test_result':dict(zip(['status','passed','failed','ignored','measured','filtered_out'],[match[1],*map(int,match.groups()[1:])])) if match else None,'source_unchanged_after':capture()==before,'binary_sha256_after':digest(Path(bins[name]['executable']))});save(label+'.invocation.json',info);results.append(info);print('CONTROL',json.dumps(info),flush=True);print(raw,flush=True);print((out/(label+'.stderr')).read_text(),flush=True)
+after=capture();save('after-sources.json',after);validation={'build':build,'abort':abort,'results':results,'controls_executed':len(results),'passed':sum(r.get('test_result',{}).get('passed',0) for r in results),'failed':sum(r.get('test_result',{}).get('failed',0) for r in results),'conservative_packages':len(closure['package_dirs']),'frozen_files':len(before),'artifacts':len(artifacts),'observed_owned_packages':len(set(a['package_id'] for a in owned)),'source_changes':[p for p in sorted(before.keys()|after.keys()) if before.get(p)!=after.get(p)],'binary_hashes_after':{n:digest(Path(b['executable'])) for n,b in bins.items()},'original_fixture_assertions_unchanged':True,'temporary_instrumentation_present':False,'cache_released':True,'MCP_runtime_fullsuite_oracle_executed':False};save('validation.json',validation);print('RELEASE',json.dumps(validation),flush=True)

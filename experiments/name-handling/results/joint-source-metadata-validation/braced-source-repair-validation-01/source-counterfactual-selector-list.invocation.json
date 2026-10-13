@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_irules-4ef4032ac97c2d07",
+    "walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses",
+    "--exact",
+    "--list"
+  ],
+  "start_utc": "2026-10-13T01:57:51.048047+00:00",
+  "end_utc": "2026-10-13T01:57:51.299096+00:00",
+  "elapsed_seconds": 0.2510457589960424,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2529144832
+}

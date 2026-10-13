@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "analyser::commands::original_script_body_inventory_tests::original_expression_inventory_keeps_missing_input_and_dynamic_body_opaque",
+    "--exact",
+    "--list"
+  ],
+  "start_utc": "2026-10-13T01:57:41.603357+00:00",
+  "end_utc": "2026-10-13T01:57:41.854518+00:00",
+  "elapsed_seconds": 0.2511575829994399,
+  "exit_code": 0,
+  "abort": null,
+  "disk_minimum_free_bytes": 2529144832
+}

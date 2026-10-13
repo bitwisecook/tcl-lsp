@@ -1,0 +1,21 @@
+{
+  "status": "SCRATCH ONLY; UNAPPLIED; UNEXECUTED",
+  "sources": {
+    "runtime/rust/src/interp/native_variable_names.rs": {
+      "preimage_sha256": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473",
+      "scratch_sha256": "04b4f5808b9f7dc991667e4891a7ffb42e763723e9325cdb8a0df1b0d0e6dc26",
+      "scratch_path": "/tmp/name-retired-detached-passive-scratch/runtime/rust/src/interp/native_variable_names.rs",
+      "status": "UNAPPLIED; UNEXECUTED"
+    },
+    "runtime/rust/src/interp/native_body_artifact.rs": {
+      "preimage_sha256": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe",
+      "scratch_sha256": "30ac0d4883475659bc6f05cf586fc70be084b5420ee26ba4e0cfcb6a972432d9",
+      "scratch_path": "/tmp/name-retired-detached-passive-scratch/runtime/rust/src/interp/native_body_artifact.rs",
+      "status": "UNAPPLIED; UNEXECUTED"
+    }
+  },
+  "patch_sha256": "516a322d80ba9cf1d7ec1b1fd4ba61916385ef4802614dc1a3848874b29f00fb",
+  "observations": "At most64 temporary state markers/process plus fixed bounded typed context lines. No object names, pointers, environment, private native dumps, new error publication, caller selection, currency checks or source input adaptation. Actual admitted slot can query existing genuine link booleans; clone retires before policy call. One original wrapper would observe actual var1.17; ordinary/vector route stays unmeasured unless separately authorised existing control executes.",
+  "proposed_execution": "One selected fresh production example build plus unchanged original wrapper after root lease grant, then byte-exact restore in finally. Temporary binary must be declared noncurrent after restore; no acceptance assertions changed.",
+  "production_expected": "Runtime/Syntax hashes remain current applied candidate. Original question/raw failures/orchestration seals preserved."
+}

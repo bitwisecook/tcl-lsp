@@ -1,0 +1,13 @@
+# Actual detached-element Runtime route
+
+One approved two-owner passive patch was applied after exact preimage checks. One fresh selected production example build passed and the unchanged original C86 init/tcltest/all.tcl wrapper ran once with the same six input hashes, debug0 profile, synthetic selectors, 60-second/1-GiB/core0 bounds. It exited2 at var-1.17 with the existing typed diagnostic-policy refusal. Seventeen test starts, no final suite counts and no orchestration return were recorded. No ordinary/vector/dynamic failure control was rerun.
+
+The terminal actual capture has an admitted slot, creates=true and purpose Write. Its evaluated original operand has no element. The actual existing link has element=true, native element entry=true, retained array cell=true and scalar entry=false. Capture returns typed DeletedArray and selects NameLookup. The receiver reporter receives that explicit site and forwards it. Central policy refuses before the terminal diagnostic projection or publication; no terminal tuple/count/postpublication state is observed.
+
+The logs also retain earlier namespace diagnostics encountered by this unchanged wrapper, including scalar ValueWrite with3words, indexed-element IndexedNameLookup with3words and ordinary explicit-parts NameLookup with4words. These are reached original harness routes, not executions of the separate three failed Runtime controls, and do not locate their metadata overwrite/publication cause.
+
+Sixteen state markers were emitted below the cap64. Logged code metadata consists only of existing code byte length, private code presence and episode/global-code/logged/refusal flags; central projections log tuple word counts. No names, pointer values, environment dumps or private native context appear in the passive logging. Genuine admitted-slot link inspection logs booleans, and its temporary clone retires before policy invocation.
+
+A finally path restored both production owners byte exact (names e978fb… and body c246e25…). All14,195 conservative Runtime14/original-source inventory hashes and six orchestration inputs match the production pre-capture state. The Runtime cache/source lease was released immediately. The temporary executable is NONCURRENT after restoration and must not be reused for production validation. The original raw oracle46, first route20, Runtime failures26, orchestration18 and detached oracle46 evidence remain separate and unchanged.
+
+The measured next repair question is the purpose and actual target kind of an admitted indexed capture, not a blanket DeletedArray classification or diagnostic-text inference. No source repair, policy broadening, assertion weakening, probe adaptation or retry occurred in this capture.

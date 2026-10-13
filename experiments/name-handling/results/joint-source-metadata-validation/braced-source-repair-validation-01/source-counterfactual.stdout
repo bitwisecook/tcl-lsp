@@ -1,0 +1,6 @@
+
+running 1 test
+test walker::case_list_tests::original_object_reference_consumers_ignore_dto_labels_and_runtime_value_guesses ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.78s
+

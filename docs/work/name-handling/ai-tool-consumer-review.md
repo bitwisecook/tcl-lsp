@@ -147,12 +147,26 @@ when/if/set vectors, all applicable. This measures the first loss before
 SourceContext ingress. Both temporary files were restored byte-for-byte and
 the complete baseline matched; the instrumented binary is noncurrent.
 
-A minimal one-owner Compiler scratch repair chains the existing Expr issuer's
-children alongside Syntax bodies through the same full-source/config/context,
-visited and vendor-body-origin gates. It creates no new owner API/parser or
-name branch. No production semantic repair is applied or validated yet.
-Preserve original braced positive, inert negative, currentness and source
-counterfactual controls under the next reviewed source/cache lease.
+The one-owner Compiler repair now chains the existing genuine Expr children
+alongside Syntax bodies through the same full-source/config/context, visited
+and vendor-body-origin gates. The
+[production repair capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-source-repair-validation-01/README.md)
+built Compiler/iRules once and ran five exact controls with 4 passes/1 failure.
+The unchanged original braced positive, inert negative and DTO/source-currentness
+counterfactual pass; the new missing-input/dynamic-body/changed-source/foreign-input
+guard passes. Source25-package/11,764-hash scope and both fresh binaries stayed
+unchanged. Compiler owner SHA-256 b6256765...699e; all leases released.
+
+The existing shared Expr owner test fails at source_scoped_body.rs2042 for
+multi-argument `expr {[format hidden]} + 1`: Some is returned against the
+unchanged None expectation. Its later cooked-input fixture is unreached. The
+first failure is sealed, was not repeated and was not weakened. A scratch-only boundary guard uses the actual selected Registry
+EXPR_CONCATENATES_ARGS trait, argument offset and exact cardinality to decline
+joined-tail geometry in the whole-source issuer. Its separate AST-base issuer
+is unchanged. No central guard is applied or built; independent review and
+root source/cache grant are pending. Earlier MCP acceptance retains
+its exact dependency preimage; no MCP/full-suite/provider repeat or promotion.
+Genuine alias/shadow completeness remains outside the measured controls.
 
 Future finite consumer comparisons remain unexecuted: dynamic procedure
 requests followed by rename; literal callback alias before/after unknown

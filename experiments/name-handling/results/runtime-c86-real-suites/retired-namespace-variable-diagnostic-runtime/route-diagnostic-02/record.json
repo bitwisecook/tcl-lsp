@@ -1,0 +1,178 @@
+{
+  "status": "Original wrapper process completed once",
+  "scope": "One original var17 passive route capture only. Prior ordinary/vector/dynamic controls not rerun; their causes not claimed measured. No production repair. TEMP logging cap64 state observations plus bounded typed fields; later events may be unreached/cap-suppressed.",
+  "build": {
+    "argv": [
+      "/workspace/tcl-lsp/tmp/name-tools/cargo/bin/cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script",
+      "--message-format=json"
+    ],
+    "initial_free_bytes": 2526912512,
+    "minimum_free_bytes": 2454310912,
+    "disk_abort_threshold_bytes": 201326592,
+    "exit_code": 0,
+    "messages_sha256": "5228ad1297110d7c4b00f663353c0d58f5b1d5211ae0286b6ebf4ac412530c40",
+    "stderr_sha256": "424bc9c4e67f15bdfc7ca00d0c15a8499151da8de3d1d311da07c1337311f704",
+    "binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "TEMP_binary_sha256": "ca5375267d2b5cb74117f60c34dff6e204e10ab33bc8f6081321d759ff08b43c",
+    "artifact_fresh": false,
+    "cargo_profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": false
+    }
+  },
+  "original_inputs_before": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "source_preimages": {
+    "runtime/rust/src/interp/native_variable_names.rs": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473",
+    "runtime/rust/src/interp/native_body_artifact.rs": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe"
+  },
+  "temp_sources": {
+    "runtime/rust/src/interp/native_variable_names.rs": "04b4f5808b9f7dc991667e4891a7ffb42e763723e9325cdb8a0df1b0d0e6dc26",
+    "runtime/rust/src/interp/native_body_artifact.rs": "30ac0d4883475659bc6f05cf586fc70be084b5420ee26ba4e0cfcb6a972432d9"
+  },
+  "changed_source_during_build": [],
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+  ],
+  "exit_code": 2,
+  "seconds": 6.493,
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "kill_after_seconds": 5,
+    "core_bytes": 0
+  },
+  "environment": "Same prior named synthetic NH_CLOCK_GETENV controls and TCL_LIBRARY, same five removed test/overlay selectors. Inherited host environment not dumped. No TZ override or environment_sync.",
+  "TEMP_runner_sha256_after": "ca5375267d2b5cb74117f60c34dff6e204e10ab33bc8f6081321d759ff08b43c",
+  "stdout_sha256": "ce18932b5ffc1fd574ccd7ccb87b4250f28c492a0fa14b8ec55a1f1e9e094d6b",
+  "stderr_sha256": "a982b2c0d3d2d8bb2b755bb7ff359cfef2e8be060e7a8e5bf9a518740f82f532",
+  "actual_progress": {
+    "init_marker": true,
+    "tcltest_marker": true,
+    "all_tcl_enter_marker": true,
+    "all_tcl_return_marker": false,
+    "test_starts": [
+      "var-1.1",
+      "var-1.2",
+      "var-1.3",
+      "var-1.4",
+      "var-1.5",
+      "var-1.6",
+      "var-1.7",
+      "var-1.8",
+      "var-1.9",
+      "var-1.10",
+      "var-1.11",
+      "var-1.12",
+      "var-1.13",
+      "var-1.14",
+      "var-1.15",
+      "var-1.16",
+      "var-1.17"
+    ],
+    "last_reached_test_start": "var-1.17",
+    "final_suite_count_lines": []
+  },
+  "passive_markers": [
+    "NATIVE_VARIABLE_ROUTE phase=indexed_capture_failed code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE slot_present=true creates=true purpose=Write evaluated_element_present=false site=ValueWrite reason=DeletedNamespace actual_link_kind=Some((false, false, false, true))",
+    "NATIVE_VARIABLE_ROUTE phase=selected_receiver_error code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write reason=DeletedNamespace reached_site_present=true selected_site=ValueWrite",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_before_publication code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write site=ValueWrite reason=RetiredNamespace error_code_words=Some(3)",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_after_publication code_bytes_len=17 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE phase=indexed_capture_failed code_bytes_len=0 private_code_present=false episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE slot_present=true creates=true purpose=Write evaluated_element_present=true site=IndexedNameLookup reason=DeletedNamespace actual_link_kind=Some((false, false, false, true))",
+    "NATIVE_VARIABLE_ROUTE phase=selected_receiver_error code_bytes_len=0 private_code_present=false episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write reason=DeletedNamespace reached_site_present=true selected_site=IndexedNameLookup",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_before_publication code_bytes_len=0 private_code_present=false episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write site=IndexedNameLookup reason=RetiredNamespace error_code_words=Some(3)",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_after_publication code_bytes_len=18 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE phase=selected_receiver_error code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write reason=DeletedNamespace reached_site_present=false selected_site=ValueWrite",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_before_publication code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write site=ValueWrite reason=RetiredNamespace error_code_words=Some(3)",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_after_publication code_bytes_len=17 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE phase=selected_receiver_error code_bytes_len=0 private_code_present=false episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write reason=DeletedNamespace reached_site_present=true selected_site=NameLookup",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_before_publication code_bytes_len=0 private_code_present=false episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write site=NameLookup reason=RetiredNamespace error_code_words=Some(4)",
+    "NATIVE_VARIABLE_ROUTE phase=diagnostic_after_publication code_bytes_len=22 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE phase=indexed_capture_failed code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE slot_present=true creates=true purpose=Write evaluated_element_present=false site=NameLookup reason=DeletedArray actual_link_kind=Some((true, true, true, false))",
+    "NATIVE_VARIABLE_ROUTE phase=selected_receiver_error code_bytes_len=4 private_code_present=true episode_in_progress=false global_code_set=false already_logged=false host_refusal=false",
+    "NATIVE_VARIABLE_ROUTE purpose=Write reason=DeletedArray reached_site_present=true selected_site=NameLookup"
+  ],
+  "first_refusal": [
+    "run_script: execution refused: original variable lookup diagnostic native handler policy is not selected"
+  ],
+  "source_restore": {
+    "restored_owner_sha256": {
+      "runtime/rust/src/interp/native_variable_names.rs": "e978fb5835fcf617a5b3b6bd004d9f346fde0eaf7a72ec5af430979ce138a473",
+      "runtime/rust/src/interp/native_body_artifact.rs": "c246e25d66968d30d382f7eeed5b35256b23195a44144fb1ff0dd0b5b7cbefbe"
+    },
+    "owners_byteexact": true,
+    "changed_from_production_before": [],
+    "unexpected_changes_while_TEMP": []
+  },
+  "original_inputs_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/tests/var.test": "268e9a926ef7eba63d347fa4fdbb013d1d82b2420540d4625be2ed9b1887841a"
+  },
+  "TEMP_binary_currentness": "NONCURRENT after byte-exact production source restoration; do not reuse as production validation.",
+  "measured_route": {
+    "actual_state_event_count": 16,
+    "state_event_cap": 64,
+    "cap_reached": false,
+    "terminal_indexed_capture": {
+      "admitted_slot_present": true,
+      "creates": true,
+      "purpose": "Write",
+      "evaluated_original_element_present": false,
+      "selected_failure_site": "NameLookup",
+      "typed_error": "DeletedArray",
+      "actual_link_element_present": true,
+      "actual_native_element_entry_present": true,
+      "actual_retained_array_cell_present": true,
+      "actual_native_scalar_entry_present": false
+    },
+    "terminal_receiver_report": {
+      "purpose": "Write",
+      "typed_error": "DeletedArray",
+      "reached_site_present": true,
+      "selected_site": "NameLookup"
+    },
+    "diagnostic_publication": "Central policy refuses before a diagnostic projection/publication for this terminal failure; no terminal errorCode tuple or postpublication marker was reached. Prior original namespace cases do have projected3/4word counts and beforeafter private metadata flags.",
+    "basis": "Derived only from retained actual passive stderr lines in this one unchanged original wrapper invocation. Genuine slot/actual existing link fields, not rendered diagnostic or operand spelling.",
+    "scope_limit": "Does not execute the three ordinary/vector/dynamic Runtime failure controls and does not prove their code publication cause. No native C private slot/link equivalence claim."
+  },
+  "classification": "Actual var1.17 scalar reporting operand has no evaluated element, while its genuine admitted indexed link denotes a retained array element. Write creation capture returns DeletedArray; Runtime chooses NameLookup and forwards that explicit site. Central C86 policy lacks NameLookup/DetachedElement and refuses before publication. Original oracle write expects WRITE VARNAME. No repair or expectation change applied."
+}
