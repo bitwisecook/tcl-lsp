@@ -363,8 +363,7 @@ pub fn prove_native_integer_adds_for_body(
         Some(procedure) => procedure.params.as_slice(),
         None => &[],
     };
-    let caller = match collect_caller_ranges(unit, body_id, function, registry, common_plan, params)
-    {
+    let caller = match collect_caller_ranges(unit, body_id, registry, common_plan, params) {
         Ok(caller) => caller,
         Err(reason) => {
             return NativeIntegerProof::Analysed(collect_candidate_declines(
@@ -528,7 +527,6 @@ struct CallerRangeEvidence {
 fn collect_caller_ranges(
     unit: &CompilationUnit,
     body_id: Option<crate::ir::ProcedureId>,
-    function: &str,
     registry: &CommandRegistry,
     common_plan: &CommonAotProofPlan,
     params: &[String],

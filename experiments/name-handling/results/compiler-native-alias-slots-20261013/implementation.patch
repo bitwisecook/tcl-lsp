@@ -1,0 +1,111 @@
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
+@@ -378,7 +378,7 @@
+         let Some(selection) = self.original_targets_for_input(
+             input,
+             namespace,
+-            super::CommandTargetLookup::NamedSlots,
++            super::CommandTargetLookup::CompilerSlots,
+         ) else {
+             if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
+                 eprintln!(
+@@ -665,6 +665,23 @@
+                 ),
+                 Some(false) => *generic = true,
+                 None => *unknown = true,
++            }
++            return;
++        }
++        if let MayBinding::Target(target) = binding
++            && target.kind == BindingKind::Alias
++            && !target.terminal
++            && target.implementation_generation == 0
++            && target.implementation_allocation.is_none()
++            && let Some(identity) = target.token.as_ref()
++            && let Some(row) = self.runtime_compiler_row(identity)
++            && matches!(row.implementation,
++                tcl_runtime_api::native_compilation::NativeCommandImplementation::Alias { .. }
++                    | tcl_runtime_api::native_compilation::NativeCommandImplementation::PartialAlias { .. })
++        {
++            match self.runtime_compiler_hook(Some(identity)) {
++                Some(false) => *generic = true,
++                Some(true) | None => *unknown = true,
+             }
+             return;
+         }
+--- a/rust/tcl-compiler/src/command_binding/original_command_table.rs
++++ b/rust/tcl-compiler/src/command_binding/original_command_table.rs
+@@ -3003,6 +3003,10 @@
+         if self.runtime_execution_observed(target.token.as_ref()) {
+             selected.unknown = true;
+         }
++        if matches!(lookup, super::CommandTargetLookup::CompilerSlots) {
++            selected.insert(target.clone(), None);
++            return Some(());
++        }
+         if target.terminal {
+             selected.insert(target.clone(), target.prepended.is_empty().then(Vec::new));
+             return Some(());
+--- a/rust/tcl-compiler/src/command_binding/runtime_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/runtime_entry.rs
+@@ -2037,6 +2037,50 @@
+     }
+ 
+     #[test]
++    fn same_interpreter_alias_compiler_uses_its_original_wrapper_without_source_allocation() {
++        use tcl_runtime_api::native_compilation::{
++            NativeAliasTargetLookup, NativeCompilerHookPresence,
++        };
++        let mut snapshot = entry(NativeCommandImplementation::Alias {
++            interpreter: NativeInterpreterIdentity {
++                owner: 1,
++                interpreter: 2,
++            },
++            target_lookup: NativeAliasTargetLookup::Global,
++            words: vec!["unavailable_target".into(), "PREFIX".into()],
++        });
++        snapshot.commands[0].compiler_hook = NativeCompilerHookPresence::Absent;
++        let source = analyse(&snapshot);
++        let binding = source.invocation_at_source("set", 0);
++        assert_eq!(
++            binding.native_compilation_admission_selection(),
++            tcl_registry::native_compilation::NativeCompilationSelection::Generic
++        );
++        assert!(!source.native_compilation_provider_required_at(0));
++        assert!(binding.proved_execution_target().is_none());
++        for presence in [
++            NativeCompilerHookPresence::Present,
++            NativeCompilerHookPresence::Unknown,
++        ] {
++            snapshot.commands[0].compiler_hook = presence;
++            let source = analyse(&snapshot);
++            assert_eq!(
++                source
++                    .invocation_at_source("set", 0)
++                    .native_compilation_admission_selection(),
++                tcl_registry::native_compilation::NativeCompilationSelection::Unknown
++            );
++            assert!(source.native_compilation_provider_required_at(0));
++            assert!(
++                source
++                    .invocation_at_source("set", 0)
++                    .proved_execution_target()
++                    .is_none()
++            );
++        }
++    }
++
++    #[test]
+     fn live_custom_slot_never_acquires_fresh_stock_identity() {
+         let mut actual = entry(NativeCommandImplementation::Opaque);
+         actual.commands[0].compiler_hook =
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -12053,6 +12053,7 @@
+ enum CommandTargetLookup {
+     WithFallback,
+     NamedSlots,
++    CompilerSlots,
+ }
+ 
+ fn source_binding_projection(

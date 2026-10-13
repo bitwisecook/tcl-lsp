@@ -91,6 +91,8 @@ pub struct AnalyserSnapshot {
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
     pub(super) logical_const_string_provenance:
         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
+    pub(super) logical_interp_path_provenance:
+        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalInterpreterPathProvenance>>,
     /// Per-scope set of const-string names whose current value was written
     /// conditionally (see [`Analyser::nondominating_consts`]).
     pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
@@ -162,6 +164,7 @@ impl Analyser {
             renamed_commands: self.renamed_commands.clone(),
             const_strings: self.const_strings.clone(),
             logical_const_string_provenance: self.logical_const_string_provenance.clone(),
+            logical_interp_path_provenance: self.logical_interp_path_provenance.clone(),
             nondominating_consts: self.nondominating_consts.clone(),
             regex_vars: self.regex_vars.clone(),
             var_command_sites: self.var_command_sites.clone(),
@@ -211,6 +214,7 @@ impl Analyser {
         self.renamed_commands = snap.renamed_commands;
         self.const_strings = snap.const_strings;
         self.logical_const_string_provenance = snap.logical_const_string_provenance;
+        self.logical_interp_path_provenance = snap.logical_interp_path_provenance;
         self.nondominating_consts = snap.nondominating_consts;
         self.regex_vars = snap.regex_vars;
         self.var_command_sites = snap.var_command_sites;

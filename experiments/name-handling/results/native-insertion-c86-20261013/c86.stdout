@@ -1,0 +1,130 @@
+INDEX 0 RESULT {X Y A B C}
+ByteCode 0x0x55dadff265b0, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name 0 X Y"
+  Cmds 1, src 19, inst 18, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff536e0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-16, src 0-18
+  Command 1: "linsert $name 0 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) reverse 2 
+    (16) listConcat 
+    (17) done 
+
+INDEX end RESULT {A B C X Y}
+ByteCode 0x0x55dadff265b0, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name end X Y"
+  Cmds 1, src 21, inst 13, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff52ce0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-11, src 0-20
+  Command 1: "linsert $name end X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) listConcat 
+    (12) done 
+
+INDEX 1 RESULT {A X Y B C}
+ByteCode 0x0x55dadff48a30, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name 1 X Y"
+  Cmds 1, src 19, inst 42, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff537e0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-40, src 0-18
+  Command 1: "linsert $name 1 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) over 1 
+    (16) listRangeImm 0 0 
+    (25) reverse 3 
+    (30) listRangeImm 1 end 
+    (39) listConcat 
+    (40) listConcat 
+    (41) done 
+
+INDEX end-1 RESULT {A B X Y C}
+ByteCode 0x0x55dadff48a30, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name end-1 X Y"
+  Cmds 1, src 23, inst 42, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff536e0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-40, src 0-22
+  Command 1: "linsert $name end-1 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) over 1 
+    (16) listRangeImm 0 end-1 
+    (25) reverse 3 
+    (30) listRangeImm end end 
+    (39) listConcat 
+    (40) listConcat 
+    (41) done 
+
+INDEX -8 RESULT {X Y A B C}
+ByteCode 0x0x55dadff265b0, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name -8 X Y"
+  Cmds 1, src 20, inst 18, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff52ce0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-16, src 0-19
+  Command 1: "linsert $name -8 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) reverse 2 
+    (16) listConcat 
+    (17) done 
+
+INDEX 2147483647 RESULT {A B C X Y}
+ByteCode 0x0x55dadff265b0, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $name 2147483647 X Y"
+  Cmds 1, src 28, inst 13, litObjs 2, aux 0, stkDepth 3, code/src 0.00
+  Proc 0x0x55dadff53660, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-11, src 0-27
+  Command 1: "linsert $name 2147483647 X Y"
+    (0) loadScalar1 %v0 	# var "name"
+    (2) push1 0 	# "X"
+    (4) push1 1 	# "Y"
+    (6) list 2 
+    (11) listConcat 
+    (12) done 
+
+ByteCode 0x0x55dadff26eb0, refCt 1, epoch 17, interp 0x0x55dadfefe130 (epoch 17)
+  Source "linsert $args 0 interp alias {} $name {}"
+  File "/tmp/name-native-insert-20261013/probe.tcl" Line 6
+  Cmds 1, src 40, inst 24, litObjs 3, aux 0, stkDepth 6, code/src 0.00
+  Proc 0x0x55dadff6f0c0, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "args"
+      slot 1, scalar, arg, "name"
+  Commands 1:
+      1: pc 0-22, src 0-39
+  Command 1: "linsert $args 0 interp alias {} $name {}"
+    (0) loadScalar1 %v0 	# var "args"
+    (2) push1 0 	# "interp"
+    (4) push1 1 	# "alias"
+    (6) push1 2 	# ""
+    (8) loadScalar1 %v1 	# var "name"
+    (10) push1 2 	# ""
+    (12) list 5 
+    (17) reverse 2 
+    (22) listConcat 
+    (23) done 
+
+HELPER {interp alias {} original {} one two}

@@ -1,0 +1,1179 @@
+--- a/rust/tcl-syntax/src/word_rules.rs
++++ b/rust/tcl-syntax/src/word_rules.rs
+@@ -432,17 +432,55 @@
+ /// grammar. This supplies no Native value, naming policy or evaluation proof.
+ #[must_use]
+ pub fn original_static_word_unicode_value(word: &tcl_lexer::NativeWord) -> Option<Vec<u8>> {
+-    use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel, WordKind};
+-    let value = original_static_word_source_bytes(word)?;
+-    if word.group().kind != WordKind::Braced {
++    original_word_unicode_value_with_variables(word, |_, _| None)
++}
++
++/// Unicode source value with each substitution resolved from its original component.
++/// The callback retains the complete image, grammar and scalar/array form;
++/// unavailable commands, indices or values never become replacement text.
++#[must_use]
++pub fn original_word_unicode_value_with_variables(
++    word: &tcl_lexer::NativeWord,
++    mut variable: impl FnMut(
++        &tcl_lexer::ExecutablePartArena,
++        &tcl_lexer::SpannedExecutablePart,
++    ) -> Option<Vec<u8>>,
++) -> Option<Vec<u8>> {
++    use tcl_lexer::{ExecutablePart, SourceChannel, WordKind};
++    if word.image().channel() != SourceChannel::Document || word.group().expand {
++        return None;
++    }
++    word.image().try_text().ok()?;
++    let mut value = Vec::new();
++    if word.group().kind == WordKind::Braced {
++        value = original_static_word_source_bytes(word)?;
++    } else {
+         let arena = word.executable_parts();
+         for component in arena.list(arena.root()) {
+-            if !matches!(
+-                component.part,
+-                ExecutablePart::Text(ExecutableText::Decoded(_))
+-            ) {
+-                continue;
+-            }
++            let bytes = match &component.part {
++                ExecutablePart::Text(_) => original_unicode_text_component(arena, component)?,
++                ExecutablePart::Variable { .. } => variable(arena, component)?,
++                _ => return None,
++            };
++            value.extend_from_slice(&bytes);
++        }
++    }
++    std::str::from_utf8(&value).ok()?;
++    Some(value)
++}
++
++fn original_unicode_text_component(
++    arena: &tcl_lexer::ExecutablePartArena,
++    component: &tcl_lexer::SpannedExecutablePart,
++) -> Option<Vec<u8>> {
++    use tcl_lexer::{ExecutablePart, ExecutableText, SourceChannel};
++    let value = match &component.part {
++        ExecutablePart::Text(ExecutableText::Original) => crate::backslash::source_literal_bytes(
++            arena.bytes(component.span)?,
++            SourceChannel::Document,
++        )
++        .into_owned(),
++        ExecutablePart::Text(ExecutableText::Decoded(bytes)) => {
+             let raw = arena.bytes(component.span)?;
+             let mut offset = 0;
+             while offset < raw.len() {
+@@ -454,7 +492,7 @@
+                     raw,
+                     offset,
+                     SourceChannel::Document,
+-                    word.config().escapes,
++                    arena.config().escapes,
+                     |_| tcl_lexer::EscapedInputUnit {
+                         width: 1,
+                         value: tcl_lexer::EscapedInputValue::CopyOriginal,
+@@ -465,7 +503,7 @@
+                     let mut encoded = [0; 4];
+                     if crate::backslash::decode_bytes_in(
+                         raw.get(offset..fragment.end)?,
+-                        word.config().escapes,
++                        arena.config().escapes,
+                     )
+                     .as_ref()
+                         != scalar.encode_utf8(&mut encoded).as_bytes()
+@@ -478,8 +516,10 @@
+                 }
+                 offset = fragment.end;
+             }
+-        }
+-    }
++            bytes.clone()
++        }
++        _ => return None,
++    };
+     std::str::from_utf8(&value).ok()?;
+     Some(value)
+ }
+--- a/rust/tcl-compiler/src/const_subst.rs
++++ b/rust/tcl-compiler/src/const_subst.rs
+@@ -125,6 +125,15 @@
+     pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
+     /// Registry-declared return type of the outer invocation.
+     pub return_type: Option<TclType>,
++}
++
++struct OriginalConstSubstSource<'a> {
++    image: &'a tcl_lexer::SourceImage,
++    config: tcl_lexer::LexerConfig,
++    variable: &'a dyn Fn(
++        &tcl_lexer::ExecutablePartArena,
++        &tcl_lexer::SpannedExecutablePart,
++    ) -> Option<String>,
+ }
+ 
+ impl ConstSubstCtx<'_> {
+@@ -332,7 +341,7 @@
+     /// analysis-only consumers can continue using [`Self::fold_cmd_subst`].
+     #[must_use]
+     pub fn fold_cmd_subst_resolved(&self, inner: &str) -> Option<ResolvedConstSubst> {
+-        self.fold_at_depth(inner, 0, None)
++        self.fold_at_depth(inner, 0, None, None)
+     }
+ 
+     /// Fold under the actual retained invocation axes, independently of the
+@@ -344,8 +353,80 @@
+         inner: &str,
+         dialect: tcl_registry::InvocationDialect,
+     ) -> Option<String> {
+-        self.fold_at_depth(inner, 0, Some(dialect))
++        self.fold_at_depth(inner, 0, Some(dialect), None)
+             .map(|fold| fold.value)
++    }
++
++    /// Fold an authentic original command-substitution operand with typed variable sources.
++    /// Complete image/configuration and component spans survive nested folds;
++    /// the caller independently establishes command trust and value provenance.
++    #[must_use]
++    pub fn fold_original_source_substitution(
++        &self,
++        operand: &tcl_lexer::NativeWord,
++        variable: &dyn Fn(
++            &tcl_lexer::ExecutablePartArena,
++            &tcl_lexer::SpannedExecutablePart,
++        ) -> Option<String>,
++    ) -> Option<String> {
++        let parts = operand.executable_parts();
++        let [component] = parts.list(parts.root()) else {
++            return None;
++        };
++        let tcl_lexer::ExecutablePart::Command { body } = component.part else {
++            return None;
++        };
++        let source = OriginalConstSubstSource {
++            image: operand.image(),
++            config: operand.config(),
++            variable,
++        };
++        let inner = source.image.try_text().ok()?.get(body.as_range())?;
++        self.fold_at_depth(inner, 0, None, Some((&source, body)))
++            .map(|fold| fold.value)
++    }
++
++    fn original_literal_words_at_depth(
++        &self,
++        source: &OriginalConstSubstSource<'_>,
++        span: tcl_lexer::Span,
++        depth: u32,
++        dialect: Option<tcl_registry::InvocationDialect>,
++    ) -> Option<(
++        Vec<String>,
++        Vec<CommandBindingIdentity>,
++        Vec<tcl_runtime_api::SiteClaim>,
++    )> {
++        let plan =
++            tcl_lexer::native_script_words_in(source.image.clone(), span, source.config).ok()?;
++        let [command] = plan.commands.as_slice() else {
++            return None;
++        };
++        if plan.fatal_tail.is_some() {
++            return None;
++        }
++        let mut words = Vec::new();
++        let mut command_bindings = Vec::new();
++        let mut site_claims = Vec::new();
++        for word in &command.words {
++            let parts = word.executable_parts();
++            if let [component] = parts.list(parts.root())
++                && let tcl_lexer::ExecutablePart::Command { body } = component.part
++            {
++                let inner = source.image.try_text().ok()?.get(body.as_range())?;
++                let folded = self.fold_at_depth(inner, depth + 1, dialect, Some((source, body)))?;
++                words.push(folded.value);
++                command_bindings.extend(folded.command_bindings);
++                site_claims.extend(folded.site_claims);
++            } else {
++                let value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
++                    word,
++                    |arena, component| (source.variable)(arena, component).map(String::into_bytes),
++                )?;
++                words.push(String::from_utf8(value).ok()?);
++            }
++        }
++        Some((words, command_bindings, site_claims))
+     }
+ 
+     fn fold_at_depth(
+@@ -353,12 +434,13 @@
+         inner: &str,
+         depth: u32,
+         dialect: Option<tcl_registry::InvocationDialect>,
++        source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
+     ) -> Option<ResolvedConstSubst> {
+         if depth > MAX_CONST_SUBST_DEPTH {
+             return None;
+         }
+         let (words, mut command_bindings, mut site_claims) =
+-            self.literal_words_at_depth(inner, depth, dialect)?;
++            self.literal_words_at_depth(inner, depth, dialect, source)?;
+         let (head, rest) = words.split_first()?;
+         if !(self.trusts)(head) {
+             return None;
+@@ -446,7 +528,7 @@
+     /// A nested sub that doesn't fold to a constant bails the whole fold.
+     #[must_use]
+     pub fn literal_words(&self, inner: &str) -> Option<Vec<String>> {
+-        self.literal_words_at_depth(inner, 0, None)
++        self.literal_words_at_depth(inner, 0, None, None)
+             .map(|(words, _, _)| words)
+     }
+ 
+@@ -455,12 +537,16 @@
+         inner: &str,
+         depth: u32,
+         dialect: Option<tcl_registry::InvocationDialect>,
++        source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
+     ) -> Option<(
+         Vec<String>,
+         Vec<CommandBindingIdentity>,
+         Vec<tcl_runtime_api::SiteClaim>,
+     )> {
+         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
++        if let Some((source, span)) = source {
++            return self.original_literal_words_at_depth(source, span, depth, dialect);
++        }
+ 
+         // Re-split the substitution under the selected registry profile, so
+         // release and dialect word grammar cannot drift from command lookup.
+@@ -538,7 +624,7 @@
+                     // *interior* (`list a b c`, not `[list a b c]`), so
+                     // fold it directly.
+                     let nested = sm.token_text(*tok);
+-                    let folded = self.fold_at_depth(nested, depth + 1, dialect)?;
++                    let folded = self.fold_at_depth(nested, depth + 1, dialect, None)?;
+                     words.push(folded.value);
+                     command_bindings.extend(folded.command_bindings);
+                     site_claims.extend(folded.site_claims);
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -230,6 +230,31 @@
+     config: tcl_lexer::LexerConfig,
+ }
+ 
++/// A dictionary key inferred from an original checked value, without a variable declaration span.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct ReadonlyDictionaryKeyVariable {
++    name: String,
++    image: tcl_lexer::SourceImage,
++    input: super::ResolvedAnalysisInput,
++    receiver_scope: Vec<usize>,
++    original_key: Option<Span>,
++}
++
++impl ReadonlyDictionaryKeyVariable {
++    /// Source-value label, independently of entered variable storage.
++    #[must_use]
++    pub fn name(&self) -> &str {
++        &self.name
++    }
++
++    /// Exact original data-key interior, when unchanged literal correspondence exists.
++    /// This is source geometry and supplies no variable rename permission.
++    #[must_use]
++    pub const fn original_key_span(&self) -> Option<Span> {
++        self.original_key
++    }
++}
++
+ impl<'a> LogicalVariableScopeAdvice<'a> {
+     /// Root declaration table, independently of its lookup eligibility.
+     #[must_use]
+@@ -241,6 +266,40 @@
+     #[must_use]
+     pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
+         self.eligible.iter().map(|&index| self.scopes[index])
++    }
++
++    /// Inferred source names from the eligible Logical tables, without editable declarations.
++    #[must_use]
++    pub fn readonly_variable_names(&self) -> Vec<&'a str> {
++        self.eligible_scopes()
++            .flat_map(|scope| {
++                scope
++                    .readonly_dictionary_keys
++                    .values()
++                    .filter_map(move |key| {
++                        (key.image == self.image
++                            && self.analysis.resolved_input.as_ref() == Some(&key.input)
++                            && scope_at(&self.analysis.global_scope, &key.receiver_scope)
++                                .is_some_and(|retained| std::ptr::eq(retained, scope)))
++                        .then(|| key.name())
++                    })
++            })
++            .collect()
++    }
++
++    /// Inferred names held by the independent root table under current source currency.
++    #[must_use]
++    pub fn readonly_root_variable_names(&self) -> Vec<&'a str> {
++        self.root()
++            .readonly_dictionary_keys
++            .values()
++            .filter_map(|key| {
++                (key.image == self.image
++                    && self.analysis.resolved_input.as_ref() == Some(&key.input)
++                    && key.receiver_scope.is_empty())
++                .then(|| key.name())
++            })
++            .collect()
+     }
+ 
+     /// Known source namespace; an unknown caller cannot supply one.
+@@ -1781,6 +1840,15 @@
+     value_span: Span,
+ }
+ 
++#[derive(Debug, Clone)]
++pub(super) struct LogicalInterpreterPathProvenance {
++    image: tcl_lexer::SourceImage,
++    input: super::ResolvedAnalysisInput,
++    declaration: Span,
++    producer: Span,
++    key: String,
++}
++
+ impl Analyser {
+     /// Record a constant string assignment for `var_name` in the
+     /// scope at `scope_path`.
+@@ -1983,6 +2051,155 @@
+         self.lookup_logical_const_string_at(name, token.span)
+     }
+ 
++    pub(super) fn retained_value_word(&self, token: Token) -> Option<tcl_lexer::NativeWord> {
++        let image = tcl_lexer::SourceImage::document(&self.source);
++        let config = self.file_lexer_config();
++        self.result
++            .matches_original_source_image(&image, config)
++            .then_some(())?;
++        self.result
++            .retained_command_realm()?
++            .original_written_word_at_span_in_source(&image, token.span, config)
++            .map(|(word, _)| word)
++    }
++
++    pub(super) fn logical_variable_value_component(
++        &self,
++        arena: &tcl_lexer::ExecutablePartArena,
++        component: &tcl_lexer::SpannedExecutablePart,
++    ) -> Option<(String, Span)> {
++        if !self.result.allows_lexical_declaration_advice()
++            || !self
++                .result
++                .matches_original_source_image(arena.image(), arena.config())
++            || arena.image().bytes() != self.source.as_bytes()
++        {
++            return None;
++        }
++        let reference = tcl_lexer::word_parts::scan_var_ref(
++            arena.image().bytes(),
++            usize::try_from(component.span.start()).ok()?,
++            arena.config(),
++        )
++        .ok()??;
++        (u32::try_from(reference.next).ok()? == component.span.end()).then_some(())?;
++        let span = reference.source_span(
++            arena.image().bytes(),
++            usize::try_from(component.span.start()).ok()?,
++            0,
++        )?;
++        let root = crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_logical_source_executable(
++            arena, arena.image(), arena.config(), span, self.word_rules(), self.declaration_name_policy()?,
++        )?;
++        if root.is_separate_array_root() {
++            return None;
++        }
++        Some((root.display()?.to_owned(), span))
++    }
++
++    pub(super) fn lookup_logical_const_component(
++        &self,
++        arena: &tcl_lexer::ExecutablePartArena,
++        component: &tcl_lexer::SpannedExecutablePart,
++    ) -> Option<String> {
++        let (name, span) = self.logical_variable_value_component(arena, component)?;
++        self.lookup_logical_const_string_at(&name, span)
++            .map(|(value, _)| value.to_owned())
++    }
++
++    pub(super) fn resolve_logical_value_word(&self, token: Token) -> Option<String> {
++        let word = self.retained_value_word(token)?;
++        let bytes = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
++            &word,
++            |arena, component| {
++                self.lookup_logical_const_component(arena, component)
++                    .map(String::into_bytes)
++            },
++        )?;
++        String::from_utf8(bytes).ok()
++    }
++
++    pub(super) fn retain_readonly_dictionary_keys(
++        &mut self,
++        value: &str,
++        value_span: Span,
++        receiver_scope: &[usize],
++    ) {
++        let Ok(elements) = tcl_syntax::list::split_list_in(value, self.file_lexer_config().escapes)
++        else {
++            return;
++        };
++        if elements.len() % 2 != 0 {
++            return;
++        }
++        let Some(input) = self.result.resolved_input.as_ref().cloned() else {
++            return;
++        };
++        let Some(image) = self
++            .result
++            .retained_command_realm()
++            .and_then(|realm| realm.original_source_image())
++            .cloned()
++        else {
++            return;
++        };
++        let config = self.file_lexer_config();
++        let original = self
++            .result
++            .retained_command_realm()
++            .and_then(|realm| {
++                realm.original_written_word_at_span_in_source(&image, value_span, config)
++            })
++            .and_then(|(word, _)| {
++                let content = word.content_span().ok()?;
++                (image.bytes().get(content.as_range()) == Some(value.as_bytes())).then_some(content)
++            });
++        let mut original_keys = std::collections::HashMap::new();
++        if let Some(content) = original {
++            let mut offset = 0;
++            let mut ordinal = 0;
++            while let Ok(Some(element)) = tcl_syntax::list::find_element(value, offset) {
++                if ordinal % 2 == 0 && element.literal {
++                    let key = &value[element.value.clone()];
++                    let span = u32::try_from(element.value.start)
++                        .ok()
++                        .zip(u32::try_from(element.value.end).ok())
++                        .and_then(|(start, end)| {
++                            Some(Span::new(
++                                content.start().checked_add(start)?,
++                                content.start().checked_add(end)?,
++                            ))
++                        });
++                    original_keys
++                        .entry(key.to_owned())
++                        .and_modify(|entry| *entry = None)
++                        .or_insert(span);
++                }
++                ordinal += 1;
++                offset = element.next;
++            }
++        }
++        let Some(scope) = scope_at_mut(&mut self.result.global_scope, receiver_scope) else {
++            return;
++        };
++        for pair in elements.chunks_exact(2) {
++            let name = pair[0].to_string();
++            if name.is_empty() {
++                continue;
++            }
++            scope.readonly_dictionary_keys.insert(
++                name.clone(),
++                ReadonlyDictionaryKeyVariable {
++                    original_key: original_keys.get(&name).copied().flatten(),
++                    name,
++                    image: image.clone(),
++                    input: input.clone(),
++                    receiver_scope: receiver_scope.to_vec(),
++                },
++            );
++        }
++    }
++
+     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
+     /// `key` as `var_name`'s value in the scope at `scope_path` — the
+     /// interpreter-value-flow analogue of
+@@ -1990,10 +2207,98 @@
+     /// two unrelated procs binding the same variable name to different
+     /// interpreters must never collide.
+     pub fn set_interp_var_binding(&mut self, var_name: &str, key: String, scope_path: &[usize]) {
++        self.logical_interp_path_provenance
++            .entry(scope_path.to_vec())
++            .or_default()
++            .remove(var_name);
+         self.interp_var_bindings
+             .entry(scope_path.to_vec())
+             .or_default()
+             .insert(var_name.to_string(), key);
++    }
++
++    pub(super) fn set_original_logical_interp_var_binding(
++        &mut self,
++        var_name: &str,
++        key: String,
++        producer: Token,
++        scope_path: &[usize],
++    ) {
++        self.set_interp_var_binding(var_name, key.clone(), scope_path);
++        let provenance = (|| {
++            if !self.result.allows_lexical_declaration_advice() || self.conditional_depth != 0 {
++                return None;
++            }
++            let declaration = scope_at(&self.result.global_scope, scope_path)?
++                .variables
++                .get(var_name)?;
++            if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
++                return None;
++            }
++            self.retained_value_word(producer)?;
++            Some(LogicalInterpreterPathProvenance {
++                image: self
++                    .result
++                    .retained_command_realm()?
++                    .original_source_image()?
++                    .clone(),
++                input: self.result.resolved_input.as_ref()?.clone(),
++                declaration: declaration.definition_span,
++                producer: producer.span,
++                key,
++            })
++        })();
++        if let Some(provenance) = provenance {
++            self.logical_interp_path_provenance
++                .entry(scope_path.to_vec())
++                .or_default()
++                .insert(var_name.to_owned(), provenance);
++        }
++    }
++
++    pub(super) fn lookup_logical_interp_path(&self, token: Token) -> Option<String> {
++        let word = self.retained_value_word(token)?;
++        let arena = word.executable_parts();
++        let [component] = arena.list(arena.root()) else {
++            return None;
++        };
++        let (name, span) = self.logical_variable_value_component(arena, component)?;
++        let image = tcl_lexer::SourceImage::document(&self.source);
++        let advice = self.result.logical_variable_scope_advice(
++            &image,
++            self.file_lexer_config(),
++            span.start(),
++        )?;
++        let declaration = advice.variable_definition(&name)?;
++        if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
++            return None;
++        }
++        let input = self.result.resolved_input.as_ref()?;
++        let mut found = self
++            .logical_interp_path_provenance
++            .iter()
++            .flat_map(|(path, records)| {
++                records.iter().filter_map(move |(written, provenance)| {
++                    let selected = scope_at(&self.result.global_scope, path)?
++                        .variables
++                        .get(written)?;
++                    if !std::ptr::eq(selected, declaration)
++                        || provenance.declaration != declaration.definition_span
++                        || &provenance.input != input
++                        || provenance.producer.end() >= span.start()
++                        || !self.result.matches_original_source_image(
++                            &provenance.image,
++                            self.file_lexer_config(),
++                        )
++                        || self.interp_var_bindings.get(path)?.get(written)? != &provenance.key
++                    {
++                        return None;
++                    }
++                    Some(provenance.key.as_str())
++                })
++            });
++        let key = found.next()?;
++        found.next().is_none().then(|| key.to_owned())
+     }
+ 
+     /// Remove interpreter-binding knowledge for `var_name` (reassigned to
+@@ -2001,6 +2306,9 @@
+     /// interpreter handle, exactly as [`Self::clear_const_string`] does
+     /// for a reassigned constant string).
+     pub fn clear_interp_var_binding(&mut self, var_name: &str, scope_path: &[usize]) {
++        if let Some(records) = self.logical_interp_path_provenance.get_mut(scope_path) {
++            records.remove(var_name);
++        }
+         if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
+             map.remove(var_name);
+         }
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -1163,12 +1163,13 @@
+                             ..Default::default()
+                         },
+                     );
+-                    self.set_interp_var_binding(name, key, scope_path);
++                    self.set_original_logical_interp_var_binding(name, key, *value_tok, scope_path);
+                 }
+             }
+         } else if single
+             && value_tok.kind == TokenType::Cmd
+-            && let Some(folded) = self.try_fold_const_cmd_subst_rhs(value_text, scope_path)
++            && let Some(folded) =
++                self.try_fold_const_cmd_subst_rhs(value_text, *value_tok, scope_path)
+         {
+             // `set VAR [cmd …]` whose substitution is a compile-time
+             // constant: the registry `const_fold` / frame-fact engine proves
+@@ -1246,34 +1247,12 @@
+         }
+     }
+ 
+-    /// Fold a `set` command's single-token `[cmd …]` RHS to its constant
+-    /// value via the shared engine ([`crate::const_subst::ConstSubstCtx`]),
+-    /// or `None` to abstain.
+-    ///
+-    /// Sound-by-construction gates, in evaluation order:
+-    ///
+-    /// 1. **Fold surface** — [`crate::const_subst::head_may_fold`]: the
+-    ///    static head must carry a registry fold or frame-fact table. Also
+-    ///    what keeps the trust oracle below lazy: no candidate, no cost.
+-    /// 2. **Whole-module trust** — [`Self::whole_file_command_trust`]: a
+-    ///    `rename` / `interp alias` / shadowing `proc` anywhere in the
+-    ///    module (even later in the file, even buried in a body) unbinds
+-    ///    the head from its builtin semantics, so the fold declines. The
+-    ///    mid-walk `renamed_commands` map is deliberately NOT used — it
+-    ///    only knows about mutations *before* this point.
+-    /// 3. **Frame facts** — `[self class]` folds only inside an
+-    ///    instance-side `TclOO` method of a statically-named class
+-    ///    ([`super::types::Scope::oo_defining_class`]) whose class command
+-    ///    binding is itself trusted; class-side frames (`classmethod`,
+-    ///    `self method`), snit / itcl members, and init scripts abstain
+-    ///    (`self class` raises there — tclsh 9.0.4).
+-    /// 4. **Constant arguments** — `$var` words resolve only through the
+-    ///    *dominating* constant lattice
+-    ///    ([`Self::lookup_dominating_const_string`]), so a
+-    ///    branch-conditional binding abstains.
++    /// Registry folding keeps whole-module command trust and exact original variable sources.
++    /// Declaration labels cannot supply entered object-frame facts.
+     fn try_fold_const_cmd_subst_rhs(
+         &mut self,
+         value_text: &str,
++        value_token: Token,
+         scope_path: &[usize],
+     ) -> Option<String> {
+         let registry = self.registry.clone()?;
+@@ -1286,48 +1265,25 @@
+             return None;
+         }
+         let trust = self.whole_file_command_trust()?;
+-        let defining_class = self.oo_defining_class_at(scope_path);
+-        if let Some(class) = &defining_class
+-            && !trust.trusts_proc_binding(class)
+-        {
+-            return None;
+-        }
+         let version = (!self.result.dialect.is_empty())
+             .then(|| self.profile.const_fold_version())
+             .flatten();
+         let trusts = |name: &str| trust.trusts(name);
+-        let lookup = |name: &str| {
+-            self.lookup_dominating_const_string(name, scope_path)
+-                .map(str::to_owned)
++        let lookup = |arena: &tcl_lexer::ExecutablePartArena,
++                      component: &tcl_lexer::SpannedExecutablePart| {
++            self.lookup_logical_const_component(arena, component)
+         };
++        let operand = self.retained_value_word(value_token)?;
+         crate::const_subst::ConstSubstCtx {
+             registry: &registry,
+             resolution_namespace: &self.command_resolution_namespace(scope_path),
+             namespace_context: None,
+             version,
+-            defining_class: defining_class.as_deref(),
++            defining_class: None,
+             trusts: &trusts,
+-            lookup_var: &lookup,
+-        }
+-        .fold_cmd_subst(inner)
+-    }
+-
+-    /// The defining class of the innermost enclosing **instance-side
+-    /// `TclOO` method** scope, or `None` when the current frame is not one
+-    /// (a proc, namespace, class-side member, snit / itcl member, or any
+-    /// nested frame inside the method that opens a new Tcl frame). See
+-    /// [`super::types::Scope::oo_defining_class`].
+-    fn oo_defining_class_at(&self, scope_path: &[usize]) -> Option<String> {
+-        let mut scope = &self.result.global_scope;
+-        let mut found: Option<String> = None;
+-        for &i in scope_path {
+-            scope = scope.children.get(i)?;
+-            // Every scope node in this tree (namespace, proc, method) is a
+-            // frame change; only an instance-side method scope carries the
+-            // fact, and any deeper frame resets it.
+-            found.clone_from(&scope.oo_defining_class);
+-        }
+-        found
++            lookup_var: &|_| None,
++        }
++        .fold_original_source_substitution(&operand, &lookup)
+     }
+ 
+     /// Apply the scope aliases one invocation's state transitions state: each
+@@ -4017,7 +3973,7 @@
+         // requalified.
+         let literal_path = !crate::naming::is_dynamic_word(&args[1]);
+         let resolved_dynamic = (!literal_path)
+-            .then(|| self.resolve_dynamic_interp_path(&args[1], scope_path))
++            .then(|| self.resolve_dynamic_interp_path(arg_tokens.get(1).copied()))
+             .flatten();
+         let original_key =
+             head.and_then(|head| self.original_interp_eval_state_key(head, arg_tokens));
+@@ -4236,7 +4192,7 @@
+             );
+         }
+         let key = if crate::naming::is_dynamic_word(cmd_name) {
+-            let Some(resolved) = self.resolve_dynamic_interp_path(cmd_name, scope_path) else {
++            let Some(resolved) = self.resolve_dynamic_interp_path(head) else {
+                 return false;
+             };
+             resolved
+@@ -4290,26 +4246,9 @@
+         }
+     }
+ 
+-    /// Resolve a `$name`/`${name}` word to the interpreter-domain key a
+-    /// tracked `set name [interp create ...]` bound it to — the key is
+-    /// already fully resolved/qualified at bind
+-    /// time, so callers must NOT re-run [`Self::qualified_interp_key`]/
+-    /// interp-path-stack qualification on it.
+-    ///
+-    /// `None` for anything that isn't a plain scalar reference to a
+-    /// tracked binding: [`crate::naming::split_array_name`] rejects an
+-    /// array-indexed read (`$arr(idx)`) by returning an index, and a
+-    /// concatenated/substituted word (`prefix$s`, `[cmd]`) is never a
+-    /// key any `set` binds — [`Self::lookup_interp_var_binding`] simply
+-    /// finds no entry for it, the same "fails closed" shape as looking
+-    /// up an unknown name in `const_strings`.
+-    fn resolve_dynamic_interp_path(&self, word: &str, scope_path: &[usize]) -> Option<String> {
+-        let (base, index) = crate::naming::split_array_name(word);
+-        if index.is_some() {
+-            return None;
+-        }
+-        self.lookup_interp_var_binding(base, scope_path)
+-            .map(str::to_string)
++    /// Current original scalar syntax selects independently recorded interpreter-path advice.
++    fn resolve_dynamic_interp_path(&self, token: Option<Token>) -> Option<String> {
++        self.lookup_logical_interp_path(token?)
+     }
+ 
+     /// Resolve an `interp alias` path operand to the domain prefix its
+@@ -4320,7 +4259,7 @@
+     /// ONLY through [`Self::resolve_dynamic_interp_path`] — anything else
+     /// (an untracked dynamic word) returns `None`, aborting the whole
+     /// cross-domain alias (unchanged conservative behaviour).
+-    fn resolve_alias_domain_prefix(&self, path: &str, scope_path: &[usize]) -> Option<String> {
++    fn resolve_alias_domain_prefix(&self, path: &str, token: Option<Token>) -> Option<String> {
+         if matches!(path, "" | "{}") {
+             // The empty path is *this* interpreter — which is the child when
+             // the command is written inside a child's eval body, not always
+@@ -4328,7 +4267,7 @@
+             return Some(self.current_interp_domain_prefix());
+         }
+         let key = if crate::naming::is_dynamic_word(path) {
+-            self.resolve_dynamic_interp_path(path, scope_path)?
++            self.resolve_dynamic_interp_path(token)?
+         } else {
+             self.qualified_interp_key(path)
+         };
+@@ -6103,20 +6042,13 @@
+         if args.len() != 3 || arg_tokens.len() < 2 {
+             return;
+         }
+-        let Some(const_val) = self
++        let Some((value, value_span)) = self
+             .lookup_logical_const_string_at(&args[1], arg_tokens[1].span)
+-            .map(|(value, _)| value.to_owned())
++            .map(|(value, span)| (value.to_owned(), span))
+         else {
+             return;
+         };
+-        let elements = crate::tcl_expr_eval::split_tcl_list(&const_val, self.word_rules());
+-        let mut i = 0;
+-        while i < elements.len() {
+-            if !elements[i].is_empty() {
+-                self.define_var(&elements[i], arg_tokens[1], scope_path, false, None);
+-            }
+-            i += 2;
+-        }
++        self.retain_readonly_dictionary_keys(&value, value_span, scope_path);
+     }
+ 
+     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
+@@ -6133,6 +6065,16 @@
+     /// `interp`'s `alias` subcommand); `args[0]` is still the subcommand
+     /// word, which is what selects the alias descriptor.
+     pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
++        self.handle_interp_alias_with_original_arguments(args, &[], scope_path, offset);
++    }
++
++    pub(super) fn handle_interp_alias_with_original_arguments(
++        &mut self,
++        args: &[String],
++        arg_tokens: &[Token],
++        _scope_path: &[usize],
++        offset: u32,
++    ) {
+         // What this call did to the command table is registry data, read
+         // through the one transition vocabulary. The
+         // interpreter *paths* are not — a path may be a tracked
+@@ -6244,8 +6186,10 @@
+         let (Some(src_path), Some(target_path)) = (args.get(1), args.get(3)) else {
+             return;
+         };
+-        if let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
+-            && let Some(target_prefix) = self.resolve_alias_domain_prefix(target_path, scope_path)
++        if let Some(src_prefix) =
++            self.resolve_alias_domain_prefix(src_path, arg_tokens.get(1).copied())
++            && let Some(target_prefix) =
++                self.resolve_alias_domain_prefix(target_path, arg_tokens.get(3).copied())
+             && !(src_prefix.is_empty() && target_prefix.is_empty())
+         {
+             let qualified =
+@@ -6321,64 +6265,16 @@
+         text: &str,
+         tok: Option<Token>,
+         is_single: bool,
+-        scope_path: &[usize],
++        _scope_path: &[usize],
+     ) -> Option<String> {
+         if !crate::naming::is_dynamic_word(text) {
+             return Some(text.to_string());
+         }
+         let tok = tok?;
+-        // Identity resolution (a `source`/`rename` target) must resolve only
+-        // through const values that *dominate* this use site — never the
+-        // last-write-wins branch value the lexical map otherwise carries.
+-        // `set p a.tcl; if {$c} {set p b.tcl}; source $p` must abstain here,
+-        // not pin the source to `b.tcl`: a
+-        // branch-conditional binding cannot prove a unique target, so
+-        // `lookup_dominating_const_string` yields `None` for it. This differs
+-        // from `resolve_const_word` / `lookup_const_string`, which other
+-        // callers (expansion counts, regex-var tagging) still use with their
+-        // existing last-write-wins semantics.
+         if is_single && matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+-            return Some(text.to_string());
+-        }
+-        if is_single && tok.kind == TokenType::Var {
+-            let sm = Analyser::source_map(
+-                &self.source,
+-                &self.cached_line_index,
+-                self.cached_line_index_source_len,
+-            );
+-            // The token's *true source bytes*, which for a braced composite
+-            // head (`${ns}::setdef`) are the whole word — the lexer merges
+-            // the `${…}` substitution and everything glued to it into one
+-            // `Var` token, so the raw text is `ns}::setdef`, not the
+-            // variable name.  Reading it whole looks up a variable that
+-            // cannot exist and abstains on a word that is in fact
+-            // statically resolvable.  The dispatched
+-            // variable ends at the brace the lexer left in place; the rest
+-            // is an ordinary word suffix, folded like any other (it may
+-            // itself interpolate, `${ns}::${sub}`).  Same truncation rule
+-            // as `record_var_or_cmd_command_site`'s W307 head reading, so
+-            // the two agree on which bytes name the variable.
+-            let raw = sm.token_text(tok);
+-            let (var_name, suffix) = if tok.content_offset >= 2 {
+-                self.split_braced_head(raw)
+-            } else {
+-                (raw, "")
+-            };
+-            let value = self.lookup_dominating_const_string(var_name, scope_path)?;
+-            if suffix.is_empty() {
+-                return Some(value.to_string());
+-            }
+-            let folded_suffix =
+-                crate::text::fold_interpolation_single(suffix, self.braced_var(), |name| {
+-                    self.lookup_dominating_const_string(name, scope_path)
+-                        .map(str::to_string)
+-                })?;
+-            return Some(format!("{value}{folded_suffix}"));
+-        }
+-        crate::text::fold_interpolation_single(text, self.braced_var(), |name| {
+-            self.lookup_dominating_const_string(name, scope_path)
+-                .map(str::to_string)
+-        })
++            return Some(text.to_owned());
++        }
++        self.resolve_logical_value_word(tok)
+     }
+ 
+     /// Handle `rename OLD NEW` — record a static rename so calls to
+@@ -11991,6 +11887,30 @@
+         self.head_identities
+             .source_bindings()
+             .stamp_original_tokens(&mut tokens);
++        if self.result.allows_lexical_declaration_advice() {
++            let words = crate::registry_invocation::source_structure::source_registry_words(
++                &self.source,
++                &self.result,
++                &segmented,
++            )?;
++            let patterns = words.with_source_schema(&context, |schema| {
++                schema.authored_source_pattern_arguments()
++            })??;
++            let mut selected = patterns
++                .into_iter()
++                .filter(|pattern| pattern.kind == tcl_registry::patterns::PatternType::Regex);
++            let pattern = selected.next()?;
++            if selected.next().is_some() {
++                return None;
++            }
++            let crate::registry_invocation::InvocationWordOrigin::Written(written) = words
++                .origins()
++                .get(usize::from(pattern.index).checked_add(1)?)?
++            else {
++                return None;
++            };
++            return written.checked_sub(1);
++        }
+         if tokens.source_binding.is_some() {
+             return crate::registry_invocation::normal_representation_invocation_in_context(
+                 &context, &tokens,
+@@ -12067,9 +11987,7 @@
+                     self.cached_line_index_source_len,
+                 );
+                 let var_name = sm.token_text(tok).to_string();
+-                if let Some((const_val, def_span)) =
+-                    self.lookup_const_string_with_span(&var_name, scope_path)
+-                {
++                if let Some((const_val, def_span)) = self.lookup_logical_const_substitution(tok) {
+                     let pattern = const_val.to_string();
+                     // Record the use site (the `$var` token).
+                     self.result.regex_patterns.push(super::types::RegexPattern {
+@@ -12451,6 +12369,123 @@
+         );
+     }
+ 
++    fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
++        let start = u32::try_from(analyser.source.rfind(needle).unwrap()).unwrap();
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(
++            analyser
++                .source
++                .get(usize::try_from(start).unwrap()..)
++                .unwrap(),
++            start,
++            analyser.file_lexer_config().nested(),
++        );
++        commands.first().unwrap().argv[0]
++    }
++
++    #[test]
++    fn logical_dynamic_word_keeps_exact_braced_name_and_interpolation_sources() {
++        let source =
++            "set n WRONG; set {$n} RIGHT; set {scalar(open} SCALAR; puts ${n}:${$n}:${scalar(open}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "${n}:${$n}:${scalar(open}");
++        assert_eq!(
++            analyser.resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[]),
++            Some("WRONG:RIGHT:SCALAR".to_owned())
++        );
++        analyser.source = source.replace("RIGHT", "OTHER");
++        assert!(
++            analyser
++                .resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[])
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn logical_nested_constant_fold_uses_original_variable_components() {
++        let source = "set n WRONG; set {$n} RIGHT; set result [list $n [list ${$n}]]; puts $result";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "$result");
++        assert_eq!(
++            analyser
++                .lookup_logical_const_substitution(token)
++                .map(|(value, _)| value),
++            Some("WRONG RIGHT")
++        );
++    }
++
++    #[test]
++    fn logical_regex_value_metadata_uses_original_scope_and_source_provenance() {
++        let source = "set pattern {ROOT}; proc p {} {set pattern {LOCAL}; regexp $pattern text}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let source_use = source.rfind("$pattern").unwrap();
++        assert!(analyser.result.regex_patterns.iter().any(|pattern| {
++            pattern.pattern == "LOCAL"
++                && usize::try_from(pattern.range.start()).unwrap() == source_use
++        }));
++        assert!(
++            !analyser
++                .result
++                .regex_patterns
++                .iter()
++                .any(|pattern| pattern.pattern == "ROOT")
++        );
++    }
++
++    #[test]
++    fn logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot() {
++        let source = "set child [interp create named]; interp eval $child {set x VALUE}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&analyser, "$child");
++        assert_eq!(
++            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
++            Some("named")
++        );
++        let snapshot = analyser.snapshot();
++        analyser.source = source.replace("VALUE", "OTHER");
++        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
++        analyser.source = source.to_owned();
++        analyser.restore(snapshot);
++        assert_eq!(
++            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
++            Some("named")
++        );
++        let source = "set child named; interp eval $child {set x VALUE}";
++        let mut scalar = Analyser::new();
++        scalar.analyse_and_retain_result_for_test(source, "tcl");
++        let token = original_value_use_token(&scalar, "$child");
++        assert!(scalar.resolve_dynamic_interp_path(Some(token)).is_none());
++    }
++
++    #[test]
++    fn logical_dictionary_keys_have_metadata_and_data_geometry_without_variable_declarations() {
++        let source = "set d {alpha A beta B}; dict with d {puts $alpha}";
++        let mut analyser = Analyser::new();
++        analyser.analyse_and_retain_result_for_test(source, "tcl");
++        let scope = &analyser.result.global_scope;
++        assert!(!scope.variables.contains_key("alpha"));
++        assert!(!scope.variables.contains_key("beta"));
++        let alpha = scope.readonly_dictionary_keys.get("alpha").unwrap();
++        assert_eq!(
++            &source[alpha.original_key_span().unwrap().as_range()],
++            "alpha"
++        );
++        let image = tcl_lexer::SourceImage::document(source);
++        let advice = analyser
++            .result
++            .logical_variable_scope_advice(
++                &image,
++                analyser.file_lexer_config(),
++                u32::try_from(source.rfind("$alpha").unwrap()).unwrap(),
++            )
++            .unwrap();
++        assert!(advice.readonly_variable_names().contains(&"alpha"));
++        assert!(advice.variable_definition("alpha").is_none());
++    }
++
+     #[test]
+     fn dynamic_apply_value_uses_checked_logical_variable_declaration() {
+         let source = "namespace eval N {set lambda {{p} {puts $p} ::N}}; apply $::N::lambda VALUE";
+@@ -12518,8 +12553,14 @@
+             .iter()
+             .find(|scope| scope.kind == super::super::types::ScopeKind::Namespace)
+             .unwrap();
+-        assert!(namespace.variables.contains_key("local"));
+-        assert!(!namespace.variables.contains_key("root"));
++        assert!(namespace.readonly_dictionary_keys.contains_key("local"));
++        assert!(!namespace.readonly_dictionary_keys.contains_key("root"));
++        assert!(!namespace.variables.contains_key("local"));
++        let key = &namespace.readonly_dictionary_keys["local"];
++        assert_eq!(
++            &source[key.original_key_span().unwrap().as_range()],
++            "local"
++        );
+         let source = "set d {root ROOT}; proc p {} {dict with d {puts $root}}";
+         let mut procedure = Analyser::new();
+         procedure.analyse_and_retain_result_for_test(source, "tcl");
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -434,6 +434,8 @@
+     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+     pub(super) logical_const_string_provenance:
+         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
++    pub(super) logical_interp_path_provenance:
++        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalInterpreterPathProvenance>>,
+     /// Per-scope set of const-string bindings whose *current* value was
+     /// last written inside an ``if`` / ``try`` body (``conditional_depth >
+     /// 0``) — a write that does **not** dominate code after the conditional
+@@ -1549,6 +1551,7 @@
+             file_path: None,
+             const_strings: HashMap::new(),
+             logical_const_string_provenance: HashMap::new(),
++            logical_interp_path_provenance: HashMap::new(),
+             nondominating_consts: HashMap::new(),
+             regex_vars: HashSet::new(),
+             current_event: None,
+--- a/rust/tcl-compiler/src/analyser/snapshot.rs
++++ b/rust/tcl-compiler/src/analyser/snapshot.rs
+@@ -91,6 +91,8 @@
+     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
+     pub(super) logical_const_string_provenance:
+         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
++    pub(super) logical_interp_path_provenance:
++        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalInterpreterPathProvenance>>,
+     /// Per-scope set of const-string names whose current value was written
+     /// conditionally (see [`Analyser::nondominating_consts`]).
+     pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
+@@ -162,6 +164,7 @@
+             renamed_commands: self.renamed_commands.clone(),
+             const_strings: self.const_strings.clone(),
+             logical_const_string_provenance: self.logical_const_string_provenance.clone(),
++            logical_interp_path_provenance: self.logical_interp_path_provenance.clone(),
+             nondominating_consts: self.nondominating_consts.clone(),
+             regex_vars: self.regex_vars.clone(),
+             var_command_sites: self.var_command_sites.clone(),
+@@ -211,6 +214,7 @@
+         self.renamed_commands = snap.renamed_commands;
+         self.const_strings = snap.const_strings;
+         self.logical_const_string_provenance = snap.logical_const_string_provenance;
++        self.logical_interp_path_provenance = snap.logical_interp_path_provenance;
+         self.nondominating_consts = snap.nondominating_consts;
+         self.regex_vars = snap.regex_vars;
+         self.var_command_sites = snap.var_command_sites;
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -2171,6 +2171,8 @@
+     pub name_span: Option<Span>,
+     /// Variables defined directly in this scope.
+     pub variables: HashMap<String, VarDef>,
++    pub(crate) readonly_dictionary_keys:
++        HashMap<String, super::scope::ReadonlyDictionaryKeyVariable>,
+     /// Procs defined directly in this scope.
+     pub procs: HashMap<String, ProcDef>,
+     /// Classes defined directly in this scope.
+@@ -2248,6 +2250,7 @@
+             body_span: None,
+             name_span: None,
+             variables: HashMap::new(),
++            readonly_dictionary_keys: HashMap::new(),
+             procs: HashMap::new(),
+             classes: HashMap::new(),
+             defined_symbols: Vec::new(),
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -1880,7 +1880,12 @@
+             }
+             Hook::InterpAlias => {
+                 self.retain_interp_visibility_alias(cmd_tok, arg_tokens);
+-                self.handle_interp_alias(args, scope_path, cmd_tok.span.start());
++                self.handle_interp_alias_with_original_arguments(
++                    args,
++                    arg_tokens,
++                    scope_path,
++                    cmd_tok.span.start(),
++                );
+                 false
+             }
+             Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path),

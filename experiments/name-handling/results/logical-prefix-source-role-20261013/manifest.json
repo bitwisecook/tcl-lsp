@@ -1,0 +1,7 @@
+{
+  "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+  "before_sha256": "a6344a0327515de35e63e1c4303ea40dc2546fdb36d1f32637bf75e64201a693",
+  "after_sha256": "b72a2fb29ddf6ba90dd0f6734d7a87fa86d14081dbd6a4e3535f800348d699e7",
+  "validation": "rustfmt parse only; no compile or source-role behavior acceptance",
+  "guards": "Both retained Logical profiles independently select exact authored policy equal to target input; whole original word and bytes must also match; Native original equality unchanged."
+}

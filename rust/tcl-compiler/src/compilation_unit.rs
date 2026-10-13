@@ -229,7 +229,6 @@ pub struct UnitBuildOptions<'a> {
 }
 
 /// The qualified-name prefix of an iRules `when` handler's procedure.
-const WHEN_HANDLER_PREFIX: &str = "::when::";
 
 /// Where a consumer reads a place's existence fact
 /// ([`FunctionUnit::existence`]).
@@ -2738,8 +2737,6 @@ fn module_procedures<'a>(
     crate::interprocedural::ModuleProcedures::new(crate::interprocedural::ModuleInputs {
         ir: ir_module,
         cfg: cfg_module,
-        frames: &prepared.context.0,
-        outer_writes: &prepared.context.2,
         registry,
         mutations,
         projection,
@@ -3548,7 +3545,7 @@ impl CompilationUnit {
         let when_procs: HashMap<String, FunctionUnit> = procedures
             .iter()
             .filter(|(_, unit)| unit.irules_event_body.is_some())
-            .map(|(qname, unit)| (unit.name.clone(), unit.clone()))
+            .map(|(_, unit)| (unit.name.clone(), unit.clone()))
             .collect();
         (!when_procs.is_empty()).then(|| {
             crate::connection_scope::build_connection_scope_for_module(
@@ -3693,7 +3690,7 @@ impl CompilationUnit {
         let Some(cs) = connection_scope else {
             return;
         };
-        for (qn, fu) in procedures.iter_mut() {
+        for fu in procedures.values_mut() {
             let Some(event) = &fu.irules_event_body else {
                 continue;
             };

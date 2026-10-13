@@ -181,7 +181,7 @@ impl ExtensionImport {
                 "probe: `package require {}` added `{name}` to the shell",
                 probe.package
             );
-            if let Some(row) = self.commands.iter_mut().find(|row| row.name == name) {
+            if let Some(row) = self.commands.iter_mut().find(|row| row.name == *name) {
                 row.sources.push(ExtensionSource::Probe);
                 row.sources.sort();
                 row.notes.push(note);

@@ -96,6 +96,68 @@ pub enum NativeListInsertionIndex {
     },
 }
 
+/// Original C8.6 insertion burst, preserving its List conversion order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeListInsertionStep {
+    /// Evaluate this actual original or parser-expanded operand.
+    Operand(NativeCompilerWordOperand),
+    /// Construct a List from the last counted original object owners.
+    List(usize),
+    /// Retain the original stack owner at this depth.
+    Over(usize),
+    /// Reverse these existing stack roles without creating values.
+    Reverse(usize),
+    /// Reach the selected immediate range getter and storage transaction.
+    Range(tcl_syntax::native_compiled_index::NativeCompiledListRange),
+    /// Reach the original target-copy and source-conversion concat worker.
+    Concat,
+}
+
+/// Project only the retained C8.6 immediate insertion recipe into physical steps.
+/// No command registration, operand value or execution permission is inferred.
+#[must_use]
+pub fn c86_list_insertion_steps(
+    list: NativeCompilerWordOperand,
+    index: NativeListInsertionIndex,
+    elements: Vec<NativeCompilerWordOperand>,
+) -> Option<Vec<NativeListInsertionStep>> {
+    use NativeListInsertionStep as Step;
+    let NativeListInsertionIndex::Immediate(index) = index else {
+        return None;
+    };
+    let index = index.encoded();
+    let count = elements.len();
+    let mut steps = vec![Step::Operand(list)];
+    steps.extend(elements.into_iter().map(Step::Operand));
+    steps.push(Step::List(count));
+    match index {
+        0 => steps.push(Step::Reverse(2)),
+        -2 => {}
+        index => {
+            let (last, first) = if index > 0 {
+                (index.checked_sub(1)?, index)
+            } else {
+                (index, index.checked_add(1)?)
+            };
+            steps.extend([
+                Step::Over(1),
+                Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
+                    first: NativeCompiledListIndex::from_encoded(0),
+                    last: NativeCompiledListIndex::from_encoded(last),
+                }),
+                Step::Reverse(3),
+                Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
+                    first: NativeCompiledListIndex::from_encoded(first),
+                    last: NativeCompiledListIndex::from_encoded(-2),
+                }),
+                Step::Concat,
+            ]);
+        }
+    }
+    steps.push(Step::Concat);
+    Some(steps)
+}
+
 /// Complete native list stack recipe, independent of its registration issuer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeListOperationInstruction {

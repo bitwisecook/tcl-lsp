@@ -1880,7 +1880,12 @@ impl Analyser {
             }
             Hook::InterpAlias => {
                 self.retain_interp_visibility_alias(cmd_tok, arg_tokens);
-                self.handle_interp_alias(args, scope_path, cmd_tok.span.start());
+                self.handle_interp_alias_with_original_arguments(
+                    args,
+                    arg_tokens,
+                    scope_path,
+                    cmd_tok.span.start(),
+                );
                 false
             }
             Hook::OoObjdefine => self.handle_oo_objdefine(args, arg_tokens, arg_single, scope_path),

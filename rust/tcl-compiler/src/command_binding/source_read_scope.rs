@@ -213,10 +213,30 @@ pub(crate) fn source_targets_match_advice(
             });
             if inputs.len() != prefix.len()
                 || inputs.iter().zip(captured).any(|(input, word)| {
-                    word.input
-                        .as_ref()
-                        .and_then(crate::command_binding::SourceAdviceNameInput::native_input)
-                        != Some(input)
+                    let Some(captured) = word.input.as_ref() else {
+                        return true;
+                    };
+                    match captured {
+                        crate::command_binding::SourceAdviceNameInput::Native(original) => {
+                            original != input
+                        }
+                        crate::command_binding::SourceAdviceNameInput::Logical(original) => {
+                            advice.logical_source_input().is_none_or(|source| {
+                                [source.analyser_profile(), source.unit_profile()]
+                                    .into_iter()
+                                    .any(|profile| {
+                                        tcl_registry::InvocationDialect::of_profile(profile)
+                                            .authored_name_policy()
+                                            != Some(input.policy())
+                                    })
+                            }) || input.policy().authority()
+                                != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                                || input.original_word_key().is_none_or(|key| {
+                                    key.original_word() != original.original_word()
+                                        || key.bytes() != original.bytes()
+                                })
+                        }
+                    }
                 })
             {
                 return false;

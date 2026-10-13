@@ -54,7 +54,6 @@ use crate::taint::{
     LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice, TaintPropagationInputs,
     TaintSourceContext, instance_classes_for_function, propagate_taints, word_taint,
 };
-use crate::value_shapes::parse_command_substitution_with_config;
 
 // Basis lattices
 
@@ -350,6 +349,8 @@ fn collect_return_taint(
             continue;
         };
         let Some(Terminator::Return {
+            tokens,
+            value_word,
             span,
             value: Some(value),
             ..
@@ -362,12 +363,13 @@ fn collect_return_taint(
         };
         let uses =
             word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa, ctx.lexer_config());
-        ret = ret.join(word_taint(
-            value,
-            &uses,
-            taints,
-            ctx.at(span.map_or(0, tcl_lexer::Span::start)),
-        ));
+        let returned = TaintCtx {
+            source_tokens: tokens.as_deref(),
+            source_word: value_word.as_ref(),
+            word_offset: value_word.as_ref().map(|word| word.source().span.start()),
+            ..ctx.at(span.map_or(0, tcl_lexer::Span::start))
+        };
+        ret = ret.join(word_taint(value, &uses, taints, returned));
     }
     ret
 }
@@ -418,7 +420,6 @@ fn return_ctx<'a>(
         ssa: &fu.ssa,
         interproc,
         known_procs: Some(known),
-        caller_qname: Some(fu.ssa.name.as_str()),
         dialect: source.dialect(),
         source,
         taint_summaries: Some(summaries),
@@ -1650,6 +1651,36 @@ mod tests {
                 .any(|w| w.code == DiagCode::T100 && w.sink_command == "eval"),
             "expected eval injection via return summary: {w:?}"
         );
+    }
+
+    #[test]
+    fn original_return_lookup_without_a_target_cannot_supply_a_clean_summary() {
+        let (context, cu) = crate::interprocedural::logical_completion_unit(
+            "proc wrapper {} {return [missing]}",
+            "tcl8.6",
+        );
+        let body = *cu.ir_module.procedures.keys().next().unwrap();
+        assert!(cu.procedures[&body].cfg.blocks.values().any(|block| {
+            matches!(
+                &block.terminator,
+                Some(Terminator::Return {
+                    tokens: Some(_),
+                    value_word: Some(_),
+                    ..
+                })
+            )
+        }));
+        let summary = infer_proc_summary(
+            &cu,
+            body,
+            context.commands(),
+            cu.interproc.as_ref(),
+            None,
+            &HashSet::from([body]),
+            &HashMap::new(),
+        )
+        .expect("actual original wrapper declaration");
+        assert_eq!(summary.return_base, TaintLattice::tainted());
     }
 
     #[test]

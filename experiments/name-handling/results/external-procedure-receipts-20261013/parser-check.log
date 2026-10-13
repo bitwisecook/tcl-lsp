@@ -1,0 +1,88 @@
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:193:
+     /// Whether no call site at all was recorded.
+     #[must_use]
+     pub fn is_empty(&self) -> bool {
+-        self.by_callee.is_empty() && self.by_body.is_empty() && self.by_implementation.is_empty() && self.external_opaque_declarations.is_empty()
++        self.by_callee.is_empty()
++            && self.by_body.is_empty()
++            && self.by_implementation.is_empty()
++            && self.external_opaque_declarations.is_empty()
+     }
+ 
+     /// The evidence recorded for `qname`, if any.
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:214:
+             .get(&id)
+             .or_else(|| module.body_units.get(&id))?;
+         let mut result = self.by_body.get(&id).cloned();
+-        if procedure.declaration_site.as_ref().is_some_and(|site| self.external_opaque_declarations.contains(site)) {
++        if procedure
++            .declaration_site
++            .as_ref()
++            .is_some_and(|site| self.external_opaque_declarations.contains(site))
++        {
+             result.get_or_insert_with(CalleeEvidence::default).poison();
+         }
+         for (allocation, evidence) in &self.by_implementation {
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:261:
+     /// Fold `other`'s call sites in.  See [`CalleeEvidence::merge_from`] —
+     /// merging is monotone, so it can only ever retract a fold.
+     pub fn merge_from(&mut self, other: &Self) {
+-        self.external_opaque_declarations.extend(other.external_opaque_declarations.iter().cloned());
++        self.external_opaque_declarations
++            .extend(other.external_opaque_declarations.iter().cloned());
+         for (id, evidence) in &other.by_body {
+             self.by_body.entry(*id).or_default().merge_from(evidence);
+         }
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:381:
+     /// Equal labels belonging to another source remain represented.
+     #[must_use]
+     pub fn without_original_declarations(
+-        &self, declarations: &[crate::command_binding::CommandAllocationSite],
++        &self,
++        declarations: &[crate::command_binding::CommandAllocationSite],
+     ) -> Self {
+         let mut result = self.clone();
+-        result.by_implementation.retain(|allocation, _| !declarations.contains(&allocation.site));
++        result
++            .by_implementation
++            .retain(|allocation, _| !declarations.contains(&allocation.site));
+         // Body-ID rows have no source-site inverse; retain their obligations.
+         result
+     }
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:2008:
+         input,
+         identities,
+     } = source;
+-    let known: HashSet<String> = procedures.values().map(|procedure| procedure.qualified_name.clone()).collect();
++    let known: HashSet<String> = procedures
++        .values()
++        .map(|procedure| procedure.qualified_name.clone())
++        .collect();
+     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, declared);
+     let var_facts =
+         collect_module_scope_var_facts(cfg_module, extra_callers, &surface, module, identities);
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:2126:
+         reach.sort();
+         return reach;
+     }
+-    let mut reach: Vec<String> = declared.values().map(|procedure| procedure.qualified_name.clone()).collect();
++    let mut reach: Vec<String> = declared
++        .values()
++        .map(|procedure| procedure.qualified_name.clone())
++        .collect();
+     reach.sort();
+     reach
+ }
+Diff in /workspace/name-implementation-worktrees/codegen/rust/tcl-compiler/src/unit_scope.rs:2931:
+     // it supplies the set (`tcl_lsp_db::file_dispatch_reach`); with none
+     // given, the file's own declarations are the honest bound.
+     let reach: Vec<String> = if dispatch_reach.is_empty() {
+-        let mut own: Vec<String> = ir_module.procedures.values().map(|procedure| procedure.qualified_name.clone()).collect();
++        let mut own: Vec<String> = ir_module
++            .procedures
++            .values()
++            .map(|procedure| procedure.qualified_name.clone())
++            .collect();
+         own.sort();
+         own
+     } else {

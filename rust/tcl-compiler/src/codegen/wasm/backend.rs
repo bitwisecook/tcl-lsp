@@ -2516,7 +2516,7 @@ fn codegen(
         procs
             .iter()
             .zip(&lowered_procs)
-            .filter(|((id, proc), lowered)| {
+            .filter(|((id, _), lowered)| {
                 matches!(lowered, Some(LoweredProc::Lowered { decline: None, .. }))
                     && defined.contains(id)
             })

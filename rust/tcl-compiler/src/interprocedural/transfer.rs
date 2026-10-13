@@ -229,9 +229,7 @@ pub(crate) struct ModuleInputs<'a> {
     /// Its flow graphs.
     pub(crate) cfg: &'a crate::cfg::CfgModule,
     /// Each procedure's caller-frame effects, keyed by every spelling.
-    pub(crate) frames: &'a HashMap<String, UpvarInfo>,
     /// Each procedure's writes to global and namespace places.
-    pub(crate) outer_writes: &'a HashMap<String, GlobalWriteInfo>,
     /// The registry the module resolved against.
     pub(crate) registry: &'a CommandRegistry,
     /// The module's command mutations.
@@ -608,9 +606,6 @@ impl<'a> ModuleProcedures<'a> {
         let Some(id) =
             original.and_then(|tokens| self.resolve_original_word(tokens, procedure, trust))
         else {
-            return ParameterDefault::Unknown;
-        };
-        let Some(declared) = self.procedures.get(&id) else {
             return ParameterDefault::Unknown;
         };
         let Some((formals, _)) = self.formals(&id) else {
@@ -2520,8 +2515,6 @@ mod tests {
             ModuleInputs {
                 ir: &unit.ir_module,
                 cfg: &unit.cfg_module,
-                frames: &prepared.context.0,
-                outer_writes: &prepared.context.2,
                 registry,
                 mutations: &unit.command_mutations,
                 projection: &unit.caller_scope.proc_binding_trust,

@@ -131,7 +131,9 @@ pub(crate) fn refresh_profile(vm: &mut Vm) {
         if vm.stock_native_identity(&target).as_deref()
             == tcl_syntax::naming::unroot_rooted_key(&target)
         {
-            vm.remove_registered_command(target.trim_start_matches("::"));
+            vm.remove_registered_command(
+                tcl_syntax::naming::unroot_rooted_key(&target).unwrap_or(&target),
+            );
         }
     }
     register(vm);

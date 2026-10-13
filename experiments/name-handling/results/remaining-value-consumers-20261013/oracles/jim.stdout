@@ -1,0 +1,8 @@
+provider 0.84-9-g5bac7c9
+interpolation WRONG:RIGHT:SCALAR
+nested-fold WRONG RIGHT
+regex-local 1
+dictionary-key A B
+dictionary-retained A B
+interpreter-create-code 1
+interpreter-created wrong # args: should be "interp"

@@ -378,7 +378,7 @@ impl ModuleCommandBindings {
         let Some(selection) = self.original_targets_for_input(
             input,
             namespace,
-            super::CommandTargetLookup::NamedSlots,
+            super::CommandTargetLookup::CompilerSlots,
         ) else {
             if std::env::var_os("TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC").is_some() {
                 eprintln!(
@@ -665,6 +665,23 @@ impl ModuleCommandBindings {
                 ),
                 Some(false) => *generic = true,
                 None => *unknown = true,
+            }
+            return;
+        }
+        if let MayBinding::Target(target) = binding
+            && target.kind == BindingKind::Alias
+            && !target.terminal
+            && target.implementation_generation == 0
+            && target.implementation_allocation.is_none()
+            && let Some(identity) = target.token.as_ref()
+            && let Some(row) = self.runtime_compiler_row(identity)
+            && matches!(row.implementation,
+                tcl_runtime_api::native_compilation::NativeCommandImplementation::Alias { .. }
+                    | tcl_runtime_api::native_compilation::NativeCommandImplementation::PartialAlias { .. })
+        {
+            match self.runtime_compiler_hook(Some(identity)) {
+                Some(false) => *generic = true,
+                Some(true) | None => *unknown = true,
             }
             return;
         }

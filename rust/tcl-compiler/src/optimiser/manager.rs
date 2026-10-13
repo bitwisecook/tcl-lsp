@@ -571,7 +571,6 @@ fn couple_const_dead_store_chain(
         rmw_hidden,
         traced,
     } = ctx;
-    let empty: HashSet<String> = HashSet::new();
 
     if chain.definition.kind != DefKind::Statement {
         return None;

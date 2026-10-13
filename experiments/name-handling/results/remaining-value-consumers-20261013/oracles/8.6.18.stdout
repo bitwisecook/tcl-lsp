@@ -1,0 +1,10 @@
+provider 8.6.18
+interpolation WRONG:RIGHT:SCALAR
+nested-fold WRONG RIGHT
+regex-local 1
+dictionary-key A B
+dictionary-retained A B
+interpreter-create-code 0
+interpreter-created named
+interpreter-eval-code 0
+interpreter-eval-result VALUE

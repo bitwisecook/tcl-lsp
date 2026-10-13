@@ -1,0 +1,52 @@
+{
+  "patch_sha256": "d835bc15c0cb1afff108cb18930ab7065a2ab5c0413a407192e09a65755423b3",
+  "files": [
+    {
+      "path": "rust/tcl-syntax/src/word_rules.rs",
+      "before_sha256": "66cbd7b64faa4ad9fc7c271a52f65e9d941cb6497645a8716637ed2433066f83",
+      "after_sha256": "217c579cf9e7a6afc24c8f5129b8da6b9ef76bbb7f2a4cd8d55c3710d9e4e75b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "before_sha256": "6e519ce8b04810df70a9f501e0e1a385eef116a1053a2ad03ec40e429db21d24",
+      "after_sha256": "e9dd81cdab91f268e89711cb35d6e745fe89e33b570a85cf76a8a9890ef1a9a9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/scope.rs",
+      "before_sha256": "3aca1043f51601e327dc4a52a92332e8f058816d2085e4f35194d83c051f857b",
+      "after_sha256": "e0a97f4d8e97b4fd7161ab44989baadc24eeb9efc270aef91b6657369ac9ec3e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+      "before_sha256": "7281974615fbe8df9d47d7787bc996be42ba39a770eee1859c4886f545f72580",
+      "after_sha256": "64db915f27f2dc4ff21bce63a66d5a3cfcb76eba397116b44df76b5acab5b7bc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "0b002fef6954debe1af3095b4d740189f1bdc7c58d3160c7f36f3f54b3ac47c2",
+      "after_sha256": "3b3189651a477eba347500fcb46520f4fd9bbd6c38fed1d3db221501dfc8d731"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/snapshot.rs",
+      "before_sha256": "14c500e4174518ec6d4fe7fcbfe62a2640c94b5b8c823bec36c7be0be4fccd20",
+      "after_sha256": "122ea35118df7b54abac3c6cba5007cbcf02e3998711700f706c0a806cc195a4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "ee0950ac8acb6f42ff1f069c02625c02aab5b9e7e17bab898d84172c8e381afe",
+      "after_sha256": "d8bca102a9c27ae3af7766fe80133e3b627d5bfa34ff9bef3fb5b14f9baeabc9"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/commands.rs",
+      "before_sha256": "b6256765295bfa0caa942392d9045eafac8a76b71f28abacb20aac9500ea699e",
+      "after_sha256": "70ec459ad696351ee5724fe3cb6b6fd6d2915a3613bbd682a898f05d5a1265e6"
+    }
+  ],
+  "dependencies": [
+    "value4 patch31bde07a",
+    "Logical correspondence API eed56f6e"
+  ],
+  "rust_status": "unexecuted",
+  "oracle": "oracles/results.json",
+  "scope": "Typed source interpolation/fold/regex; separately stamped interpreter path values; dictionary inferred keys outside editable VarDef tables"
+}

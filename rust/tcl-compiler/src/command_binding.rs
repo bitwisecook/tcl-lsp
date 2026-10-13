@@ -12056,6 +12056,7 @@ fn source_binding(
 enum CommandTargetLookup {
     WithFallback,
     NamedSlots,
+    CompilerSlots,
 }
 
 fn source_binding_projection(
@@ -16213,7 +16214,7 @@ impl RetainedBindingRoots {
                 .cmp(&b.1.span.start())
                 .then_with(|| a.0.cmp(b.0))
         });
-        for (qname, unit) in body_units {
+        for (_, unit) in body_units {
             let Ok(start) = usize::try_from(unit.span.start()) else {
                 continue;
             };

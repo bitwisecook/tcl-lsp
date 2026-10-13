@@ -434,6 +434,8 @@ pub struct Analyser {
     pub const_strings: HashMap<Vec<usize>, HashMap<String, (String, Span)>>,
     pub(super) logical_const_string_provenance:
         HashMap<Vec<usize>, HashMap<String, super::scope::LogicalConstStringProvenance>>,
+    pub(super) logical_interp_path_provenance:
+        HashMap<Vec<usize>, HashMap<String, super::scope::LogicalInterpreterPathProvenance>>,
     /// Per-scope set of const-string bindings whose *current* value was
     /// last written inside an ``if`` / ``try`` body (``conditional_depth >
     /// 0``) — a write that does **not** dominate code after the conditional
@@ -1549,6 +1551,7 @@ impl Analyser {
             file_path: None,
             const_strings: HashMap::new(),
             logical_const_string_provenance: HashMap::new(),
+            logical_interp_path_provenance: HashMap::new(),
             nondominating_consts: HashMap::new(),
             regex_vars: HashSet::new(),
             current_event: None,

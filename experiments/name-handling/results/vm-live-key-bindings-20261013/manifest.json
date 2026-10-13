@@ -1,0 +1,56 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/cmd_array.rs",
+      "before_sha256": "6ce2c713659553bd769781638c0e049b7d4d9811b70715e29ddb7894566c6c3a",
+      "after_sha256": "973bc927af2e663521478537be3c684977cd92331b7b401d3f80c1c9a75f6253"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_binary.rs",
+      "before_sha256": "c9c589bbce793cf8153f1fdfa1b90adf7eff81ba6e4224c2dfbf94bc1e37a42f",
+      "after_sha256": "00c1db504872f4db83db48e2bae0b240b013c60b992caa0456fefb240bca2ec8"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_dict.rs",
+      "before_sha256": "da1be8ee56268d1b7ada25e01d45c8668bfc18e998326823d7184f29e4de154c",
+      "after_sha256": "6f6c32798a7b101fdd023bc6d6f5800aec41d440c033d0e7c2d52b1f2e5278f3"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_file.rs",
+      "before_sha256": "046dc5f5ae8d997645c43a258a6ab8596bfcf67b8c012c97a9fdc2c72e77f248",
+      "after_sha256": "6db0e575edaed344e2802f8903d6dca86ead76b8dc1f454e2ee04a927695c494"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_info.rs",
+      "before_sha256": "c875992d13a2c2018363b059ab24f87ca61c500419b5932fa45d47a0308ce6bd",
+      "after_sha256": "3f7ed4d5f6bda6b5f0ed46b1c155380766d152273f1808bdd224ef25c342dade"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace.rs",
+      "before_sha256": "2bb5256f50d8f4573491acb01de9585ad04a546b6f1a798dc2f5df9c4eb8c861",
+      "after_sha256": "56c42b2796f5388e3642c2817d56d0483926bee041a47722355f28463cd5f579"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_string.rs",
+      "before_sha256": "2f02e5475e48bb8261ee82e343bbc9df5599c91d3c5f73a0339f6ece2af0f8dd",
+      "after_sha256": "1ac966d8864825b9245f12682fc5f49f77e89108d91a51e6fa7834d32b917921"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "before_sha256": "72f9d0628568d137ee345af4781ca0b50b0056e07762518749b276674169f1f1",
+      "after_sha256": "b04d0afc4a3c647ce6d489043dfac13ea098f660d7e2f0ab9f2a862c0ea39d4c"
+    },
+    {
+      "path": "rust/tcl-vm/src/expr.rs",
+      "before_sha256": "8e1d270a5edb3c8950f8e4c096dced778c66e22c6960b9713b1aec03bbc81c17",
+      "after_sha256": "6e296e335a9e1283fdd0d495a681ac947109649264e615b04014f26c9f437511"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "before_sha256": "f4614076b8364888a7ab75c8d918ed0954bc6ae5a1577f21da87ac0c7305a7fe",
+      "after_sha256": "3b6e7e969467fcdffd373b511ccbf9d7655d443bcaf3e7286e2fae90e5183e82"
+    }
+  ],
+  "status": "uncompiled",
+  "scope": "constructed key inverse delegates, actual live original alias bytes guard, expression function name construction and shared counted qualifier geometry"
+}

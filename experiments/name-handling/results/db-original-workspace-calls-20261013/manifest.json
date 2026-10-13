@@ -1,0 +1,9 @@
+{
+  "path": "rust/tcl-lsp-db/src/lib.rs",
+  "preimage_sha256": "f6c5baabb5fa73bb2b19192d8fe0c9cb30ef44a541a605a28d1e779a3e27d2a4",
+  "after_sha256": "afda271a69343987c969d3cdb35d10386e988aa0aab79566f26b71d4276fb189",
+  "patch_sha256": "d85b6f9f71273b0f48aa22f8b39a5ff3c42b7219f7c82c6c891c722bbb1c0bfd",
+  "dependency": "capsule-01 DB afterimage plus Compiler original-source scanner and exact declaration-site projection",
+  "validation": "uncompiled; no lease; no Main edit",
+  "semantics": "configured input failure remains opaque, no default entry, external facts remain source-site MAY only, no positive label donor"
+}

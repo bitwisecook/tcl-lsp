@@ -169,6 +169,7 @@ pub struct CallSiteEvidence {
     by_callee: BTreeMap<String, CalleeEvidence>,
     by_body: BTreeMap<crate::ir::ProcedureId, CalleeEvidence>,
     body_labels: BTreeMap<crate::ir::ProcedureId, String>,
+    external_opaque_declarations: BTreeSet<crate::command_binding::CommandAllocationSite>,
     by_implementation: BTreeMap<crate::command_binding::CommandAllocation, CalleeEvidence>,
     /// Whether this round consulted a parameter's value set, i.e. whether
     /// the evidence depends on the previous round and the fixpoint must
@@ -182,6 +183,7 @@ impl PartialEq for CallSiteEvidence {
         self.by_callee == other.by_callee
             && self.by_body == other.by_body
             && self.by_implementation == other.by_implementation
+            && self.external_opaque_declarations == other.external_opaque_declarations
     }
 }
 
@@ -191,7 +193,10 @@ impl CallSiteEvidence {
     /// Whether no call site at all was recorded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_callee.is_empty() && self.by_body.is_empty() && self.by_implementation.is_empty()
+        self.by_callee.is_empty()
+            && self.by_body.is_empty()
+            && self.by_implementation.is_empty()
+            && self.external_opaque_declarations.is_empty()
     }
 
     /// The evidence recorded for `qname`, if any.
@@ -212,6 +217,13 @@ impl CallSiteEvidence {
             .get(&id)
             .or_else(|| module.body_units.get(&id))?;
         let mut result = self.by_body.get(&id).cloned();
+        if procedure
+            .declaration_site
+            .as_ref()
+            .is_some_and(|site| self.external_opaque_declarations.contains(site))
+        {
+            result.get_or_insert_with(CalleeEvidence::default).poison();
+        }
         for (allocation, evidence) in &self.by_implementation {
             if module
                 .source_procedure_for_allocation(allocation)
@@ -256,6 +268,8 @@ impl CallSiteEvidence {
     /// Fold `other`'s call sites in.  See [`CalleeEvidence::merge_from`] —
     /// merging is monotone, so it can only ever retract a fold.
     pub fn merge_from(&mut self, other: &Self) {
+        self.external_opaque_declarations
+            .extend(other.external_opaque_declarations.iter().cloned());
         for (id, evidence) in &other.by_body {
             self.by_body.entry(*id).or_default().merge_from(evidence);
         }
@@ -346,10 +360,10 @@ impl CallSiteEvidence {
                 out.body_labels
                     .insert(*id, procedure.qualified_name.clone());
             }
-            if let Some(evidence) = self
+            if self
                 .by_callee
                 .get(&procedure.qualified_name)
-                .filter(|row| row.opaque_caller)
+                .is_some_and(|row| row.opaque_caller)
             {
                 let mut opaque = CalleeEvidence::default();
                 opaque.poison();
@@ -363,7 +377,56 @@ impl CallSiteEvidence {
                     .insert(allocation.clone(), evidence.clone());
             }
         }
+        for site in &self.external_opaque_declarations {
+            if module.procedures.at_declaration(site).next().is_some() {
+                out.external_opaque_declarations.insert(site.clone());
+            }
+        }
         out
+    }
+
+    /// Retain original allocation rows for these declarations and conservative obligations.
+    #[must_use]
+    pub fn slice_for_original_declarations(
+        &self,
+        declarations: &[crate::command_binding::CommandAllocationSite],
+    ) -> Self {
+        let mut result = Self::default();
+        result.by_implementation.extend(
+            self.by_implementation
+                .iter()
+                .filter(|(allocation, _)| declarations.contains(&allocation.site))
+                .map(|(allocation, evidence)| (allocation.clone(), evidence.clone())),
+        );
+        result.external_opaque_declarations.extend(
+            self.external_opaque_declarations
+                .iter()
+                .filter(|site| declarations.contains(site))
+                .cloned(),
+        );
+        for (label, evidence) in &self.by_callee {
+            if evidence.opaque_caller {
+                let mut opaque = CalleeEvidence::default();
+                opaque.poison();
+                result.by_callee.insert(label.clone(), opaque);
+            }
+        }
+        result
+    }
+
+    /// Exclude only callers attributed to these original declaration sites.
+    /// Equal labels belonging to another source remain represented.
+    #[must_use]
+    pub fn without_original_declarations(
+        &self,
+        declarations: &[crate::command_binding::CommandAllocationSite],
+    ) -> Self {
+        let mut result = self.clone();
+        result
+            .by_implementation
+            .retain(|allocation, _| !declarations.contains(&allocation.site));
+        // Body-ID rows have no source-site inverse; retain their obligations.
+        result
     }
 
     /// Record one call: `args` as written, at `arg_count` words.
@@ -606,7 +669,6 @@ struct CallerFrame<'a> {
     /// Variable-scope identity — the key into `var_facts`, and the callee
     /// key whose recorded arguments a `$param` dispatch word may take.
     scope: CallerScopeId,
-    display_name: &'a str,
     /// The body's declared parameters, in order.
     params: &'a [String],
     /// Whether this evidence map attributes calls *to* this body. True for
@@ -1796,7 +1858,6 @@ fn collect_upframes<'a>(
 pub(crate) struct ExtraCallSiteScanContext {
     /// Method/body-unit identity when this CFG is also consumed by the full
     /// per-unit lattice build. Upframe-only scan contexts leave this absent.
-    analysis_unit: Option<String>,
     analysis_body: Option<crate::ir::ProcedureId>,
     /// Qualified-name-shaped context used by `resolve_internal_call` for the
     /// exact fallback calls retained in this CFG.
@@ -1814,10 +1875,6 @@ pub(crate) struct ExtraCallSiteScanContext {
 impl ExtraCallSiteScanContext {
     pub(crate) fn body_analysis_cfg(&self, id: crate::ir::ProcedureId) -> Option<&CfgFunction> {
         (self.analysis_body == Some(id)).then_some(&self.cfg)
-    }
-
-    pub(crate) fn analysis_cfg(&self, qname: &str) -> Option<&CfgFunction> {
-        (self.analysis_unit.as_deref() == Some(qname)).then_some(&self.cfg)
     }
 }
 
@@ -1900,7 +1957,6 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 config,
             );
             ExtraCallSiteScanContext {
-                analysis_unit: None,
                 analysis_body: Some(*id),
                 resolve_as,
                 cfg,
@@ -1913,7 +1969,6 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 .body
                 .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
             ExtraCallSiteScanContext {
-                analysis_unit: None,
                 analysis_body: Some(*id),
                 resolve_as: unit.qualified_name.clone(),
                 cfg: build(&unit.qualified_name, &unit.body),
@@ -1933,7 +1988,6 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 tcl_syntax::naming::key_holder_and_tail(&up.resolve_as).0,
             );
             ExtraCallSiteScanContext {
-                analysis_unit: None,
                 analysis_body: None,
                 resolve_as: up.resolve_as,
                 cfg: build(&up.scope, up.body),
@@ -1985,7 +2039,10 @@ pub(crate) fn collect_call_site_constants(
         input,
         identities,
     } = source;
-    let known: HashSet<String> = procedures.unique_displays().cloned().collect();
+    let known: HashSet<String> = procedures
+        .values()
+        .map(|procedure| procedure.qualified_name.clone())
+        .collect();
     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, declared);
     let var_facts =
         collect_module_scope_var_facts(cfg_module, extra_callers, &surface, module, identities);
@@ -2103,7 +2160,10 @@ fn unenumerable_reach(
         reach.sort();
         return reach;
     }
-    let mut reach: Vec<String> = declared.unique_displays().cloned().collect();
+    let mut reach: Vec<String> = declared
+        .values()
+        .map(|procedure| procedure.qualified_name.clone())
+        .collect();
     reach.sort();
     reach
 }
@@ -2333,7 +2393,6 @@ fn scan_cfg_callers<'a>(
             _resolve_as: resolve_as,
             metadata_owner: &func.metadata_context,
             scope,
-            display_name: func.name.as_str(),
             params: declared.map_or(&[][..], |p| p.params.as_slice()),
             callers_tracked: declared.is_some() || scope == CallerScopeId::TopLevel,
         };
@@ -2719,6 +2778,91 @@ pub fn scan_source_call_sites_with_source_entry<S: std::hash::BuildHasher>(
     )
 }
 
+/// Current external source declarations; these receipts grant no loaded provider.
+#[derive(Debug, Clone)]
+pub struct ExternalSourceProcedureFacts {
+    input: crate::analyser::ResolvedAnalysisInput,
+    image: tcl_lexer::SourceImage,
+    declarations: Vec<
+        crate::signature_scan::original_name::SourceDeclarationMetadata<crate::analyser::ProcDef>,
+    >,
+}
+
+impl ExternalSourceProcedureFacts {
+    /// Retain only original declarations from this complete input and source image.
+    #[must_use]
+    pub fn capture(
+        input: &crate::analyser::ResolvedAnalysisInput,
+        image: &tcl_lexer::SourceImage,
+        declarations: &[crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >],
+    ) -> Option<Self> {
+        let context = input.context_registry();
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            context.commands(),
+            input,
+            input.lexer_config(),
+            Some(input.unit_profile()),
+        )?;
+        if declarations.iter().any(|declaration| {
+            declaration.name_input().source_image() != image
+                || declaration.name_input().lexer_config() != input.lexer_config()
+        }) {
+            return None;
+        }
+        Some(Self {
+            input: input.clone(),
+            image: image.clone(),
+            declarations: declarations.to_vec(),
+        })
+    }
+}
+
+/// Scan the actual source entry while preserving independently supplied external declarations.
+/// External metadata only withdraws seeds; it never installs a command or proves argv.
+#[must_use]
+pub fn scan_source_call_sites_with_original_source<S: std::hash::BuildHasher>(
+    source: &str,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
+    known: &HashSet<String, S>,
+    dispatch_reach: &[String],
+    input: &crate::analyser::ResolvedAnalysisInput,
+    entry: Option<&crate::command_binding::SourceAnalysisEntry>,
+    external: &[ExternalSourceProcedureFacts],
+) -> CallSiteEvidence {
+    let context = input.context_registry();
+    let mut evidence = scan_source_call_sites_with_entry(
+        source,
+        context.commands(),
+        declared,
+        input.unit_profile(),
+        known,
+        dispatch_reach,
+        SourceCallSiteEntry {
+            entry,
+            input: Some(input),
+        },
+    );
+    for facts in external {
+        for declaration in &facts.declarations {
+            if declaration.name_input().source_image() != &facts.image
+                || declaration.name_input().lexer_config() != facts.input.lexer_config()
+            {
+                continue;
+            }
+            // A declaration cannot prove that this interpreter loaded its provider.
+            // Current external reach therefore remains an opaque caller obligation.
+            if known.contains(&declaration.metadata().qualified_name) {
+                evidence
+                    .external_opaque_declarations
+                    .insert(declaration.declaration_site().clone());
+            }
+        }
+    }
+    evidence
+}
+
 /// Collect caller evidence with complete retained source metadata and the
 /// independent driver entry. Missing metadata in the entry-only API retracts
 /// seeds; this supplied input never grants execution or a loaded provider.
@@ -2828,7 +2972,11 @@ fn scan_source_call_sites_with_entry<S: std::hash::BuildHasher>(
     // it supplies the set (`tcl_lsp_db::file_dispatch_reach`); with none
     // given, the file's own declarations are the honest bound.
     let reach: Vec<String> = if dispatch_reach.is_empty() {
-        let mut own: Vec<String> = ir_module.procedures.unique_displays().cloned().collect();
+        let mut own: Vec<String> = ir_module
+            .procedures
+            .values()
+            .map(|procedure| procedure.qualified_name.clone())
+            .collect();
         own.sort();
         own
     } else {
@@ -5203,7 +5351,6 @@ mod tests {
             _resolve_as: "::top",
             metadata_owner: &cfg.top_level.metadata_context,
             scope: CallerScopeId::TopLevel,
-            display_name: "::top",
             params: &[],
             callers_tracked: true,
         };
@@ -5427,7 +5574,6 @@ mod tests {
                 _resolve_as: "::add",
                 metadata_owner: owner,
                 scope: CallerScopeId::Extra(0),
-                display_name: "::add",
                 params: &[],
                 callers_tracked: true,
             }

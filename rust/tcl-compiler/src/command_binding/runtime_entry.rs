@@ -2037,6 +2037,50 @@ mod tests {
     }
 
     #[test]
+    fn same_interpreter_alias_compiler_uses_its_original_wrapper_without_source_allocation() {
+        use tcl_runtime_api::native_compilation::{
+            NativeAliasTargetLookup, NativeCompilerHookPresence,
+        };
+        let mut snapshot = entry(NativeCommandImplementation::Alias {
+            interpreter: NativeInterpreterIdentity {
+                owner: 1,
+                interpreter: 2,
+            },
+            target_lookup: NativeAliasTargetLookup::Global,
+            words: vec!["unavailable_target".into(), "PREFIX".into()],
+        });
+        snapshot.commands[0].compiler_hook = NativeCompilerHookPresence::Absent;
+        let source = analyse(&snapshot);
+        let binding = source.invocation_at_source("set", 0);
+        assert_eq!(
+            binding.native_compilation_admission_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Generic
+        );
+        assert!(!source.native_compilation_provider_required_at(0));
+        assert!(binding.proved_execution_target().is_none());
+        for presence in [
+            NativeCompilerHookPresence::Present,
+            NativeCompilerHookPresence::Unknown,
+        ] {
+            snapshot.commands[0].compiler_hook = presence;
+            let source = analyse(&snapshot);
+            assert_eq!(
+                source
+                    .invocation_at_source("set", 0)
+                    .native_compilation_admission_selection(),
+                tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+            );
+            assert!(source.native_compilation_provider_required_at(0));
+            assert!(
+                source
+                    .invocation_at_source("set", 0)
+                    .proved_execution_target()
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn live_custom_slot_never_acquires_fresh_stock_identity() {
         let mut actual = entry(NativeCommandImplementation::Opaque);
         actual.commands[0].compiler_hook =

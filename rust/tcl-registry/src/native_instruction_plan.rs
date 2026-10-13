@@ -1050,6 +1050,16 @@ fn selected_container_and_string_instruction_plan(
             .map(NativeInstructionPlan::ListOperations)
             .map_err(|_| Unavailable::OperandGeometry)
         }
+        NativeCompilationGrammar::ListInsertion if version == TclVersion::V8_6 => {
+            crate::native_list_operations_compilation::compile_native_list_operation(
+                words,
+                operand_from,
+                version,
+                crate::native_list_operations_compilation::NativeListOperationKind::Insert,
+            )
+            .map(NativeInstructionPlan::ListOperations)
+            .map_err(|_| Unavailable::OperandGeometry)
+        }
         NativeCompilationGrammar::ListIndex => {
             crate::native_list_index_compilation::compile_native_list_index(
                 words,
@@ -1894,6 +1904,35 @@ mod tests {
         assert!(matches!(empty, NativeInstructionPlan::Append {
             recipe: NativeAppendInstruction { operands: NativeAppendOperands::ListElements { ref steps, strip_single_expanded: false }, .. }, ..
         } if steps == &[NativeArgumentListStep::List(0)]));
+    }
+
+    #[test]
+    fn original_c86_insertion_retains_its_immediate_list_recipe() {
+        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
+        use crate::native_list_operations_compilation::{
+            NativeListInsertionIndex, NativeListOperationInstruction,
+        };
+        let plan = project(
+            b"linsert $args 0 interp alias {} $name {}",
+            NativeCompilationGrammar::ListInsertion,
+            TclVersion::V8_6,
+        )
+        .unwrap();
+        assert!(
+            matches!(plan, NativeInstructionPlan::ListOperations(NativeListOperationInstruction::Insert {
+            list: Operand::Original(1),
+            index: NativeListInsertionIndex::Immediate(index),
+            elements,
+        }) if index.encoded() == 0 && elements == (3..8).map(Operand::Original).collect::<Vec<_>>())
+        );
+        assert_eq!(
+            project(
+                b"linsert $args $index X",
+                NativeCompilationGrammar::ListInsertion,
+                TclVersion::V8_6
+            ),
+            Err(NativeInstructionPlanUnavailable::OperandGeometry)
+        );
     }
 
     #[test]

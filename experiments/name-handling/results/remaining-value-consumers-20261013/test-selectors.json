@@ -1,0 +1,13 @@
+{
+  "package": "tcl-compiler",
+  "selectors": [
+    "analyser::handlers::tests::logical_dynamic_word_keeps_exact_braced_name_and_interpolation_sources",
+    "analyser::handlers::tests::logical_nested_constant_fold_uses_original_variable_components",
+    "analyser::handlers::tests::logical_regex_value_metadata_uses_original_scope_and_source_provenance",
+    "analyser::handlers::tests::logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot",
+    "analyser::handlers::tests::logical_dictionary_keys_have_metadata_and_data_geometry_without_variable_declarations",
+    "analyser::handlers::tests::dict_with_value_uses_checked_logical_scope"
+  ],
+  "status": "unexecuted",
+  "additional_unchanged_controls": "/tmp/name-scope15-isolated-20261013/producer9-plan.json"
+}

@@ -1952,10 +1952,9 @@ impl ExprOps for ExprEval<'_> {
         // resolution is current-namespace-first (a namespace-local
         // `tcl::mathfunc::f` shadows the global; tclsh-pinned by the
         // mathfunc conformance vectors).
-        let name = tcl_registry::mathfunc::qualified_name(function)
-            .trim_start_matches("::")
-            .to_owned();
-        if self.vm.lookup_command(&name).is_none() {
+        let qualified = tcl_registry::mathfunc::qualified_name(function);
+        let name = tcl_syntax::naming::unroot_rooted_key(&qualified).unwrap_or(&qualified);
+        if self.vm.lookup_command(name).is_none() {
             // C reports the command miss, not a special math-function error
             // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
             // `invalid command name "tcl::mathfunc::frobnicate"`).
@@ -1964,7 +1963,7 @@ impl ExprOps for ExprEval<'_> {
                 format!("TCL LOOKUP COMMAND {name}"),
             ));
         }
-        let c = self.vm.invoke_command(&name, &args);
+        let c = self.vm.invoke_command(name, &args);
         self.accept_completion(c)
     }
 

@@ -1,0 +1,8 @@
+{
+  "path": "rust/tcl-compiler/src/taint_interproc.rs",
+  "preimage_sha256": "1f23aaccba7bda547ed18e53acb8eb41da6c55ca73f761eb19d302c043991760",
+  "afterimage_sha256": "e0a0cc077f2a5a6db5885b677b25fd2989e8fd70c116054599af378edb89f2a5",
+  "patch_sha256": "5949bf939f53b865f8e004a9da62510e7439db54eff436f6555e09fcc524ebfe",
+  "validation": "rustfmt only; uncompiled, no Cargo lease",
+  "contract": "return taint uses genuine retained terminator command tokens and original value word; missing target remains opaque taint"
+}

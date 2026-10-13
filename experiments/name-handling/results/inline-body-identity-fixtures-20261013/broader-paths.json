@@ -1,0 +1,252 @@
+[
+  {
+    "path": "rust/tcl-compiler/src/cfg.rs",
+    "testwhole": false,
+    "prefix_length": 33293
+  },
+  {
+    "path": "rust/tcl-compiler/src/cfg_builder/execution_regions.rs",
+    "testwhole": false,
+    "prefix_length": 30567
+  },
+  {
+    "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+    "testwhole": false,
+    "prefix_length": 205077
+  },
+  {
+    "path": "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+    "testwhole": false,
+    "prefix_length": 25899
+  },
+  {
+    "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    "testwhole": false,
+    "prefix_length": 110645
+  },
+  {
+    "path": "rust/tcl-compiler/src/codegen/wasm/pipeline.rs",
+    "testwhole": false,
+    "prefix_length": 31466
+  },
+  {
+    "path": "rust/tcl-compiler/src/command_binding.rs",
+    "testwhole": false,
+    "prefix_length": 4444
+  },
+  {
+    "path": "rust/tcl-compiler/src/command_binding/body_template.rs",
+    "testwhole": false,
+    "prefix_length": 32289
+  },
+  {
+    "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+    "testwhole": false,
+    "prefix_length": 99099
+  },
+  {
+    "path": "rust/tcl-compiler/src/common_aot_plan.rs",
+    "testwhole": false,
+    "prefix_length": 101573
+  },
+  {
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "testwhole": false,
+    "prefix_length": 199530
+  },
+  {
+    "path": "rust/tcl-compiler/src/compile_service.rs",
+    "testwhole": false,
+    "prefix_length": 36158
+  },
+  {
+    "path": "rust/tcl-compiler/src/connection_scope.rs",
+    "testwhole": false,
+    "prefix_length": 34928
+  },
+  {
+    "path": "rust/tcl-compiler/src/def_use.rs",
+    "testwhole": false,
+    "prefix_length": 19445
+  },
+  {
+    "path": "rust/tcl-compiler/src/gvn.rs",
+    "testwhole": false,
+    "prefix_length": 81662
+  },
+  {
+    "path": "rust/tcl-compiler/src/inlining/frame.rs",
+    "testwhole": false,
+    "prefix_length": 26195
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/completion.rs",
+    "testwhole": false,
+    "prefix_length": 38304
+  },
+  {
+    "path": "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs",
+    "testwhole": false,
+    "prefix_length": 16744
+  },
+  {
+    "path": "rust/tcl-compiler/src/interval_bounds.rs",
+    "testwhole": false,
+    "prefix_length": 58987
+  },
+  {
+    "path": "rust/tcl-compiler/src/intervals.rs",
+    "testwhole": false,
+    "prefix_length": 41844
+  },
+  {
+    "path": "rust/tcl-compiler/src/ir_helpers.rs",
+    "testwhole": false,
+    "prefix_length": 88951
+  },
+  {
+    "path": "rust/tcl-compiler/src/irules_checks.rs",
+    "testwhole": false,
+    "prefix_length": 84065
+  },
+  {
+    "path": "rust/tcl-compiler/src/loops.rs",
+    "testwhole": false,
+    "prefix_length": 6222
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering/execution_regions.rs",
+    "testwhole": false,
+    "prefix_length": 34393
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering/hooks/control.rs",
+    "testwhole": false,
+    "prefix_length": 11812
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering/mod.rs",
+    "testwhole": false,
+    "prefix_length": 2217
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering/native_body_context_tests.rs",
+    "testwhole": true,
+    "prefix_length": 0
+  },
+  {
+    "path": "rust/tcl-compiler/src/lowering_hooks.rs",
+    "testwhole": false,
+    "prefix_length": 45628
+  },
+  {
+    "path": "rust/tcl-compiler/src/native_integer_proof.rs",
+    "testwhole": false,
+    "prefix_length": 41646
+  },
+  {
+    "path": "rust/tcl-compiler/src/native_lowering/tests.rs",
+    "testwhole": true,
+    "prefix_length": 0
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/code_sinking.rs",
+    "testwhole": false,
+    "prefix_length": 37345
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+    "testwhole": false,
+    "prefix_length": 72046
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/elimination/source_purity.rs",
+    "testwhole": false,
+    "prefix_length": 2864
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/end_offset.rs",
+    "testwhole": false,
+    "prefix_length": 25003
+  },
+  {
+    "path": "rust/tcl-compiler/src/optimiser/structure_elimination.rs",
+    "testwhole": false,
+    "prefix_length": 22932
+  },
+  {
+    "path": "rust/tcl-compiler/src/registry_invocation.rs",
+    "testwhole": false,
+    "prefix_length": 294499
+  },
+  {
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+    "testwhole": false,
+    "prefix_length": 120516
+  },
+  {
+    "path": "rust/tcl-compiler/src/registry_invocation/store_advice.rs",
+    "testwhole": false,
+    "prefix_length": 11136
+  },
+  {
+    "path": "rust/tcl-compiler/src/sccp.rs",
+    "testwhole": false,
+    "prefix_length": 202912
+  },
+  {
+    "path": "rust/tcl-compiler/src/sccp/original_value_facts.rs",
+    "testwhole": false,
+    "prefix_length": 140341
+  },
+  {
+    "path": "rust/tcl-compiler/src/script_binds.rs",
+    "testwhole": false,
+    "prefix_length": 17554
+  },
+  {
+    "path": "rust/tcl-compiler/src/segmenter.rs",
+    "testwhole": false,
+    "prefix_length": 52559
+  },
+  {
+    "path": "rust/tcl-compiler/src/site_claims.rs",
+    "testwhole": false,
+    "prefix_length": 4312
+  },
+  {
+    "path": "rust/tcl-compiler/src/specialise_factories.rs",
+    "testwhole": false,
+    "prefix_length": 2951
+  },
+  {
+    "path": "rust/tcl-compiler/src/ssa.rs",
+    "testwhole": false,
+    "prefix_length": 273333
+  },
+  {
+    "path": "rust/tcl-compiler/src/taint/instance_classes.rs",
+    "testwhole": false,
+    "prefix_length": 21048
+  },
+  {
+    "path": "rust/tcl-compiler/src/unit_scope.rs",
+    "testwhole": false,
+    "prefix_length": 144411
+  },
+  {
+    "path": "rust/tcl-compiler/src/value_transfer.rs",
+    "testwhole": false,
+    "prefix_length": 361356
+  },
+  {
+    "path": "rust/tcl-compiler/src/var_escape/known_names.rs",
+    "testwhole": false,
+    "prefix_length": 3160
+  },
+  {
+    "path": "rust/tcl-compiler/src/var_escape/walker.rs",
+    "testwhole": false,
+    "prefix_length": 30226
+  }
+]

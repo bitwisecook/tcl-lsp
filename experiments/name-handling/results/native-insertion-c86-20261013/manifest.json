@@ -1,0 +1,35 @@
+{
+  "files": [
+    {
+      "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations.rs",
+      "before_sha256": "7a16e4d3f26eac63d088b6bb971f26db05cc5df82360a617b53bcd93e268a7fb",
+      "after_sha256": "1ec397c162b4d4c59953209a88af85638e03a370bdd442eb6ac611511197255e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/native_list_operations.rs",
+      "before_sha256": "1c9060b37c3b5aab506ec00915e54fd973754bdc60b06596dda745cac4a43d8c",
+      "after_sha256": "5463e3e619c7f5efec8f8abc1b223aaf996fcc71c6491f3388964dbcff222db5"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+      "before_sha256": "05b9511898345955363bba6568ceaa915d9fff2c36f9b2bb2a1de9447deaa894",
+      "after_sha256": "92b93cdd804552ca855a29c20c1789d1a9d4c2c4689ea267839e4219575bdfbf"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_list_operations_compilation.rs",
+      "before_sha256": "fab79ecf212afa613f12f9bcedcf1eb13dccb8e41a0c40e1b0ce0aec5b9d6323",
+      "after_sha256": "6d17edf99dd3edb842e063eb8fb4dd806345d271a52b1d372df912628fc51c09"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_list_operations_tests.rs",
+      "before_sha256": "659da1af0e3653d031a407a15ddd28ce07246e7cf474068f549de6a8490a92b5",
+      "after_sha256": "973d0b516354333fb037aea2ac7938b82d6d80ac7115931490f4dc2f8bdca63e"
+    }
+  ],
+  "status": "Formatted/parsed, uncompiled. C8.6 Native original physical burst shared by Compiler and Runtime artifact. C9 Operation refusal unchanged. Five recorded same-original result/header windows added per backend.",
+  "oracle_inputs": [
+    "rust/tcl-registry/tests/data/native_list_operations/8.6.18.txt",
+    "rust/tcl-registry/tests/data/native_list_operations/probe.c"
+  ],
+  "additional_experiment": "probe.tcl + c86.stdout captured original C8.6.18 exact physical instructions"
+}

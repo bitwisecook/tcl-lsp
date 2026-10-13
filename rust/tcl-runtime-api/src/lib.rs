@@ -553,8 +553,7 @@ impl CommandBindingIdentity {
         identity: impl Into<String>,
     ) -> Self {
         Self::in_namespace(
-            resolution_namespace
-                .strip_prefix("::")
+            tcl_syntax::naming::unroot_rooted_key(resolution_namespace)
                 .unwrap_or(resolution_namespace),
             name,
             identity,
@@ -655,8 +654,7 @@ impl ProcedureBindingIdentity {
         body: impl Into<String>,
     ) -> Self {
         Self::in_namespace(
-            resolution_namespace
-                .strip_prefix("::")
+            tcl_syntax::naming::unroot_rooted_key(resolution_namespace)
                 .unwrap_or(resolution_namespace),
             invocation_name,
             name,

@@ -1258,7 +1258,10 @@ fn run_oo_method_folds(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     else {
         return;
     };
-    let Some(world) = bindings.original_completed_command_world() else {
+    let Some(world) = bindings
+        .positioned_for_module(&cu.ir_module, registry)
+        .and_then(crate::command_binding::SourceCommandBindings::original_completed_command_world)
+    else {
         return;
     };
     // The PER-METHOD dispatch barrier: a method is barred
@@ -3242,6 +3245,9 @@ fn sccp_constants_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interprocedural::test_body_identity::{
+        fixture_id, fixture_id_if_present, fixture_proc,
+    };
     use tcl_registry::CommandRegistry;
 
     use crate::interprocedural::InterproceduralAnalysis;
@@ -3251,7 +3257,7 @@ mod tests {
     }
 
     fn proc_fold_context(cu: &CompilationUnit, name: &str) -> String {
-        let summary = cu.interproc.as_ref().and_then(|ia| ia.procedures.get(name));
+        let summary = cu.interproc.as_ref().and_then(|ia| fixture_proc(ia, name));
         let summary = summary.map(|s| {
             (
                 s.pure,
@@ -3318,7 +3324,7 @@ mod tests {
             None,
         );
         assert!(
-            ia.procedures.contains_key("::ns::inner"),
+            fixture_id_if_present(&ia.procedures, "::ns::inner").is_some(),
             "expected ::ns::inner in IA, got {:?}",
             ia.procedures.keys().collect::<Vec<_>>(),
         );
@@ -3359,7 +3365,7 @@ mod tests {
             None,
         );
         assert!(
-            ia.procedures.contains_key("::a::foo"),
+            fixture_id_if_present(&ia.procedures, "::a::foo").is_some(),
             "expected ::a::foo in IA, got {:?}",
             ia.procedures.keys().collect::<Vec<_>>(),
         );
@@ -3409,8 +3415,8 @@ mod tests {
             crate::realm::CommandBindingRealm::none(),
             None,
         );
-        assert!(ia.procedures.contains_key("::ns2::inner"));
-        assert!(ia.procedures.contains_key("::ns::ns2::inner"));
+        assert!(fixture_id_if_present(&ia.procedures, "::ns2::inner").is_some());
+        assert!(fixture_id_if_present(&ia.procedures, "::ns::ns2::inner").is_some());
         assert_eq!(
             resolve_proc_qname("ns2::inner", "::ns", &ia).as_deref(),
             Some("::ns::ns2::inner"),
@@ -5567,8 +5573,18 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
         let source = "proc f {input} {puts [llength $input]}";
         let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.1");
-        let statement = &cu.ir_module.procedures["::f"].body.statements[0];
-        let tokens = cu.ir_module.procedures["::f"]
+        let statement = &cu
+            .ir_module
+            .procedures
+            .get(&fixture_id(&cu.ir_module.procedures, "::f"))
+            .expect("authored fixture body")
+            .body
+            .statements[0];
+        let tokens = cu
+            .ir_module
+            .procedures
+            .get(&fixture_id(&cu.ir_module.procedures, "::f"))
+            .expect("authored fixture body")
             .body
             .retained_source_tokens_for_statement(statement)
             .expect("original carrier");

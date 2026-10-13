@@ -230,6 +230,31 @@ pub struct LogicalVariableScopeAdvice<'a> {
     config: tcl_lexer::LexerConfig,
 }
 
+/// A dictionary key inferred from an original checked value, without a variable declaration span.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadonlyDictionaryKeyVariable {
+    name: String,
+    image: tcl_lexer::SourceImage,
+    input: super::ResolvedAnalysisInput,
+    receiver_scope: Vec<usize>,
+    original_key: Option<Span>,
+}
+
+impl ReadonlyDictionaryKeyVariable {
+    /// Source-value label, independently of entered variable storage.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Exact original data-key interior, when unchanged literal correspondence exists.
+    /// This is source geometry and supplies no variable rename permission.
+    #[must_use]
+    pub const fn original_key_span(&self) -> Option<Span> {
+        self.original_key
+    }
+}
+
 impl<'a> LogicalVariableScopeAdvice<'a> {
     /// Root declaration table, independently of its lookup eligibility.
     #[must_use]
@@ -241,6 +266,40 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
     #[must_use]
     pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
         self.eligible.iter().map(|&index| self.scopes[index])
+    }
+
+    /// Inferred source names from the eligible Logical tables, without editable declarations.
+    #[must_use]
+    pub fn readonly_variable_names(&self) -> Vec<&'a str> {
+        self.eligible_scopes()
+            .flat_map(|scope| {
+                scope
+                    .readonly_dictionary_keys
+                    .values()
+                    .filter_map(move |key| {
+                        (key.image == self.image
+                            && self.analysis.resolved_input.as_ref() == Some(&key.input)
+                            && scope_at(&self.analysis.global_scope, &key.receiver_scope)
+                                .is_some_and(|retained| std::ptr::eq(retained, scope)))
+                        .then(|| key.name())
+                    })
+            })
+            .collect()
+    }
+
+    /// Inferred names held by the independent root table under current source currency.
+    #[must_use]
+    pub fn readonly_root_variable_names(&self) -> Vec<&'a str> {
+        self.root()
+            .readonly_dictionary_keys
+            .values()
+            .filter_map(|key| {
+                (key.image == self.image
+                    && self.analysis.resolved_input.as_ref() == Some(&key.input)
+                    && key.receiver_scope.is_empty())
+                .then(|| key.name())
+            })
+            .collect()
     }
 
     /// Known source namespace; an unknown caller cannot supply one.
@@ -1781,6 +1840,15 @@ pub(super) struct LogicalConstStringProvenance {
     value_span: Span,
 }
 
+#[derive(Debug, Clone)]
+pub(super) struct LogicalInterpreterPathProvenance {
+    image: tcl_lexer::SourceImage,
+    input: super::ResolvedAnalysisInput,
+    declaration: Span,
+    producer: Span,
+    key: String,
+}
+
 impl Analyser {
     /// Record a constant string assignment for `var_name` in the
     /// scope at `scope_path`.
@@ -1983,6 +2051,155 @@ impl Analyser {
         self.lookup_logical_const_string_at(name, token.span)
     }
 
+    pub(super) fn retained_value_word(&self, token: Token) -> Option<tcl_lexer::NativeWord> {
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let config = self.file_lexer_config();
+        self.result
+            .matches_original_source_image(&image, config)
+            .then_some(())?;
+        self.result
+            .retained_command_realm()?
+            .original_written_word_at_span_in_source(&image, token.span, config)
+            .map(|(word, _)| word)
+    }
+
+    pub(super) fn logical_variable_value_component(
+        &self,
+        arena: &tcl_lexer::ExecutablePartArena,
+        component: &tcl_lexer::SpannedExecutablePart,
+    ) -> Option<(String, Span)> {
+        if !self.result.allows_lexical_declaration_advice()
+            || !self
+                .result
+                .matches_original_source_image(arena.image(), arena.config())
+            || arena.image().bytes() != self.source.as_bytes()
+        {
+            return None;
+        }
+        let reference = tcl_lexer::word_parts::scan_var_ref(
+            arena.image().bytes(),
+            usize::try_from(component.span.start()).ok()?,
+            arena.config(),
+        )
+        .ok()??;
+        (u32::try_from(reference.next).ok()? == component.span.end()).then_some(())?;
+        let span = reference.source_span(
+            arena.image().bytes(),
+            usize::try_from(component.span.start()).ok()?,
+            0,
+        )?;
+        let root = crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_logical_source_executable(
+            arena, arena.image(), arena.config(), span, self.word_rules(), self.declaration_name_policy()?,
+        )?;
+        if root.is_separate_array_root() {
+            return None;
+        }
+        Some((root.display()?.to_owned(), span))
+    }
+
+    pub(super) fn lookup_logical_const_component(
+        &self,
+        arena: &tcl_lexer::ExecutablePartArena,
+        component: &tcl_lexer::SpannedExecutablePart,
+    ) -> Option<String> {
+        let (name, span) = self.logical_variable_value_component(arena, component)?;
+        self.lookup_logical_const_string_at(&name, span)
+            .map(|(value, _)| value.to_owned())
+    }
+
+    pub(super) fn resolve_logical_value_word(&self, token: Token) -> Option<String> {
+        let word = self.retained_value_word(token)?;
+        let bytes = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
+            &word,
+            |arena, component| {
+                self.lookup_logical_const_component(arena, component)
+                    .map(String::into_bytes)
+            },
+        )?;
+        String::from_utf8(bytes).ok()
+    }
+
+    pub(super) fn retain_readonly_dictionary_keys(
+        &mut self,
+        value: &str,
+        value_span: Span,
+        receiver_scope: &[usize],
+    ) {
+        let Ok(elements) = tcl_syntax::list::split_list_in(value, self.file_lexer_config().escapes)
+        else {
+            return;
+        };
+        if elements.len() % 2 != 0 {
+            return;
+        }
+        let Some(input) = self.result.resolved_input.as_ref().cloned() else {
+            return;
+        };
+        let Some(image) = self
+            .result
+            .retained_command_realm()
+            .and_then(|realm| realm.original_source_image())
+            .cloned()
+        else {
+            return;
+        };
+        let config = self.file_lexer_config();
+        let original = self
+            .result
+            .retained_command_realm()
+            .and_then(|realm| {
+                realm.original_written_word_at_span_in_source(&image, value_span, config)
+            })
+            .and_then(|(word, _)| {
+                let content = word.content_span().ok()?;
+                (image.bytes().get(content.as_range()) == Some(value.as_bytes())).then_some(content)
+            });
+        let mut original_keys = std::collections::HashMap::new();
+        if let Some(content) = original {
+            let mut offset = 0;
+            let mut ordinal = 0;
+            while let Ok(Some(element)) = tcl_syntax::list::find_element(value, offset) {
+                if ordinal % 2 == 0 && element.literal {
+                    let key = &value[element.value.clone()];
+                    let span = u32::try_from(element.value.start)
+                        .ok()
+                        .zip(u32::try_from(element.value.end).ok())
+                        .and_then(|(start, end)| {
+                            Some(Span::new(
+                                content.start().checked_add(start)?,
+                                content.start().checked_add(end)?,
+                            ))
+                        });
+                    original_keys
+                        .entry(key.to_owned())
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(span);
+                }
+                ordinal += 1;
+                offset = element.next;
+            }
+        }
+        let Some(scope) = scope_at_mut(&mut self.result.global_scope, receiver_scope) else {
+            return;
+        };
+        for pair in elements.chunks_exact(2) {
+            let name = pair[0].to_string();
+            if name.is_empty() {
+                continue;
+            }
+            scope.readonly_dictionary_keys.insert(
+                name.clone(),
+                ReadonlyDictionaryKeyVariable {
+                    original_key: original_keys.get(&name).copied().flatten(),
+                    name,
+                    image: image.clone(),
+                    input: input.clone(),
+                    receiver_scope: receiver_scope.to_vec(),
+                },
+            );
+        }
+    }
+
     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
     /// `key` as `var_name`'s value in the scope at `scope_path` — the
     /// interpreter-value-flow analogue of
@@ -1990,10 +2207,98 @@ impl Analyser {
     /// two unrelated procs binding the same variable name to different
     /// interpreters must never collide.
     pub fn set_interp_var_binding(&mut self, var_name: &str, key: String, scope_path: &[usize]) {
+        self.logical_interp_path_provenance
+            .entry(scope_path.to_vec())
+            .or_default()
+            .remove(var_name);
         self.interp_var_bindings
             .entry(scope_path.to_vec())
             .or_default()
             .insert(var_name.to_string(), key);
+    }
+
+    pub(super) fn set_original_logical_interp_var_binding(
+        &mut self,
+        var_name: &str,
+        key: String,
+        producer: Token,
+        scope_path: &[usize],
+    ) {
+        self.set_interp_var_binding(var_name, key.clone(), scope_path);
+        let provenance = (|| {
+            if !self.result.allows_lexical_declaration_advice() || self.conditional_depth != 0 {
+                return None;
+            }
+            let declaration = scope_at(&self.result.global_scope, scope_path)?
+                .variables
+                .get(var_name)?;
+            if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
+                return None;
+            }
+            self.retained_value_word(producer)?;
+            Some(LogicalInterpreterPathProvenance {
+                image: self
+                    .result
+                    .retained_command_realm()?
+                    .original_source_image()?
+                    .clone(),
+                input: self.result.resolved_input.as_ref()?.clone(),
+                declaration: declaration.definition_span,
+                producer: producer.span,
+                key,
+            })
+        })();
+        if let Some(provenance) = provenance {
+            self.logical_interp_path_provenance
+                .entry(scope_path.to_vec())
+                .or_default()
+                .insert(var_name.to_owned(), provenance);
+        }
+    }
+
+    pub(super) fn lookup_logical_interp_path(&self, token: Token) -> Option<String> {
+        let word = self.retained_value_word(token)?;
+        let arena = word.executable_parts();
+        let [component] = arena.list(arena.root()) else {
+            return None;
+        };
+        let (name, span) = self.logical_variable_value_component(arena, component)?;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let advice = self.result.logical_variable_scope_advice(
+            &image,
+            self.file_lexer_config(),
+            span.start(),
+        )?;
+        let declaration = advice.variable_definition(&name)?;
+        if declaration.link_target.is_some() || !declaration.array_indices.is_empty() {
+            return None;
+        }
+        let input = self.result.resolved_input.as_ref()?;
+        let mut found = self
+            .logical_interp_path_provenance
+            .iter()
+            .flat_map(|(path, records)| {
+                records.iter().filter_map(move |(written, provenance)| {
+                    let selected = scope_at(&self.result.global_scope, path)?
+                        .variables
+                        .get(written)?;
+                    if !std::ptr::eq(selected, declaration)
+                        || provenance.declaration != declaration.definition_span
+                        || &provenance.input != input
+                        || provenance.producer.end() >= span.start()
+                        || !self.result.matches_original_source_image(
+                            &provenance.image,
+                            self.file_lexer_config(),
+                        )
+                        || self.interp_var_bindings.get(path)?.get(written)? != &provenance.key
+                    {
+                        return None;
+                    }
+                    Some(provenance.key.as_str())
+                })
+            });
+        let key = found.next()?;
+        found.next().is_none().then(|| key.to_owned())
     }
 
     /// Remove interpreter-binding knowledge for `var_name` (reassigned to
@@ -2001,6 +2306,9 @@ impl Analyser {
     /// interpreter handle, exactly as [`Self::clear_const_string`] does
     /// for a reassigned constant string).
     pub fn clear_interp_var_binding(&mut self, var_name: &str, scope_path: &[usize]) {
+        if let Some(records) = self.logical_interp_path_provenance.get_mut(scope_path) {
+            records.remove(var_name);
+        }
         if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
             map.remove(var_name);
         }

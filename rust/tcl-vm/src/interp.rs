@@ -4569,7 +4569,10 @@ impl Vm {
         prefixes: bool,
     ) {
         let born_here = !self.namespace_exists(implementation_namespace);
-        self.declare_namespace_key(implementation_namespace.trim_start_matches("::"));
+        self.declare_namespace_key(
+            tcl_syntax::naming::unroot_rooted_key(implementation_namespace)
+                .unwrap_or(implementation_namespace),
+        );
         let namespace = self
             .find_namespace(Namespaces::current(self), implementation_namespace)
             .expect("native implementation namespace was declared");
@@ -4593,7 +4596,7 @@ impl Vm {
                     || format!("{implementation_namespace}::{member}"),
                     str::to_owned,
                 );
-                let key = target.trim_start_matches("::");
+                let key = tcl_syntax::naming::unroot_rooted_key(&target).unwrap_or(&target);
                 if nested.is_none()
                     && (!self.commands.contains_key(key)
                         || self.stock_native_identity(&target).as_deref() == Some(key))
@@ -4801,9 +4804,9 @@ impl Vm {
             }
             let key = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
             if !matches!(self.commands.get(key), Some(Command::Builtin(_)))
-                || self
-                    .builtin_identity_for_key(key)
-                    .is_none_or(|identity| identity.trim_start_matches("::") != key)
+                || self.builtin_identity_for_key(key).is_none_or(|identity| {
+                    tcl_syntax::naming::unroot_rooted_key(&identity).unwrap_or(&identity) != key
+                })
             {
                 continue;
             }
@@ -5051,7 +5054,7 @@ impl Vm {
         spec: &'static tcl_registry::CommandSpec,
         args: &[Value],
     ) -> Completion<Value> {
-        let key = spec.name.trim_start_matches("::");
+        let key = tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name);
         let Some(handler) = self.fixed_math.handlers.get(key).copied() else {
             return err(format!("unknown math function \"{}\"", spec.name));
         };
@@ -5075,7 +5078,9 @@ impl Vm {
             return self
                 .refuse_host_command("original fixed math-function handler is unavailable".into());
         }
-        self.set_invoked_name(selected.spec.name.trim_start_matches("::"));
+        self.set_invoked_name(
+            tcl_syntax::naming::unroot_rooted_key(selected.spec.name).unwrap_or(selected.spec.name),
+        );
         self.native_invocation.builtin_identity = Some(selected.spec.name.to_owned());
         (selected.handler)(self, args)
     }
@@ -5118,7 +5123,7 @@ impl Vm {
             let handler = *self
                 .fixed_math
                 .handlers
-                .get(spec.name.trim_start_matches("::"))?;
+                .get(tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name))?;
             calls.insert(
                 index,
                 NativeFixedMathCall {
@@ -8117,7 +8122,7 @@ impl Vm {
     }
 
     pub(crate) fn stock_native_identity(&self, name: &str) -> Option<String> {
-        self.builtin_identity_for_key(name.trim_start_matches("::"))
+        self.builtin_identity_for_key(tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name))
     }
 
     /// Whether the builtin bound at `key` is an embedder's handler
@@ -8194,8 +8199,14 @@ impl Vm {
                         .is_some_and(|found| found == &binding.identity);
                 }
                 Some(Command::Alias { words, .. }) if words.len() == 1 => {
-                    let target = words[0].to_str();
-                    let Some(next) = self.resolve_command_fqn("", &target) else {
+                    let Some(target) = words[0].resident_string_bytes() else {
+                        return false;
+                    };
+                    if words[0].native_object_reference_count() == 0 {
+                        return false;
+                    }
+                    let Some(next) = self.resolve_command_from_token_bytes(ROOT_NS, &target, false)
+                    else {
                         return false;
                     };
                     key = next;
@@ -10165,7 +10176,7 @@ impl Vm {
     }
 
     fn namespace_path_from_written(&self, context: NsId, written: &str) -> NamespacePath {
-        let mut path = if written.starts_with("::") {
+        let mut path = if tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute {
             NamespacePath::root()
         } else {
             self.ns_path(context)
@@ -10239,12 +10250,18 @@ impl Vm {
     #[cfg(test)]
     pub(crate) fn namespace_token_for_written(&self, written: &str) -> Option<NsId> {
         let path = self.namespace_path_from_written(self.current_ns_id(), written);
-        self.namespace_token_at_path(&path, written.starts_with("::"))
+        self.namespace_token_at_path(
+            &path,
+            tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute,
+        )
     }
 
     pub(crate) fn activate_namespace_written(&mut self, written: &str) -> NsId {
         let path = self.namespace_path_from_written(self.current_ns_id(), written);
-        self.declare_namespace_path_with_origin(path.clone(), written.starts_with("::"));
+        self.declare_namespace_path_with_origin(
+            path.clone(),
+            tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute,
+        );
         let existing = self.name_world.borrow().ns_intern.get(&path).copied();
         existing.unwrap_or_else(|| self.intern_ns_path(path))
     }
@@ -11911,7 +11928,10 @@ impl Vm {
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
         let path =
             NamespacePath::from_segments(tcl_syntax::naming::qualifier_segments(ns.as_bytes()));
-        self.declare_namespace_path_with_origin(path, ns.starts_with("::"));
+        self.declare_namespace_path_with_origin(
+            path,
+            tcl_syntax::naming::written_command_parts(ns.as_bytes()).absolute,
+        );
     }
 
     /// Insert a newly-created namespace's tail into its parent's retained Tcl
@@ -23463,16 +23483,17 @@ impl Vm {
         let surface = RuntimeExprSurface::for_profile(self.native_execution_profile());
         let resolution = match surface.math_function_call_target(&name) {
             MathFunctionCallTarget::FixedBuiltin(spec)
-                if self
-                    .fixed_math
-                    .handlers
-                    .contains_key(spec.name.trim_start_matches("::")) =>
+                if self.fixed_math.handlers.contains_key(
+                    tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name),
+                ) =>
             {
                 NativeFunctionNameResolution::Function(&name)
             }
             MathFunctionCallTarget::FixedTableMiss
                 if !self.fixed_math.handlers.contains_key(
-                    tcl_registry::mathfunc::qualified_name(&name).trim_start_matches("::"),
+                    tcl_syntax::naming::unroot_rooted_key(
+                        &tcl_registry::mathfunc::qualified_name(&name),
+                    )?,
                 ) =>
             {
                 NativeFunctionNameResolution::NonFunction(&name)

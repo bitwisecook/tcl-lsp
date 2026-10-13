@@ -1,0 +1,29 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/interprocedural.rs",
+      "before_sha256": "c3de5d0b2d9bc03d42704fe16a58ce50ba72bc3b3c0cae9703867461b32312f7",
+      "after_sha256": "7d8d664c7f55db8c3caabd717f1f2b919b8675e6301e119f6d3a9d81725d074f",
+      "production_prefix_unchanged": true,
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "before_sha256": "a9d84f7782166f72543ad448e77268e84aaac61a2b2ccd35bfcff6561938ee4a",
+      "after_sha256": "4505fda86d0ad8aae62f27381849b9186bc08831c93bce1e0fb7507b21621b2c",
+      "production_prefix_unchanged": true,
+      "new_file": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/test_body_identity.rs",
+      "before_sha256": null,
+      "after_sha256": "7054cced9fcf25f7a40eb9db29cc2f71872b2928c3c8c504988ef5a42f260885",
+      "production_prefix_unchanged": true,
+      "new_file": true
+    }
+  ],
+  "patch_sha256": "da8d6dea0b4ad288eb9b8f7dec03895a3ae0f5f50b814edb5bae4c51ee3405dd",
+  "status": "test-only source adaptations; uncompiled and unexecuted",
+  "parent_roster": "/tmp/name-body-id-test-fixture-index-counts.json",
+  "assertions": "Original programs, expected assertion labels/effects and original selectors retained. Edges followed by exact ID and displayed only in fixture assertions; method/provider negative graph IDs use their original actual owner."
+}

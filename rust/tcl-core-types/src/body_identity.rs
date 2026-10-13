@@ -56,7 +56,7 @@ pub struct ProcedureIdIssuer(Arc<ProcedureScope>);
 impl Default for ProcedureIdIssuer {
     fn default() -> Self {
         let id = NEXT_SCOPE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
                 value.checked_add(1)
             })
             .expect("procedure module identity space exhausted");
@@ -91,7 +91,7 @@ impl ProcedureIdIssuer {
         let ordinal = self
             .0
             .next
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
                 value.checked_add(1)
             })
             .expect("procedure body identity space exhausted");

@@ -99,7 +99,36 @@ impl CodegenCtx<'_> {
                 }
                 operations.push(range(super::super::bytecode_imm(targets.len()), -2));
             }
-            Plan::Insert { .. } | Plan::Set { .. } => return false,
+            Plan::Insert {
+                list,
+                index,
+                elements,
+            } => {
+                use tcl_registry::native_list_operations_compilation::{
+                    NativeListInsertionStep as Step, c86_list_insertion_steps,
+                };
+                let Some(steps) = c86_list_insertion_steps(list, index, elements) else {
+                    return false;
+                };
+                for step in steps {
+                    match step {
+                        Step::Operand(operand) => {
+                            if !Self::list_operand(command, operand, operations) {
+                                return false;
+                            }
+                        }
+                        Step::List(count) => operations
+                            .push(operation(Op::LIST, &[super::super::bytecode_imm(count)])),
+                        Step::Over(depth) => operations
+                            .push(operation(Op::OVER, &[super::super::bytecode_imm(depth)])),
+                        Step::Reverse(count) => operations
+                            .push(operation(Op::REVERSE, &[super::super::bytecode_imm(count)])),
+                        Step::Range(range) => operations.push(Task::NativeListRange(range)),
+                        Step::Concat => operations.push(operation(Op::LIST_CONCAT, &[])),
+                    }
+                }
+            }
+            Plan::Set { .. } => return false,
         }
         true
     }

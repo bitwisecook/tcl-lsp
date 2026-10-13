@@ -4203,12 +4203,11 @@ impl Vm {
                 .refuse_host_command("expression function dispatch policy is unavailable".into()));
         }
         if dispatch == Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable) {
-            let name = tcl_registry::mathfunc::qualified_name(function)
-                .trim_start_matches("::")
-                .to_owned();
+            let qualified = tcl_registry::mathfunc::qualified_name(function);
+            let name = tcl_syntax::naming::unroot_rooted_key(&qualified).unwrap_or(&qualified);
             // TIP 232 uses ordinary namespace-relative command resolution.
             // Unknown math functions bypass the user unknown handler.
-            if self.lookup_command(&name).is_none() {
+            if self.lookup_command(name).is_none() {
                 return Err(Box::new(Tick::Return(
                     crate::command::completion_from_tcl_error(
                         self,

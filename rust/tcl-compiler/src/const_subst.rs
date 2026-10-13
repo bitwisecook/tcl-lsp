@@ -127,6 +127,15 @@ pub struct ResolvedConstSubst {
     pub return_type: Option<TclType>,
 }
 
+struct OriginalConstSubstSource<'a> {
+    image: &'a tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    variable: &'a dyn Fn(
+        &tcl_lexer::ExecutablePartArena,
+        &tcl_lexer::SpannedExecutablePart,
+    ) -> Option<String>,
+}
+
 impl ConstSubstCtx<'_> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
@@ -332,7 +341,7 @@ impl ConstSubstCtx<'_> {
     /// analysis-only consumers can continue using [`Self::fold_cmd_subst`].
     #[must_use]
     pub fn fold_cmd_subst_resolved(&self, inner: &str) -> Option<ResolvedConstSubst> {
-        self.fold_at_depth(inner, 0, None)
+        self.fold_at_depth(inner, 0, None, None)
     }
 
     /// Fold under the actual retained invocation axes, independently of the
@@ -344,8 +353,80 @@ impl ConstSubstCtx<'_> {
         inner: &str,
         dialect: tcl_registry::InvocationDialect,
     ) -> Option<String> {
-        self.fold_at_depth(inner, 0, Some(dialect))
+        self.fold_at_depth(inner, 0, Some(dialect), None)
             .map(|fold| fold.value)
+    }
+
+    /// Fold an authentic original command-substitution operand with typed variable sources.
+    /// Complete image/configuration and component spans survive nested folds;
+    /// the caller independently establishes command trust and value provenance.
+    #[must_use]
+    pub fn fold_original_source_substitution(
+        &self,
+        operand: &tcl_lexer::NativeWord,
+        variable: &dyn Fn(
+            &tcl_lexer::ExecutablePartArena,
+            &tcl_lexer::SpannedExecutablePart,
+        ) -> Option<String>,
+    ) -> Option<String> {
+        let parts = operand.executable_parts();
+        let [component] = parts.list(parts.root()) else {
+            return None;
+        };
+        let tcl_lexer::ExecutablePart::Command { body } = component.part else {
+            return None;
+        };
+        let source = OriginalConstSubstSource {
+            image: operand.image(),
+            config: operand.config(),
+            variable,
+        };
+        let inner = source.image.try_text().ok()?.get(body.as_range())?;
+        self.fold_at_depth(inner, 0, None, Some((&source, body)))
+            .map(|fold| fold.value)
+    }
+
+    fn original_literal_words_at_depth(
+        &self,
+        source: &OriginalConstSubstSource<'_>,
+        span: tcl_lexer::Span,
+        depth: u32,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> Option<(
+        Vec<String>,
+        Vec<CommandBindingIdentity>,
+        Vec<tcl_runtime_api::SiteClaim>,
+    )> {
+        let plan =
+            tcl_lexer::native_script_words_in(source.image.clone(), span, source.config).ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let mut words = Vec::new();
+        let mut command_bindings = Vec::new();
+        let mut site_claims = Vec::new();
+        for word in &command.words {
+            let parts = word.executable_parts();
+            if let [component] = parts.list(parts.root())
+                && let tcl_lexer::ExecutablePart::Command { body } = component.part
+            {
+                let inner = source.image.try_text().ok()?.get(body.as_range())?;
+                let folded = self.fold_at_depth(inner, depth + 1, dialect, Some((source, body)))?;
+                words.push(folded.value);
+                command_bindings.extend(folded.command_bindings);
+                site_claims.extend(folded.site_claims);
+            } else {
+                let value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
+                    word,
+                    |arena, component| (source.variable)(arena, component).map(String::into_bytes),
+                )?;
+                words.push(String::from_utf8(value).ok()?);
+            }
+        }
+        Some((words, command_bindings, site_claims))
     }
 
     fn fold_at_depth(
@@ -353,12 +434,13 @@ impl ConstSubstCtx<'_> {
         inner: &str,
         depth: u32,
         dialect: Option<tcl_registry::InvocationDialect>,
+        source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
     ) -> Option<ResolvedConstSubst> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
         let (words, mut command_bindings, mut site_claims) =
-            self.literal_words_at_depth(inner, depth, dialect)?;
+            self.literal_words_at_depth(inner, depth, dialect, source)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
             return None;
@@ -446,7 +528,7 @@ impl ConstSubstCtx<'_> {
     /// A nested sub that doesn't fold to a constant bails the whole fold.
     #[must_use]
     pub fn literal_words(&self, inner: &str) -> Option<Vec<String>> {
-        self.literal_words_at_depth(inner, 0, None)
+        self.literal_words_at_depth(inner, 0, None, None)
             .map(|(words, _, _)| words)
     }
 
@@ -455,12 +537,16 @@ impl ConstSubstCtx<'_> {
         inner: &str,
         depth: u32,
         dialect: Option<tcl_registry::InvocationDialect>,
+        source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
     ) -> Option<(
         Vec<String>,
         Vec<CommandBindingIdentity>,
         Vec<tcl_runtime_api::SiteClaim>,
     )> {
         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+        if let Some((source, span)) = source {
+            return self.original_literal_words_at_depth(source, span, depth, dialect);
+        }
 
         // Re-split the substitution under the selected registry profile, so
         // release and dialect word grammar cannot drift from command lookup.
@@ -538,7 +624,7 @@ impl ConstSubstCtx<'_> {
                     // *interior* (`list a b c`, not `[list a b c]`), so
                     // fold it directly.
                     let nested = sm.token_text(*tok);
-                    let folded = self.fold_at_depth(nested, depth + 1, dialect)?;
+                    let folded = self.fold_at_depth(nested, depth + 1, dialect, None)?;
                     words.push(folded.value);
                     command_bindings.extend(folded.command_bindings);
                     site_claims.extend(folded.site_claims);

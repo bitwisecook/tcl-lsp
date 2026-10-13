@@ -1,0 +1,40 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--offline",
+    "-j",
+    "1",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-explorer",
+    "-p",
+    "tcl-diagram",
+    "-p",
+    "tcl-spec-studio",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-cli",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-10-13T23:08:40.934932+00:00",
+  "finished_utc": "2026-10-13T23:09:10.361031+00:00",
+  "exit_code": 101,
+  "seconds": 29.426094898000883,
+  "source_paths": 34651,
+  "changed_sources": {},
+  "errors": [
+    "error[E0599]: no method named `original_completed_command_world` found for reference `&RetainedSourceModuleBindings` in the current scope\n    --> rust/tcl-compiler/src/optimiser/propagation.rs:1261:32\n     |\n1261 |     let Some(world) = bindings.original_completed_command_world() else {\n     |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&RetainedSourceModuleBindings`\n\n"
+  ],
+  "scope": "Combined current Main consumer API typecheck; captured authored source hashes, not complete external dependency/oracle closure. No executed tests or Native/VM/Runtime conformance acceptance.",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-names",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

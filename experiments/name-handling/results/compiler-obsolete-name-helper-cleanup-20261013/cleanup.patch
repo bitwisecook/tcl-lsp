@@ -1,0 +1,405 @@
+--- a/rust/tcl-core-types/src/body_identity.rs
++++ b/rust/tcl-core-types/src/body_identity.rs
+@@ -56,7 +56,7 @@
+ impl Default for ProcedureIdIssuer {
+     fn default() -> Self {
+         let id = NEXT_SCOPE
+-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
++            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                 value.checked_add(1)
+             })
+             .expect("procedure module identity space exhausted");
+@@ -91,7 +91,7 @@
+         let ordinal = self
+             .0
+             .next
+-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
++            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                 value.checked_add(1)
+             })
+             .expect("procedure body identity space exhausted");
+--- a/rust/tcl-compiler/src/inline_uplevel.rs
++++ b/rust/tcl-compiler/src/inline_uplevel.rs
+@@ -523,14 +523,6 @@
+     }
+ }
+ 
+-/// Rooted caller namespace label used as a rewrite presentation default.
+-fn namespace_of(qname: &str) -> String {
+-    tcl_syntax::naming::reported_qname_namespace(
+-        qname,
+-        tcl_syntax::naming::ReportedQNameNamespacePurpose::RootRelativePrefix,
+-    )
+-}
+-
+ struct InlineContext<'a> {
+     candidates: &'a HashMap<crate::ir::ProcedureId, PassthroughShape>,
+     catalogue: &'a Module,
+--- a/rust/tcl-compiler/src/ir.rs
++++ b/rust/tcl-compiler/src/ir.rs
+@@ -2975,15 +2975,6 @@
+     pub facts: tcl_runtime_api::PackFactStamp,
+ }
+ 
+-fn execution_namespace_for_qname(qname: &str) -> String {
+-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+-    if holder.is_empty() {
+-        "::".to_owned()
+-    } else {
+-        holder.to_owned()
+-    }
+-}
+-
+ impl Module {
+     pub(crate) fn source_procedure_for_target(
+         &self,
+@@ -3210,7 +3201,7 @@
+ 
+         let mut procedures: Vec<_> = self.procedures.iter().collect();
+         procedures.sort_by(|a, b| a.0.cmp(b.0));
+-        roots.extend(procedures.into_iter().map(|(qname, procedure)| {
++        roots.extend(procedures.into_iter().map(|(_, procedure)| {
+             (
+                 &procedure.body,
+                 procedure
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -163,17 +163,6 @@
+ /// Join a parent namespace with a child name.
+ fn join_namespace(parent: &str, child: &str) -> String {
+     tcl_syntax::naming::qualify(parent, child)
+-}
+-
+-/// The namespace a procedure body lowers in — everything up to the
+-/// last `::` of its qualified name, or `::` for a global proc.
+-fn proc_namespace(qname: &str) -> String {
+-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+-    if holder.is_empty() {
+-        "::".to_string()
+-    } else {
+-        holder.to_string()
+-    }
+ }
+ 
+ /// Recursive dispatch retains only the selected contract, never the registry's
+--- a/rust/tcl-compiler/src/codegen/wasm/backend.rs
++++ b/rust/tcl-compiler/src/codegen/wasm/backend.rs
+@@ -2516,7 +2516,7 @@
+         procs
+             .iter()
+             .zip(&lowered_procs)
+-            .filter(|((id, proc), lowered)| {
++            .filter(|((id, _), lowered)| {
+                 matches!(lowered, Some(LoweredProc::Lowered { decline: None, .. }))
+                     && defined.contains(id)
+             })
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -16197,7 +16197,7 @@
+                 .cmp(&b.1.span.start())
+                 .then_with(|| a.0.cmp(b.0))
+         });
+-        for (qname, unit) in body_units {
++        for (_, unit) in body_units {
+             let Ok(start) = usize::try_from(unit.span.start()) else {
+                 continue;
+             };
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -229,7 +229,6 @@
+ }
+ 
+ /// The qualified-name prefix of an iRules `when` handler's procedure.
+-const WHEN_HANDLER_PREFIX: &str = "::when::";
+ 
+ /// Where a consumer reads a place's existence fact
+ /// ([`FunctionUnit::existence`]).
+@@ -2738,8 +2737,6 @@
+     crate::interprocedural::ModuleProcedures::new(crate::interprocedural::ModuleInputs {
+         ir: ir_module,
+         cfg: cfg_module,
+-        frames: &prepared.context.0,
+-        outer_writes: &prepared.context.2,
+         registry,
+         mutations,
+         projection,
+@@ -3548,7 +3545,7 @@
+         let when_procs: HashMap<String, FunctionUnit> = procedures
+             .iter()
+             .filter(|(_, unit)| unit.irules_event_body.is_some())
+-            .map(|(qname, unit)| (unit.name.clone(), unit.clone()))
++            .map(|(_, unit)| (unit.name.clone(), unit.clone()))
+             .collect();
+         (!when_procs.is_empty()).then(|| {
+             crate::connection_scope::build_connection_scope_for_module(
+@@ -3693,7 +3690,7 @@
+         let Some(cs) = connection_scope else {
+             return;
+         };
+-        for (qn, fu) in procedures.iter_mut() {
++        for fu in procedures.values_mut() {
+             let Some(event) = &fu.irules_event_body else {
+                 continue;
+             };
+--- a/rust/tcl-compiler/src/common_aot_plan.rs
++++ b/rust/tcl-compiler/src/common_aot_plan.rs
+@@ -2349,7 +2349,6 @@
+             };
+             let decision = materialisable_decision(&MaterialisableInputs {
+                 unit,
+-                qname,
+                 function,
+                 key,
+                 summary,
+@@ -2368,7 +2367,6 @@
+ 
+ struct MaterialisableInputs<'a> {
+     unit: &'a CompilationUnit,
+-    qname: &'a str,
+     function: &'a FunctionUnit,
+     key: ValueKey,
+     summary: Option<&'a ProcEscapeSummary>,
+--- a/rust/tcl-compiler/src/native_integer_proof.rs
++++ b/rust/tcl-compiler/src/native_integer_proof.rs
+@@ -363,7 +363,7 @@
+         Some(procedure) => procedure.params.as_slice(),
+         None => &[],
+     };
+-    let caller = match collect_caller_ranges(unit, body_id, function, registry, common_plan, params)
++    let caller = match collect_caller_ranges(unit, body_id, registry, common_plan, params)
+     {
+         Ok(caller) => caller,
+         Err(reason) => {
+@@ -528,7 +528,6 @@
+ fn collect_caller_ranges(
+     unit: &CompilationUnit,
+     body_id: Option<crate::ir::ProcedureId>,
+-    function: &str,
+     registry: &CommandRegistry,
+     common_plan: &CommonAotProofPlan,
+     params: &[String],
+--- a/rust/tcl-compiler/src/optimiser/manager.rs
++++ b/rust/tcl-compiler/src/optimiser/manager.rs
+@@ -571,7 +571,6 @@
+         rmw_hidden,
+         traced,
+     } = ctx;
+-    let empty: HashSet<String> = HashSet::new();
+ 
+     if chain.definition.kind != DefKind::Statement {
+         return None;
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -2309,8 +2309,6 @@
+ /// trait inference.  Extracted from [`scan_statement`].
+ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+     let ScanCtx {
+-        caller,
+-        known,
+         registry,
+         params,
+         identities,
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -229,9 +229,7 @@
+     /// Its flow graphs.
+     pub(crate) cfg: &'a crate::cfg::CfgModule,
+     /// Each procedure's caller-frame effects, keyed by every spelling.
+-    pub(crate) frames: &'a HashMap<String, UpvarInfo>,
+     /// Each procedure's writes to global and namespace places.
+-    pub(crate) outer_writes: &'a HashMap<String, GlobalWriteInfo>,
+     /// The registry the module resolved against.
+     pub(crate) registry: &'a CommandRegistry,
+     /// The module's command mutations.
+@@ -608,9 +606,6 @@
+         let Some(id) =
+             original.and_then(|tokens| self.resolve_original_word(tokens, procedure, trust))
+         else {
+-            return ParameterDefault::Unknown;
+-        };
+-        let Some(declared) = self.procedures.get(&id) else {
+             return ParameterDefault::Unknown;
+         };
+         let Some((formals, _)) = self.formals(&id) else {
+@@ -2520,8 +2515,6 @@
+             ModuleInputs {
+                 ir: &unit.ir_module,
+                 cfg: &unit.cfg_module,
+-                frames: &prepared.context.0,
+-                outer_writes: &prepared.context.2,
+                 registry,
+                 mutations: &unit.command_mutations,
+                 projection: &unit.caller_scope.proc_binding_trust,
+--- a/rust/tcl-compiler/src/taint.rs
++++ b/rust/tcl-compiler/src/taint.rs
+@@ -844,7 +844,6 @@
+     pub(crate) ssa: &'a SsaFunction,
+     pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
+     pub(crate) known_procs: Option<&'a HashSet<crate::ir::ProcedureId>>,
+-    pub(crate) caller_qname: Option<&'a str>,
+     pub(crate) dialect: Option<&'static tcl_dialect::DialectProfile>,
+     pub(crate) source: TaintSourceContext<'a>,
+     /// Colour-aware return summaries from the interprocedural taint
+@@ -2062,7 +2061,6 @@
+         ssa,
+         interproc,
+         known_procs: known_procs.as_ref(),
+-        caller_qname: Some(ssa.name.as_str()),
+         dialect,
+         source,
+         taint_summaries,
+@@ -5601,7 +5599,6 @@
+         ssa,
+         interproc: None,
+         known_procs: None,
+-        caller_qname: Some(ssa.name.as_str()),
+         dialect,
+         source: sink_call.source,
+         taint_summaries: None,
+@@ -7770,7 +7767,6 @@
+                 ssa: &ssa,
+                 interproc: None,
+                 known_procs: None,
+-                caller_qname: Some("::top"),
+                 dialect: registry.profile(),
+                 source: TaintSourceContext::standalone(registry, registry.profile()),
+                 taint_summaries: None,
+@@ -7830,7 +7826,6 @@
+                 ssa: &ssa,
+                 interproc: None,
+                 known_procs: None,
+-                caller_qname: Some("::top"),
+                 dialect: registry.profile(),
+                 source: TaintSourceContext::standalone(registry, registry.profile()),
+                 taint_summaries: None,
+@@ -7865,7 +7860,6 @@
+             ssa: &unit.top_level.ssa,
+             interproc: None,
+             known_procs: None,
+-            caller_qname: Some("::top"),
+             dialect: source.dialect,
+             source,
+             taint_summaries: None,
+@@ -8687,7 +8681,6 @@
+             ssa: &ssa,
+             interproc: None,
+             known_procs: None,
+-            caller_qname: None,
+             dialect: None,
+             source: TaintSourceContext::standalone(&registry, None),
+             taint_summaries: None,
+@@ -9063,7 +9056,6 @@
+             ssa: &ssa,
+             interproc: None,
+             known_procs: None,
+-            caller_qname: None,
+             dialect: None,
+             source: TaintSourceContext::standalone(&registry, None),
+             taint_summaries: None,
+--- a/rust/tcl-compiler/src/taint_interproc.rs
++++ b/rust/tcl-compiler/src/taint_interproc.rs
+@@ -54,7 +54,6 @@
+     LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice, TaintPropagationInputs,
+     TaintSourceContext, instance_classes_for_function, propagate_taints, word_taint,
+ };
+-use crate::value_shapes::parse_command_substitution_with_config;
+ 
+ // Basis lattices
+ 
+@@ -418,7 +417,6 @@
+         ssa: &fu.ssa,
+         interproc,
+         known_procs: Some(known),
+-        caller_qname: Some(fu.ssa.name.as_str()),
+         dialect: source.dialect(),
+         source,
+         taint_summaries: Some(summaries),
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -352,11 +352,7 @@
+                 out.body_labels
+                     .insert(*id, procedure.qualified_name.clone());
+             }
+-            if let Some(evidence) = self
+-                .by_callee
+-                .get(&procedure.qualified_name)
+-                .filter(|row| row.opaque_caller)
+-            {
++            if self.by_callee.get(&procedure.qualified_name).is_some_and(|row| row.opaque_caller) {
+                 let mut opaque = CalleeEvidence::default();
+                 opaque.poison();
+                 out.by_callee
+@@ -629,7 +625,6 @@
+     /// Variable-scope identity — the key into `var_facts`, and the callee
+     /// key whose recorded arguments a `$param` dispatch word may take.
+     scope: CallerScopeId,
+-    display_name: &'a str,
+     /// The body's declared parameters, in order.
+     params: &'a [String],
+     /// Whether this evidence map attributes calls *to* this body. True for
+@@ -1819,7 +1814,6 @@
+ pub(crate) struct ExtraCallSiteScanContext {
+     /// Method/body-unit identity when this CFG is also consumed by the full
+     /// per-unit lattice build. Upframe-only scan contexts leave this absent.
+-    analysis_unit: Option<String>,
+     analysis_body: Option<crate::ir::ProcedureId>,
+     /// Qualified-name-shaped context used by `resolve_internal_call` for the
+     /// exact fallback calls retained in this CFG.
+@@ -1839,9 +1833,6 @@
+         (self.analysis_body == Some(id)).then_some(&self.cfg)
+     }
+ 
+-    pub(crate) fn analysis_cfg(&self, qname: &str) -> Option<&CfgFunction> {
+-        (self.analysis_unit.as_deref() == Some(qname)).then_some(&self.cfg)
+-    }
+ }
+ 
+ /// Build bare CFGs (no further per-function analysis) for every `TclOO` method,
+@@ -1923,7 +1914,6 @@
+                 config,
+             );
+             ExtraCallSiteScanContext {
+-                analysis_unit: None,
+                 analysis_body: Some(*id),
+                 resolve_as,
+                 cfg,
+@@ -1936,7 +1926,6 @@
+                 .body
+                 .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
+             ExtraCallSiteScanContext {
+-                analysis_unit: None,
+                 analysis_body: Some(*id),
+                 resolve_as: unit.qualified_name.clone(),
+                 cfg: build(&unit.qualified_name, &unit.body),
+@@ -1956,7 +1945,6 @@
+                 tcl_syntax::naming::key_holder_and_tail(&up.resolve_as).0,
+             );
+             ExtraCallSiteScanContext {
+-                analysis_unit: None,
+                 analysis_body: None,
+                 resolve_as: up.resolve_as,
+                 cfg: build(&up.scope, up.body),
+@@ -2356,7 +2344,6 @@
+             _resolve_as: resolve_as,
+             metadata_owner: &func.metadata_context,
+             scope,
+-            display_name: func.name.as_str(),
+             params: declared.map_or(&[][..], |p| p.params.as_slice()),
+             callers_tracked: declared.is_some() || scope == CallerScopeId::TopLevel,
+         };
+@@ -5303,7 +5290,6 @@
+             _resolve_as: "::top",
+             metadata_owner: &cfg.top_level.metadata_context,
+             scope: CallerScopeId::TopLevel,
+-            display_name: "::top",
+             params: &[],
+             callers_tracked: true,
+         };
+@@ -5527,7 +5513,6 @@
+                 _resolve_as: "::add",
+                 metadata_owner: owner,
+                 scope: CallerScopeId::Extra(0),
+-                display_name: "::add",
+                 params: &[],
+                 callers_tracked: true,
+             }

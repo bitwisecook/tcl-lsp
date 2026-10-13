@@ -1,0 +1,401 @@
+--- a/runtime/rust/src/interp/native_body_artifact/native_list_operations.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_list_operations.rs
+@@ -56,7 +56,17 @@
+         list: NamespaceOperand,
+         targets: Vec<ListTarget>,
+     },
+-    // Insert and Set require the concrete replacement and nested path-COW owners.
++    Insert {
++        steps: Vec<InsertionStep>,
++    },
++}
++enum InsertionStep {
++    Operand(NamespaceOperand),
++    List(usize),
++    Over(usize),
++    Reverse(usize),
++    Range(NativeCompiledListRange),
++    Concat,
+ }
+ pub(super) struct ListOperationsOperation {
+     operation: ListOperation,
+@@ -90,6 +100,34 @@
+                     list,
+                     targets: prepared,
+                 }
++            }
++            Plan::Insert {
++                list,
++                index,
++                elements,
++            } => {
++                use tcl_registry::native_list_operations_compilation::{
++                    NativeListInsertionStep as Step, c86_list_insertion_steps,
++                };
++                let steps = c86_list_insertion_steps(list, index, elements)
++                    .ok_or_else(|| unavailable("original list insertion instruction"))?;
++                let mut prepared = Vec::with_capacity(steps.len());
++                for step in steps {
++                    prepared.push(match step {
++                        Step::Operand(operand) => InsertionStep::Operand(self.namespace_operand(
++                            words,
++                            &operand,
++                            &mut prepared_words,
++                            depth,
++                        )?),
++                        Step::List(count) => InsertionStep::List(count),
++                        Step::Over(depth) => InsertionStep::Over(depth),
++                        Step::Reverse(count) => InsertionStep::Reverse(count),
++                        Step::Range(range) => InsertionStep::Range(range),
++                        Step::Concat => InsertionStep::Concat,
++                    });
++                }
++                ListOperation::Insert { steps: prepared }
+             }
+             _ => return Err((unavailable("original list replacement storage transaction")).into()),
+         };
+@@ -200,6 +238,117 @@
+                         &|error| variable_original.refuse(error),
+                     )
+                     .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?
++                }
++                ListOperation::Insert { steps } => {
++                    let mut stack = Vec::<obj::Owned>::new();
++                    for step in steps {
++                        current()
++                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
++                        match step {
++                            InsertionStep::Operand(operand) => {
++                                stack.push(self.body_namespace_operand(
++                                    artifact, command, operand, execution,
++                                )?);
++                                current().map_err(|error| {
++                                    self.report_cmd_error_using(error, Some(&current))
++                                })?;
++                                if execution.done {
++                                    return Ok(None);
++                                }
++                            }
++                            InsertionStep::List(count) => {
++                                let values = stack.split_off(
++                                    stack
++                                        .len()
++                                        .checked_sub(*count)
++                                        .expect("native insertion List stack"),
++                                );
++                                let pointers =
++                                    values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
++                                stack.push(obj::Owned::fresh(crate::list::new_list_obj_native(
++                                    &pointers, protocol,
++                                )));
++                            }
++                            InsertionStep::Over(depth) => {
++                                let index = stack
++                                    .len()
++                                    .checked_sub(depth + 1)
++                                    .expect("native insertion OVER stack");
++                                stack.push(obj::Owned::retain(stack[index].as_ptr()));
++                            }
++                            InsertionStep::Reverse(count) => {
++                                let start = stack
++                                    .len()
++                                    .checked_sub(*count)
++                                    .expect("native insertion REVERSE stack");
++                                stack[start..].reverse();
++                            }
++                            InsertionStep::Range(range) => {
++                                let original = stack.pop().expect("native insertion range stack");
++                                let headers =
++                                    crate::interp::native_arguments::OriginalArguments::enter(
++                                        self,
++                                        &[original.as_ptr()],
++                                    )
++                                    .map_err(|error| {
++                                        self.report_cmd_error_using(error, Some(&current))
++                                    })?;
++                                let reached = crate::list::native_list_range_using(
++                                    original.as_ptr(),
++                                    *range,
++                                    protocol,
++                                    &|| {
++                                        current()?;
++                                        headers.check_for(&actual)
++                                    },
++                                    &|error| variable_original.refuse(error),
++                                );
++                                let reached = reached.map_err(|error| {
++                                    self.report_cmd_error_using(error, Some(&current))
++                                });
++                                drop(headers);
++                                drop(original);
++                                current().map_err(|error| {
++                                    self.report_cmd_error_using(error, Some(&current))
++                                })?;
++                                stack.push(reached?);
++                            }
++                            InsertionStep::Concat => {
++                                let source = stack.pop().expect("native insertion List source");
++                                let target = stack.pop().expect("native insertion List target");
++                                let headers =
++                                    crate::interp::native_arguments::OriginalArguments::enter(
++                                        self,
++                                        &[target.as_ptr(), source.as_ptr()],
++                                    )
++                                    .map_err(|error| {
++                                        self.report_cmd_error_using(error, Some(&current))
++                                    })?;
++                                let reached = crate::list::concatenate_native_lists_using(
++                                    target.as_ptr(),
++                                    source.as_ptr(),
++                                    protocol,
++                                    &|| {
++                                        current()?;
++                                        headers.check_for(&actual)
++                                    },
++                                    &|error| variable_original.refuse(error),
++                                );
++                                let reached = reached.map_err(|error| {
++                                    self.report_cmd_error_using(error, Some(&current))
++                                });
++                                drop(headers);
++                                drop(source);
++                                drop(target);
++                                current().map_err(|error| {
++                                    self.report_cmd_error_using(error, Some(&current))
++                                })?;
++                                stack.push(reached?);
++                            }
++                        }
++                    }
++                    debug_assert_eq!(stack.len(), 1);
++                    stack.pop().expect("native insertion result")
+                 }
+                 ListOperation::Assign { list, targets } => {
+                     let original =
+@@ -388,6 +537,31 @@
+         }
+         assert_eq!(windows, 84);
+     }
++
++    #[test]
++    fn original_c86_insertion_matches_five_native_result_and_original_header_pairs() {
++        let rows = include_str!(
++            "../../../../../rust/tcl-registry/tests/data/native_list_operations/8.6.18.txt"
++        );
++        let mut windows = 0;
++        for line in rows.lines().filter(|line| line.starts_with("R|")) {
++            let result = line.split('|').collect::<Vec<_>>();
++            let case = result[1].parse::<usize>().unwrap();
++            if ![5, 6, 7, 8, 29].contains(&case) {
++                continue;
++            }
++            let prefix = format!("O|{case}|");
++            let original = rows
++                .lines()
++                .find(|line| line.starts_with(&prefix))
++                .unwrap()
++                .split('|')
++                .collect::<Vec<_>>();
++            run("tcl8.6", CASES[case], &result, &original);
++            windows += 1;
++        }
++        assert_eq!(windows, 5);
++    }
+ }
+ 
+ #[cfg(test)]
+--- a/rust/tcl-compiler/src/codegen/native_list_operations.rs
++++ b/rust/tcl-compiler/src/codegen/native_list_operations.rs
+@@ -99,7 +99,36 @@
+                 }
+                 operations.push(range(super::super::bytecode_imm(targets.len()), -2));
+             }
+-            Plan::Insert { .. } | Plan::Set { .. } => return false,
++            Plan::Insert {
++                list,
++                index,
++                elements,
++            } => {
++                use tcl_registry::native_list_operations_compilation::{
++                    NativeListInsertionStep as Step, c86_list_insertion_steps,
++                };
++                let Some(steps) = c86_list_insertion_steps(list, index, elements) else {
++                    return false;
++                };
++                for step in steps {
++                    match step {
++                        Step::Operand(operand) => {
++                            if !Self::list_operand(command, operand, operations) {
++                                return false;
++                            }
++                        }
++                        Step::List(count) => operations
++                            .push(operation(Op::LIST, &[super::super::bytecode_imm(count)])),
++                        Step::Over(depth) => operations
++                            .push(operation(Op::OVER, &[super::super::bytecode_imm(depth)])),
++                        Step::Reverse(count) => operations
++                            .push(operation(Op::REVERSE, &[super::super::bytecode_imm(count)])),
++                        Step::Range(range) => operations.push(Task::NativeListRange(range)),
++                        Step::Concat => operations.push(operation(Op::LIST_CONCAT, &[])),
++                    }
++                }
++            }
++            Plan::Set { .. } => return false,
+         }
+         true
+     }
+--- a/rust/tcl-registry/src/native_instruction_plan.rs
++++ b/rust/tcl-registry/src/native_instruction_plan.rs
+@@ -1050,6 +1050,16 @@
+             .map(NativeInstructionPlan::ListOperations)
+             .map_err(|_| Unavailable::OperandGeometry)
+         }
++        NativeCompilationGrammar::ListInsertion if version == TclVersion::V8_6 => {
++            crate::native_list_operations_compilation::compile_native_list_operation(
++                words,
++                operand_from,
++                version,
++                crate::native_list_operations_compilation::NativeListOperationKind::Insert,
++            )
++            .map(NativeInstructionPlan::ListOperations)
++            .map_err(|_| Unavailable::OperandGeometry)
++        }
+         NativeCompilationGrammar::ListIndex => {
+             crate::native_list_index_compilation::compile_native_list_index(
+                 words,
+@@ -1897,6 +1907,35 @@
+     }
+ 
+     #[test]
++    fn original_c86_insertion_retains_its_immediate_list_recipe() {
++        use crate::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
++        use crate::native_list_operations_compilation::{
++            NativeListInsertionIndex, NativeListOperationInstruction,
++        };
++        let plan = project(
++            b"linsert $args 0 interp alias {} $name {}",
++            NativeCompilationGrammar::ListInsertion,
++            TclVersion::V8_6,
++        )
++        .unwrap();
++        assert!(
++            matches!(plan, NativeInstructionPlan::ListOperations(NativeListOperationInstruction::Insert {
++            list: Operand::Original(1),
++            index: NativeListInsertionIndex::Immediate(index),
++            elements,
++        }) if index.encoded() == 0 && elements == (3..8).map(Operand::Original).collect::<Vec<_>>())
++        );
++        assert_eq!(
++            project(
++                b"linsert $args $index X",
++                NativeCompilationGrammar::ListInsertion,
++                TclVersion::V8_6
++            ),
++            Err(NativeInstructionPlanUnavailable::OperandGeometry)
++        );
++    }
++
++    #[test]
+     fn descriptor_without_portable_instruction_cannot_become_generic() {
+         assert_eq!(
+             project(
+--- a/rust/tcl-registry/src/native_list_operations_compilation.rs
++++ b/rust/tcl-registry/src/native_list_operations_compilation.rs
+@@ -94,6 +94,68 @@
+         /// Release-specific actual native replacement instruction.
+         instruction: NativeListInsertionInstruction,
+     },
++}
++
++/// Original C8.6 insertion burst, preserving its List conversion order.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum NativeListInsertionStep {
++    /// Evaluate this actual original or parser-expanded operand.
++    Operand(NativeCompilerWordOperand),
++    /// Construct a List from the last counted original object owners.
++    List(usize),
++    /// Retain the original stack owner at this depth.
++    Over(usize),
++    /// Reverse these existing stack roles without creating values.
++    Reverse(usize),
++    /// Reach the selected immediate range getter and storage transaction.
++    Range(tcl_syntax::native_compiled_index::NativeCompiledListRange),
++    /// Reach the original target-copy and source-conversion concat worker.
++    Concat,
++}
++
++/// Project only the retained C8.6 immediate insertion recipe into physical steps.
++/// No command registration, operand value or execution permission is inferred.
++#[must_use]
++pub fn c86_list_insertion_steps(
++    list: NativeCompilerWordOperand,
++    index: NativeListInsertionIndex,
++    elements: Vec<NativeCompilerWordOperand>,
++) -> Option<Vec<NativeListInsertionStep>> {
++    use NativeListInsertionStep as Step;
++    let NativeListInsertionIndex::Immediate(index) = index else {
++        return None;
++    };
++    let index = index.encoded();
++    let count = elements.len();
++    let mut steps = vec![Step::Operand(list)];
++    steps.extend(elements.into_iter().map(Step::Operand));
++    steps.push(Step::List(count));
++    match index {
++        0 => steps.push(Step::Reverse(2)),
++        -2 => {}
++        index => {
++            let (last, first) = if index > 0 {
++                (index.checked_sub(1)?, index)
++            } else {
++                (index, index.checked_add(1)?)
++            };
++            steps.extend([
++                Step::Over(1),
++                Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
++                    first: NativeCompiledListIndex::from_encoded(0),
++                    last: NativeCompiledListIndex::from_encoded(last),
++                }),
++                Step::Reverse(3),
++                Step::Range(tcl_syntax::native_compiled_index::NativeCompiledListRange {
++                    first: NativeCompiledListIndex::from_encoded(first),
++                    last: NativeCompiledListIndex::from_encoded(-2),
++                }),
++                Step::Concat,
++            ]);
++        }
++    }
++    steps.push(Step::Concat);
++    Some(steps)
+ }
+ 
+ /// Complete native list stack recipe, independent of its registration issuer.
+--- a/rust/tcl-vm/src/exec/native_list_operations_tests.rs
++++ b/rust/tcl-vm/src/exec/native_list_operations_tests.rs
+@@ -111,3 +111,26 @@
+     }
+     assert_eq!(windows, 84);
+ }
++
++#[test]
++fn original_c86_insertion_matches_five_native_result_and_original_header_pairs() {
++    let rows = include_str!("../../../tcl-registry/tests/data/native_list_operations/8.6.18.txt");
++    let mut windows = 0;
++    for line in rows.lines().filter(|line| line.starts_with("R|")) {
++        let result = line.split('|').collect::<Vec<_>>();
++        let case = result[1].parse::<usize>().unwrap();
++        if ![5, 6, 7, 8, 29].contains(&case) {
++            continue;
++        }
++        let prefix = format!("O|{case}|");
++        let original = rows
++            .lines()
++            .find(|line| line.starts_with(&prefix))
++            .unwrap()
++            .split('|')
++            .collect::<Vec<_>>();
++        run("tcl8.6", CASES[case], &result, &original);
++        windows += 1;
++    }
++    assert_eq!(windows, 5);
++}

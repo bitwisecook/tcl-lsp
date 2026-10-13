@@ -86,16 +86,7 @@ struct EmissionNamespace {
 }
 impl EmissionNamespace {
     fn native(path: tcl_runtime_api::ByteNamespacePath) -> Self {
-        let key = tcl_syntax::naming::checked_namespace_path_utf8(&path)
-            .ok()
-            .and_then(|segments| {
-                let key = if segments.is_empty() {
-                    "::".to_owned()
-                } else {
-                    format!("::{}", segments.join("::"))
-                };
-                (tcl_syntax::naming::key_segments(&key) == segments).then_some(key)
-            });
+        let key = tcl_syntax::naming::checked_namespace_path_key(&path);
         Self { path, key }
     }
 }
@@ -654,7 +645,7 @@ impl<'r> CodegenCtx<'r> {
         let binding = tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
             namespace,
             name,
-            identity.strip_prefix("::").unwrap_or(&identity),
+            tcl_syntax::naming::unroot_rooted_key(&identity).unwrap_or(&identity),
         )
         .with_namespace_context(namespace_context);
         if let Some(tokens) = self.invocation_tokens.as_deref()
@@ -663,15 +654,10 @@ impl<'r> CodegenCtx<'r> {
                 .as_ref()
                 .and_then(|proof| proof.admitted_inline_invocation())
                 .is_some_and(|proof| {
-                    proof
-                        .target
-                        .command
-                        .strip_prefix("::")
-                        .unwrap_or(&proof.target.command)
-                        == binding
-                            .identity
-                            .strip_prefix("::")
-                            .unwrap_or(&binding.identity)
+                    tcl_registry::command_descriptor_labels_match(
+                        &proof.target.command,
+                        &binding.identity,
+                    )
                 })
         {
             return binding.with_guard(crate::registry_invocation::command_binding_guard(tokens));

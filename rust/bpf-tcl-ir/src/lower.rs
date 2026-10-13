@@ -1146,8 +1146,10 @@ fn concurrency_error(cmd: &str, span: Span) -> BpfError {
 /// this narrow prefix test is only a diagnostic hint for otherwise unknown
 /// extension commands and must not drive lowering semantics.
 fn is_unregistered_thread_command(cmd: &str) -> bool {
-    let cmd = cmd.trim_start_matches(':');
-    cmd.starts_with("thread::") || cmd.starts_with("tsv::") || cmd.starts_with("tpool::")
+    tcl_syntax::naming::written_command_parts(cmd.as_bytes())
+        .qualifiers
+        .first()
+        .is_some_and(|namespace| matches!(*namespace, b"thread" | b"tsv" | b"tpool"))
 }
 
 fn map_bin(op: BinOp) -> Option<IntBinOp> {

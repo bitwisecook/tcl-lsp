@@ -2309,8 +2309,6 @@ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFa
 /// trait inference.  Extracted from [`scan_statement`].
 fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
     let ScanCtx {
-        caller,
-        known,
         registry,
         params,
         identities,
@@ -4625,7 +4623,12 @@ fn expr_value(
 use crate::side_effects::classify_side_effects_in;
 
 #[cfg(test)]
+#[path = "test_body_identity.rs"]
+pub(crate) mod test_body_identity;
+
+#[cfg(test)]
 mod tests {
+    use super::test_body_identity::{edge_labels, fixture_id, fixture_id_if_present, fixture_proc};
     fn fixture_method<'a>(
         analysis: &'a InterproceduralAnalysis,
         label: &str,
@@ -4678,10 +4681,8 @@ mod tests {
             &identities,
             None,
         );
-        let mut calls: Vec<String> = ia
-            .procedures
-            .get(caller)
-            .map(|s| s.calls.clone())
+        let mut calls: Vec<String> = fixture_proc(&ia, caller)
+            .map(|s| edge_labels(&ia, &s.calls))
             .unwrap_or_default();
         calls.sort();
         calls
@@ -4730,14 +4731,19 @@ mod tests {
             )
         };
         let current = analysis(&module);
-        let proc = current
-            .procedures
-            .get("::caller")
-            .expect("procedure summary");
+        let proc = fixture_proc(&current, "::caller").expect("procedure summary");
         let method = fixture_method(&current, "::C::run").expect("method summary");
         for summary in [proc, &method.base] {
-            assert!(summary.direct_calls.iter().any(|name| name == "::cb"));
-            assert!(summary.direct_calls.iter().any(|name| name == "::direct"));
+            assert!(
+                edge_labels(&current, &summary.direct_calls)
+                    .iter()
+                    .any(|name| name == "::cb")
+            );
+            assert!(
+                edge_labels(&current, &summary.direct_calls)
+                    .iter()
+                    .any(|name| name == "::direct")
+            );
         }
 
         let mut wrong_profile = module.clone();
@@ -4755,19 +4761,20 @@ mod tests {
         ));
         for withheld in [wrong_profile, wrong_config, missing, foreign] {
             let result = analysis(&withheld);
-            let proc = result
-                .procedures
-                .get("::caller")
-                .expect("retained procedure");
+            let proc = fixture_proc(&result, "::caller").expect("retained procedure");
             let method = fixture_method(&result, "::C::run").expect("retained method");
             for summary in [proc, &method.base] {
                 assert!(
-                    !summary.direct_calls.iter().any(|name| name == "::cb"),
+                    !edge_labels(&result, &summary.direct_calls)
+                        .iter()
+                        .any(|name| name == "::cb"),
                     "withheld metadata cannot donate callback advice: {:?}",
                     summary.direct_calls
                 );
                 assert!(
-                    summary.direct_calls.iter().any(|name| name == "::direct"),
+                    edge_labels(&result, &summary.direct_calls)
+                        .iter()
+                        .any(|name| name == "::direct"),
                     "an independently retained direct target remains reachable"
                 );
                 assert!(!summary.pure, "withheld selected effects remain opaque");
@@ -5186,12 +5193,14 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let unit = CompilationUnit::build_for_profile(source, &registry, false, profile);
-        let statements = unit
-            .ir_module
-            .procedures
-            .get(body)
-            .map(|body| &body.body)
-            .or_else(|| unit.ir_module.methods.get(body).map(|body| &body.body));
+        let statements = fixture_id_if_present(&unit.ir_module.procedures, body)
+            .and_then(|id| unit.ir_module.procedures.get(&id))
+            .map(|row| &row.body)
+            .or_else(|| {
+                fixture_id_if_present(&unit.ir_module.methods, body)
+                    .and_then(|id| unit.ir_module.methods.get(&id))
+                    .map(|row| &row.body)
+            });
         statements.into_iter().flat_map(|body| body.statements.iter().map(|statement| {
             let Some(tokens) = body.retained_source_tokens_for_statement(statement) else {
                 return format!("no source carrier {:?}", statement.span());
@@ -5232,11 +5241,19 @@ mod tests {
                     &identities,
                     None,
                 );
-                let traits = &analysis.procedures["::writer"].param_traits["n"];
+                let traits = analysis
+                    .procedures
+                    .get(&fixture_id(&analysis.procedures, "::writer"))
+                    .expect("authored fixture body")
+                    .param_traits["n"];
                 assert!(
                     traits.contains(&ProcArgTrait::VarRead),
                     "{dialect} {level}: {traits:?}; source body: {:#?}",
-                    unit.ir_module.procedures["::writer"].body
+                    unit.ir_module
+                        .procedures
+                        .get(&fixture_id(&unit.ir_module.procedures, "::writer"))
+                        .expect("authored fixture body")
+                        .body
                 );
                 assert_eq!(
                     traits.contains(&ProcArgTrait::VarWrite),
@@ -5252,18 +5269,19 @@ mod tests {
         let facts = build(
             "proc target {prefix value} {return $value}\ninterp alias {} invoke {} target FIXED\nproc caller {value} {invoke $value}",
         );
-        let caller = &facts.procedures["::caller"];
+        let caller = facts
+            .procedures
+            .get(&fixture_id(&facts.procedures, "::caller"))
+            .expect("authored fixture body");
         assert!(
-            caller
-                .direct_calls
+            edge_labels(&facts, &caller.direct_calls)
                 .iter()
                 .any(|callee| callee == "::target"),
             "document alias target must remain a call edge: {:?}",
             caller.direct_calls
         );
         assert!(
-            !caller
-                .direct_calls
+            !edge_labels(&facts, &caller.direct_calls)
                 .iter()
                 .any(|callee| callee == "::invoke")
         );
@@ -5274,18 +5292,19 @@ mod tests {
         let facts = build(
             "proc target {prefix value} {return $value}\nproc caller {prefix value} {interp alias {} invoke {} target $prefix; invoke $value}",
         );
-        let caller = &facts.procedures["::caller"];
+        let caller = facts
+            .procedures
+            .get(&fixture_id(&facts.procedures, "::caller"))
+            .expect("authored fixture body");
         assert!(
-            caller
-                .direct_calls
+            edge_labels(&facts, &caller.direct_calls)
                 .iter()
                 .any(|callee| callee == "::target"),
             "unknown prefix bytes preserve target identity and argv slots: {:?}",
             caller.direct_calls
         );
         assert!(
-            !caller
-                .direct_calls
+            !edge_labels(&facts, &caller.direct_calls)
                 .iter()
                 .any(|callee| callee == "::invoke")
         );
@@ -5296,11 +5315,17 @@ mod tests {
         let facts = build(
             "proc time {script} {return SAFE}\nproc helper {} {return VALUE}\nproc caller {} {time {helper}}",
         );
-        let caller = &facts.procedures["::caller"];
-        assert!(caller.direct_calls.iter().any(|callee| callee == "::time"));
+        let caller = facts
+            .procedures
+            .get(&fixture_id(&facts.procedures, "::caller"))
+            .expect("authored fixture body");
         assert!(
-            !caller
-                .direct_calls
+            edge_labels(&facts, &caller.direct_calls)
+                .iter()
+                .any(|callee| callee == "::time")
+        );
+        assert!(
+            !edge_labels(&facts, &caller.direct_calls)
                 .iter()
                 .any(|callee| callee == "::helper"),
             "{:?}",
@@ -5313,7 +5338,10 @@ mod tests {
         let facts = build(
             "if {$flag} {proc time {script} {return SAFE}}\nproc caller {} {time {puts SAFE}}",
         );
-        let caller = &facts.procedures["::caller"];
+        let caller = facts
+            .procedures
+            .get(&fixture_id(&facts.procedures, "::caller"))
+            .expect("authored fixture body");
         assert!(caller.has_unknown_calls || caller.has_barrier);
         assert!(!caller.pure);
     }
@@ -5339,9 +5367,11 @@ mod tests {
             "proc ::helper {x} { return $x }\n\
              proc ::f {} { set y [apply {p {helper $p}} 1]; return $y }\n",
         );
-        let s = ia.procedures.get("::f").expect("::f summary");
+        let s = fixture_proc(&ia, "::f").expect("::f summary");
         assert!(
-            s.direct_calls.iter().any(|c| c == "::helper"),
+            edge_labels(&ia, &s.direct_calls)
+                .iter()
+                .any(|c| c == "::helper"),
             "expected a direct_calls edge to ::helper via the apply lambda body; got {:?}",
             s.direct_calls
         );
@@ -5363,16 +5393,20 @@ mod tests {
              proc ::helper {} { return 2 }\n\
              proc ::ns::f {} { set y [apply {{} {helper}}]; return $y }\n",
         );
-        let s = ia.procedures.get("::ns::f").expect("::ns::f summary");
+        let s = fixture_proc(&ia, "::ns::f").expect("::ns::f summary");
         assert!(
-            s.direct_calls.iter().any(|c| c == "::helper"),
+            edge_labels(&ia, &s.direct_calls)
+                .iter()
+                .any(|c| c == "::helper"),
             "expected the apply lambda body's bare `helper` call to resolve \
              in the global namespace (Tcl evaluates a two-element apply \
              lambda in `::`); got {:?}",
             s.direct_calls
         );
         assert!(
-            !s.direct_calls.iter().any(|c| c == "::ns::helper"),
+            !edge_labels(&ia, &s.direct_calls)
+                .iter()
+                .any(|c| c == "::ns::helper"),
             "the apply lambda body must not resolve `helper` against the \
              enclosing proc's `::ns` namespace; got {:?}",
             s.direct_calls
@@ -5390,15 +5424,19 @@ mod tests {
              proc ::helper {} { return 2 }\n\
              proc ::ns::f {} { set y [apply {{} {helper} ::other}]; return $y }\n",
         );
-        let s = ia.procedures.get("::ns::f").expect("::ns::f summary");
+        let s = fixture_proc(&ia, "::ns::f").expect("::ns::f summary");
         assert!(
-            s.direct_calls.iter().any(|c| c == "::other::helper"),
+            edge_labels(&ia, &s.direct_calls)
+                .iter()
+                .any(|c| c == "::other::helper"),
             "expected the apply lambda's explicit `::other` namespace \
              element to resolve `helper` there; got {:?}",
             s.direct_calls
         );
         assert!(
-            !s.direct_calls.iter().any(|c| c == "::helper"),
+            !edge_labels(&ia, &s.direct_calls)
+                .iter()
+                .any(|c| c == "::helper"),
             "the explicit lambda namespace must not fall back to global; \
              got {:?}",
             s.direct_calls
@@ -5426,14 +5464,17 @@ mod tests {
             &selected,
         )
         .with_interprocedural(registry, Some(environment.analyser_profile()));
-        let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
+        let actual = cu.interproc.as_ref().expect("interproc");
+        let summary = fixture_proc(actual, "::build").expect("authored build summary");
         assert!(
-            summary.direct_calls.iter().any(|call| call == "::onNode"),
+            edge_labels(actual, &summary.direct_calls)
+                .iter()
+                .any(|call| call == "::onNode"),
             "the actual loaded graph's callback must reach onNode: {:?}; candidates={:?}; argv={:?}",
             summary.direct_calls,
             crate::object_types::object_handle_classes(&cu, registry),
             cu.procedures
-                .get("::build")
+                .get(&fixture_id(&cu.ir_module.procedures, "::build"))
                 .into_iter()
                 .flat_map(|unit| unit.cfg.blocks.values())
                 .flat_map(|block| &block.statements)
@@ -5467,13 +5508,13 @@ mod tests {
         )
         .with_interprocedural(registry, Some(environment.analyser_profile()));
         assert!(
-            !unprovided
-                .interproc
-                .as_ref()
-                .expect("interproc")
-                .procedures
-                .get("::build")
-                .is_some_and(|summary| summary.direct_calls.iter().any(|call| call == "::onNode")),
+            !fixture_proc(unprovided.interproc.as_ref().expect("interproc"), "::build")
+                .is_some_and(|summary| edge_labels(
+                    unprovided.interproc.as_ref().expect("interproc"),
+                    &summary.direct_calls
+                )
+                .iter()
+                .any(|call| call == "::onNode")),
             "an unloaded graph catalogue cannot license a callback edge",
         );
     }
@@ -5481,7 +5522,7 @@ mod tests {
     #[test]
     fn simple_proc_is_recorded_with_params_and_arity() {
         let ia = build("proc ::greet {name} { puts hi }");
-        let s = ia.procedures.get("::greet").expect("proc summary");
+        let s = fixture_proc(&ia, "::greet").expect("proc summary");
         assert_eq!(s.params, vec!["name".to_string()]);
         assert_eq!(s.arity, Arity::exact(1));
     }
@@ -5501,7 +5542,7 @@ mod tests {
             "proc ::f {} { global g\nappend g x }",
         ] {
             let ia = build(src);
-            let s = ia.procedures.get("::f").expect("::f summary");
+            let s = fixture_proc(&ia, "::f").expect("::f summary");
             assert!(
                 s.writes_global,
                 "expected writes_global for: {src}; points={:?}",
@@ -5523,7 +5564,13 @@ mod tests {
             "proc ::f {} { upvar #00 x g\nset g 1 }",
         ] {
             let ia = build(src);
-            assert!(ia.procedures["::f"].writes_global, "{src}");
+            assert!(
+                ia.procedures
+                    .get(&fixture_id(&ia.procedures, "::f"))
+                    .expect("authored fixture body")
+                    .writes_global,
+                "{src}"
+            );
         }
     }
 
@@ -5537,7 +5584,7 @@ mod tests {
             "proc ::f {} { upvar 1 x g\nset g 1 }",
         ] {
             let ia = build(src);
-            let s = ia.procedures.get("::f").expect("::f summary");
+            let s = fixture_proc(&ia, "::f").expect("::f summary");
             assert!(!s.writes_global, "unexpected writes_global for: {src}");
         }
     }
@@ -5736,9 +5783,9 @@ mod tests {
             "proc ::q {} { return 1 }\n\
              proc ::a {} { if {[::q]} { puts hi } }",
         );
-        let a = ia.procedures.get("::a").expect("::a recorded");
+        let a = fixture_proc(&ia, "::a").expect("::a recorded");
         assert!(
-            a.calls.contains(&"::q".to_string()),
+            edge_labels(&ia, &a.calls).contains(&"::q".to_string()),
             "expected ::q in ::a's call graph, got {:?}",
             a.calls
         );
@@ -5752,9 +5799,9 @@ mod tests {
             "proc ::p {} { return 1 }\n\
              proc ::a {} { if {[catch {::p}]} { puts hi } }",
         );
-        let a = ia.procedures.get("::a").expect("::a recorded");
+        let a = fixture_proc(&ia, "::a").expect("::a recorded");
         assert!(
-            a.calls.contains(&"::p".to_string()),
+            edge_labels(&ia, &a.calls).contains(&"::p".to_string()),
             "expected ::p in ::a's call graph via BODY recursion, got {:?}",
             a.calls
         );
@@ -5766,9 +5813,9 @@ mod tests {
             "proc ::q {} { return 1 }\n\
              proc ::a {} { while {[::q]} { break } }",
         );
-        let a = ia.procedures.get("::a").expect("::a recorded");
+        let a = fixture_proc(&ia, "::a").expect("::a recorded");
         assert!(
-            a.calls.contains(&"::q".to_string()),
+            edge_labels(&ia, &a.calls).contains(&"::q".to_string()),
             "expected ::q via while-condition expr scan, got {:?}",
             a.calls
         );
@@ -5781,10 +5828,10 @@ mod tests {
              proc ::b {} { ::c }\n\
              proc ::c {} { set x 1 }",
         );
-        let a = ia.procedures.get("::a").unwrap();
-        assert!(a.calls.contains(&"::b".to_string()));
+        let a = fixture_proc(&ia, "::a").unwrap();
+        assert!(edge_labels(&ia, &a.calls).contains(&"::b".to_string()));
         assert!(
-            a.calls.contains(&"::c".to_string()),
+            edge_labels(&ia, &a.calls).contains(&"::c".to_string()),
             "expected ::c in transitive closure of ::a, got {:?}",
             a.calls,
         );
@@ -5797,7 +5844,7 @@ mod tests {
         // so it does NOT mark the proc as a barrier. Use a dynamic
         // body that genuinely cannot be resolved at lowering time.
         let ia = build("proc ::bad {} { eval $dyn }");
-        let s = ia.procedures.get("::bad").unwrap();
+        let s = fixture_proc(&ia, "::bad").unwrap();
         assert!(s.has_barrier);
         assert!(!s.pure);
     }
@@ -5805,7 +5852,7 @@ mod tests {
     #[test]
     fn pure_proc_is_flagged_pure() {
         let ia = build("proc ::add2 {x} { return [expr {$x + 2}] }");
-        let s = ia.procedures.get("::add2").unwrap();
+        let s = fixture_proc(&ia, "::add2").unwrap();
         // `return` + pure `expr` — nothing impure; but calling
         // `return` itself is registry-defined as non-pure in
         // some dialects. Either way, `pure` should reflect the
@@ -5823,7 +5870,7 @@ mod tests {
         let ia = build(
             "proc ::fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\n",
         );
-        let fact = ia.procedures.get("::fact").expect("::fact summary");
+        let fact = fixture_proc(&ia, "::fact").expect("::fact summary");
         assert!(
             fact.pure,
             "recursive arithmetic proc must be pure (greatest fix-point); got pure={}",
@@ -5836,7 +5883,7 @@ mod tests {
         // Control: a proc doing I/O (`puts`) must be impure — proves the test
         // above isn't trivially asserting every proc pure.
         let ia = build("proc ::logit {msg} {\n    puts $msg\n    return ok\n}\n");
-        let logit = ia.procedures.get("::logit").expect("::logit summary");
+        let logit = fixture_proc(&ia, "::logit").expect("::logit summary");
         assert!(
             !logit.pure,
             "a proc that calls puts must be impure; got pure={}",
@@ -5860,7 +5907,7 @@ mod tests {
              proc ::g {} {bump ::n; return 0}\n\
              proc ::h {} {global n; bump n; return 0}\n",
         );
-        let pure = |name: &str| ia.procedures.get(name).expect(name).pure;
+        let pure = |name: &str| fixture_proc(&ia, name).expect(name).pure;
         assert!(!pure("::bump"));
         assert!(!pure("::twice"));
         assert!(pure("::p"));
@@ -5872,7 +5919,7 @@ mod tests {
     #[test]
     fn unknown_call_sets_has_unknown_calls() {
         let ia = build("proc ::caller {} { nosuchcmd }");
-        let s = ia.procedures.get("::caller").unwrap();
+        let s = fixture_proc(&ia, "::caller").unwrap();
         assert!(s.has_unknown_calls);
         assert!(!s.pure);
     }
@@ -5880,7 +5927,7 @@ mod tests {
     #[test]
     fn constant_return_inferred_for_literal_proc() {
         let ia = build("proc ::f {} { return 1 }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         assert!(s.returns_constant);
         assert_eq!(s.constant_return, Some(ConstantReturn::Int(1)));
     }
@@ -5891,7 +5938,7 @@ mod tests {
         // falls off the end (the `if` returns "" on the no-match path),
         // so it is NOT constant-returning and must not be folded.
         let ia = build("proc ::f {x} { if {$x > 0} { return 42 } }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         assert!(
             !s.returns_constant,
             "fall-through proc must not be constant-returning, got {:?}",
@@ -5905,7 +5952,7 @@ mod tests {
         // Fully covered if/else, both arms return the same literal →
         // genuinely constant, still folds.
         let ia = build("proc ::f {x} { if {$x > 0} { return 7 } else { return 7 } }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         assert!(s.returns_constant);
         assert_eq!(s.constant_return, Some(ConstantReturn::Int(7)));
     }
@@ -5913,7 +5960,7 @@ mod tests {
     #[test]
     fn passthrough_param_detected() {
         let ia = build("proc ::id {x} { return $x }");
-        let s = ia.procedures.get("::id").unwrap();
+        let s = fixture_proc(&ia, "::id").unwrap();
         assert_eq!(s.return_passthrough_param.as_deref(), Some("x"));
         assert_eq!(s.return_depends_on_params, vec!["x".to_string()]);
     }
@@ -5922,19 +5969,19 @@ mod tests {
     fn can_fold_gated_on_pure_and_return_shape() {
         // Pure + literal → can fold.
         let ia = build("proc ::f {} { return 42 }");
-        assert!(ia.procedures.get("::f").unwrap().can_fold_static_calls);
+        assert!(fixture_proc(&ia, "::f").unwrap().can_fold_static_calls);
         // Impure (dynamic eval is a real barrier) + literal → cannot
         // fold. ``eval {literal}`` is a Block (non-barrier),
         // so use a dynamic body.
         let ia = build("proc ::f {} { eval $dyn ; return 42 }");
-        assert!(!ia.procedures.get("::f").unwrap().can_fold_static_calls);
+        assert!(!fixture_proc(&ia, "::f").unwrap().can_fold_static_calls);
     }
 
     #[test]
     fn param_traits_inferred() {
         // `x` is returned → Passthrough; `y` never read → Unused.
         let ia = build("proc ::f {x y} { return $x }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         let x_traits = s.param_traits.get("x").expect("x traits");
         assert!(
             x_traits.contains(&ProcArgTrait::Passthrough),
@@ -5952,7 +5999,7 @@ mod tests {
         // `upvar 1 $n x; set x ...` → n is VarWrite;
         // `upvar 1 $n x; return $x` (read only) → n is VarRead.
         let w = build("proc ::setvar {n v} { upvar 1 $n x\nset x $v }");
-        let s = w.procedures.get("::setvar").unwrap();
+        let s = fixture_proc(&w, "::setvar").unwrap();
         let nt = s.param_traits.get("n").expect("n traits");
         assert!(
             nt.contains(&ProcArgTrait::VarWrite),
@@ -5960,7 +6007,7 @@ mod tests {
         );
 
         let r = build("proc ::getvar {n} { upvar 1 $n x\nreturn $x }");
-        let s2 = r.procedures.get("::getvar").unwrap();
+        let s2 = fixture_proc(&r, "::getvar").unwrap();
         let nt2 = s2.param_traits.get("n").expect("n traits");
         assert!(
             nt2.contains(&ProcArgTrait::VarRead) && !nt2.contains(&ProcArgTrait::VarWrite),
@@ -5970,7 +6017,7 @@ mod tests {
         // upvar #0 (global frame, not the caller) → VarRead only, no
         // write-back to the caller's passed variable.
         let g = build("proc ::gw {p} { upvar #0 $p x\nset x 1 }");
-        let s3 = g.procedures.get("::gw").unwrap();
+        let s3 = fixture_proc(&g, "::gw").unwrap();
         let pt = s3.param_traits.get("p").expect("p traits");
         assert!(
             pt.contains(&ProcArgTrait::VarRead) && !pt.contains(&ProcArgTrait::VarWrite),
@@ -5987,7 +6034,7 @@ mod tests {
     #[test]
     fn upvar_level_word_is_read_by_argument_parity() {
         let ia = build("proc ::q {lvl a} { upvar $lvl $a b\nset b 1 }");
-        let s = ia.procedures.get("::q").unwrap();
+        let s = fixture_proc(&ia, "::q").unwrap();
         let a = s.param_traits.get("a").expect("a traits");
         assert!(
             a.contains(&ProcArgTrait::VarRead) && !a.contains(&ProcArgTrait::VarWrite),
@@ -6001,7 +6048,10 @@ mod tests {
             s.param_traits.get("lvl")
         );
         let ia = build("proc ::q {lvl a} { upvar 1 $a b\nset b 1 }");
-        let a = ia.procedures["::q"]
+        let a = ia
+            .procedures
+            .get(&fixture_id(&ia.procedures, "::q"))
+            .expect("authored fixture body")
             .param_traits
             .get("a")
             .expect("a traits");
@@ -6011,7 +6061,7 @@ mod tests {
     #[test]
     fn used_in_condition_detected() {
         let ia = build("proc ::f {n} { if {$n > 0} { return 1 } else { return 0 } }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         let traits = s.param_traits.get("n").expect("n traits");
         assert!(
             traits.contains(&ProcArgTrait::UsedInCondition),
@@ -6022,7 +6072,7 @@ mod tests {
     #[test]
     fn forwarded_to_callee_detected() {
         let ia = build("proc ::helper {v} { return $v }\nproc ::f {x} { ::helper $x }");
-        let s = ia.procedures.get("::f").unwrap();
+        let s = fixture_proc(&ia, "::f").unwrap();
         let traits = s.param_traits.get("x").expect("x traits");
         assert!(
             traits.contains(&ProcArgTrait::ForwardedToCallee),
@@ -6036,10 +6086,10 @@ mod tests {
             "proc ::a {} { ::b }\n\
              proc ::b {} { ::a }",
         );
-        let a = ia.procedures.get("::a").unwrap();
-        assert!(a.calls.contains(&"::b".to_string()));
-        let b = ia.procedures.get("::b").unwrap();
-        assert!(b.calls.contains(&"::a".to_string()));
+        let a = fixture_proc(&ia, "::a").unwrap();
+        assert!(edge_labels(&ia, &a.calls).contains(&"::b".to_string()));
+        let b = fixture_proc(&ia, "::b").unwrap();
+        assert!(edge_labels(&ia, &b.calls).contains(&"::a".to_string()));
     }
 
     #[test]
@@ -6051,9 +6101,11 @@ mod tests {
              }",
         );
         // Names may come back as "::ns::caller" / "::ns::helper".
-        if let Some(caller) = ia.procedures.get("::ns::caller") {
+        if let Some(caller) = fixture_proc(&ia, "::ns::caller") {
             assert!(
-                caller.calls.iter().any(|c| c == "::ns::helper"),
+                edge_labels(&ia, &caller.calls)
+                    .iter()
+                    .any(|c| c == "::ns::helper"),
                 "expected ::ns::helper in ::ns::caller.calls, got {:?}",
                 caller.calls,
             );
@@ -6154,10 +6206,9 @@ mod tests {
         let src = format!(
             "{prelude}proc q {{}} {{ return 1 }}\nproc p {{}} {{ set z [{head} {{q}}] }}\n"
         );
-        build(&src)
-            .procedures
-            .get("::p")
-            .is_some_and(|s| s.calls.iter().any(|c| c == "::q"))
+        let ia = build(&src);
+        fixture_proc(&ia, "::p")
+            .is_some_and(|s| edge_labels(&ia, &s.calls).iter().any(|c| c == "::q"))
     }
 
     #[test]
@@ -6208,10 +6259,8 @@ mod tests {
     fn side_effect_classification_follows_an_aliased_head() {
         let unknown = |prelude: &str, head: &str| {
             let src = format!("{prelude}proc p {{}} {{ {head} hi }}\n");
-            build(&src)
-                .procedures
-                .get("::p")
-                .is_some_and(|s| s.has_unknown_calls)
+            let ia = build(&src);
+            fixture_proc(&ia, "::p").is_some_and(|s| s.has_unknown_calls)
         };
         assert!(
             !unknown("interp alias {} out {} puts\n", "out"),
@@ -6226,7 +6275,9 @@ mod tests {
     fn p_may_return(source: &str) -> bool {
         let registry = CommandRegistry::build_default();
         let unit = CompilationUnit::build_for(source, &registry, false);
-        unit.procedures["::p"]
+        unit.procedures
+            .get(&fixture_id(&unit.procedures, "::p"))
+            .expect("authored fixture body")
             .cfg
             .blocks
             .values()
@@ -6257,6 +6308,7 @@ mod tests {
 
 #[cfg(test)]
 mod effect_propagation_tests {
+    use super::test_body_identity::fixture_proc;
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -6300,7 +6352,7 @@ mod effect_propagation_tests {
             "proc p {} { matchclass [HTTP::uri] equals $::l }",
         ] {
             let ia = analyse_irules(src, &reg);
-            let s = ia.procedures.get("::p").expect("proc ::p in IA");
+            let s = fixture_proc(&ia, "::p").expect("proc ::p in IA");
             assert!(
                 s.effect_reads.contains(EffectRegion::HTTP_STATE),
                 "evaluated nested [HTTP::uri] should propagate HTTP_STATE; src={src:?} reads={:?}",
@@ -6309,7 +6361,7 @@ mod effect_propagation_tests {
         }
 
         let ia = analyse_irules("proc q {} { matchclass {[HTTP::uri]} equals $::l }", &reg);
-        let s = ia.procedures.get("::q").expect("proc ::q in IA");
+        let s = fixture_proc(&ia, "::q").expect("proc ::q in IA");
         assert!(
             !s.effect_reads.contains(EffectRegion::HTTP_STATE),
             "inert braced operand must not propagate HTTP_STATE; reads={:?}",

@@ -2975,15 +2975,6 @@ pub struct ReferenceImport {
     pub facts: tcl_runtime_api::PackFactStamp,
 }
 
-fn execution_namespace_for_qname(qname: &str) -> String {
-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-    if holder.is_empty() {
-        "::".to_owned()
-    } else {
-        holder.to_owned()
-    }
-}
-
 impl Module {
     pub(crate) fn source_procedure_for_target(
         &self,
@@ -3210,7 +3201,7 @@ impl Module {
 
         let mut procedures: Vec<_> = self.procedures.iter().collect();
         procedures.sort_by(|a, b| a.0.cmp(b.0));
-        roots.extend(procedures.into_iter().map(|(qname, procedure)| {
+        roots.extend(procedures.into_iter().map(|(_, procedure)| {
             (
                 &procedure.body,
                 procedure

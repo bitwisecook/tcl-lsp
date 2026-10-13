@@ -123,6 +123,16 @@ pub use native::{
     report_native_variable_diagnostic_at,
 };
 
+/// Checked compatibility key for the exact native namespace components.
+/// Opaque UTF-8 or an ambiguous constructed-key round trip declines; the
+/// original byte path remains authoritative. This grants no native lookup.
+#[must_use]
+pub fn checked_namespace_path_key(path: &tcl_core_types::ByteNamespacePath) -> Option<String> {
+    let segments = checked_namespace_path_utf8(path).ok()?;
+    let key = root_unrooted_key(&segments.join("::"));
+    (key_segments(&key) == segments).then_some(key)
+}
+
 /// Jim's flat global-variable key from a rooted constructed namespace.
 ///
 /// Absolute written names beginning with `::` discard every leading colon.

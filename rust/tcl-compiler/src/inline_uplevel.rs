@@ -523,14 +523,6 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     }
 }
 
-/// Rooted caller namespace label used as a rewrite presentation default.
-fn namespace_of(qname: &str) -> String {
-    tcl_syntax::naming::reported_qname_namespace(
-        qname,
-        tcl_syntax::naming::ReportedQNameNamespacePurpose::RootRelativePrefix,
-    )
-}
-
 struct InlineContext<'a> {
     candidates: &'a HashMap<crate::ir::ProcedureId, PassthroughShape>,
     catalogue: &'a Module,

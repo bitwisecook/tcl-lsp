@@ -2171,6 +2171,8 @@ pub struct Scope {
     pub name_span: Option<Span>,
     /// Variables defined directly in this scope.
     pub variables: HashMap<String, VarDef>,
+    pub(crate) readonly_dictionary_keys:
+        HashMap<String, super::scope::ReadonlyDictionaryKeyVariable>,
     /// Procs defined directly in this scope.
     pub procs: HashMap<String, ProcDef>,
     /// Classes defined directly in this scope.
@@ -2248,6 +2250,7 @@ impl Scope {
             body_span: None,
             name_span: None,
             variables: HashMap::new(),
+            readonly_dictionary_keys: HashMap::new(),
             procs: HashMap::new(),
             classes: HashMap::new(),
             defined_symbols: Vec::new(),

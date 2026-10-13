@@ -165,17 +165,6 @@ fn join_namespace(parent: &str, child: &str) -> String {
     tcl_syntax::naming::qualify(parent, child)
 }
 
-/// The namespace a procedure body lowers in — everything up to the
-/// last `::` of its qualified name, or `::` for a global proc.
-fn proc_namespace(qname: &str) -> String {
-    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
-    if holder.is_empty() {
-        "::".to_string()
-    } else {
-        holder.to_string()
-    }
-}
-
 /// Recursive dispatch retains only the selected contract, never the registry's
 /// full materialization frame while lowering another body.
 struct StructuredHookSelection<'a> {

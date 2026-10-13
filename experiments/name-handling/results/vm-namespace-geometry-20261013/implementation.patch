@@ -1,0 +1,75 @@
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -10176,7 +10176,7 @@
+     }
+ 
+     fn namespace_path_from_written(&self, context: NsId, written: &str) -> NamespacePath {
+-        let mut path = if written.starts_with("::") {
++        let mut path = if tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute {
+             NamespacePath::root()
+         } else {
+             self.ns_path(context)
+@@ -10250,12 +10250,18 @@
+     #[cfg(test)]
+     pub(crate) fn namespace_token_for_written(&self, written: &str) -> Option<NsId> {
+         let path = self.namespace_path_from_written(self.current_ns_id(), written);
+-        self.namespace_token_at_path(&path, written.starts_with("::"))
++        self.namespace_token_at_path(
++            &path,
++            tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute,
++        )
+     }
+ 
+     pub(crate) fn activate_namespace_written(&mut self, written: &str) -> NsId {
+         let path = self.namespace_path_from_written(self.current_ns_id(), written);
+-        self.declare_namespace_path_with_origin(path.clone(), written.starts_with("::"));
++        self.declare_namespace_path_with_origin(
++            path.clone(),
++            tcl_syntax::naming::written_command_parts(written.as_bytes()).absolute,
++        );
+         let existing = self.name_world.borrow().ns_intern.get(&path).copied();
+         existing.unwrap_or_else(|| self.intern_ns_path(path))
+     }
+@@ -11922,7 +11928,10 @@
+     pub(crate) fn declare_namespace(&mut self, ns: &str) {
+         let path =
+             NamespacePath::from_segments(tcl_syntax::naming::qualifier_segments(ns.as_bytes()));
+-        self.declare_namespace_path_with_origin(path, ns.starts_with("::"));
++        self.declare_namespace_path_with_origin(
++            path,
++            tcl_syntax::naming::written_command_parts(ns.as_bytes()).absolute,
++        );
+     }
+ 
+     /// Insert a newly-created namespace's tail into its parent's retained Tcl
+--- a/rust/tcl-vm/src/expr.rs
++++ b/rust/tcl-vm/src/expr.rs
+@@ -1954,7 +1954,7 @@
+         // mathfunc conformance vectors).
+         let qualified = tcl_registry::mathfunc::qualified_name(function);
+         let name = tcl_syntax::naming::unroot_rooted_key(&qualified).unwrap_or(&qualified);
+-        if self.vm.lookup_command(&name).is_none() {
++        if self.vm.lookup_command(name).is_none() {
+             // C reports the command miss, not a special math-function error
+             // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
+             // `invalid command name "tcl::mathfunc::frobnicate"`).
+@@ -1963,7 +1963,7 @@
+                 format!("TCL LOOKUP COMMAND {name}"),
+             ));
+         }
+-        let c = self.vm.invoke_command(&name, &args);
++        let c = self.vm.invoke_command(name, &args);
+         self.accept_completion(c)
+     }
+ 
+--- a/rust/tcl-vm/src/exec.rs
++++ b/rust/tcl-vm/src/exec.rs
+@@ -4207,7 +4207,7 @@
+             let name = tcl_syntax::naming::unroot_rooted_key(&qualified).unwrap_or(&qualified);
+             // TIP 232 uses ordinary namespace-relative command resolution.
+             // Unknown math functions bypass the user unknown handler.
+-            if self.lookup_command(&name).is_none() {
++            if self.lookup_command(name).is_none() {
+                 return Err(Box::new(Tick::Return(
+                     crate::command::completion_from_tcl_error(
+                         self,

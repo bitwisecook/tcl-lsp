@@ -2349,7 +2349,6 @@ fn collect_materialisable_slots(
             };
             let decision = materialisable_decision(&MaterialisableInputs {
                 unit,
-                qname,
                 function,
                 key,
                 summary,
@@ -2368,7 +2367,6 @@ fn collect_materialisable_slots(
 
 struct MaterialisableInputs<'a> {
     unit: &'a CompilationUnit,
-    qname: &'a str,
     function: &'a FunctionUnit,
     key: ValueKey,
     summary: Option<&'a ProcEscapeSummary>,

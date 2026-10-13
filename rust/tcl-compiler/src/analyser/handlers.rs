@@ -1163,12 +1163,13 @@ impl Analyser {
                             ..Default::default()
                         },
                     );
-                    self.set_interp_var_binding(name, key, scope_path);
+                    self.set_original_logical_interp_var_binding(name, key, *value_tok, scope_path);
                 }
             }
         } else if single
             && value_tok.kind == TokenType::Cmd
-            && let Some(folded) = self.try_fold_const_cmd_subst_rhs(value_text, scope_path)
+            && let Some(folded) =
+                self.try_fold_const_cmd_subst_rhs(value_text, *value_tok, scope_path)
         {
             // `set VAR [cmd …]` whose substitution is a compile-time
             // constant: the registry `const_fold` / frame-fact engine proves
@@ -1246,34 +1247,12 @@ impl Analyser {
         }
     }
 
-    /// Fold a `set` command's single-token `[cmd …]` RHS to its constant
-    /// value via the shared engine ([`crate::const_subst::ConstSubstCtx`]),
-    /// or `None` to abstain.
-    ///
-    /// Sound-by-construction gates, in evaluation order:
-    ///
-    /// 1. **Fold surface** — [`crate::const_subst::head_may_fold`]: the
-    ///    static head must carry a registry fold or frame-fact table. Also
-    ///    what keeps the trust oracle below lazy: no candidate, no cost.
-    /// 2. **Whole-module trust** — [`Self::whole_file_command_trust`]: a
-    ///    `rename` / `interp alias` / shadowing `proc` anywhere in the
-    ///    module (even later in the file, even buried in a body) unbinds
-    ///    the head from its builtin semantics, so the fold declines. The
-    ///    mid-walk `renamed_commands` map is deliberately NOT used — it
-    ///    only knows about mutations *before* this point.
-    /// 3. **Frame facts** — `[self class]` folds only inside an
-    ///    instance-side `TclOO` method of a statically-named class
-    ///    ([`super::types::Scope::oo_defining_class`]) whose class command
-    ///    binding is itself trusted; class-side frames (`classmethod`,
-    ///    `self method`), snit / itcl members, and init scripts abstain
-    ///    (`self class` raises there — tclsh 9.0.4).
-    /// 4. **Constant arguments** — `$var` words resolve only through the
-    ///    *dominating* constant lattice
-    ///    ([`Self::lookup_dominating_const_string`]), so a
-    ///    branch-conditional binding abstains.
+    /// Registry folding keeps whole-module command trust and exact original variable sources.
+    /// Declaration labels cannot supply entered object-frame facts.
     fn try_fold_const_cmd_subst_rhs(
         &mut self,
         value_text: &str,
+        value_token: Token,
         scope_path: &[usize],
     ) -> Option<String> {
         let registry = self.registry.clone()?;
@@ -1286,48 +1265,25 @@ impl Analyser {
             return None;
         }
         let trust = self.whole_file_command_trust()?;
-        let defining_class = self.oo_defining_class_at(scope_path);
-        if let Some(class) = &defining_class
-            && !trust.trusts_proc_binding(class)
-        {
-            return None;
-        }
         let version = (!self.result.dialect.is_empty())
             .then(|| self.profile.const_fold_version())
             .flatten();
         let trusts = |name: &str| trust.trusts(name);
-        let lookup = |name: &str| {
-            self.lookup_dominating_const_string(name, scope_path)
-                .map(str::to_owned)
+        let lookup = |arena: &tcl_lexer::ExecutablePartArena,
+                      component: &tcl_lexer::SpannedExecutablePart| {
+            self.lookup_logical_const_component(arena, component)
         };
+        let operand = self.retained_value_word(value_token)?;
         crate::const_subst::ConstSubstCtx {
             registry: &registry,
             resolution_namespace: &self.command_resolution_namespace(scope_path),
             namespace_context: None,
             version,
-            defining_class: defining_class.as_deref(),
+            defining_class: None,
             trusts: &trusts,
-            lookup_var: &lookup,
+            lookup_var: &|_| None,
         }
-        .fold_cmd_subst(inner)
-    }
-
-    /// The defining class of the innermost enclosing **instance-side
-    /// `TclOO` method** scope, or `None` when the current frame is not one
-    /// (a proc, namespace, class-side member, snit / itcl member, or any
-    /// nested frame inside the method that opens a new Tcl frame). See
-    /// [`super::types::Scope::oo_defining_class`].
-    fn oo_defining_class_at(&self, scope_path: &[usize]) -> Option<String> {
-        let mut scope = &self.result.global_scope;
-        let mut found: Option<String> = None;
-        for &i in scope_path {
-            scope = scope.children.get(i)?;
-            // Every scope node in this tree (namespace, proc, method) is a
-            // frame change; only an instance-side method scope carries the
-            // fact, and any deeper frame resets it.
-            found.clone_from(&scope.oo_defining_class);
-        }
-        found
+        .fold_original_source_substitution(&operand, &lookup)
     }
 
     /// Apply the scope aliases one invocation's state transitions state: each
@@ -4017,7 +3973,7 @@ impl Analyser {
         // requalified.
         let literal_path = !crate::naming::is_dynamic_word(&args[1]);
         let resolved_dynamic = (!literal_path)
-            .then(|| self.resolve_dynamic_interp_path(&args[1], scope_path))
+            .then(|| self.resolve_dynamic_interp_path(arg_tokens.get(1).copied()))
             .flatten();
         let original_key =
             head.and_then(|head| self.original_interp_eval_state_key(head, arg_tokens));
@@ -4236,7 +4192,7 @@ impl Analyser {
             );
         }
         let key = if crate::naming::is_dynamic_word(cmd_name) {
-            let Some(resolved) = self.resolve_dynamic_interp_path(cmd_name, scope_path) else {
+            let Some(resolved) = self.resolve_dynamic_interp_path(head) else {
                 return false;
             };
             resolved
@@ -4290,26 +4246,9 @@ impl Analyser {
         }
     }
 
-    /// Resolve a `$name`/`${name}` word to the interpreter-domain key a
-    /// tracked `set name [interp create ...]` bound it to — the key is
-    /// already fully resolved/qualified at bind
-    /// time, so callers must NOT re-run [`Self::qualified_interp_key`]/
-    /// interp-path-stack qualification on it.
-    ///
-    /// `None` for anything that isn't a plain scalar reference to a
-    /// tracked binding: [`crate::naming::split_array_name`] rejects an
-    /// array-indexed read (`$arr(idx)`) by returning an index, and a
-    /// concatenated/substituted word (`prefix$s`, `[cmd]`) is never a
-    /// key any `set` binds — [`Self::lookup_interp_var_binding`] simply
-    /// finds no entry for it, the same "fails closed" shape as looking
-    /// up an unknown name in `const_strings`.
-    fn resolve_dynamic_interp_path(&self, word: &str, scope_path: &[usize]) -> Option<String> {
-        let (base, index) = crate::naming::split_array_name(word);
-        if index.is_some() {
-            return None;
-        }
-        self.lookup_interp_var_binding(base, scope_path)
-            .map(str::to_string)
+    /// Current original scalar syntax selects independently recorded interpreter-path advice.
+    fn resolve_dynamic_interp_path(&self, token: Option<Token>) -> Option<String> {
+        self.lookup_logical_interp_path(token?)
     }
 
     /// Resolve an `interp alias` path operand to the domain prefix its
@@ -4320,7 +4259,7 @@ impl Analyser {
     /// ONLY through [`Self::resolve_dynamic_interp_path`] — anything else
     /// (an untracked dynamic word) returns `None`, aborting the whole
     /// cross-domain alias (unchanged conservative behaviour).
-    fn resolve_alias_domain_prefix(&self, path: &str, scope_path: &[usize]) -> Option<String> {
+    fn resolve_alias_domain_prefix(&self, path: &str, token: Option<Token>) -> Option<String> {
         if matches!(path, "" | "{}") {
             // The empty path is *this* interpreter — which is the child when
             // the command is written inside a child's eval body, not always
@@ -4328,7 +4267,7 @@ impl Analyser {
             return Some(self.current_interp_domain_prefix());
         }
         let key = if crate::naming::is_dynamic_word(path) {
-            self.resolve_dynamic_interp_path(path, scope_path)?
+            self.resolve_dynamic_interp_path(token)?
         } else {
             self.qualified_interp_key(path)
         };
@@ -6103,20 +6042,13 @@ impl Analyser {
         if args.len() != 3 || arg_tokens.len() < 2 {
             return;
         }
-        let Some(const_val) = self
+        let Some((value, value_span)) = self
             .lookup_logical_const_string_at(&args[1], arg_tokens[1].span)
-            .map(|(value, _)| value.to_owned())
+            .map(|(value, span)| (value.to_owned(), span))
         else {
             return;
         };
-        let elements = crate::tcl_expr_eval::split_tcl_list(&const_val, self.word_rules());
-        let mut i = 0;
-        while i < elements.len() {
-            if !elements[i].is_empty() {
-                self.define_var(&elements[i], arg_tokens[1], scope_path, false, None);
-            }
-            i += 2;
-        }
+        self.retain_readonly_dictionary_keys(&value, value_span, scope_path);
     }
 
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
@@ -6133,6 +6065,16 @@ impl Analyser {
     /// `interp`'s `alias` subcommand); `args[0]` is still the subcommand
     /// word, which is what selects the alias descriptor.
     pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
+        self.handle_interp_alias_with_original_arguments(args, &[], scope_path, offset);
+    }
+
+    pub(super) fn handle_interp_alias_with_original_arguments(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        _scope_path: &[usize],
+        offset: u32,
+    ) {
         // What this call did to the command table is registry data, read
         // through the one transition vocabulary. The
         // interpreter *paths* are not — a path may be a tracked
@@ -6244,8 +6186,10 @@ impl Analyser {
         let (Some(src_path), Some(target_path)) = (args.get(1), args.get(3)) else {
             return;
         };
-        if let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
-            && let Some(target_prefix) = self.resolve_alias_domain_prefix(target_path, scope_path)
+        if let Some(src_prefix) =
+            self.resolve_alias_domain_prefix(src_path, arg_tokens.get(1).copied())
+            && let Some(target_prefix) =
+                self.resolve_alias_domain_prefix(target_path, arg_tokens.get(3).copied())
             && !(src_prefix.is_empty() && target_prefix.is_empty())
         {
             let qualified =
@@ -6321,64 +6265,16 @@ impl Analyser {
         text: &str,
         tok: Option<Token>,
         is_single: bool,
-        scope_path: &[usize],
+        _scope_path: &[usize],
     ) -> Option<String> {
         if !crate::naming::is_dynamic_word(text) {
             return Some(text.to_string());
         }
         let tok = tok?;
-        // Identity resolution (a `source`/`rename` target) must resolve only
-        // through const values that *dominate* this use site — never the
-        // last-write-wins branch value the lexical map otherwise carries.
-        // `set p a.tcl; if {$c} {set p b.tcl}; source $p` must abstain here,
-        // not pin the source to `b.tcl`: a
-        // branch-conditional binding cannot prove a unique target, so
-        // `lookup_dominating_const_string` yields `None` for it. This differs
-        // from `resolve_const_word` / `lookup_const_string`, which other
-        // callers (expansion counts, regex-var tagging) still use with their
-        // existing last-write-wins semantics.
         if is_single && matches!(tok.kind, TokenType::Str | TokenType::Esc) {
-            return Some(text.to_string());
+            return Some(text.to_owned());
         }
-        if is_single && tok.kind == TokenType::Var {
-            let sm = Analyser::source_map(
-                &self.source,
-                &self.cached_line_index,
-                self.cached_line_index_source_len,
-            );
-            // The token's *true source bytes*, which for a braced composite
-            // head (`${ns}::setdef`) are the whole word — the lexer merges
-            // the `${…}` substitution and everything glued to it into one
-            // `Var` token, so the raw text is `ns}::setdef`, not the
-            // variable name.  Reading it whole looks up a variable that
-            // cannot exist and abstains on a word that is in fact
-            // statically resolvable.  The dispatched
-            // variable ends at the brace the lexer left in place; the rest
-            // is an ordinary word suffix, folded like any other (it may
-            // itself interpolate, `${ns}::${sub}`).  Same truncation rule
-            // as `record_var_or_cmd_command_site`'s W307 head reading, so
-            // the two agree on which bytes name the variable.
-            let raw = sm.token_text(tok);
-            let (var_name, suffix) = if tok.content_offset >= 2 {
-                self.split_braced_head(raw)
-            } else {
-                (raw, "")
-            };
-            let value = self.lookup_dominating_const_string(var_name, scope_path)?;
-            if suffix.is_empty() {
-                return Some(value.to_string());
-            }
-            let folded_suffix =
-                crate::text::fold_interpolation_single(suffix, self.braced_var(), |name| {
-                    self.lookup_dominating_const_string(name, scope_path)
-                        .map(str::to_string)
-                })?;
-            return Some(format!("{value}{folded_suffix}"));
-        }
-        crate::text::fold_interpolation_single(text, self.braced_var(), |name| {
-            self.lookup_dominating_const_string(name, scope_path)
-                .map(str::to_string)
-        })
+        self.resolve_logical_value_word(tok)
     }
 
     /// Handle `rename OLD NEW` — record a static rename so calls to
@@ -11991,6 +11887,30 @@ impl Analyser {
         self.head_identities
             .source_bindings()
             .stamp_original_tokens(&mut tokens);
+        if self.result.allows_lexical_declaration_advice() {
+            let words = crate::registry_invocation::source_structure::source_registry_words(
+                &self.source,
+                &self.result,
+                &segmented,
+            )?;
+            let patterns = words.with_source_schema(&context, |schema| {
+                schema.authored_source_pattern_arguments()
+            })??;
+            let mut selected = patterns
+                .into_iter()
+                .filter(|pattern| pattern.kind == tcl_registry::patterns::PatternType::Regex);
+            let pattern = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            let crate::registry_invocation::InvocationWordOrigin::Written(written) = words
+                .origins()
+                .get(usize::from(pattern.index).checked_add(1)?)?
+            else {
+                return None;
+            };
+            return written.checked_sub(1);
+        }
         if tokens.source_binding.is_some() {
             return crate::registry_invocation::normal_representation_invocation_in_context(
                 &context, &tokens,
@@ -12067,9 +11987,7 @@ impl Analyser {
                     self.cached_line_index_source_len,
                 );
                 let var_name = sm.token_text(tok).to_string();
-                if let Some((const_val, def_span)) =
-                    self.lookup_const_string_with_span(&var_name, scope_path)
-                {
+                if let Some((const_val, def_span)) = self.lookup_logical_const_substitution(tok) {
                     let pattern = const_val.to_string();
                     // Record the use site (the `$var` token).
                     self.result.regex_patterns.push(super::types::RegexPattern {
@@ -12451,6 +12369,123 @@ mod tests {
         );
     }
 
+    fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
+        let start = u32::try_from(analyser.source.rfind(needle).unwrap()).unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            analyser
+                .source
+                .get(usize::try_from(start).unwrap()..)
+                .unwrap(),
+            start,
+            analyser.file_lexer_config().nested(),
+        );
+        commands.first().unwrap().argv[0]
+    }
+
+    #[test]
+    fn logical_dynamic_word_keeps_exact_braced_name_and_interpolation_sources() {
+        let source =
+            "set n WRONG; set {$n} RIGHT; set {scalar(open} SCALAR; puts ${n}:${$n}:${scalar(open}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "${n}:${$n}:${scalar(open}");
+        assert_eq!(
+            analyser.resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[]),
+            Some("WRONG:RIGHT:SCALAR".to_owned())
+        );
+        analyser.source = source.replace("RIGHT", "OTHER");
+        assert!(
+            analyser
+                .resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_nested_constant_fold_uses_original_variable_components() {
+        let source = "set n WRONG; set {$n} RIGHT; set result [list $n [list ${$n}]]; puts $result";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$result");
+        assert_eq!(
+            analyser
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("WRONG RIGHT")
+        );
+    }
+
+    #[test]
+    fn logical_regex_value_metadata_uses_original_scope_and_source_provenance() {
+        let source = "set pattern {ROOT}; proc p {} {set pattern {LOCAL}; regexp $pattern text}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let source_use = source.rfind("$pattern").unwrap();
+        assert!(analyser.result.regex_patterns.iter().any(|pattern| {
+            pattern.pattern == "LOCAL"
+                && usize::try_from(pattern.range.start()).unwrap() == source_use
+        }));
+        assert!(
+            !analyser
+                .result
+                .regex_patterns
+                .iter()
+                .any(|pattern| pattern.pattern == "ROOT")
+        );
+    }
+
+    #[test]
+    fn logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot() {
+        let source = "set child [interp create named]; interp eval $child {set x VALUE}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$child");
+        assert_eq!(
+            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
+            Some("named")
+        );
+        let snapshot = analyser.snapshot();
+        analyser.source = source.replace("VALUE", "OTHER");
+        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
+        analyser.source = source.to_owned();
+        analyser.restore(snapshot);
+        assert_eq!(
+            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
+            Some("named")
+        );
+        let source = "set child named; interp eval $child {set x VALUE}";
+        let mut scalar = Analyser::new();
+        scalar.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&scalar, "$child");
+        assert!(scalar.resolve_dynamic_interp_path(Some(token)).is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_keys_have_metadata_and_data_geometry_without_variable_declarations() {
+        let source = "set d {alpha A beta B}; dict with d {puts $alpha}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let scope = &analyser.result.global_scope;
+        assert!(!scope.variables.contains_key("alpha"));
+        assert!(!scope.variables.contains_key("beta"));
+        let alpha = scope.readonly_dictionary_keys.get("alpha").unwrap();
+        assert_eq!(
+            &source[alpha.original_key_span().unwrap().as_range()],
+            "alpha"
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let advice = analyser
+            .result
+            .logical_variable_scope_advice(
+                &image,
+                analyser.file_lexer_config(),
+                u32::try_from(source.rfind("$alpha").unwrap()).unwrap(),
+            )
+            .unwrap();
+        assert!(advice.readonly_variable_names().contains(&"alpha"));
+        assert!(advice.variable_definition("alpha").is_none());
+    }
+
     #[test]
     fn dynamic_apply_value_uses_checked_logical_variable_declaration() {
         let source = "namespace eval N {set lambda {{p} {puts $p} ::N}}; apply $::N::lambda VALUE";
@@ -12518,8 +12553,14 @@ mod tests {
             .iter()
             .find(|scope| scope.kind == super::super::types::ScopeKind::Namespace)
             .unwrap();
-        assert!(namespace.variables.contains_key("local"));
-        assert!(!namespace.variables.contains_key("root"));
+        assert!(namespace.readonly_dictionary_keys.contains_key("local"));
+        assert!(!namespace.readonly_dictionary_keys.contains_key("root"));
+        assert!(!namespace.variables.contains_key("local"));
+        let key = &namespace.readonly_dictionary_keys["local"];
+        assert_eq!(
+            &source[key.original_key_span().unwrap().as_range()],
+            "local"
+        );
         let source = "set d {root ROOT}; proc p {} {dict with d {puts $root}}";
         let mut procedure = Analyser::new();
         procedure.analyse_and_retain_result_for_test(source, "tcl");

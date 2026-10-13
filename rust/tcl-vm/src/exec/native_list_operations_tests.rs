@@ -111,3 +111,26 @@ fn original_range_and_assignment_match_84_native_completion_and_original_header_
     }
     assert_eq!(windows, 84);
 }
+
+#[test]
+fn original_c86_insertion_matches_five_native_result_and_original_header_pairs() {
+    let rows = include_str!("../../../tcl-registry/tests/data/native_list_operations/8.6.18.txt");
+    let mut windows = 0;
+    for line in rows.lines().filter(|line| line.starts_with("R|")) {
+        let result = line.split('|').collect::<Vec<_>>();
+        let case = result[1].parse::<usize>().unwrap();
+        if ![5, 6, 7, 8, 29].contains(&case) {
+            continue;
+        }
+        let prefix = format!("O|{case}|");
+        let original = rows
+            .lines()
+            .find(|line| line.starts_with(&prefix))
+            .unwrap()
+            .split('|')
+            .collect::<Vec<_>>();
+        run("tcl8.6", CASES[case], &result, &original);
+        windows += 1;
+    }
+    assert_eq!(windows, 5);
+}

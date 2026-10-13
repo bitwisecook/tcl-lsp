@@ -2382,6 +2382,15 @@ pub(crate) fn global_vars_needing_qualification(
         .keys()
         .cloned()
         .collect::<FxHashSet<_>>();
+    globals.extend(
+        advice
+            .readonly_root_variable_names()
+            .into_iter()
+            .map(str::to_owned),
+    );
+    for name in advice.readonly_variable_names() {
+        globals.remove(name);
+    }
     for scope in advice.eligible_scopes() {
         if std::ptr::eq(scope, advice.root()) {
             continue;

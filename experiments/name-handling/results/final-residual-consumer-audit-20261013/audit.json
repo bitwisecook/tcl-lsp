@@ -1,0 +1,230 @@
+{
+  "head": "b67a04ada34bf1e5e6de1a00860811c8faafbe1c",
+  "snapshot_kind": "bounded read-only per-file observational snapshot; no build seal",
+  "rows": [
+    {
+      "id": "apl-domain-variable-bridge",
+      "kind": "semantic-public-source-and-domain-boundary",
+      "owner": "APL/Syntax lane",
+      "sites": [
+        [
+          "rust/tcl-bigip/src/apl/model.rs",
+          94
+        ],
+        [
+          "rust/tcl-bigip/src/apl/model.rs",
+          110
+        ],
+        [
+          "rust/tcl-bigip/src/apl/model.rs",
+          121
+        ],
+        [
+          "rust/tcl-bigip/src/apl/iapp_vars.rs",
+          34
+        ],
+        [
+          "rust/tcl-bigip/src/apl/iapp_vars.rs",
+          60
+        ]
+      ],
+      "callers": [
+        [
+          "rust/tcl-lsp-server/src/lib.rs",
+          31096
+        ],
+        [
+          "rust/tcl-lsp-server/src/lib.rs",
+          31108
+        ],
+        [
+          "rust/tcl-lsp-server/src/lib.rs",
+          31128
+        ],
+        [
+          "rust/bigip-report-gen/rust/src/model.rs",
+          153
+        ],
+        [
+          "rust/bigip-report-gen/rust/src/model.rs",
+          163
+        ]
+      ],
+      "remaining": "One domain mapper must consume shared counted written-root geometry, preserve lone-colon data, reject namespace-qualified roots for the presentation-global convention, and serve forward exports/reverse projection/reference extraction. Raw-source regex currently supplies diagnostic references independently of Tcl lexical components. See apl-api-contract.md."
+    },
+    {
+      "id": "codegen-descriptor-guard-adapter",
+      "kind": "semantic-registry-metadata-comparison",
+      "owner": "Compiler/Registry lane",
+      "sites": [
+        [
+          "rust/tcl-compiler/src/codegen/mod.rs",
+          626
+        ]
+      ],
+      "remaining": "Use the existing selected descriptor key/rooted_binding_label and command_descriptor_labels_match owner. Private optional-root stripping precedes guard attachment; original source word, exact namespace context, original target/currentness and actual native guard remain mandatory. Never promote a descriptor label into a live command token."
+    },
+    {
+      "id": "runtime-api-constructed-namespace-adapters",
+      "kind": "duplicated-purpose-correct-adapter",
+      "owner": "Runtime/Syntax lane",
+      "sites": [
+        [
+          "rust/tcl-runtime-api/src/lib.rs",
+          550
+        ],
+        [
+          "rust/tcl-runtime-api/src/lib.rs",
+          650
+        ]
+      ],
+      "remaining": "Delegate exact one-marker constructed namespace adaptation to existing Syntax unroot_rooted_key, retaining unrooted compatibility behavior. Current typed namespace_context remains authoritative. This is centralisation work, not evidence of a native name bug."
+    },
+    {
+      "id": "emission-native-path-compatibility-key",
+      "kind": "checked-compatibility-projection",
+      "owner": "Compiler/Syntax lane",
+      "sites": [
+        [
+          "rust/tcl-compiler/src/codegen/mod.rs",
+          87
+        ]
+      ],
+      "remaining": "Actual ByteNamespacePath remains authoritative; private checked legacy key rendering could be owned once by Syntax. Existing exact UTF-8/injectivity check declines ambiguity. A native source-spelling helper is a different purpose and cannot replace this renderer by assumption."
+    },
+    {
+      "id": "bpf-thread-name-hint",
+      "kind": "diagnostic-name-classifier",
+      "owner": "BPF/Syntax lane",
+      "sites": [
+        [
+          "rust/bpf-tcl-ir/src/lower.rs",
+          1148
+        ]
+      ],
+      "remaining": "Replace all-leading-colon trimming with shared counted written geometry for the optional Thread diagnostic. It is used only after unknown-command admission refusal, not native lowering/dispatch. Preserve lone-colon data."
+    },
+    {
+      "id": "legacy-proc-source-replay",
+      "kind": "inactive-in-module-emission-public-api",
+      "owner": "Compiler lane",
+      "sites": [
+        [
+          "rust/tcl-compiler/src/codegen/emitter/proc_defs.rs",
+          37
+        ],
+        [
+          "rust/tcl-compiler/src/codegen/emitter/proc_defs.rs",
+          59
+        ],
+        [
+          "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+          81
+        ]
+      ],
+      "remaining": "Public codegen_function_with_procs/Backend.lower_function accept caller-supplied nonempty pending IR declarations and replay synthetic proc argv from name/params/body. All actual Module emission producers at emitter/mod.rs455/600/621 pass []; repository nonempty use is tests/codegen_depth.rs244. Do not count this as an active Module semantic consumer or delete public replay from a call-count assumption; explicitly retire the API or require original declaration argv/admission if keeping it."
+    },
+    {
+      "id": "typed-object-return-rows",
+      "kind": "migrated-reporting-only-public-api",
+      "owner": "Method lane / integrated Main",
+      "sites": [
+        [
+          "rust/tcl-compiler/src/object_types.rs",
+          260
+        ],
+        [
+          "rust/tcl-compiler/src/object_types.rs",
+          578
+        ]
+      ],
+      "remaining": "Current Main returns_object is HashMap<ProcedureId,String> assigned directly from returning_procs. No semantic production readers of this public result-report field were found; four actual fixture assertions now use retained IDs. Duplicate rows are preserved. No original object allocation proof is supplied."
+    },
+    {
+      "id": "compiler-bytecode-fixture-ids",
+      "kind": "authored-test-adapters",
+      "owner": "TestsAudit / Root gates",
+      "sites": [
+        [
+          "rust/tcl-compiler/tests/support/body_identity.rs",
+          1
+        ],
+        [
+          "rust/tcl-bytecode/src/lib.rs",
+          3592
+        ]
+      ],
+      "remaining": "Fixture labels select unique authored test inventory rows and decline ambiguity; negative presence checks use fixture_id_if_present. Bytecode formatter fixture IDs are minted by the fixture issuer, not native activation. These changes do not establish production conformance or that all tests compile; actual test collection/execution gates remain Root-owned."
+    },
+    {
+      "id": "ai-tooling-forwarding-and-generation",
+      "kind": "bounded-shared-consumer-disposition",
+      "owner": "Tooling/AI lane",
+      "sites": [
+        [
+          "rust/tcl-mcp/src/irule_gen.rs",
+          109
+        ],
+        [
+          "rust/tcl-mcp/src/irule_gen.rs",
+          235
+        ],
+        [
+          "rust/tcl-irules/src/source_context.rs",
+          423
+        ],
+        [
+          "rust/xtask/src/gen_ai.rs",
+          306
+        ]
+      ],
+      "remaining": "MCP captures actual original iRules source context and uses original Registry source roles; generated source/outcome obligations remain conditional. AI catalog generation obtains vendor_command_surface from selected context. Existing ai-tool-consumer-review controls are scoped evidence; transport/generator membership alone is no execution proof."
+    },
+    {
+      "id": "editor-and-target-boundaries",
+      "kind": "nonlookup-surface-dispositions",
+      "owner": "Root tracking and documentation cleanup",
+      "sites": [
+        [
+          "editors/vscode/src/scaffold.ts",
+          84
+        ],
+        [
+          "editors/vscode/src/tkPreviewPanelHtml.ts",
+          535
+        ],
+        [
+          "editors/zed/src/lib.rs",
+          1
+        ]
+      ],
+      "remaining": "Package scaffold namespace creation is authored new-package data; Tk CSS normalisation is presentation. Include Zed alongside VSCode/JetBrains/Neovim/Emacs/Helix/Sublime Text in the inventory. LSP/engine/explorer/VM/spec/report wasm facades forward to shared Rust owners; not separately proved execution. BPF ELF/BTF symbols are artifact names selected by typed map/instruction relocation indexes. Native/WASM/Bytecode/BPF actual emitters need their own lanes/gates; future CPU target contract documentation is not an existing emitter."
+    }
+  ],
+  "source_sha256": {
+    "editors/vscode/src/scaffold.ts": "147a45a77bcce963822c4dc6e3292f379650bb3520f114c7aba83c4b236847d1",
+    "editors/vscode/src/tkPreviewPanelHtml.ts": "3ab8bca42c722e984d40b9fca49e5dc898a3dcb329eda70e02821c1fc52d1f85",
+    "editors/zed/src/lib.rs": "fc860ecfde9654d309f0ccb295d30079b105e7bd9fe17198926923530ff972b9",
+    "rust/bigip-report-gen/rust/src/model.rs": "62b80d74deebc0cf45eb1a7bfb520c29271f504a3a5de1d9288480592d5583bc",
+    "rust/bpf-tcl-ir/src/lower.rs": "29edd4693171b5b2192d9014a2ec1042524d5e0a7ba7fd32dc9699e77a08b073",
+    "rust/tcl-bigip/src/apl/iapp_vars.rs": "3514794de0e7a6fd3b83c58e17453f4bc00d965fe420f73ca6df1d0dc3782f4d",
+    "rust/tcl-bigip/src/apl/model.rs": "76f2654db5b3a424bc40bbcecaa45db76c8c659f7097ecb04f8c779d9fbae025",
+    "rust/tcl-bytecode/src/lib.rs": "c20ef254334901247a6f9c476b2d870b0dcd25173aa094924d2f00e5ea3448f3",
+    "rust/tcl-compiler/src/codegen/emitter/mod.rs": "42235bfb0838375efb6c65786f9c2dc72a28cdf6ba203695a4f06f2d5b36dc01",
+    "rust/tcl-compiler/src/codegen/emitter/proc_defs.rs": "a876cd7991d178c83289ce08c4f17dc0b14c5cc3f0df20a9da8966ce85cf7051",
+    "rust/tcl-compiler/src/codegen/mod.rs": "46d4e9e639178bd94d575315598c9f6b70a453517325821ce1c751ca18c1e270",
+    "rust/tcl-compiler/src/object_types.rs": "be50a93e26de5b74bb9af19ab43529a802f136bfd27fc5ce28c4db664d418f70",
+    "rust/tcl-compiler/tests/support/body_identity.rs": "feb1eb7f3f8b855314dd91eef0e7930a960f266b8b1c21906323064243516321",
+    "rust/tcl-irules/src/source_context.rs": "ae087950d2efa1e96b5e247d5dd8ab45e48e4a35b9b615c23c424c9db83ac47f",
+    "rust/tcl-lsp-server/src/lib.rs": "5afe78f7ecd27e4f85334263a74b3af98912560136c6d62ad802fd862c4dfd50",
+    "rust/tcl-mcp/src/irule_gen.rs": "db83e63cb52238c77fa41061b51dc0bc3839cf4eb673ac9587cff5f61001a931",
+    "rust/tcl-runtime-api/src/lib.rs": "75e1eca1a01e4ab48bea1159b63393ed28107ece263476e2865e521f713719ab",
+    "rust/xtask/src/gen_ai.rs": "1e45210ae56aa9474e14c4aea85058441cc8045c6f6a4a743797f18ea540f7aa"
+  },
+  "limitations": [
+    "No Main/codegen source edits, Git actions, formatting, heavy build or tests were performed in this audit.",
+    "Earlier 63-package/330-LSP-row audit is inherited discovery scope, not fresh proof for every consumer.",
+    "All-package completion cannot follow from absence of matching text, typed fields, fixture adaptation or a library-only check.",
+    "APL appliance naming/convention behavior requires actual BIG-IP responses; safe original C/Jim syntax controls cannot establish appliance policy."
+  ]
+}

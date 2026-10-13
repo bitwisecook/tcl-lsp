@@ -1,0 +1,21 @@
+Diff in /tmp/name-logical-source-role-20261013/source_read_scope.after.rs:213:
+             });
+             if inputs.len() != prefix.len()
+                 || inputs.iter().zip(captured).any(|(input, word)| {
+-                    let Some(captured) = word.input.as_ref() else { return true; };
++                    let Some(captured) = word.input.as_ref() else {
++                        return true;
++                    };
+                     match captured {
+-                        crate::command_binding::SourceAdviceNameInput::Native(original) => original != input,
++                        crate::command_binding::SourceAdviceNameInput::Native(original) => {
++                            original != input
++                        }
+                         crate::command_binding::SourceAdviceNameInput::Logical(original) => {
+                             advice.logical_source_input().is_none()
+-                                || input.policy().authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
++                                || input.policy().authority()
++                                    != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+                                 || input.original_word_key().is_none_or(|key| {
+                                     key.original_word() != original.original_word()
+                                         || key.bytes() != original.bytes()

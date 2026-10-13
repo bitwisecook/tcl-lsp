@@ -1,0 +1,18 @@
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -2382,6 +2382,15 @@
+         .keys()
+         .cloned()
+         .collect::<FxHashSet<_>>();
++    globals.extend(
++        advice
++            .readonly_root_variable_names()
++            .into_iter()
++            .map(str::to_owned),
++    );
++    for name in advice.readonly_variable_names() {
++        globals.remove(name);
++    }
+     for scope in advice.eligible_scopes() {
+         if std::ptr::eq(scope, advice.root()) {
+             continue;

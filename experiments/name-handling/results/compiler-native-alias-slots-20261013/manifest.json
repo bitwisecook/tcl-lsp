@@ -1,0 +1,26 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+      "isolated_before_sha256": "d2504ee007556c95598396e4ccfb46bc805a765714fa297806c802809546090f",
+      "isolated_after_sha256": "17366a9fd0cb0a2aac9ddfdf1126880cedd64d62bb7d3a83f7db9dd9e858d085"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+      "isolated_before_sha256": "686b59a7430d6f39530a866a8ee56ead3b69c56eb2abb58d4c1b222671b52c85",
+      "isolated_after_sha256": "92efd5b8ae7530a69ebba1be2212e2564247f0f942f8dea62d3cd707f579067e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/runtime_entry.rs",
+      "isolated_before_sha256": "01893450bb5de7a27bfc3acd71b74e2ab8611aae4b41318825f9bd03f0daddbb",
+      "isolated_after_sha256": "61d6379ba7c31db0f59d790d368c3f6fe0afabbdb49c6ce13e070dc330f059ad"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "isolated_before_sha256": "96c5f42dccbac89f7538bc5db6beee07fce460d36c6a3414d634c6c8c8ba3ff3",
+      "isolated_after_sha256": "2f309b2caa67a834cd631ad516833fbfd7e688a28d87cc79b33c5ea50ba093f8"
+    }
+  ],
+  "status": "uncompiled",
+  "scope": "compiler-slots"
+}

@@ -1,0 +1,116 @@
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+index 01f9885bf..66fc3aadf 100644
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -1309,46 +1309,59 @@ pub fn file_call_site_evidence(
+     file: SourceFile,
+     project: Project,
+ ) -> Arc<CallSiteEvidence> {
+-    let dialect = file.dialect(db).clone();
+-    let registry = db.registry(&dialect);
+-    let known: std::collections::HashSet<String> =
+-        project_proc_names(db, project).iter().cloned().collect();
++    let known: HashSet<String> = project_proc_names(db, project).iter().cloned().collect();
+     let reach: Vec<String> = file_dispatch_reach(db, file, project)
+         .iter()
+         .cloned()
+         .collect();
+-    // The file's own stub declarations, through the same query the build
+-    // reads: a call site sitting in a stub-declared body or behind a
+-    // stub-declared callback counts for this file exactly as a catalogue one
+-    // does.
+     let declared = declared_command_surface(db, file);
+-    let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
+-        file.text(db),
+-        registry,
+-        Some(&declared),
+-        tcl_lsp_core::profile_for_dialect(&dialect),
+-        &known,
+-        &reach,
+-    );
+-    // Drop the callees *this* file declares. A call to a name the file also
+-    // defines binds to its own definition, so it is in-unit evidence (already
+-    // collected during the build) — not evidence about a same-named proc in
+-    // some other file.
+-    //
+-    // Without this, any two unrelated workspace files that happen to reuse a
+-    // common helper name (`helper`, `init`, `run` — pervasive in Tcl) pool
+-    // their call sites: differing arities make `binds_position` fail and
+-    // differing literals contradict each other, so *both* files lose folds
+-    // they are individually entitled to, and editing one changes diagnostics
+-    // in the other. Excluding self-declared callees keeps the merge to what
+-    // the query name promises — the call sites a file contributes to *other*
+-    // files' procedures.
+-    let declared = file_decls(db, file);
+-    let external: Vec<&str> = scanned
+-        .callees()
+-        .filter(|qname| !declared.procs.contains(*qname))
++    let config = project_token_inputs::configuration_for_file(db, project, file);
++    let own = config.and_then(|config| file_original_procedure_facts(db, file, config));
++    let scanned = match config {
++        Some(config) => match document_analysis_input(db, file, config) {
++            Ok(input) => {
++                let external: Vec<_> = project_original_procedure_facts(db, project)
++                    .iter()
++                    .filter(|(provider, _)| *provider != file)
++                    .filter_map(|(_, facts)| {
++                        tcl_compiler::unit_scope::ExternalSourceProcedureFacts::capture(
++                            facts.input(),
++                            facts.image(),
++                            facts.declarations(),
++                        )
++                    })
++                    .collect();
++                tcl_compiler::unit_scope::scan_source_call_sites_with_original_source(
++                    file.text(db),
++                    Some(&declared),
++                    &known,
++                    &reach,
++                    &input,
++                    None,
++                    &external,
++                )
++            }
++            Err(_) => {
++                let mut unavailable = CallSiteEvidence::default();
++                unavailable.record_unenumerable_caller(&known.iter().cloned().collect::<Vec<_>>());
++                unavailable
++            }
++        },
++        None => tcl_compiler::unit_scope::scan_source_call_sites(
++            file.text(db),
++            db.registry(file.dialect(db)),
++            Some(&declared),
++            tcl_lsp_core::profile_for_dialect(file.dialect(db)),
++            &known,
++            &reach,
++        ),
++    };
++    let sites: Vec<_> = own
++        .iter()
++        .flat_map(|facts| facts.declarations())
++        .map(|declaration| declaration.declaration_site().clone())
+         .collect();
+-    Arc::new(scanned.slice_for(external.into_iter()))
++    Arc::new(scanned.without_original_declarations(&sites))
+ }
+ 
+ /// The project-wide merge of every file's [`file_call_site_evidence`].
+@@ -1379,9 +1392,15 @@ pub fn file_external_call_sites(
+     file: SourceFile,
+     project: Project,
+ ) -> Arc<CallSiteEvidence> {
+-    let declared = file_decls(db, file);
+     let all = project_call_site_evidence(db, project);
+-    Arc::new(all.slice_for(declared.procs.iter().map(String::as_str)))
++    let own = project_token_inputs::configuration_for_file(db, project, file)
++        .and_then(|config| file_original_procedure_facts(db, file, config));
++    let sites: Vec<_> = own
++        .iter()
++        .flat_map(|facts| facts.declarations())
++        .map(|declaration| declaration.declaration_site().clone())
++        .collect();
++    Arc::new(all.slice_for_original_declarations(&sites))
+ }
+ 
+ /// Original unresolved source name retained by the diagnostic emitter.

@@ -3003,6 +3003,10 @@ impl ModuleCommandBindings {
         if self.runtime_execution_observed(target.token.as_ref()) {
             selected.unknown = true;
         }
+        if matches!(lookup, super::CommandTargetLookup::CompilerSlots) {
+            selected.insert(target.clone(), None);
+            return Some(());
+        }
         if target.terminal {
             selected.insert(target.clone(), target.prepended.is_empty().then(Vec::new));
             return Some(());

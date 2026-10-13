@@ -1,0 +1,12 @@
+{
+  "path": "rust/tcl-compiler/src/unit_scope.rs",
+  "before_sha256": "c71c73256e0fd6c629d79b3dca074f69bdfd5a8f106f5e5da624b319f3dcf5f0",
+  "after_sha256": "f6a9b7c6af45d232ab3bdfade9f1a3a8e6391bda479d7b6bf2143be3bb858851",
+  "status": "Formatted/parsed additive API; uncompiled after accepted strict04. No loaded Native or positive external implementation inferred.",
+  "apis": [
+    "ExternalSourceProcedureFacts::capture(input,image,declarations)",
+    "scan_source_call_sites_with_original_source(..., input, Option<&SourceAnalysisEntry>, external)",
+    "CallSiteEvidence::slice_for_original_declarations(&[CommandAllocationSite])",
+    "CallSiteEvidence::without_original_declarations(&[CommandAllocationSite])"
+  ]
+}
