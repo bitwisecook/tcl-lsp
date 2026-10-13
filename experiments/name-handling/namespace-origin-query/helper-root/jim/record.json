@@ -1,0 +1,17 @@
+{
+  "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "latest_verification_authority": "parent independently verified upstream HEAD 2026-10-13; raw measurement records its own binary/patchlevel only",
+  "engine": "jim",
+  "measurement_utc": "2026-10-13T18:41:06.511395+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/helper-root-input.tcl"
+  ],
+  "input_sha256": "467f359643fe152d912d39e57aa5992ee2720fee7d6e1d69a89db9ea62121bda",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "exit_code": 0,
+  "stdout_sha256": "a44356e26c13979a06643d32b37d338119dd47363bcf179dd2a61214e2baf24e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 5,
+  "scope": "original fixed helper-root lookup counterexample; actual byte reports and setup outcomes only, never command-token identity"
+}

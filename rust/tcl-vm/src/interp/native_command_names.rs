@@ -13,6 +13,136 @@ use tcl_runtime_api::native_command_name::{
 };
 use tcl_syntax::value::ValueError;
 
+pub(super) struct JimNamespaceOriginBackend<'a> {
+    pub(super) vm: &'a mut Vm,
+    pub(super) current: NsId,
+    pub(super) entered: &'a OriginalLookup,
+    pub(super) protocol: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
+}
+
+impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
+    for JimNamespaceOriginBackend<'_>
+{
+    type Original = Value;
+    type Error = CmdError;
+
+    fn canonical(&mut self, original: &Value) -> Result<Value, CmdError> {
+        self.entered.check(self.vm)?;
+        let bytes = self.vm.native_name_operand_bytes_checked(original)?;
+        self.entered.check(self.vm)?;
+        let namespace = self.entered.read_jim_namespace(self.vm)?;
+        let path = self.vm.ns_path(self.current);
+        let projected = self
+            .protocol
+            .namespace_origin_canonical(
+                tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, &namespace),
+                &bytes,
+            )
+            .map_err(|_| ValueError::CommandProtocolUnavailable("Jim origin canonical operand"))?;
+        let canonical = match projected.construction {
+            tcl_syntax::naming::NativeJimNamespaceConstruction::RetainOriginal => original.clone(),
+            tcl_syntax::naming::NativeJimNamespaceConstruction::FreshString => {
+                let value = Value::from_native_string_bytes(projected.selected.as_bytes());
+                value.bind_native_jim_context(&self.vm.native_jim_object_context()?)?;
+                value
+            }
+            tcl_syntax::naming::NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
+                let namespace = self.entered.jim_namespace_original().ok_or(
+                    ValueError::CommandProtocolUnavailable("Jim origin namespace object"),
+                )?;
+                let duplicate = namespace.duplicate_native_object_in(
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                );
+                self.entered.check(self.vm)?;
+                let append = self
+                    .vm
+                    .actual_native_invocation_dialect()
+                    .native_object_append_protocol(None)
+                    .ok_or(ValueError::CommandProtocolUnavailable(
+                        "Jim origin canonical append issuer",
+                    ))?;
+                let separator = Value::from_native_string_bytes(b"::");
+                let mut prepared = tcl_cmd_core::native_append::append_object(
+                    &crate::value::VmAppendObjects,
+                    append.recipe(),
+                    Some(&duplicate),
+                    &separator,
+                )?;
+                self.entered.check(self.vm)?;
+                tcl_cmd_core::native_append::append_continuation(
+                    &crate::value::VmAppendObjects,
+                    &mut prepared,
+                    original,
+                )?;
+                self.entered.check(self.vm)?;
+                let value = prepared.into_value();
+                value.bind_native_jim_context(&self.vm.native_jim_object_context()?)?;
+                value
+            }
+        };
+        self.entered.check(self.vm)?;
+        Ok(canonical)
+    }
+
+    fn alias_prefix(&mut self, canonical: &Value) -> Result<Option<Value>, CmdError> {
+        use tcl_runtime_api::Aliases;
+        let selected = self.vm.lookup_original_command_at(ROOT_NS, canonical);
+        self.entered.check(self.vm)?;
+        let selected = selected?;
+        let is_alias = match selected.as_ref().map(|(_, command)| command) {
+            Some(Command::CallerAlias(_)) => true,
+            Some(Command::Alias { .. }) => {
+                return Err(ValueError::CommandProtocolUnavailable(
+                    "Jim origin original alias flag owner",
+                )
+                .into());
+            }
+            _ => false,
+        };
+        drop(selected);
+        self.entered.check(self.vm)?;
+        if !is_alias {
+            return Ok(None);
+        }
+        let reached = self.vm.alias_prefix_original_value_at(ROOT_NS, canonical);
+        self.entered.check(self.vm)?;
+        let failure = match reached? {
+            tcl_runtime_api::AliasPrefixLookup::Prefix(original) => return Ok(Some(original)),
+            tcl_runtime_api::AliasPrefixLookup::MissingCommand => {
+                tcl_runtime_api::NativeJimAliasLookupFailure::MissingCommand
+            }
+            tcl_runtime_api::AliasPrefixLookup::NotAlias => {
+                tcl_runtime_api::NativeJimAliasLookupFailure::NotAlias
+            }
+        };
+        let bytes = self.vm.native_name_operand_bytes_checked(canonical)?;
+        self.entered.check(self.vm)?;
+        Err(CmdError::new_bytes(failure.message(&bytes))
+            .with_native_string_result(tcl_syntax::native_string::NativeStringProtocol::Jim084))
+    }
+
+    fn command_exists(&mut self, original: &Value) -> Result<bool, CmdError> {
+        let reached = self.vm.native_command_from_original_at(ROOT_NS, original);
+        self.entered.check(self.vm)?;
+        reached.map(|command| command.is_some())
+    }
+
+    fn report(&mut self, original: &Value) -> Result<Vec<u8>, CmdError> {
+        let reached = self.vm.native_name_operand_bytes_checked(original);
+        self.entered.check(self.vm)?;
+        reached.map(|bytes| self.protocol.namespace_origin_result(&bytes))
+    }
+
+    fn same_original(&self, left: &Value, right: &Value) -> bool {
+        left.is_same_object(right)
+    }
+
+    fn alias_cycle_unavailable(&mut self) -> CmdError {
+        self.vm
+            .retain_name_query_refusal("unbounded Jim namespace origin alias cycle")
+    }
+}
+
 /// Actual compiler target/frame observations, with the genuine inherited
 /// currency recorded by SavedExecutionTarget. An authored None remains None.
 pub(super) struct OriginalLiteralOperation<'a> {
@@ -359,6 +489,9 @@ impl Vm {
         original: &Value,
         follow_imports: bool,
     ) -> Result<Option<Vec<u8>>, CmdError> {
+        if follow_imports && self.uses_native_jim_lookup() {
+            return self.native_jim_namespace_origin(original).map(Some);
+        }
         if !follow_imports
             && self
                 .name_policy_protocol()
@@ -385,7 +518,7 @@ impl Vm {
                 for candidate in candidates {
                     let lookup =
                         Value::from_native_string_bytes(candidate.lookup.as_bytes().to_vec());
-                    let selected = self.native_command_from_original_at(current, &lookup)?;
+                    let selected = self.native_command_from_original_at(ROOT_NS, &lookup)?;
                     entered.check(self)?;
                     drop(lookup);
                     entered.check(self)?;
@@ -408,6 +541,47 @@ impl Vm {
         tcl_cmd_core::namespace::command_name_from_command_checked(self, command)
             .map(Some)
             .map_err(Into::into)
+    }
+
+    fn native_jim_namespace_origin(&mut self, original: &Value) -> Result<Vec<u8>, CmdError> {
+        let current = self.current_ns_id();
+        let entered = OriginalLookup::enter(self, current, original)?;
+        let reached = (|| {
+            let protocol = self
+                .actual_native_invocation_dialect()
+                .native_jim_lookup_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim namespace origin issuer",
+                ))?;
+            let mut backend = JimNamespaceOriginBackend {
+                vm: self,
+                current,
+                entered: &entered,
+                protocol,
+            };
+            let outcome = tcl_registry::native_jim_lookup::native_jim_namespace_origin(
+                &mut backend,
+                original,
+            )?;
+            match outcome {
+                tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Found(bytes) => {
+                    Ok(bytes)
+                }
+                tcl_registry::native_jim_lookup::NativeJimNamespaceOriginOutcome::Missing(
+                    original,
+                ) => {
+                    let bytes = backend.vm.native_name_operand_bytes_checked(&original)?;
+                    backend.entered.check(backend.vm)?;
+                    Err(
+                        CmdError::new_bytes(protocol.namespace_origin_missing(&bytes))
+                            .with_native_string_result(
+                                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                            ),
+                    )
+                }
+            }
+        })();
+        entered.finish(self, reached)
     }
 
     /// Allocate the selected C full-command-name String result independently

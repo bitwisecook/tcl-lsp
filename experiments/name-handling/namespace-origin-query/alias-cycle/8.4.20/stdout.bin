@@ -1,0 +1,3 @@
+IDENTITY 8.4.20
+SETUP first 0 ::__no_cycle_a second 1 {cannot define or rename alias "::__no_cycle_b": would create a loop}
+ORIGIN 0 ::__no_cycle_a

@@ -1,0 +1,20 @@
+{
+  "source_tag": "core-9-1-0",
+  "upstream_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+  "upstream_integrity_sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "engine": "9.1.0",
+  "measurement_utc": "2026-10-13T18:41:06.507512+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/helper-root-input.tcl"
+  ],
+  "input_sha256": "467f359643fe152d912d39e57aa5992ee2720fee7d6e1d69a89db9ea62121bda",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "exit_code": 0,
+  "stdout_sha256": "f0dbb487a99c3647fa0f6eb9b60a687de78018282c462c07e45034f6bd88b47f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 5,
+  "scope": "original fixed helper-root lookup counterexample; actual byte reports and setup outcomes only, never command-token identity"
+}

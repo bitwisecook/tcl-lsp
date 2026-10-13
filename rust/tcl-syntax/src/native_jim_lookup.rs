@@ -5,6 +5,16 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NativeJimLookupProtocol(());
 
+/// Jim origin canonicalisation selects an original holder or its constructor;
+/// the bytes supply no command token or alias-prefix authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeJimNamespaceOriginCanonical {
+    /// Canonical bytes, independent of a command identity.
+    pub selected: tcl_core_types::NameBytes,
+    /// Constructor role retaining the original operand or actual namespace.
+    pub construction: crate::naming::NativeJimNamespaceConstruction,
+}
+
 /// Native link target construction, independent of variable key equality.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeJimLinkTargetInput<'a> {
@@ -64,6 +74,42 @@ impl NativeJimLookupProtocol {
         let mut bytes = b"::".to_vec();
         bytes.extend_from_slice(original_namespace);
         bytes
+    }
+
+    /// Canonicalise an origin operand in the actual caller namespace. The
+    /// helper's alias and command getters independently execute in root.
+    ///
+    /// # Errors
+    /// Refuses an absent actual namespace object.
+    pub fn namespace_origin_canonical(
+        self,
+        context: crate::naming::NativeNameContext<'_>,
+        original: &[u8],
+    ) -> Result<NativeJimNamespaceOriginCanonical, crate::naming::NameProjectionUnavailable> {
+        let names = crate::naming::NativeNameProtocol::Jim084;
+        let selected = names.jim_namespace_canonical_input(context, original)?;
+        Ok(NativeJimNamespaceOriginCanonical {
+            selected: tcl_core_types::NameBytes::from(selected.selected()),
+            construction: names.jim_namespace_construction(context, original)?,
+        })
+    }
+
+    /// Report the successful original operand with a counted root prefix.
+    /// This does not recover its command identity or split an alias prefix.
+    #[must_use]
+    pub fn namespace_origin_result(self, selected: &[u8]) -> Vec<u8> {
+        let mut result = b"::".to_vec();
+        result.extend_from_slice(selected);
+        result
+    }
+
+    /// The script helper reports the complete recursive name as counted bytes.
+    #[must_use]
+    pub fn namespace_origin_missing(self, original: &[u8]) -> Vec<u8> {
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(original);
+        message.push(b'"');
+        message
     }
 
     /// Select `Jim_SetVariableLink`'s original-object owner and actual target frame.
@@ -290,4 +336,46 @@ mod tests {
         assert!(!protocol.ordinary_replacement_changes_epoch());
         assert!(protocol.miss_preserves_primary());
     }
+}
+
+#[cfg(test)]
+#[test]
+fn origin_canonical_roles_keep_query_names_independent_of_reports() {
+    use crate::naming::{NativeJimNamespaceConstruction as Construction, NativeNameContext};
+    let recipe = NativeJimLookupProtocol::jim084();
+    let root = NativeNameContext::root();
+    let relative = recipe
+        .namespace_origin_canonical(root, b":__no_literal")
+        .unwrap();
+    assert_eq!(relative.construction, Construction::RetainOriginal);
+    assert_eq!(relative.selected.as_bytes(), b":__no_literal");
+    assert_eq!(
+        recipe.namespace_origin_result(relative.selected.as_bytes()),
+        b":::__no_literal"
+    );
+    let absolute = recipe
+        .namespace_origin_canonical(root, b"::::__no_target")
+        .unwrap();
+    assert_eq!(absolute.construction, Construction::FreshString);
+    assert_eq!(absolute.selected.as_bytes(), b"__no_target");
+    let path = tcl_core_types::ByteNamespacePath::root().with_child(b"__no_context");
+    let local = recipe
+        .namespace_origin_canonical(
+            NativeNameContext::with_jim_namespace(&path, b"__no_context"),
+            b"__no_target",
+        )
+        .unwrap();
+    assert_eq!(
+        local.construction,
+        Construction::DuplicateNamespaceAndAppend
+    );
+    assert_eq!(local.selected.as_bytes(), b"__no_context::__no_target");
+    assert_eq!(
+        recipe.namespace_origin_missing(b"__no_absent ARG"),
+        b"invalid command name \"__no_absent ARG\""
+    );
+    assert_eq!(
+        recipe.namespace_origin_canonical(NativeNameContext::new(&path), b"name"),
+        Err(crate::naming::NameProjectionUnavailable::MissingJimNamespaceObject)
+    );
 }

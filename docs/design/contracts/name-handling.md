@@ -348,6 +348,17 @@ and Registry checks; none establishes complete upstream-suite conformance.
 
 ## Evidence and enforcement
 
+Jim namespace-origin queries use Registry's `native_jim_namespace_origin`
+sequencer with existing original-object getters. Canonicalisation retains the
+actual caller namespace; alias and command getters run in the helper's root
+context. An alias prefix remains one original name object, including arguments
+and list quoting. The winning operand supplies counted report bytes, never a
+reconstructed command identity. Repeated actual prefix headers refuse an
+unbounded cycle without inventing a guest result. C origin and Jim Which keep
+their independently selected owners. The
+[original origin observations](../../../experiments/name-handling/namespace-origin-query/README.md)
+record each provider's query order and result.
+
 Shared command, variable and namespace-operation vectors live in
 `rust/tcl-syntax/tests/data/`. Their C Tcl runners use `tcl-test-support` and
 the release manifest in `tcl-dialect`. Consumer tests must derive expectations

@@ -81,6 +81,28 @@ donate a written token. Callers stamp the unchanged `CommandTokens` through the
 same realm before querying; they must not recover roles from the written head
 or index effective arguments directly into original source tokens.
 
+`OriginalCommandLookup::matching_publications` compares geometric publication
+slots only. Navigation without an original command reference uses
+`matching_source_advice_publications` instead: the actual Registry generation,
+retained source observations, explicit absence and implementation-allocation
+replacement govern admission. Opaque, unknown-entry and observed-step state
+refuse. Deferred declaration bodies retain conditional header advice separately
+from a root or script point's baseline; this establishes no future invocation,
+installation or editing permission.
+
+Logical variable declaration tables and namespace coordinates share
+`AnalysisResult::logical_variable_scope_advice`. Its
+`namespace_variable_coordinate` preserves current `uplevel 0`, root `uplevel #0`,
+procedure/method locals and unknown callers independently of command lookup.
+The complete image/configuration and positively retained Logical input remain
+mandatory. A missing original namespace does not become a synthetic scope-name
+coordinate, and a child interpreter cannot borrow its parent's root table.
+`OriginalVariableWriteAdvice` retains its issuer's full availability and Registry
+semantics; bare-write coordinates recheck that stamp and original source
+correspondence. A recorded read span cannot repair unavailable original read
+applicability. None of these source views supplies a storage cell, Native frame,
+completed write or edit coverage.
+
 `state_transition::local_alias_name` delegates `global` and namespace `variable`
 to their separate selected naming recipes. C consumes qualification runs as
 one separator. Jim's rooted `global` creates no local alias, while its unrooted

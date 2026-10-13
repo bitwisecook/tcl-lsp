@@ -113,6 +113,8 @@ mod native_namespace_address_tests;
 mod native_namespace_command_query_tests;
 mod native_namespace_names;
 #[cfg(test)]
+mod native_namespace_origin_tests;
+#[cfg(test)]
 mod native_namespace_root_tests;
 pub(crate) mod native_numeric_ops;
 pub(crate) mod native_operation_currency;

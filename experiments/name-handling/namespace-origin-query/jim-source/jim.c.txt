@@ -1,0 +1,130 @@
+LINES 4332-4406
+static void JimUpdateProcNamespace(Jim_Interp *interp, Jim_Cmd *cmdPtr, Jim_Obj *nameObjPtr)
+{
+#ifdef jim_ext_namespace
+    if (cmdPtr->flags & JIM_CMD_ISPROC) {
+        int len;
+        const char *cmdname = Jim_GetStringNoQualifier(nameObjPtr, &len);
+        /* XXX: Really need JimNamespaceSplit() */
+        const char *pt = Jim_memrchr(cmdname, ':', len);
+        if (pt && pt != cmdname && pt[-1] == ':') {
+            pt++;
+            /* Now pt points to the base name .e.g. ::abc::def::ghi points to ghi
+             * while cmdname points to abc
+             */
+            Jim_DecrRefCount(interp, cmdPtr->u.proc.nsObj);
+            cmdPtr->u.proc.nsObj = Jim_NewStringObj(interp, cmdname, pt - cmdname - 2);
+            Jim_IncrRefCount(cmdPtr->u.proc.nsObj);
+
+            Jim_Obj *tempObj = Jim_NewStringObj(interp, pt, len - (pt - cmdname));
+            if (Jim_FindHashEntry(&interp->commands, tempObj)) {
+                /* This command shadows a global command, so a proc epoch update is required */
+                Jim_InterpIncrProcEpoch(interp);
+            }
+            Jim_FreeNewObj(interp, tempObj);
+        }
+    }
+#endif
+}
+
+static Jim_Cmd *JimCreateProcedureCmd(Jim_Interp *interp, Jim_Obj *argListObjPtr,
+    Jim_Obj *staticsListObjPtr, Jim_Obj *bodyObjPtr, Jim_Obj *nsObj)
+{
+    Jim_Cmd *cmdPtr;
+    int argListLen;
+    int i;
+
+    argListLen = Jim_ListLength(interp, argListObjPtr);
+
+    /* Allocate space for both the command pointer and the arg list */
+    cmdPtr = Jim_Alloc(sizeof(*cmdPtr) + sizeof(struct Jim_ProcArg) * argListLen);
+    assert(cmdPtr);
+    memset(cmdPtr, 0, sizeof(*cmdPtr));
+    cmdPtr->inUse = 1;
+    cmdPtr->flags = JIM_CMD_ISPROC;
+    cmdPtr->u.proc.argListObjPtr = argListObjPtr;
+    cmdPtr->u.proc.argListLen = argListLen;
+    cmdPtr->u.proc.bodyObjPtr = bodyObjPtr;
+    cmdPtr->u.proc.argsPos = -1;
+    cmdPtr->u.proc.arglist = (struct Jim_ProcArg *)(cmdPtr + 1);
+    cmdPtr->u.proc.nsObj = nsObj ? nsObj : interp->emptyObj;
+    Jim_IncrRefCount(argListObjPtr);
+    Jim_IncrRefCount(bodyObjPtr);
+    Jim_IncrRefCount(cmdPtr->u.proc.nsObj);
+
+    /* Create the statics hash table. */
+    if (staticsListObjPtr && JimCreateProcedureStatics(interp, cmdPtr, staticsListObjPtr) != JIM_OK) {
+        goto err;
+    }
+
+    /* Parse the args out into arglist, validating as we go */
+    /* Examine the argument list for default parameters and 'args' */
+    for (i = 0; i < argListLen; i++) {
+        Jim_Obj *argPtr;
+        Jim_Obj *nameObjPtr;
+        Jim_Obj *defaultObjPtr;
+        int len;
+
+        /* Examine a parameter */
+        argPtr = Jim_ListGetIndex(interp, argListObjPtr, i);
+        len = Jim_ListLength(interp, argPtr);
+        if (len == 0) {
+            Jim_SetResultString(interp, "argument with no name", -1);
+err:
+            JimDecrCmdRefCount(interp, cmdPtr);
+            return NULL;
+        }
+LINES 14417-14449
+/* Invoke an alias by prepending its stored command prefix. */
+static int JimAliasCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Obj *cmdList;
+    Jim_Obj *prefixListObj = Jim_CmdPrivData(interp);
+
+    /* prefixListObj is a list to which the args need to be appended */
+    cmdList = Jim_DuplicateObj(interp, prefixListObj);
+    Jim_ListInsertElements(interp, cmdList, Jim_ListLength(interp, cmdList), argc - 1, argv + 1);
+
+    return JimEvalObjList(interp, cmdList);
+}
+
+/* Release the command prefix stored for an alias. */
+static void JimAliasCmdDelete(Jim_Interp *interp, void *privData)
+{
+    Jim_Obj *prefixListObj = privData;
+    Jim_DecrRefCount(interp, prefixListObj);
+}
+
+/* Implement the alias command that creates command-prefix aliases. */
+static int Jim_AliasCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+    Jim_Obj *prefixListObj = Jim_NewListObj(interp, argv + 2, argc - 2);
+    Jim_IncrRefCount(prefixListObj);
+    Jim_SetResult(interp, argv[1]);
+
+    Jim_RegisterCommand(interp, argv[1], JimAliasCmd, JimAliasCmdDelete, NULL, NULL, 0, -1, JIM_CMD_ISALIAS, prefixListObj);
+    return JIM_OK;
+}
+
+/* [proc] */
+static int Jim_ProcCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+LINES 16076-16094
+            Jim_SetResultBool(interp, Jim_GetVariable(interp, argv[2], 0) != NULL);
+            return JIM_OK;
+
+        case INFO_ALIAS:{
+            Jim_Cmd *cmdPtr;
+
+            if ((cmdPtr = Jim_GetCommand(interp, argv[2], JIM_ERRMSG)) == NULL) {
+                return JIM_ERR;
+            }
+            if ((cmdPtr->flags & JIM_CMD_ISALIAS) == 0) {
+                Jim_SetResultFormatted(interp, "command \"%#s\" is not an alias", argv[2]);
+                return JIM_ERR;
+            }
+            Jim_SetResult(interp, (Jim_Obj *)cmdPtr->u.native.privData);
+            return JIM_OK;
+        }
+
+        case INFO_TAINTED:
+            if (argc != 3) {

@@ -1,0 +1,42 @@
+[
+  {
+    "repository": "https://github.com/msteveb/jimtcl",
+    "commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "path": "jim-namespace.c",
+    "git_blob": "c6e61b00e82fd893d01db5f8dcaaef7a2bb7b7ce",
+    "original_full_source_sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+    "working_source_matches_original": true,
+    "excerpt_lines": [
+      [
+        1,
+        320
+      ]
+    ],
+    "excerpt_sha256": "8bb6fed68259d6c36aa79e91f1cd38b7bb328be74276592d750cb5786834af7f",
+    "scope": "immutable original canonical constructor/global helper frame/alias prefix owner source; not Native allocation or result authority"
+  },
+  {
+    "repository": "https://github.com/msteveb/jimtcl",
+    "commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "path": "jim.c",
+    "git_blob": "364b53246c2894c5d9dbb4c9daee0f6755026358",
+    "original_full_source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "working_source_matches_original": true,
+    "excerpt_lines": [
+      [
+        4332,
+        4406
+      ],
+      [
+        14417,
+        14449
+      ],
+      [
+        16076,
+        16094
+      ]
+    ],
+    "excerpt_sha256": "1d171bd83eee596c37abf4861cfd07ec84c23f031933120c338fa437f65504ed",
+    "scope": "immutable original canonical constructor/global helper frame/alias prefix owner source; not Native allocation or result authority"
+  }
+]

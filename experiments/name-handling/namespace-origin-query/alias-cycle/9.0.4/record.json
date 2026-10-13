@@ -1,0 +1,22 @@
+{
+  "source_tag": "core-9-0-4",
+  "upstream_commit": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+  "upstream_integrity_sha256": "bc99ac5b588d60d38750f5921dfa3a2bb0629f708982202d8718e1fdec37c7df",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "engine": "9.0.4",
+  "measurement_utc": "2026-10-13T18:41:50.174284+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/alias-cycle-input.tcl"
+  ],
+  "input_sha256": "63a66fd464de410680bcb847d7b05ddc186be249e48e703f5888e0412dd6f705",
+  "binary_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+  "exit_code": 0,
+  "stdout_sha256": "f30f2a2927dd5ea48fe5f761e5c7c81392160ba40be2ef1bf2cb0343c8f406f0",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 0,
+  "scope": "actual alias-cycle setup and bounded origin attempt; timeout has no guest result and provides no cycle error/conformance authority",
+  "timeout_seconds": 1,
+  "timed_out": false
+}

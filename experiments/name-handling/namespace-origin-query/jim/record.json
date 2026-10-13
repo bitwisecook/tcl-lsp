@@ -1,0 +1,17 @@
+{
+  "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+  "latest_verification_authority": "parent independently verified upstream HEAD 2026-10-13; raw measurement records its own binary/patchlevel only",
+  "engine": "jim",
+  "measurement_utc": "2026-10-13T18:35:43.412883+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/input.tcl"
+  ],
+  "input_sha256": "f8f9d663d92e60c5725949349d96d7f48d8aec2ea271a34f184f7d96fdad2b3f",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "exit_code": 0,
+  "stdout_sha256": "5301e5b0a1bc0f6cf300100a041b8fb28b0be8ccc7b56e9116449921ca059aee",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 37,
+  "scope": "fixed original ASCII namespace-origin source, actual command/alias/import/report queries only; output strings do not reconstruct tokens; no rawNUL, F5 or Native C allocation claim"
+}

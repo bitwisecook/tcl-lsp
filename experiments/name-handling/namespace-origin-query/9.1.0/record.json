@@ -1,0 +1,20 @@
+{
+  "source_tag": "core-9-1-0",
+  "upstream_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+  "upstream_integrity_sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313",
+  "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d",
+  "init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "engine": "9.1.0",
+  "measurement_utc": "2026-10-13T18:35:43.400517+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+    "/workspace/name-implementation-worktrees/registry_vm/experiments/name-handling/namespace-origin-query/input.tcl"
+  ],
+  "input_sha256": "f8f9d663d92e60c5725949349d96d7f48d8aec2ea271a34f184f7d96fdad2b3f",
+  "binary_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+  "exit_code": 0,
+  "stdout_sha256": "79215191ac76f778f6e7dbe85c481d8b4debe8fab8b44049ec3003ec23c9f92d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "observation_rows": 37,
+  "scope": "fixed original ASCII namespace-origin source, actual command/alias/import/report queries only; output strings do not reconstruct tokens; no rawNUL, F5 or Native C allocation claim"
+}
