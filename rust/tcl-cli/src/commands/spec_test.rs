@@ -188,9 +188,14 @@ proc ::__spec_test::refused {name count} {
     return [list [expr {$code != 0 && [string match "wrong # args*" $result]}] $call]
 }
 set ::__spec_test::skip 0
-proc ::__spec_test::present {name pattern} {
+proc ::__spec_test::present {name cpattern jimpattern supported} {
     set ::__spec_test::skip 0
-    if {[llength [uplevel #0 [list info commands $pattern]]] > 0} return
+    if {[catch {::__tcl_name_presence::in_root $cpattern $jimpattern $supported} present]} {
+        set ::__spec_test::skip 1
+        ::__spec_test::say unsupported $name "command presence unavailable: $present"
+        return
+    }
+    if {$present} return
     if {![catch {uplevel #0 [list auto_load $name]} loaded] && $loaded} return
     set ::__spec_test::skip 1
     ::__spec_test::say missing $name "declared, but the package does not define it"
@@ -399,11 +404,25 @@ proc ::__spec_test::pure {name lines} {
 pub fn render_script(package: &str, probes: &[CommandProbe]) -> String {
     let mut script =
         String::from(tcl_syntax::naming::original_namespace_variable_snapshot_support());
+    script.push_str(tcl_syntax::naming::original_command_presence_support());
     script.push_str(&PRELUDE.replace("@PACKAGE@", &list_element(package)));
     for probe in probes {
         let name = list_element(&probe.name);
-        let pattern = list_element(&tcl_syntax::glob::literal_pattern(&probe.name));
-        let _ = writeln!(script, "::__spec_test::present {name} {pattern}");
+        let plan = tcl_syntax::naming::ScriptRootCommandPresencePlan::new(&probe.name);
+        let (c_pattern, jim_pattern, supported) = plan.as_ref().map_or_else(
+            || (list_element(""), list_element(""), 0),
+            |plan| {
+                (
+                    list_element(plan.c_pattern()),
+                    list_element(plan.jim_pattern()),
+                    1,
+                )
+            },
+        );
+        let _ = writeln!(
+            script,
+            "::__spec_test::present {name} {c_pattern} {jim_pattern} {supported}"
+        );
         let examples = list_element(
             &probe
                 .examples
@@ -668,8 +687,8 @@ mod tests {
             "a command that declares nothing is asked nothing"
         );
         assert!(
-            script.contains("::__spec_test::present demo::bare demo::bare\n")
-                && script.contains("::__spec_test::present demo::full demo::full\n"),
+            script.contains("::__spec_test::present demo::bare demo::bare demo::bare 1\n")
+                && script.contains("::__spec_test::present demo::full demo::full demo::full 1\n"),
             "but the package must define it: {script}"
         );
         // Each command says it is finished with, in order, and the script ends
@@ -868,5 +887,66 @@ package provide demo 1.0
             report.divergences[0].detail.contains("children"),
             "{report:?}"
         );
+    }
+
+    const PRESENCE_FIXTURE: &str = r#"
+foreach ns {::N[0] ::N0 ::Nmissing ::W* ::WZ ::Q? ::Qa {::B\slash}} {::namespace eval $ns {}}
+foreach name {::N[0]::p ::N0::p ::Nmissing::absent ::W*::p ::WZ::p ::Q?::p ::Qa::p {::B\slash::p} ::N[0]::p* ::N[0]::pZ ::N[0]::p? ::N[0]::pA ::N[0]::p[0] ::N[0]::p0 {::N[0]::p\tail} ::N[0]:: ::N[0]::absentZ :p p* pZ absentZ} {
+    ::proc $name {} {::return EXACT}
+}
+package provide demo 1.0
+"#;
+
+    fn original_presence_report(interpreter: &std::path::Path) {
+        let names = [
+            "::N[0]::p",
+            "::W*::p",
+            "::Q?::p",
+            "::B\\slash::p",
+            "::N[0]::p*",
+            "::N[0]::p?",
+            "::N[0]::p[0]",
+            "::N[0]::p\\tail",
+            "::N[0]::",
+            ":p",
+            "p*",
+            "::N[missing]::absent",
+            "::N[0]::absent*",
+            "absent*",
+        ];
+        let probes: Vec<_> = names.iter().map(|name| probe(name)).collect();
+        let script = format!("{PRESENCE_FIXTURE}\n{}", render_script("demo", &probes));
+        let outcome = tcl_test_support::run_script(interpreter, script.as_bytes())
+            .expect("original interpreter must execute exact presence questions");
+        let text = outcome.strict_text().expect("original presence protocol");
+        let report = parse_report(&text);
+        assert_eq!(report.done, Some(names.len()), "{text}");
+        assert_eq!(report.asked, names, "{text}");
+        assert_eq!(report.divergences.len(), 3, "{text}");
+        for (divergence, missing) in report.divergences.iter().zip(&names[11..]) {
+            assert_eq!(divergence.kind, "missing", "{text}");
+            assert_eq!(divergence.command, *missing, "{text}");
+        }
+    }
+
+    #[test]
+    fn original_c_presence_keeps_namespace_prefix_literal_and_simple_tail_exact() {
+        for interpreter in tcl_test_support::available_tclshs() {
+            original_presence_report(&interpreter.path);
+        }
+    }
+
+    #[test]
+    fn original_jim_presence_uses_flat_inventory_without_lone_colon_which() {
+        let interpreter = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+            Some(tcl_test_support::require_jimsh().expect("required original Jim oracle"))
+        } else {
+            tcl_test_support::locate_jimsh().expect("valid optional original Jim oracle")
+        };
+        let Some(interpreter) = interpreter else {
+            eprintln!("skipping original Jim presence control: no Jim oracle");
+            return;
+        };
+        original_presence_report(&interpreter.path);
     }
 }

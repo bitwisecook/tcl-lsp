@@ -1,0 +1,101 @@
+{
+  "observations": 132,
+  "checks": [
+    {
+      "suite": "planned-source-controls",
+      "provider": "c84",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/c84/provenance.json"
+    },
+    {
+      "suite": "planned-source-controls",
+      "provider": "c85",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/c85/provenance.json"
+    },
+    {
+      "suite": "planned-source-controls",
+      "provider": "c86",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/c86/provenance.json"
+    },
+    {
+      "suite": "planned-source-controls",
+      "provider": "c90",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/c90/provenance.json"
+    },
+    {
+      "suite": "planned-source-controls",
+      "provider": "c91",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/c91/provenance.json"
+    },
+    {
+      "suite": "planned-source-controls",
+      "provider": "jim",
+      "observations": 14,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/planned-source-controls/jim/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "c84",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/c84/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "c85",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/c85/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "c86",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/c86/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "c90",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/c90/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "c91",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/c91/provenance.json"
+    },
+    {
+      "suite": "root-regression-controls",
+      "provider": "jim",
+      "observations": 8,
+      "expectations_passed": true,
+      "raw_provenance": "/tmp/name-command-presence-20261013/root-regression-controls/jim/provenance.json"
+    }
+  ],
+  "source": {
+    "worktree": "/workspace/name-implementation-worktrees/codegen",
+    "files": {
+      "rust/tcl-cli/src/commands/spec_test.rs": "02731fb833dfa874c64412aa1d8207589677eb4a446b9f6fedeb52e81a7627b1",
+      "rust/tcl-syntax/src/naming/script_command_presence.rs": "33d1034da37e6d0546118da87fcdd8b32560292861a6ca3844f8f11ecba999c9",
+      "rust/tcl-syntax/src/naming.rs": "d0af69a04a7c1a496613b635a25950aaf39865653c9fada5e1c6ddaac925e5c5",
+      "rust/tcl-syntax/src/glob.rs": "ac73691f2a514282d23254a143244e94d847875d6ef8c6ca8c71caeb1eed8020"
+    },
+    "separator_owner": "written_separator_extent in naming.rs",
+    "Rust_execution": "UNEXECUTED; no Cargo or rustc build; source-form projection script prepared separately with explicit original input/patterns"
+  },
+  "scope": "Original C5/Jim source-form selected-script helper + generated-presence method controls; no compiled Rust renderer, Native command identity, F5 or entire CLI acceptance."
+}

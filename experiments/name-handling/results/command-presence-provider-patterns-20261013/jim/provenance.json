@@ -1,0 +1,23 @@
+{
+  "provider": "jim",
+  "expected_release": "selected latest Jim source checkout",
+  "captured_utc": "2026-10-13T19:05:16.871272+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/tmp/name-command-presence-20261013/input.tcl"
+  ],
+  "cwd": "/tmp/name-command-presence-20261013",
+  "selected_environment": {},
+  "unset_environment": [
+    "TCL_LIBRARY",
+    "TCLLIBPATH",
+    "LD_LIBRARY_PATH"
+  ],
+  "input_sha256": "771af6b7ff114782725dc46a43d309b1b62d55ed8558984cdca78aa02a72c68b",
+  "runner_sha256": "b36e3c1fa8bfdfd6ac74fbd259b1c64a0f7d3e870ffad8bf123be6e44c50d065",
+  "exit_code": 1,
+  "stdout_sha256": "faaa2d35de1e37d808cf9cd34b918a35809f6a5ef2c81c5d772f9c0f700167bd",
+  "stderr_sha256": "8b7ad55c41e241c616ada55235f8d1de559ac650f32bd3fd6e9b230734813cab",
+  "seal_changes": {},
+  "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

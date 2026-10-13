@@ -1,0 +1,7 @@
+ROW patchlevel 0 0.84-9-g5bac7c9
+ROW version 0 0.84
+ROW jim-version 1 {can't read "::jim_version": no such variable}
+ROW tcl-version 1 {can't read "::tcl_version": no such variable}
+ROW {setup {::N[0]}} 0 {}
+ROW {define {::N[0]::p}} 0 {::N[0]::p}
+ROW {raw {::N[0]::p}} 0 {}

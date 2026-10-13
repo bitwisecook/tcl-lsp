@@ -1,0 +1,5 @@
+/tmp/name-command-presence-20261013/input.tcl:5: Error: invalid command name "]"
+Traceback (most recent call last):
+  File "/tmp/name-command-presence-20261013/input.tcl", line 16, in capture
+    escape {::N[0]::p}
+  File "/tmp/name-command-presence-20261013/input.tcl", line 5, in escape

@@ -1,0 +1,17 @@
+[
+  {
+    "path": "docs/design/contracts/name-handling.md",
+    "preimage_sha256": "92537128f37411006b71a2a9f6a9f3bd09ca8da1e046e2541af21f2d03af5959",
+    "afterimage_sha256": "2dfeefc9930f3a7b0b15061fef02d637b41573909957f49e4133c3cd87ae1277"
+  },
+  {
+    "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+    "preimage_sha256": "c81bd7f6fac46bfb2629e63a89a58167535aa24e1bdf69047049ae36314476b8",
+    "afterimage_sha256": "5d248a6db82622cf8015b76a5f1c2d4113157f6666963701e79718d49cf8274a"
+  },
+  {
+    "path": "docs/design/contracts/naming-consumer-matrix.md",
+    "preimage_sha256": "109ad7ebb1ba73b4dca716138f3609510c6d6658304916e808acc580cc6cbb2b",
+    "afterimage_sha256": "4ed96a90a4e2419b4ad0f1ab069d982170e60392d8b7b33f62bb9063d02da4e2"
+  }
+]

@@ -1,0 +1,145 @@
+[
+  {
+    "provider": "c84",
+    "expected_release": "8.4.20",
+    "captured_utc": "2026-10-13T19:05:36.944105+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "8878660d06e7adf6b56b5f3b7547147487842ea1d63efad3dddb110c9f77fabc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c85",
+    "expected_release": "8.5.19",
+    "captured_utc": "2026-10-13T19:05:37.043576+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "c0cc2a87d011f6f77a4ea3eaa529b5635a213d71cd4fae0161cc8d83ea518f69",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c86",
+    "expected_release": "8.6.18",
+    "captured_utc": "2026-10-13T19:05:37.147172+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "e1cbc9b92fac111d8a33e5efb151ac4e1996acd22721d141b3ec052827be0242",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c90",
+    "expected_release": "9.0.4",
+    "captured_utc": "2026-10-13T19:05:37.263737+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "319156f7e52ec966be57835c2bd67a4d38ce448e489ddc1a1fe8fa053b3d03a6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "c91",
+    "expected_release": "9.1.0",
+    "captured_utc": "2026-10-13T19:05:37.389433+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix"
+    },
+    "unset_environment": [
+      "TCLLIBPATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "caa8fd8aea2abcf6672ba0afb395e9ca17687f04e9352a417a0dd52494a9bfb9",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  },
+  {
+    "provider": "jim",
+    "expected_release": "selected latest Jim source checkout",
+    "captured_utc": "2026-10-13T19:05:37.426930+00:00",
+    "command": [
+      "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "/tmp/name-command-presence-20261013/continued/input.tcl"
+    ],
+    "cwd": "/tmp/name-command-presence-20261013/continued",
+    "selected_environment": {},
+    "unset_environment": [
+      "TCL_LIBRARY",
+      "TCLLIBPATH",
+      "LD_LIBRARY_PATH"
+    ],
+    "input_sha256": "2c24dabb82244a2e978cf23b3d67c75617b9e183b08199ef1a159197c56258b7",
+    "runner_sha256": "a353ac9fc27ce579a8a04551ce777dc6d2a50ab64be2c4b6be6fc11ef5611c10",
+    "exit_code": 0,
+    "stdout_sha256": "d18e3adc58ca82415fec3acb91116b789d30a91c36a7f9a48775190b983259e6",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seal_changes": {},
+    "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+  }
+]

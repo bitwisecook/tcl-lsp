@@ -1,0 +1,157 @@
+{
+  "started_utc": "2026-10-13T18:59:12.663889+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 297.1765494169995,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+    "sha256": "651109653d4df66dab8ac478c9b59a12aa0898cfdba2f8d231225261722896d2",
+    "bytes": 220888616
+  },
+  "selected_tests": [
+    "command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof",
+    "command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+    "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+    "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.26479473099971074,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "command_binding::declaration_flow::tests::declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5152981930004898,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5157016409975768,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "command_binding::declaration_flow::tests::original_procedure_store_graph_survives_abrupt_reads_without_unknown_writer_grants",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-names/debug/deps/tcl_compiler-f9d97fcba7ed4a1f",
+        "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 10.355569290997664,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "script_binds::tests::selected_formal_read_scope_keeps_native_dialects_and_failed_publication_separate",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-13T19:04:24.180403+00:00",
+  "changed_sources": {}
+}

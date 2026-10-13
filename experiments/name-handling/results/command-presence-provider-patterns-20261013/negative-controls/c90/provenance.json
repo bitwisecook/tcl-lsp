@@ -1,0 +1,24 @@
+{
+  "provider": "c90",
+  "expected_release": "9.0.4",
+  "captured_utc": "2026-10-13T19:07:37.288743+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/tmp/name-command-presence-20261013/negative-controls/input.tcl"
+  ],
+  "cwd": "/tmp/name-command-presence-20261013/negative-controls",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "90df1e48f44316937c12032428a630ad9de228338addcb8112055e7c7de463ee",
+  "runner_sha256": "1ec7a10c6c24fff0b90eef57b2524549c99e4d9fb75640a19b7ceb290315ec13",
+  "exit_code": 0,
+  "stdout_sha256": "dc5dec23c0621cde7acef32cd6629d1e644004dc259a44dc6e800049634dd70e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}

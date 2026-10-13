@@ -1,0 +1,42 @@
+--- a/rust/tcl-compiler/src/command_binding/declaration_flow.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_flow.rs
+@@ -1022,7 +1022,15 @@
+         {
+             let advice = super::original_site_operand_layout_advice(
+                 site, tokens, snapshot, namespace, config,
+-            )?;
++            );
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_TRACE_FLOW_SELECTION").is_some() {
++                let original = site.source.original_lexical_command(tokens.words(), site.offset, config);
++                let logical = snapshot.state.logical_source_name_advice_input().is_some_and(|input| input.lexer_config() == config && super::source_analysis_entry::source_input_dialect(input) == self.dialect);
++                let projection = original.as_ref().and_then(|original| original.native_words().first()).and_then(|head| super::original_static_layout_projection(snapshot,namespace,head,config,self.dialect,logical));
++                eprintln!("FLOW_SELECTION site={} stage=advice accepted={} replay={} lexical={} snapshot_origin={} snapshot_dialect={} native_name_policy={} projection={:?}",site.offset,advice.is_some(),crate::registry_invocation::native_compiler_replay_source(tokens,site).is_some(),original.is_some(),snapshot.state.current_source_origin.as_ref()==Some(&site.source),snapshot.state.source_variables.invocation_dialect==Some(self.dialect),snapshot.state.source_variables.execution_name_policy.and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe).is_some(),projection.as_ref().map(|projection|(projection.targets.len(),projection.unknown,projection.may_be_absent)));
++            }
++            let advice = advice?;
+             if advice.dialect() != self.dialect {
+                 return None;
+             }
+@@ -1049,11 +1057,21 @@
+                 retained.source_binding =
+                     Some(super::SourceCommandBindings::query_dispatch_points(points));
+             }
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_TRACE_FLOW_SELECTION").is_some() {
++                let binding = retained.source_binding.as_ref();
++                eprintln!("FLOW_SELECTION site={} stage=metadata dialect_same={} raw_metadata={:?} retained_metadata={:?} retained_config={:?} retained_point_metadata={:?} reached={} native_words={} compiler_words={} raw_flow={}",site.offset,advice.dialect()==self.dialect,advice.original_declaration_metadata_context(self.registry,tokens).map(|metadata|metadata.is_some()),advice.original_declaration_metadata_context(self.registry,&retained).map(|metadata|metadata.is_some()),binding.and_then(|binding|binding.original_lexer_config_for_tokens(&retained)).map(|original|original==config),binding.map(|binding|binding.original_invocation_metadata_at_point(&retained,self.registry).map(|metadata|metadata.is_some())),binding.is_some_and(|binding|binding.lookup_state.is_some()),binding.is_some_and(|binding|binding.original_written_words.is_some()),binding.is_some_and(|binding|binding.original_compiler_words.is_some()),crate::registry_invocation::declaration_invocation_flow(self.registry,tokens,&advice).is_some());
++            }
+             let selected = crate::registry_invocation::declaration_invocation_flow(
+                 self.registry,
+                 &retained,
+                 &advice,
+-            )?;
++            );
++            #[cfg(test)]
++            if std::env::var_os("TCL_LSP_TRACE_FLOW_SELECTION").is_some() {
++                eprintln!("FLOW_SELECTION site={} stage=selected accepted={}",site.offset,selected.is_some());
++            }
++            let selected = selected?;
+             let lifecycle = if selected.flow == ScriptBodyFlow::CapturedLifecycle {
+                 Some(match self.entry {
+                     DeclarationFlowFrame::Existing(entry) => advice

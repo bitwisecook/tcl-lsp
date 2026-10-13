@@ -1,0 +1,121 @@
+{
+  "c84": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.4.20",
+      "original_c_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "existing_upstream_authority": {
+        "source_tag": "core-8-4-20",
+        "upstream_commit": "9ccfe9d1b35741ff7323837f6485ffe48b06fad9",
+        "upstream_integrity_sha256": "24b31272b539ca44f38b6761b377989dcebb1474d141ab7a9794e3650127970c",
+        "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+      },
+      "existing_provenance_path": "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.4.20/provenance.json",
+      "existing_provenance_sha256": "424d56b2820d059c22f1022358e6c2cd6fbdde84c172af0f03551fc36fc8fdee",
+      "binary_and_init_match_existing_pinned_provider": true,
+      "git_source_note": "Extracted Tcl source is not its own Git repository; enclosing project HEAD is not upstream source authority."
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "generic/tclCmdIL.c": "92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a",
+      "generic/tclNamesp.c": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb"
+    }
+  },
+  "c85": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.5.19",
+      "original_c_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "existing_upstream_authority": {
+        "source_tag": "core-8-5-19",
+        "upstream_commit": "160d612a6b2b1c2c0db27236d648b7bc1364570c",
+        "upstream_integrity_sha256": "78c99229a589a330c2c669474c365041f2d6f918a09744e849ac571b678ef268",
+        "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+      },
+      "existing_provenance_path": "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.5.19/provenance.json",
+      "existing_provenance_sha256": "b065b93cb0a296f6c0c15827eeb172d57e837beafb35c6c3e757683845a123f8",
+      "binary_and_init_match_existing_pinned_provider": true,
+      "git_source_note": "Extracted Tcl source is not its own Git repository; enclosing project HEAD is not upstream source authority."
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "generic/tclCmdIL.c": "51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e",
+      "generic/tclNamesp.c": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f"
+    }
+  },
+  "c86": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/tcl8.6.18",
+      "original_c_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "existing_upstream_authority": {
+        "source_tag": "core-8-6-18",
+        "upstream_commit": "515167c897a7c8066abfbd71e8fe7bd8bf3569de",
+        "upstream_integrity_sha256": "b547c6da1e097ab8063845a9a1e3ca825e13b995e88da69e4025747f43547c85",
+        "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+      },
+      "existing_provenance_path": "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.6.18/provenance.json",
+      "existing_provenance_sha256": "f632a424810e02f436b2c4fc4d58028e60451e0a5c64a21ee2877dce7a3276c4",
+      "binary_and_init_match_existing_pinned_provider": true,
+      "git_source_note": "Extracted Tcl source is not its own Git repository; enclosing project HEAD is not upstream source authority."
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "generic/tclCmdIL.c": "26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23",
+      "generic/tclNamesp.c": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24"
+    }
+  },
+  "c90": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/tcl9.0.4",
+      "original_c_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "existing_upstream_authority": {
+        "source_tag": "core-9-0-4",
+        "upstream_commit": "c655b4770b1d6d32a8cbffd6cef59db6029fe19e",
+        "upstream_integrity_sha256": "bc99ac5b588d60d38750f5921dfa3a2bb0629f708982202d8718e1fdec37c7df",
+        "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+      },
+      "existing_provenance_path": "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/9.0.4/provenance.json",
+      "existing_provenance_sha256": "26eb1dd24cadb56a3f048a7b038d5a56d31bcb3656bd290d859d5da670ea7e52",
+      "binary_and_init_match_existing_pinned_provider": true,
+      "git_source_note": "Extracted Tcl source is not its own Git repository; enclosing project HEAD is not upstream source authority."
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "generic/tclCmdIL.c": "af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7",
+      "generic/tclNamesp.c": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d"
+    }
+  },
+  "c91": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/tcl9.1.0",
+      "original_c_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "existing_upstream_authority": {
+        "source_tag": "core-9-1-0",
+        "upstream_commit": "0c6bad08d91fa2ad51f05a50a41f8c1ea82ce985",
+        "upstream_integrity_sha256": "96b2169041f2fb9f4a43c875c3eafd856c6aeebf8e68b3aa29bbbf809b74c313",
+        "reference_manifest_sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+      },
+      "existing_provenance_path": "/workspace/tcl-lsp/experiments/name-handling/namespace-address-purpose/9.1.0/provenance.json",
+      "existing_provenance_sha256": "49681ae5850144a3ee4cc1cc6ba4cd03956cfc2b23ac6e42f240610e19015bde",
+      "binary_and_init_match_existing_pinned_provider": true,
+      "git_source_note": "Extracted Tcl source is not its own Git repository; enclosing project HEAD is not upstream source authority."
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "generic/tclCmdIL.c": "d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a",
+      "generic/tclNamesp.c": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815"
+    }
+  },
+  "jim": {
+    "prior_pinned_upstream_authority": {
+      "source_root": "/workspace/tcl-lsp/tmp/jimtcl-oracle",
+      "git_head": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "git_head_stderr": "",
+      "original_c_init_sha256": null
+    },
+    "current_binary_and_complete_C_libraries_match_prior": true,
+    "actual_source_files": {
+      "jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+      "jim-namespace.c": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+      "nshelper.tcl": "97c67e98b1bef86c9564044dbed0d5110b38ba0fd416980663101f65b0066627"
+    }
+  }
+}

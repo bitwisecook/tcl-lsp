@@ -1,0 +1,16 @@
+{
+  "started_utc": "2026-10-13T19:04:26.488740+00:00",
+  "label": "source-scope-final-owner-diagnostic",
+  "package": "tcl-lsp-core",
+  "target": "/workspace/tcl-lsp/tmp/name-target-names",
+  "source_paths": 34631,
+  "plan": {
+    "filters": [
+      "logical_variable_scope_owner_tests"
+    ],
+    "exact": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "source_channel": "frozen diagnostic; exact temporary owner instrumentation retained"
+}

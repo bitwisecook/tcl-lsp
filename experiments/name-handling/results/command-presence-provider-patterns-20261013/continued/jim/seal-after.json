@@ -1,0 +1,18 @@
+{
+  "binary_path": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "ldd_exit": 0,
+  "ldd_stdout": "\tlinux-vdso.so.1 (0x00007f3d3c98b000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f3d3c810000)\n\tlibssl.so.3 => /lib/x86_64-linux-gnu/libssl.so.3 (0x00007f3d3c702000)\n\tlibcrypto.so.3 => /lib/x86_64-linux-gnu/libcrypto.so.3 (0x00007f3d3c0c8000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f3d3c0a8000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f3d3beb2000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f3d3c98d000)\n\tlibzstd.so.1 => /lib/x86_64-linux-gnu/libzstd.so.1 (0x00007f3d3bde8000)\n",
+  "ldd_stderr": "",
+  "linked_files": {
+    "/lib/x86_64-linux-gnu/libc.so.6": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+    "/lib/x86_64-linux-gnu/libcrypto.so.3": "8bb5f3fdffe280d4453eb79a4663c2c47af70b7c247fe2e94e2da703cee1fd3d",
+    "/lib/x86_64-linux-gnu/libm.so.6": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+    "/lib/x86_64-linux-gnu/libssl.so.3": "4b34859318555bf96d518131bed5fc4d5e35fefa4e1729f49eaa26bd05263850",
+    "/lib/x86_64-linux-gnu/libz.so.1": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+    "/lib/x86_64-linux-gnu/libzstd.so.1": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+    "/lib64/ld-linux-x86-64.so.2": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+  },
+  "library_root": null,
+  "library_files": {}
+}

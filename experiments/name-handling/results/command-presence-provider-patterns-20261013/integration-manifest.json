@@ -1,0 +1,23 @@
+{
+  "files": [
+    {
+      "path": "rust/tcl-cli/src/commands/spec_test.rs",
+      "preimage_sha256": "61afaf545fa054790ca78212e0f60ea7ef92cc4c82b3ff0fecfb1b67a1e72f9e",
+      "afterimage_sha256": "02731fb833dfa874c64412aa1d8207589677eb4a446b9f6fedeb52e81a7627b1"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming/script_command_presence.rs",
+      "preimage_sha256": null,
+      "afterimage_sha256": "33d1034da37e6d0546118da87fcdd8b32560292861a6ca3844f8f11ecba999c9"
+    },
+    {
+      "path": "rust/tcl-syntax/src/naming.rs",
+      "preimage_sha256": "0135ce9ec40db56dc80cbe7f87fe5666866a787e7762bc00a99a0f1e2338b9d8",
+      "afterimage_sha256": "e6aeae697db814cf815a50f133b4ea3a1b9c79b7e4c5713f450c03d62128674c"
+    }
+  ],
+  "patch_sha256": "6eac2663adb1b0f53b9da5671310ba915b871297eab7aec2279207bc082096e9",
+  "validation_sha256": "f8bff29f0fcd8dd545ddd2a2fd65df623f68ffaa3f0fe0f90c3970aa8b3f9b08",
+  "rust_checks": "UNEXECUTED; two new original-presence selectors plus existing CLI/purity controls pending lease",
+  "naming_merge": "Main-derived additive export only; never copy full isolated naming.rs to Main"
+}

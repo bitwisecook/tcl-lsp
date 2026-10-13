@@ -149,9 +149,14 @@ produce an unsupported purity result while ordinary questions continue. These
 script coordinates grant no Native namespace incarnation or variable-cell
 identity.
 
-CLI SpecTest presence retains the original written command operand and global
-query context. Its literal command-inventory pattern uses Syntax's
-`glob::literal_pattern`, independently of the autoloader's original input.
+CLI SpecTest presence retains the original command operand and root query
+context. Syntax's `ScriptRootCommandPresencePlan` supplies separate inventory
+patterns: C Tcl retains namespace qualifiers literally and escapes the original
+simple tail, while Jim escapes the whole flat-table pattern. The shared script
+support selects the audited C8.4–9.1 or Jim0.84 query grammar; unsupported grammar
+and missing original-byte transport remain unavailable. The autoloader and
+subsequent calls keep the original word. Inventory reports grant no command
+allocation or Native entry identity.
 Namespace.which's query purpose cannot certify this presence check across
 providers: Jim can return no query name for an actually callable lone-colon
 command. No pattern result grants Native invocation or allocation identity.

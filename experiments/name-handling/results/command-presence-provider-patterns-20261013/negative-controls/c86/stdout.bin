@@ -1,0 +1,49 @@
+ROW patchlevel 0 8.6.18
+ROW version 1 {unknown or ambiguous subcommand "version": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+ROW jim-version 1 {can't read "::jim_version": no such variable}
+ROW tcl-version 0 8.6
+ROW {cpattern {::N[0]::p} 1} 0 {{::N[0]::p}}
+ROW {jpattern {::N[0]::p} 1} 0 {}
+ROW {original-call {::N[0]::p} 1} 0 EXACT
+ROW {cpattern ::W*::p 1} 0 ::W*::p
+ROW {jpattern ::W*::p 1} 0 {}
+ROW {original-call ::W*::p 1} 0 EXACT
+ROW {cpattern ::Q?::p 1} 0 ::Q?::p
+ROW {jpattern ::Q?::p 1} 0 {}
+ROW {original-call ::Q?::p 1} 0 EXACT
+ROW {cpattern {::B\slash::p} 1} 0 {{::B\slash::p}}
+ROW {jpattern {::B\slash::p} 1} 0 {}
+ROW {original-call {::B\slash::p} 1} 0 EXACT
+ROW {cpattern {::N[0]::p*} 1} 0 {{::N[0]::p*}}
+ROW {jpattern {::N[0]::p*} 1} 0 {}
+ROW {original-call {::N[0]::p*} 1} 0 EXACT
+ROW {cpattern {::N[0]::p?} 1} 0 {{::N[0]::p?}}
+ROW {jpattern {::N[0]::p?} 1} 0 {}
+ROW {original-call {::N[0]::p?} 1} 0 EXACT
+ROW {cpattern {::N[0]::p[0]} 1} 0 {{::N[0]::p[0]}}
+ROW {jpattern {::N[0]::p[0]} 1} 0 {}
+ROW {original-call {::N[0]::p[0]} 1} 0 EXACT
+ROW {cpattern {::N[0]::p\tail} 1} 0 {{::N[0]::p\tail}}
+ROW {jpattern {::N[0]::p\tail} 1} 0 {}
+ROW {original-call {::N[0]::p\tail} 1} 0 EXACT
+ROW {cpattern {::N[0]::} 1} 0 {{::N[0]::}}
+ROW {jpattern {::N[0]::} 1} 0 {}
+ROW {original-call {::N[0]::} 1} 0 EXACT
+ROW {cpattern {::N[missing]::absent} 0} 0 {}
+ROW {jpattern {::N[missing]::absent} 0} 0 {}
+ROW {original-call {::N[missing]::absent} 0} 1 {invalid command name "::N[missing]::absent"}
+ROW {cpattern {::N[0]::absent*} 0} 0 {}
+ROW {jpattern {::N[0]::absent*} 0} 0 {}
+ROW {original-call {::N[0]::absent*} 0} 1 {invalid command name "::N[0]::absent*"}
+ROW {cpattern :p 1} 0 :p
+ROW {jpattern :p 1} 0 :p
+ROW {original-call :p 1} 0 EXACT
+ROW {cpattern p* 1} 0 p*
+ROW {jpattern p* 1} 0 p*
+ROW {original-call p* 1} 0 EXACT
+ROW {cpattern absent* 0} 0 {}
+ROW {jpattern absent* 0} 0 {}
+ROW {original-call absent* 0} 1 {invalid command name "absent*"}
+ROW {cpattern {::N[0]::p:::missing} 0} 0 {}
+ROW {jpattern {::N[0]::p:::missing} 0} 0 {}
+ROW {original-call {::N[0]::p:::missing} 0} 1 {invalid command name "::N[0]::p:::missing"}

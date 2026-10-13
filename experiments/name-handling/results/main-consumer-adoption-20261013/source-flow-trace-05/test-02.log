@@ -1,0 +1,103 @@
+
+running 1 test
+test command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors ... FLOW_SELECTION site=60 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=60 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=60 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=49 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=49 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=49 stage=selected accepted=true
+FLOW_SELECTION site=78 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=78 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=78 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=67 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=67 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=67 stage=selected accepted=true
+FLOW_SELECTION site=49 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=49 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=49 stage=selected accepted=true
+FLOW_SELECTION site=80 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=80 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=None retained_point_metadata=None reached=false native_words=false compiler_words=false raw_flow=true
+FLOW_SELECTION site=80 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=66 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=66 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=66 stage=selected accepted=true
+FLOW_SELECTION site=49 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=49 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=49 stage=selected accepted=true
+FLOW_SELECTION site=56 stage=advice accepted=false replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=None
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=15 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=15 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=15 stage=selected accepted=true
+FLOW_SELECTION site=29 stage=advice accepted=true replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=Some((1, false, false))
+FLOW_SELECTION site=29 stage=metadata dialect_same=true raw_metadata=Ok(true) retained_metadata=Ok(true) retained_config=Some(true) retained_point_metadata=Some(Ok(true)) reached=true native_words=true compiler_words=true raw_flow=true
+FLOW_SELECTION site=29 stage=selected accepted=true
+FLOW_SELECTION site=46 stage=advice accepted=false replay=true lexical=true snapshot_origin=true snapshot_dialect=true native_name_policy=true projection=None
+
+thread 'command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors' (120478) panicked at rust/tcl-compiler/src/command_binding/declaration_flow.rs:3057:13:
+assertion `left == right` failed: proc p {rows} {set anchor 1; foreach i $rows {set x 1}; puts $x}
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    command_binding::declaration_flow::tests::original_declaration_graph_keeps_zero_trip_and_no_match_successors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9580 filtered out; finished in 0.48s
+

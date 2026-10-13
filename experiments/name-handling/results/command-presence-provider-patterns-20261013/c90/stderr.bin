@@ -1,0 +1,17 @@
+invalid command name "]"
+    while executing
+"\] \\"
+    (procedure "escape" line 1)
+    invoked from within
+"escape $name"
+    ("foreach" body line 5)
+    invoked from within
+"foreach tail {p p* pZ p? pA p[0] p0 {p\tail} :p} {
+        set name ${ns}::$tail
+        capture [list define $name] [list ::proc $name {} [list ::ret..."
+    ("foreach" body line 3)
+    invoked from within
+"foreach ns {::N[0] ::N0 ::W* ::WZ ::Q? ::Qa {::B\slash}} {
+    capture [list setup $ns] [list ::namespace eval $ns {}]
+    foreach tail {p p* pZ p? pA..."
+    (file "/tmp/name-command-presence-20261013/input.tcl" line 10)

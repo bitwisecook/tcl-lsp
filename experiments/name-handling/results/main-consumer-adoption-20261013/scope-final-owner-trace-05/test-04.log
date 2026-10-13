@@ -1,0 +1,21 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner ... SCOPE_COORDINATE at=152 substituting=Some("Target::x") inert=Some(false) namespace_inventory=[("::Target::x", Span { start: 32, end: 33 }, [Span { start: 143, end: 153 }, Span { start: 173, end: 183 }, Span { start: 203, end: 213 }, Span { start: 233, end: 245 }])]
+SCOPE_OWNER selected offset=152 kind=Root namespace=Some("::") eligible=[(Global, "::"), (Uplevel, "#0")]
+SCOPE_COORDINATE at=182 substituting=None inert=None namespace_inventory=[("::Target::x", Span { start: 32, end: 33 }, [Span { start: 143, end: 153 }, Span { start: 173, end: 183 }, Span { start: 203, end: 213 }, Span { start: 233, end: 245 }])]
+SCOPE_OWNER selected offset=182 kind=Local namespace=Some("::N") eligible=[(Proc, "p"), (Uplevel, "0")]
+
+thread 'definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner' (121184) panicked at rust/tcl-lsp-core/src/definition.rs:8875:13:
+assertion `left == right` failed: uplevel 0 {puts $Target::x
+  left: Some("::Target::x")
+ right: Some("::N::Target::x")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3013 filtered out; finished in 0.76s
+

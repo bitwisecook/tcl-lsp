@@ -1,0 +1,7 @@
+ROW patchlevel 0 8.6.18
+ROW version 1 {unknown or ambiguous subcommand "version": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}
+ROW jim-version 1 {can't read "::jim_version": no such variable}
+ROW tcl-version 0 8.6
+ROW {setup {::N[0]}} 0 {}
+ROW {define {::N[0]::p}} 0 {}
+ROW {raw {::N[0]::p}} 0 {{::N[0]::p}}

@@ -1,0 +1,74 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -371,6 +371,16 @@
+                     }
+                 }
+             }
++        }
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_LOGICAL_SCOPE_OWNER").is_some() {
++            eprintln!(
++                "SCOPE_OWNER selected offset={offset} kind={kind:?} namespace={namespace:?} eligible={:?}",
++                eligible
++                    .iter()
++                    .map(|&index| (scopes[index].kind, &scopes[index].name))
++                    .collect::<Vec<_>>()
++            );
+         }
+         Some(LogicalVariableScopeAdvice {
+             analysis: self,
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -8584,6 +8584,26 @@
+                 let missing_position =
+                     LineIndex::new(source).position_at_utf16(missing_offset, source);
+                 let (line, character) = (missing_position.line, missing_position.character.get());
++                if std::env::var_os("TCL_LSP_TRACE_LOGICAL_SCOPE_OWNER").is_some() {
++                    eprintln!(
++                        "CLASS_OWNER at={missing_offset} invocation={:?} original={:?} class={:?} positioned={:?} public={:?}",
++                        invocation_reference_at(&analysis, missing_offset),
++                        crate::original_declaration::select_at_offset(
++                            "",
++                            source,
++                            &analysis,
++                            missing_offset
++                        ),
++                        class_declaration_at(source, &analysis, "C", missing_offset),
++                        positioned_definition_target(
++                            &analysis,
++                            source,
++                            &LineIndex::new(source),
++                            missing_offset
++                        ),
++                        definition(source, line, character, &analysis),
++                    );
++                }
+                 assert!(
+                     definition(source, line, character, &analysis).is_empty(),
+                     "{release}: {source}"
+@@ -8834,7 +8854,24 @@
+             ("uplevel 1 {puts $Target::x", None),
+             ("uplevel 1 {puts $::Target::x", Some("::Target::x")),
+         ] {
+-            let (_, line, character) = cursor(source, needle);
++            let (offset, line, character) = cursor(source, needle);
++            if std::env::var_os("TCL_LSP_TRACE_LOGICAL_SCOPE_OWNER").is_some() {
++                eprintln!(
++                    "SCOPE_COORDINATE at={offset} substituting={:?} inert={:?} namespace_inventory={:?}",
++                    substituting_var_at_position(source, &analysis, line, character, offset),
++                    offset_is_inert(source, &analysis, offset),
++                    tcl_compiler::analyser::namespace_variables(&analysis.global_scope)
++                        .into_iter()
++                        .filter(|(_, var)| var.definition_span.start() <= offset
++                            && offset < var.definition_span.end()
++                            || var
++                                .references
++                                .iter()
++                                .any(|span| span.start() <= offset && offset < span.end()))
++                        .map(|(name, var)| (name, var.definition_span, var.references.clone()))
++                        .collect::<Vec<_>>()
++                );
++            }
+             assert_eq!(
+                 qualified_variable_cell_at(
+                     source,

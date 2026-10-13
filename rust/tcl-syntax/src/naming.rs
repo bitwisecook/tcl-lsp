@@ -54,6 +54,8 @@ mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
 mod command_geometry;
 mod reporting;
+mod script_command_presence;
+pub use script_command_presence::{ScriptRootCommandPresencePlan, original_command_presence_support};
 mod script_namespace_snapshot;
 pub use script_namespace_snapshot::original_namespace_variable_snapshot_support;
 pub use reporting::{ReportedQNameNamespacePurpose, reported_qname_namespace};

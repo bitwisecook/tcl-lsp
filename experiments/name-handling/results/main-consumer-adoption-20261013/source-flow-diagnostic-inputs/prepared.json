@@ -1,0 +1,6 @@
+{
+  "rust/tcl-compiler/src/command_binding/declaration_flow.rs": {
+    "before": "b43d94fd8d5b055f1ddd61744f97d9ba8dbd7ee70eedb225807b53230e184dce",
+    "instrumented": "45dc00d9db7a2aea31f64b6ee2c6cbd00e5d7ddbfdce11d3ee0014c9f89c8bf5"
+  }
+}

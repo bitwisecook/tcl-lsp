@@ -1,0 +1,15 @@
+{
+  "artifacts.json": "1deedcf6ce83e7b42f898774c948254d4df19ff51959dc3ba8e603cd857588f8",
+  "build.stderr": "b136915580cb4bd1133af6d29afab9bcea4152bfacf84ce5493708ee2a0fbdf2",
+  "build.stdout": "71b6342e322ef3c28c2c13793e15f7bfebe825f428552777f39f57dc39bccf1a",
+  "capture.py": "b69a57f7bc9d8d499b7756910ecb1bedc9ce16060f1cb4e8ea72dbc5520b26f0",
+  "errors.json": "655b2a364892954a2a925e8b8e6903dbefa28c86b6fea72eb8d7a4ea56f648e5",
+  "inputs-after.json": "5389e5b0363a32e873dcd9c26ebceb32d962e0f1b15b82d305aac1b4b3c4ca72",
+  "inputs-before.json": "5389e5b0363a32e873dcd9c26ebceb32d962e0f1b15b82d305aac1b4b3c4ca72",
+  "run.py": "824e4816c4980a1201b297cd0084c41f959f73f2ed8297edf60356b508c0389e",
+  "runtime-metadata.json": "f3bfdcabe2a94f827d4a038e35874f92c66794d63dce8dbdf4c1adbb0bd14dd1",
+  "selected-local-output-coverage.json": "377528cf7a6e9a98351ab0de4eb34784c2389eefc88008d45f80e7e84f4e5984",
+  "selected-output-audit.py": "97c83099729bb1ba1c191ab35597caaa99cec95f833c40d4b803251d7ee9eac3",
+  "validation.json": "d607b9a7cfcadd3b890cace4ab2fe5015fe723005629048990949fa26be4c20b",
+  "workspace-metadata.json": "0cf1034639a2c4217e6e3060c644ccdd2d3b41069f6ebb517d894564cd8a9b5f"
+}

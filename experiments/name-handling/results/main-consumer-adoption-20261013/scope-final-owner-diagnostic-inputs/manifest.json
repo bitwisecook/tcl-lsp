@@ -1,0 +1,14 @@
+{
+  "paths": {
+    "rust/tcl-compiler/src/analyser/scope.rs": {
+      "before_sha256": "22bfee88022ab8e542397a93e470fc9167238b81f0ba33fd8376906eb3c0d4b3",
+      "after_sha256": "e1165c67c8f1e093b3754fff6e6d9f1e87b43bbe2d6a7751620d544a79b51ae2"
+    },
+    "rust/tcl-lsp-core/src/definition.rs": {
+      "before_sha256": "c5b76575efc7720181aec8228f17538beabd4c26087eff1d1a05da49a595acef",
+      "after_sha256": "682b4b6cd80294f632631f0863c8794a621c3987987ece262b7a32ae095ebb4e"
+    }
+  },
+  "patch_sha256": "b544401dee5a0b0181a14372407e7e8fdbfb395c014d25e43dbd3d42bb2128be",
+  "scope": "Fresh clean production preimage after trace04 restoration; temporary read-only measurements in existing exact public controls"
+}

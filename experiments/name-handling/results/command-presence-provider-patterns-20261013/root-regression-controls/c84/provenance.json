@@ -1,0 +1,24 @@
+{
+  "provider": "c84",
+  "expected_release": "8.4.20",
+  "captured_utc": "2026-10-13T19:12:42.542952+00:00",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/tmp/name-command-presence-20261013/root-regression-controls/input.tcl"
+  ],
+  "cwd": "/tmp/name-command-presence-20261013/root-regression-controls",
+  "selected_environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LD_LIBRARY_PATH": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix"
+  },
+  "unset_environment": [
+    "TCLLIBPATH"
+  ],
+  "input_sha256": "17dccf71c49c3404435137bfee0dd25eea0f026087ff03f4b62de54027ba3b48",
+  "runner_sha256": "852d47e5b0b42992b6999d54e4bdb158d8ec1b23edc1be1949debef8cba4f26c",
+  "exit_code": 0,
+  "stdout_sha256": "c134e9e61d65dee13aa00676f1b1939bf164f06daaf0e613aea72a7e530b356a",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seal_changes": {},
+  "scope": "Original executable qualified command inventory pattern and exact invocation controls; no native cell/token identity, F5, tcltest, Rust consumer or build acceptance."
+}
