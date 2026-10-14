@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::function_lattice_reused_on_body_shift ... 
+thread 'tests::function_lattice_reused_on_body_shift' (282820) panicked at rust/tcl-lsp-db/src/lib.rs:10192:9:
+assertion `left == right` failed: initial: both procedures' lattices built: ["file_analysis_incremental(Id(100))", "document_analysis_input(Id(180))", "compilation_unit_for_config(Id(280))", "declared_command_surface(Id(80))", "item_body_analysis(Id(300))"]
+  left: 0
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::function_lattice_reused_on_body_shift
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.73s
+

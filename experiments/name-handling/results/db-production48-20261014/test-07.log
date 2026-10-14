@@ -1,0 +1,17 @@
+
+running 1 test
+test tests::proc_summary_cascade_reused_on_unrelated_edit ... 
+thread 'tests::proc_summary_cascade_reused_on_unrelated_edit' (282828) panicked at rust/tcl-lsp-db/src/lib.rs:8130:9:
+assertion `left == right` failed: cold build: every procedure's summary inference runs
+  left: 0
+ right: 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::proc_summary_cascade_reused_on_unrelated_edit
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.35s
+

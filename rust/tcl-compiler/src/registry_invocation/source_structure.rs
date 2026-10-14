@@ -2197,11 +2197,13 @@ pub(crate) fn original_immediate_body_commands_for_module(
     let no_script_body =
         selected.with_metadata_schema(registry, metadata, source_realm, |schema| {
             let (roles, complete) = schema.authored_logical_source_argument_roles();
-            complete
-                && !roles
-                    .iter()
-                    .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
-                && schema.authored_source_case_invocation().is_none()
+            Some(
+                complete
+                    && !roles
+                        .iter()
+                        .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+                    && schema.authored_source_case_invocation().is_none(),
+            )
         })?;
     if no_script_body {
         return Some(Vec::new());

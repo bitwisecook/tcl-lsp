@@ -1,0 +1,337 @@
+{
+  "started_utc": "2026-10-14T06:52:46.345839+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-lsp-db",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 173.2233493120002,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+    "sha256": "ba98d833580e3ed92ae8be71fe2c199984998296cf226bfaa06ed7414096c83d",
+    "bytes": 366908960
+  },
+  "selected_tests": [
+    "tests::function_lattice_memoises_param_constant_procs",
+    "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+    "tests::function_lattice_reused_on_body_shift",
+    "tests::function_lattice_reused_on_whole_file_shift",
+    "tests::function_optimisations_reused_on_unrelated_edit",
+    "tests::lower_proc_body_reused_on_unrelated_edit",
+    "tests::proc_summary_cascade_reused_on_unrelated_edit",
+    "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+    "tests::taint_cascade_matches_uncached_under_edits",
+    "tests::taint_cascade_reused_on_unrelated_edit"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::function_lattice_memoises_param_constant_procs",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9165913639881182,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "tests::function_lattice_memoises_param_constant_procs",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6155727400036994,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::function_lattice_reused_on_body_shift",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.7658754000003682,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "tests::function_lattice_reused_on_body_shift",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::function_lattice_reused_on_whole_file_shift",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 2.4705950149946148,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "tests::function_lattice_reused_on_whole_file_shift",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::function_optimisations_reused_on_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4149493650038494,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "tests::function_optimisations_reused_on_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::lower_proc_body_reused_on_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4150005080009578,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "tests::lower_proc_body_reused_on_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::proc_summary_cascade_reused_on_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3650290759978816,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "tests::proc_summary_cascade_reused_on_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9163059170095949,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::taint_cascade_matches_uncached_under_edits",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.3674867869995069,
+      "log": "test-09.log",
+      "timed_out": false,
+      "test": "tests::taint_cascade_matches_uncached_under_edits",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/tcl_lsp_db-ac90da505c58d105",
+        "tests::taint_cascade_reused_on_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3648598010040587,
+      "log": "test-10.log",
+      "timed_out": false,
+      "test": "tests::taint_cascade_reused_on_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T06:55:51.613486+00:00",
+  "changed_sources": {}
+}

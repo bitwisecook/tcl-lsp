@@ -1,0 +1,15 @@
+
+running 1 test
+test tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads ... 
+thread 'tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads' (282830) panicked at rust/tcl-lsp-db/src/lib.rs:8231:52:
+no entry found for key
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.89s
+
