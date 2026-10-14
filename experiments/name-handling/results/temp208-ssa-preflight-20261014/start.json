@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-14T23:45:03.860653+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "--lib"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "TEMP208 bounded SSA primitive equation diagnostic after public owner, shared declaration summaries, LSP literal names and typed Jim namespace consumer migrations. Compiler test artifact only; no tests executed by build. Unchanged original #2286 selector separately, original 180-second host budget. Temporary instrumentation is not production acceptance or Native/provider closure."
+}

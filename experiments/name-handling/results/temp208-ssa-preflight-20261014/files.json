@@ -1,0 +1,11 @@
+{
+  "source-after.json.gz": "08390c592457f18b6a5d5d32170c205f1c261607a56a58207d56d52b14b9503c",
+  "build.py": "265a7aaddcd035092a4b77f8e84e8e9cc4292f07ba643c260b06b3eafac26860",
+  "temporary-diagnostic.patch": "2a7e80fa3b5f446b6b6b291d766b0fbd08d1f81eaede66bbaea488eab54bba74",
+  "result.json": "0743508e5725e9d395f3d8f3e656a5ab17c87c6551b89d99485fdc95136c729c",
+  "build.jsonl.gz": "bb6d981bde95670d453e4b7fa5fbe1d3546eafd5f02fb4e70fdd2c05832ffc6d",
+  "restoration.json": "d60bc3b86466f66943793f1e955ec07b8425b036aab7986dab46527150449e1e",
+  "README.md": "c5622429cc147af4b8f41caf4da6a761003cb63df78c7aa14ab82193ab433c0a",
+  "source-before.json.gz": "09e72677fbfb11bb4ea1b74c7dfbbdce37df69b3e64d0731a105d51ae17f0e0b",
+  "start.json": "3311567628fdeff2be357ca422793e9c44db70336f2ffb68caa7f852614aba90"
+}

@@ -20,7 +20,7 @@ pub struct BodyAnalysisCapsule {
     neutral: Option<Arc<ClosedBodyProjection>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct ClosedBodyProjection {
     declaration: NeutralDeclaration,
     body: crate::ir::Script,
@@ -31,6 +31,41 @@ struct ClosedBodyProjection {
     analytical: Option<crate::command_binding::AnalyticalBodyCorrespondence>,
     module_facts: BodyModuleFacts,
     original_semantic_facts: crate::semantic_analysis::SemanticAnalysisBundle,
+}
+
+impl PartialEq for ClosedBodyProjection {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            declaration,
+            body,
+            function,
+            summary,
+            instance_classes,
+            tainted_global_writes,
+            analytical,
+            module_facts,
+            original_semantic_facts,
+        } = self;
+        declaration == &other.declaration
+            && body == &other.body
+            && function == &other.function
+            && summary == &other.summary
+            && instance_classes == &other.instance_classes
+            && tainted_global_writes == &other.tainted_global_writes
+            && analytical == &other.analytical
+            && module_facts == &other.module_facts
+            && (original_semantic_facts == &other.original_semantic_facts
+                || analytical
+                    .as_ref()
+                    .zip(other.analytical.as_ref())
+                    .is_some_and(|(source, target)| {
+                        original_semantic_facts.matches_rebound_source(
+                            &other.original_semantic_facts,
+                            source,
+                            target,
+                        )
+                    }))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

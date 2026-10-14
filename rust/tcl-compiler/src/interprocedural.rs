@@ -2956,16 +2956,7 @@ fn scan_positioned_candidate_callbacks(
         if let Some(id) = row.target().and_then(|target| {
             target
                 .original_ir_procedure_id(ctx.source_procedures)
-                .or_else(|| {
-                    let owner = ctx.source_module.retained_source_bindings.as_ref()?;
-                    owner.positioned_for_module(ctx.source_module, ctx.registry)?;
-                    let (id, procedure) = ctx
-                        .source_module
-                        .original_source_procedure_for_target(target)?;
-                    owner
-                        .matches_original_procedure_summary(id, procedure)
-                        .then_some(id)
-                })
+                .or_else(|| target.original_source_ir_procedure_id(ctx.source_module, ctx.registry))
         }) && ctx.known.contains(&id)
         {
             facts.direct_calls.insert(id);

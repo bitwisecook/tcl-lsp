@@ -45,3 +45,7 @@ a completed C release gate or Jim/F5 agreement.
 [Original Jim lambda context SDK controls](original-jim-lambda-context-sdk-20261014/README.md) retain original object getter and command lookup observations used by the VM context integration.
 
 [TEMP207 SSA diagnostic preflight](temp207-ssa-preflight-20261014/README.md) records the failed test compile, zero executions and exact source restoration.
+
+[TEMP208 SSA diagnostic preflight](temp208-ssa-preflight-20261014/README.md) retains the callback-target compile failure and exact restoration; no selector ran.
+
+[Original dying-namespace descendant SDK controls](original-dying-descendant-sdk-20261014/README.md) retain physical parent ancestry, visibility and teardown observations from C Tcl8.4–9.1.

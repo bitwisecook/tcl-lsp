@@ -1,0 +1,300 @@
+{
+  "files": [
+    {
+      "path": "probe.c",
+      "sha256": "15fa879392836c7a88b5f74febd8a47d31836c6fd76fbe01c642f4c56ccdaca9"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "97454b812d3e414f094b0254c19a7b254a75c19843e5e0fbb36b5331b64b7e15"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "9bdc2d571430fc9d30808e17a0d03aed2e2b61054353cad856e930314d3df9c0"
+    },
+    {
+      "path": "8.4.20/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.4.20/stdout.tsv",
+      "sha256": "cb5c53ff93be9200b641c8b6fb522c27d052c32c4e3f5c3b6d5db91c996f0334"
+    },
+    {
+      "path": "8.4.20/receipt.json",
+      "sha256": "cc76ba6900b8572bbce0f2619b7082c7bfd21a6fb6c3755c60385c80d9d4c088"
+    },
+    {
+      "path": "8.4.20/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.4.20/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "provider-sources/8.4.20/generic/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c"
+    },
+    {
+      "path": "provider-sources/8.4.20/generic/tclVar.c",
+      "sha256": "177628c7637491dffb4ba78f76e5dfdec21331c738c382f47ddb312721f05c9d",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclVar.c"
+    },
+    {
+      "path": "provider-sources/8.4.20/generic/tclInt.h",
+      "sha256": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h"
+    },
+    {
+      "path": "provider-sources/8.4.20/generic/tclIntDecls.h",
+      "sha256": "ef14c8b968a80d9d4b08b70419afbfcef4dc484d03fb5c3f6c729350e0c45a1e",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclIntDecls.h"
+    },
+    {
+      "path": "provider-sources/8.4.20/generic/tcl.h",
+      "sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h"
+    },
+    {
+      "path": "provider-sources/8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl"
+    },
+    {
+      "path": "provider-sources/8.4.20/unix/Makefile",
+      "sha256": "fc51767f4b4eedbfc6511104919f5b674a826421ff3aa086b5fb0afba91096bd",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/Makefile"
+    },
+    {
+      "path": "8.5.19/receipt.json",
+      "sha256": "0e4712fb9c220ac208b52b2f3d40e5d48fd3d69338bda66aaf2ea27670b2c151"
+    },
+    {
+      "path": "8.5.19/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.5.19/stdout.tsv",
+      "sha256": "9e4eb9716e4c06b6ed923210c5174303ccc57001a5a4a2867f65f4e363a98630"
+    },
+    {
+      "path": "8.5.19/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.5.19/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "provider-sources/8.5.19/generic/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c"
+    },
+    {
+      "path": "provider-sources/8.5.19/generic/tclVar.c",
+      "sha256": "24f29b0694b5e755f99ab98a0486a63807de9d368b81df65e71ebacb95817768",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclVar.c"
+    },
+    {
+      "path": "provider-sources/8.5.19/generic/tclInt.h",
+      "sha256": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h"
+    },
+    {
+      "path": "provider-sources/8.5.19/generic/tclIntDecls.h",
+      "sha256": "e4efb75e3a479b8d816cba3eb4633a449276dc2ac2f1a86d2125cac32dfc0243",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclIntDecls.h"
+    },
+    {
+      "path": "provider-sources/8.5.19/generic/tcl.h",
+      "sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h"
+    },
+    {
+      "path": "provider-sources/8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl"
+    },
+    {
+      "path": "provider-sources/8.5.19/unix/Makefile",
+      "sha256": "d75f646667cb61a345ba3b296378820ab645dd64a2dfc4086a7a4fc1f3aefd30",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/Makefile"
+    },
+    {
+      "path": "8.6.18/receipt.json",
+      "sha256": "8a6bc5bcc82260266e975868106948dda8a71906e81494b49875a115a0dfde68"
+    },
+    {
+      "path": "8.6.18/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.6.18/stdout.tsv",
+      "sha256": "c44b6aa8f20e9a9f84310db1a853380ddf26958cdaf1317dcb7aaa295ce33975"
+    },
+    {
+      "path": "8.6.18/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "8.6.18/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "provider-sources/8.6.18/generic/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c"
+    },
+    {
+      "path": "provider-sources/8.6.18/generic/tclVar.c",
+      "sha256": "2af24d8fa81db05a2805652ac4359d55ec1e2ef8bbcdad86c4000e25dfd61946",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclVar.c"
+    },
+    {
+      "path": "provider-sources/8.6.18/generic/tclInt.h",
+      "sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h"
+    },
+    {
+      "path": "provider-sources/8.6.18/generic/tclIntDecls.h",
+      "sha256": "dd303cab02a101f96109c96f626eb91fa5576fe21294a9d80816b06a8014ca26",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclIntDecls.h"
+    },
+    {
+      "path": "provider-sources/8.6.18/generic/tcl.h",
+      "sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h"
+    },
+    {
+      "path": "provider-sources/8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl"
+    },
+    {
+      "path": "provider-sources/8.6.18/unix/Makefile",
+      "sha256": "3cd353b9ac58331ec96496de14f005be972f2824250e6812ca60b6949f23aaed",
+      "original": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/Makefile"
+    },
+    {
+      "path": "9.0.4/receipt.json",
+      "sha256": "d3ff827919b02ef36bf0dc060f93b25a93f8b9467850c330b17f3d66db4bc96f"
+    },
+    {
+      "path": "9.0.4/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.0.4/stdout.tsv",
+      "sha256": "0aeeba952bd87eb18d276b3a92d3e8465363dbae4e7d5cdd56f56449e4b3f945"
+    },
+    {
+      "path": "9.0.4/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.0.4/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "provider-sources/9.0.4/generic/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c"
+    },
+    {
+      "path": "provider-sources/9.0.4/generic/tclVar.c",
+      "sha256": "0ed96dbf7949b0cb84dabd6b9be971ceb00dd97458c87264cc03541c618496fc",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclVar.c"
+    },
+    {
+      "path": "provider-sources/9.0.4/generic/tclInt.h",
+      "sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h"
+    },
+    {
+      "path": "provider-sources/9.0.4/generic/tclIntDecls.h",
+      "sha256": "96897750658753b43b3de554682bec7249c92e858dbe437eab7de0e26aba9a6a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclIntDecls.h"
+    },
+    {
+      "path": "provider-sources/9.0.4/generic/tcl.h",
+      "sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h"
+    },
+    {
+      "path": "provider-sources/9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl"
+    },
+    {
+      "path": "provider-sources/9.0.4/unix/Makefile",
+      "sha256": "5d28ef83e60eabcaf398a53a41bab20c381254f9a67c78dba09460722d5d33b6",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/Makefile"
+    },
+    {
+      "path": "9.1.0/receipt.json",
+      "sha256": "3e74d567cd2e4b36ded188da9043639f77bf599aafaa00979399e1c0c715b1c6"
+    },
+    {
+      "path": "9.1.0/stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.1.0/stdout.tsv",
+      "sha256": "5fb134004c69e99741baa385694e0e0fc90d71a88525ca052235a1e42eef8fe3"
+    },
+    {
+      "path": "9.1.0/compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "9.1.0/compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "provider-sources/9.1.0/generic/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c"
+    },
+    {
+      "path": "provider-sources/9.1.0/generic/tclVar.c",
+      "sha256": "270bf098d3a2817b117531713a49367729d030b9b3b05c10dfd4acbba7554759",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclVar.c"
+    },
+    {
+      "path": "provider-sources/9.1.0/generic/tclInt.h",
+      "sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h"
+    },
+    {
+      "path": "provider-sources/9.1.0/generic/tclIntDecls.h",
+      "sha256": "78d549e7b85ed9e91df2d44e62db9f2a376b55deb98c55edbbbe53396d45b502",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclIntDecls.h"
+    },
+    {
+      "path": "provider-sources/9.1.0/generic/tcl.h",
+      "sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h"
+    },
+    {
+      "path": "provider-sources/9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl"
+    },
+    {
+      "path": "provider-sources/9.1.0/unix/Makefile",
+      "sha256": "a2c52481652af4a3df4042243a7c6ed6211835f6a08d9d13a064ff6de927f737",
+      "original": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/Makefile"
+    },
+    {
+      "path": "README.md",
+      "sha256": "af6e0ea65eec0e8fc61bf3df12f08a1dc34ea6c668dc4f7ba03eab9125c48518"
+    },
+    {
+      "path": "analysis.json",
+      "sha256": "2d91eb5e73502881a06b9d0a41a0852a546a3a247276b1eecc945a0272c398cf"
+    }
+  ],
+  "scope": "Exact original nonbinary capture files plus copied actual provider source snapshots. Original library/executable original hashes verified, binary files excluded."
+}

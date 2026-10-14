@@ -57,8 +57,33 @@ struct NativeSourceSchemaDependency {
 pub(crate) struct AnalyticalBodyCorrespondence {
     pub(crate) body: Script,
     pub(crate) relocation: crate::var_resolve::VariableProofRelocation,
+    // Authentic carriers stay separate from the closed comparison projection.
+    original_body: Script,
+    original_body_offset: u32,
     dependencies: Vec<AnalyticalCommandDependency>,
     purpose: CorrespondencePurpose,
+}
+
+impl AnalyticalBodyCorrespondence {
+    pub(crate) fn semantic_source_bodies(&self, target: &Self) -> Option<(Script, Script, i64)> {
+        if self != target {
+            return None;
+        }
+        self.relocation.inverse()?;
+        target.relocation.inverse()?;
+        let mut original = self.original_body.clone();
+        let mut target_body = target.original_body.clone();
+        crate::lattice_rebase::rebase_script(&mut original, i64::from(self.original_body_offset));
+        crate::lattice_rebase::rebase_script(
+            &mut target_body,
+            i64::from(target.original_body_offset),
+        );
+        Some((
+            original,
+            target_body,
+            i64::from(target.original_body_offset) - i64::from(self.original_body_offset),
+        ))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,6 +233,8 @@ impl ModuleCommandBindings {
             }
         });
         valid.then(|| AnalyticalBodyCorrespondence {
+            original_body: body.clone(),
+            original_body_offset: scope.original_body_offset,
             body: projection,
             relocation,
             dependencies: dependencies.into_values().collect(),
@@ -349,6 +376,8 @@ impl ModuleCommandBindings {
             }
         });
         valid.then(|| AnalyticalBodyCorrespondence {
+            original_body: body.clone(),
+            original_body_offset: scope.original_body_offset,
             body: projection,
             relocation,
             dependencies: dependencies.into_values().collect(),

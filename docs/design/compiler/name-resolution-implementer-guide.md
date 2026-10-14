@@ -534,12 +534,17 @@ facts; a function's printed name or namespace is not an alternative owner.
 Original-name projections remain diagnostic text.
 
 Jim lookup also requires the actual namespace-object carrier. Runtime frames
-and declarations retain their original Jim namespace objects; compilation
-snapshots retain the selected `NativeCompilationNamespace::jim_namespace_object`
-spelling independently of C component geometry. Source lookup consumes that
-selected Jim context and actual namespace paths. A constructed C path, a checked
-Unicode display or equal bytes from another object do not supply a Jim frame,
-command cache, native object role or namespace token.
+and declarations retain their original Jim namespace objects. In the VM,
+`NamespaceExecutionContext::OriginalJim` retains the original object and owner
+independently of an optional materialised coordinate. Preparing its Script or
+transporting its frame does not obtain that coordinate. Native compilation
+capture of this current context requires an already materialised, authenticated
+namespace token and declines while it is absent. Independently selected explicit
+known targets retain their own checks. Admitted snapshots retain the selected
+`NativeCompilationNamespace::jim_namespace_object` spelling independently of
+C component geometry. A constructed C path, checked Unicode display or equal
+bytes from another object do not supply a Jim frame, command cache, native
+object role or namespace token.
 
 Jim byte-registration inputs retain their actual publication namespace, tail
 and generation. Selected key construction uses the shared C-API publication
@@ -7528,16 +7533,24 @@ or ByteArray constructor and actual getter independently of the report. Jim's
 raw context holder does not enter this C lookup/report route.
 
 For Jim, `jim_lambda_namespace_input` retains the exact counted namespace bytes
-without C root-prefix construction or namespace lookup. The VM interns the raw
-Jim context holder and independently retains the original List child; an absent
-namespace does not borrow the C missing-namespace report.
-`preflight_original_lambda_activation` shares the actual formal/usage and body
-checks before Jim namespace access or a temporary binding. Arity failures and
-empty-body completion do not obtain that namespace getter; the completed
-preflight flag prevents a second body getter. Nonempty successful invocation
-still materialises its Jim namespace eagerly. C ordering remains independent.
-The namespace projection grants no lookup, creation, entered frame or
-successful invocation.
+without C root-prefix construction or namespace lookup. The VM retains the
+original List child in `OriginalJimNamespaceContext` without obtaining its
+String getter. `preflight_original_lambda_activation` checks actual formal/usage
+and body requirements before namespace access or a temporary binding; its
+completed flag prevents a repeated body getter. Script preparation, parsing and
+local binding preserve that original context, including bodies which reach no
+command lookup. A cold command lookup obtains the namespace before command
+bytes even for a qualified head. A valid cached command whose namespace is the
+same original object compares that identity without obtaining either namespace
+String getter. Reached materialisation records a coordinate on the same context;
+frame selection, suspended-flow transport and cleanup retain its activation
+birth independently. The standalone Runtime apply worker still obtains its
+original namespace String while preparing that namespace; this VM contract
+supplies no acceptance for that separate worker. C ordering remains independent.
+The namespace projection grants no lookup, creation, entered frame or successful
+invocation. The [retained SDK observations](../../../experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/README.md)
+cover their original probes and getter order, not current Rust execution or full
+Jim suite conformance.
 
 Lambda values additionally retain their actual constructor channel. The
 [CLI source question](../analysis/name-resolution-proofs/lambda-original-namespace-object-prefix.md)

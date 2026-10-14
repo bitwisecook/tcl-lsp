@@ -1,0 +1,141 @@
+{
+  "started": {
+    "utc": "2026-10-14T23:45:03.860653+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "--lib"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMP208 bounded SSA primitive equation diagnostic after public owner, shared declaration summaries, LSP literal names and typed Jim namespace consumer migrations. Compiler test artifact only; no tests executed by build. Unchanged original #2286 selector separately, original 180-second host budget. Temporary instrumentation is not production acceptance or Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T23:45:36.884538+00:00",
+  "exit_code": 101,
+  "seconds": 33.02372443499917,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [
+    {
+      "rendered": "error[E0308]: mismatched types\n    --> rust/tcl-compiler/src/interprocedural.rs:2964:63\n     |\n2964 |                         .original_source_procedure_for_target(target)?;\n     |                          ------------------------------------ ^^^^^^ expected `&SourceCommandTarget`, found `&OriginalSourceCallbackProcedureTarget`\n     |                          |\n     |                          arguments to this method are incorrect\n     |\n     = note: expected reference `&SourceCommandTarget`\n                found reference `&OriginalSourceCallbackProcedureTarget`\nnote: method defined here\n    --> rust/tcl-compiler/src/ir.rs:3077:19\n     |\n3077 |     pub(crate) fn original_source_procedure_for_target(\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n3078 |         &self,\n3079 |         target: &crate::command_binding::SourceCommandTarget,\n     |         ----------------------------------------------------\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "expected reference `&SourceCommandTarget`\n   found reference `&OriginalSourceCallbackProcedureTarget`",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "method defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 133042,
+              "byte_start": 132990,
+              "column_end": 61,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/ir.rs",
+              "is_primary": false,
+              "label": "",
+              "line_end": 3079,
+              "line_start": 3079,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 61,
+                  "highlight_start": 9,
+                  "text": "        target: &crate::command_binding::SourceCommandTarget,"
+                }
+              ]
+            },
+            {
+              "byte_end": 132965,
+              "byte_start": 132929,
+              "column_end": 55,
+              "column_start": 19,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/ir.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 3077,
+              "line_start": 3077,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 55,
+                  "highlight_start": 19,
+                  "text": "    pub(crate) fn original_source_procedure_for_target("
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "mismatched types",
+      "spans": [
+        {
+          "byte_end": 118701,
+          "byte_start": 118695,
+          "column_end": 69,
+          "column_start": 63,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/interprocedural.rs",
+          "is_primary": true,
+          "label": "expected `&SourceCommandTarget`, found `&OriginalSourceCallbackProcedureTarget`",
+          "line_end": 2964,
+          "line_start": 2964,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 69,
+              "highlight_start": 63,
+              "text": "                        .original_source_procedure_for_target(target)?;"
+            }
+          ]
+        },
+        {
+          "byte_end": 118694,
+          "byte_start": 118658,
+          "column_end": 62,
+          "column_start": 26,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/interprocedural.rs",
+          "is_primary": false,
+          "label": "arguments to this method are incorrect",
+          "line_end": 2964,
+          "line_start": 2964,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 62,
+              "highlight_start": 26,
+              "text": "                        .original_source_procedure_for_target(target)?;"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0308",
+        "explanation": "Expected type did not match the received type.\n\nErroneous code examples:\n\n```compile_fail,E0308\nfn plus_one(x: i32) -> i32 {\n    x + 1\n}\n\nplus_one(\"Not a number\");\n//       ^^^^^^^^^^^^^^ expected `i32`, found `&str`\n\nif \"Not a bool\" {\n// ^^^^^^^^^^^^ expected `bool`, found `&str`\n}\n\nlet x: f32 = \"Not a float\";\n//     ---   ^^^^^^^^^^^^^ expected `f32`, found `&str`\n//     |\n//     expected due to this\n```\n\nThis error occurs when an expression was used in a place where the compiler\nexpected an expression of a different type. It can occur in several cases, the\nmost common being when calling a function and passing an argument which has a\ndifferent type than the matching type in the function declaration.\n"
+      }
+    }
+  ],
+  "test_artifacts": []
+}

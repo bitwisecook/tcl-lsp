@@ -4564,8 +4564,8 @@ fn bind_original_handle_construction(
 /// Bind one resolved [`BoundHandle`] into the handle map.
 ///
 /// The two class sources are resolved differently and both abstain rather than
-/// guess: a [`HandleClassSource::Word`] is a type name used as written (only a
-/// static bareword qualifies), while a
+/// guess: a [`HandleClassSource::Word`] is literal type-name data selected
+/// from the original grouped word, while a
 /// [`HandleClassSource::ConstructionValue`] must parse as a command
 /// substitution whose head is a visible class of a family that constructs by
 /// bare word.
@@ -4578,13 +4578,13 @@ fn bind_object_handle(
     classes: Option<&ClassHierarchy>,
     handles: &mut ObjectClassMap,
 ) {
-    if bound.name.is_empty() || bound.name.contains(['$', '[', ' ']) {
+    if bound.name.is_empty() {
         return;
     }
     match bound.class_source {
         tcl_registry::HandleClassSource::Word(_) => {
             let type_name = bound.class_word;
-            if type_name.is_empty() || type_name.contains(['$', '[', ' ']) {
+            if type_name.is_empty() {
                 return;
             }
             let Some(hierarchy) = classes else { return };
@@ -10666,6 +10666,35 @@ set inert {install leaked using Engine instance}";
         assert!(!handles.contains_key("unknown"));
         assert!(!handles.contains_key("borrowed"));
         let changed = source.replace("Engine instance", "Engine other");
+        handles.clear();
+        augment_snit_handles(
+            &changed,
+            &analysis,
+            Some(analysis.class_hierarchy()),
+            &mut handles,
+        );
+        assert!(handles.is_empty());
+    }
+
+    #[test]
+    fn original_member_handle_advice_preserves_literal_name_and_class_data() {
+        let source = "snit::type {Engine $[literal]} {method run {} {}}\n\
+            snit::type Wrapper {constructor {} {\n\
+            install {slot $[literal]} using {Engine $[literal]} instance\n\
+            install dynamic using $type instance\n\
+            }}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_lexical_declaration_advice());
+        let mut handles = ObjectClassMap::default();
+        augment_snit_handles(
+            source,
+            &analysis,
+            Some(analysis.class_hierarchy()),
+            &mut handles,
+        );
+        assert!(handles.contains_key("slot $[literal]"), "{handles:?}");
+        assert!(!handles.contains_key("dynamic"));
+        let changed = source.replace("instance", "changed");
         handles.clear();
         augment_snit_handles(
             &changed,

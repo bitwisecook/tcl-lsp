@@ -1,0 +1,27 @@
+{
+  "version": "9.1.0",
+  "compile_command": [
+    "cc",
+    "-std=c99",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+    "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "/tmp/name-dying-descendant-physical-sdk-20261014/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/tmp/name-dying-descendant-physical-sdk-20261014/9.1.0/probe"
+  ],
+  "compile_exit": 0,
+  "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+  "library_sha256": "7065af82e6e2c2b15dd45e3146ebb4fa7ed6b0b293a8c66c17b91b27dfdcaa61",
+  "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+  "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+  "source_sha256": "15fa879392836c7a88b5f74febd8a47d31836c6fd76fbe01c642f4c56ccdaca9",
+  "process_exit": 0,
+  "stdout_sha256": "5fb134004c69e99741baa385694e0e0fc90d71a88525ca052235a1e42eef8fe3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executable_sha256": "fa97747fcf16a2b401003f178c20b3702009e6d49c437627ae3fdf3d99e59c5e"
+}

@@ -294,9 +294,47 @@ impl OriginalSourceCallbackProcedureTarget {
     pub fn declaration_slot(&self) -> Option<&ByteCommandSlot> {
         Some(&self.procedure.as_ref()?.declaration_slot)
     }
-    pub(crate) fn original_ir_procedure_id<'a>(
+    pub(crate) fn original_ir_procedure_id(
         &self,
-        procedures: &'a crate::ir::ProcedureInventory,
+        procedures: &crate::ir::ProcedureInventory,
+    ) -> Option<crate::ir::ProcedureId> {
+        self.matching_original_ir_procedure_id(procedures.iter())
+    }
+
+    /// A conditional callback edge may retain an original declaration body
+    /// without creating a callable publication or reached callback frame.
+    pub(crate) fn original_source_ir_procedure_id(
+        &self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::ir::ProcedureId> {
+        let owner = module.retained_source_bindings.as_ref()?;
+        owner.positioned_for_module(module, registry)?;
+        let producer = self.procedure.as_ref()?;
+        let input = module.source_metadata_input.as_ref()?;
+        let config = module.native_lexer_config();
+        let context = input.borrowed_context_registry();
+        if !self
+            .registration
+            .matches_source_context(&module.source, config, context)
+            || !producer.declaration.matches_source(&module.source, config)
+            || !producer.declaration.matches_context(context)
+            || producer.declaration.original_words().first()?.image() != &module.source
+        {
+            return None;
+        }
+        self.matching_original_ir_procedure_id(
+            module
+                .original_source_procedure_bodies()
+                .filter(|(id, procedure)| {
+                    owner.matches_original_procedure_summary(**id, procedure)
+                }),
+        )
+    }
+
+    fn matching_original_ir_procedure_id<'a>(
+        &self,
+        procedures: impl Iterator<Item = (&'a crate::ir::ProcedureId, &'a crate::ir::Procedure)>,
     ) -> Option<crate::ir::ProcedureId> {
         let producer = self.procedure.as_ref()?;
         let body = producer.body.content_span();
@@ -304,7 +342,7 @@ impl OriginalSourceCallbackProcedureTarget {
         let bytes = image
             .bytes()
             .get(body.start() as usize..body.end() as usize)?;
-        let mut matching = procedures.iter().filter(|(_, procedure)| {
+        let mut matching = procedures.filter(|(_, procedure)| {
             procedure.declaration_site.as_ref() == Some(producer.declaration.site())
                 && procedure.span.start() == producer.declaration.site().offset
                 && procedure.body_offset == body.start()

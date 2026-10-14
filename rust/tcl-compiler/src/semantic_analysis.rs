@@ -88,7 +88,131 @@ impl RetainedSemanticMetadataContext {
     }
 }
 
+/// Source carrier rewrites remain private to the complete-bundle comparison.
+struct BodySemanticSourceTransport {
+    statements: Vec<(crate::ir::Statement, crate::ir::Statement)>,
+    tokens: std::collections::BTreeMap<u32, (crate::ir::CommandTokens, crate::ir::CommandTokens)>,
+}
+
+impl BodySemanticSourceTransport {
+    fn new(mut original: Script, mut target_body: Script, delta: i64) -> Option<Self> {
+        let original_tokens = crate::command_binding::BodySourceProofs::from_body(&original).tokens;
+        let target_tokens =
+            crate::command_binding::BodySourceProofs::from_body(&target_body).tokens;
+        if original_tokens.len() != target_tokens.len() {
+            return None;
+        }
+        let tokens = original_tokens
+            .into_iter()
+            .map(|(offset, original)| {
+                let selected = u32::try_from(i64::from(offset) + delta).ok()?;
+                Some((offset, (original, target_tokens.get(&selected)?.clone())))
+            })
+            .collect::<Option<std::collections::BTreeMap<_, _>>>()?;
+        let mut original_statements = Vec::new();
+        let mut target_statements = Vec::new();
+        crate::ir::for_each_script_mut(&mut original, &mut |script| {
+            original_statements.extend(script.statements.iter().cloned());
+        });
+        crate::ir::for_each_script_mut(&mut target_body, &mut |script| {
+            target_statements.extend(script.statements.iter().cloned());
+        });
+        if original_statements.len() != target_statements.len() {
+            return None;
+        }
+        let statements = original_statements
+            .into_iter()
+            .zip(target_statements)
+            .collect::<Vec<_>>();
+        for (index, (source, selected)) in statements.iter().enumerate() {
+            if statements[..index]
+                .iter()
+                .any(|(other_source, other_target)| {
+                    (source == other_source) != (selected == other_target)
+                })
+            {
+                return None;
+            }
+        }
+        Some(Self { statements, tokens })
+    }
+}
+
+impl BodySemanticSourceTransport {
+    fn rebind_lowered_operation(
+        &self,
+        operation: &mut crate::executable_ir::LoweredOperation,
+    ) -> Option<()> {
+        if operation.source != crate::ir::SourceSite::source(operation.statement.span()) {
+            return None;
+        }
+        let mut statements = self
+            .statements
+            .iter()
+            .filter_map(|(original, target)| (original == &operation.statement).then_some(target));
+        let statement = statements.next()?;
+        if statements.any(|other| other != statement) {
+            return None;
+        }
+        let original = operation.original_tokens.as_ref()?;
+        let (source, selected) = self.tokens.get(&operation.statement.span().start())?;
+        if source != original.as_ref() {
+            return None;
+        }
+        operation.original_tokens = Some(std::sync::Arc::new(selected.clone()));
+        operation.statement = statement.clone();
+        operation.source.span = statement.span();
+        Some(())
+    }
+}
+
 impl SemanticAnalysisBundle {
+    /// Compare complete facts after a private owner transports authentic source carriers.
+    /// The rebound value is never returned as execution or analysis authority.
+    pub(crate) fn matches_rebound_source(
+        &self,
+        target: &Self,
+        source: &crate::command_binding::AnalyticalBodyCorrespondence,
+        target_source: &crate::command_binding::AnalyticalBodyCorrespondence,
+    ) -> bool {
+        let Some((source, target_body, delta)) = source.semantic_source_bodies(target_source)
+        else {
+            return false;
+        };
+        let Some(transport) = BodySemanticSourceTransport::new(source, target_body, delta) else {
+            return false;
+        };
+        let mut rebound = self.clone();
+        let function = match &mut rebound.executable {
+            ExecutableAnalysisAvailability::Available(facts) => Some(&mut facts.function),
+            ExecutableAnalysisAvailability::WorldStateDeclined { function, .. }
+            | ExecutableAnalysisAvailability::WorldStateNotRequired { function } => Some(function),
+            ExecutableAnalysisAvailability::ContextUnavailable
+            | ExecutableAnalysisAvailability::SourceDeclined(_)
+            | ExecutableAnalysisAvailability::SourceUnavailable => None,
+        };
+        if let Some(function) = function {
+            if function.native_compilation_admission.is_some() {
+                return false;
+            }
+            for instruction in function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+            {
+                let crate::executable_ir::ExecutableInstruction::ExecuteLowered(operation) =
+                    instruction
+                else {
+                    return false;
+                };
+                if transport.rebind_lowered_operation(operation).is_none() {
+                    return false;
+                }
+            }
+        }
+        rebound == *target
+    }
+
     /// Build facts from source-faithful IR under the explicitly resolved
     /// semantic context and dispatch entry contract.
     #[must_use]
@@ -671,6 +795,186 @@ mod tests {
     use crate::ir::NodeId;
     use crate::lowering::lower_to_ir;
     use crate::mixed_region_plan::{InvocationSelection, RegionPlan};
+
+    fn source_bundle_comparison_fixture(
+        other: &str,
+        kept: &str,
+        full: bool,
+    ) -> (
+        SemanticAnalysisBundle,
+        crate::command_binding::AnalyticalBodyCorrespondence,
+    ) {
+        use std::sync::Arc;
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = context.commands().profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            &format!("proc kept {{x}} {{{kept}}}\nproc other {{}} {{{other}}}\n"),
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        let id = *unit
+            .ir_module
+            .original_native_declaration_body_units
+            .iter()
+            .find(|(_, card)| card.original_name_input().bytes() == b"kept")
+            .unwrap()
+            .0;
+        let procedure = unit.original_procedure_for_body(id).unwrap();
+        let function = unit.function_for_body(Some(id)).unwrap();
+        let mut body = procedure.body.clone();
+        crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
+        let bindings = crate::command_binding::ModuleCommandBindings::analyse(
+            &unit.ir_module,
+            context.commands(),
+        );
+        let correspondence = bindings
+            .prepare_native_source_body_correspondence(
+                &body,
+                crate::command_binding::BodyProofScope {
+                    source: &unit.source,
+                    body_source: procedure.body_source.as_deref().unwrap(),
+                    original_body_offset: procedure.span.start(),
+                    executable_body_offset: procedure.body_offset,
+                    metadata: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+                        function.source_metadata_input(),
+                    ),
+                    config: function.source_lexer_config(),
+                },
+                &unit.ir_module,
+                id,
+                context.commands(),
+            )
+            .unwrap();
+        let bundle = if full {
+            SemanticAnalysisBundle::build_with_metadata_context(
+                context.commands(),
+                function
+                    .invocation_metadata_context_for_module(context.commands(), &unit.ir_module),
+                &procedure.body,
+                function.semantic_facts.entry_assumption,
+            )
+        } else {
+            function.semantic_facts.clone()
+        };
+        (bundle, correspondence)
+    }
+
+    fn first_comparison_operation(
+        bundle: &mut SemanticAnalysisBundle,
+    ) -> &mut crate::executable_ir::LoweredOperation {
+        let function = match &mut bundle.executable {
+            ExecutableAnalysisAvailability::Available(facts) => &mut facts.function,
+            ExecutableAnalysisAvailability::WorldStateDeclined { function, .. }
+            | ExecutableAnalysisAvailability::WorldStateNotRequired { function } => function,
+            _ => panic!("original lowered source function"),
+        };
+        function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|instruction| match instruction {
+                crate::executable_ir::ExecutableInstruction::ExecuteLowered(operation) => {
+                    Some(operation)
+                }
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn comparison_source_transport_retains_complete_bundle_and_original_carriers() {
+        let body = "set value $x; return $value";
+        let (left, source) = source_bundle_comparison_fixture("return BEFORE", body, false);
+        let (right, target) = source_bundle_comparison_fixture("return AFTER", body, false);
+        assert_ne!(left, right);
+        let before = left.clone();
+        assert!(left.matches_rebound_source(&right, &source, &target));
+        assert!(right.matches_rebound_source(&left, &target, &source));
+        assert_eq!(left, before);
+
+        let mut changed = left.clone();
+        first_comparison_operation(&mut changed).original_tokens = None;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+
+        let mut changed = left.clone();
+        let operation = first_comparison_operation(&mut changed);
+        let mut tokens = operation.original_tokens.as_ref().unwrap().as_ref().clone();
+        tokens.source_binding = None;
+        operation.original_tokens = Some(std::sync::Arc::new(tokens));
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+
+        let mut changed = left.clone();
+        first_comparison_operation(&mut changed).source.provenance = crate::ir::Provenance::Opaque;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+
+        let mut changed = left.clone();
+        let operation = first_comparison_operation(&mut changed);
+        operation.footprint.runs_commands = !operation.footprint.runs_commands;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+
+        let mut changed = left.clone();
+        changed.metadata_context = None;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+        let mut changed = left.clone();
+        changed.registry_key = None;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+        let mut changed = left.clone();
+        changed.entry_assumption = match left.entry_assumption {
+            DispatchEntryAssumption::UnknownWorld => DispatchEntryAssumption::PristineRegistryWorld,
+            _ => DispatchEntryAssumption::UnknownWorld,
+        };
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+        let mut changed = left.clone();
+        changed.executable = ExecutableAnalysisAvailability::SourceUnavailable;
+        assert!(!changed.matches_rebound_source(&right, &source, &target));
+
+        let (_, changed) = source_bundle_comparison_fixture(
+            "return AFTER",
+            "set value CHANGED; return $value",
+            false,
+        );
+        assert!(source.semantic_source_bodies(&changed).is_none());
+    }
+
+    #[test]
+    fn comparison_source_transport_preserves_full_world_state_derivation() {
+        let body = "set value $x; return $value";
+        let (left, source) = source_bundle_comparison_fixture("return BEFORE", body, true);
+        let (right, target) = source_bundle_comparison_fixture("return AFTER", body, true);
+        assert!(matches!(
+            left.executable,
+            ExecutableAnalysisAvailability::Available(_)
+        ));
+        assert!(matches!(
+            right.executable,
+            ExecutableAnalysisAvailability::Available(_)
+        ));
+        assert_ne!(left, right);
+        assert!(left.matches_rebound_source(&right, &source, &target));
+        assert_eq!(
+            left.executable
+                .function()
+                .unwrap()
+                .native_compilation_admission,
+            None
+        );
+    }
 
     #[test]
     fn supplied_semantic_bundle_retains_owner_and_keeps_missing_context_unavailable() {

@@ -149,7 +149,11 @@ name. `BodyAnalysisCapsule` retains the genuine whole compilation unit;
 the original request and restores current source and variable proofs when
 reusing a closed analytical correspondence. Missing correspondence retains exact
 inputs or recomputes. Cache reuse grants no Native entry or selected-command
-authority. A runtime artifact cache retains
+authority.
+
+Closed body capsule equality retains each complete original semantic bundle. A private source transport requires two independently authenticated equal body correspondences and injective variable relocations before moving an exact original lowered statement and its same-site complete tokens to the peer's genuine source. Operation descriptors, effects, completion identities, structural nodes, world-state SSA, metadata and availability remain fully compared. Unsupported executable shapes and Native admissions retain exact bundle equality. The rebound bundle serves equality alone and cannot supply executable facts or Native authority.
+
+A runtime artifact cache retains
 separate candidate IDs and declines when multiple current candidates agree
 only in name/body/namespace geometry.
 
@@ -268,6 +272,20 @@ do not merge tokens. Snapshot lookup validates later namespace rows only after
 an earlier binding is absent. There is no implicit ancestor search. Tcl 8.4
 excludes namespace-path entries under its original naming protocol.
 See [command-resolution.md](command-resolution.md).
+
+An original Jim execution context need not yet have a namespace coordinate.
+The VM retains the same original namespace object, interpreter, naming policy
+and live world through procedure frames and prepared Script evaluation. Parsing,
+local binding and frame transport do not materialise its String. Reached cold
+command lookup obtains the namespace before the command operand; a valid
+same-object command-cache comparison obtains neither namespace getter. A later
+coordinate belongs to that original context and does not replace its identity.
+Native compilation of this current context requires an already materialised,
+authenticated coordinate and declines while it is unavailable. Independently
+selected explicit known targets retain their own checks. Standalone Runtime and source analysis
+keep their independent entry and getter contracts. The
+[original argument contract](../runtime/original-command-arguments.md#original-jim-procedure-namespaces)
+describes the VM owners and retained SDK evidence boundaries.
 
 Registry descriptor adapters remove one optional root marker through
 `naming::unroot_rooted_key` and preserve the remaining exact bytes. Their labels
