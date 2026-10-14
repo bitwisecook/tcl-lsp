@@ -275,6 +275,7 @@
 4	tcl-vm::cross_version_command_surface_e2e	test	tcl-vm	cross_version_command_surface_e2e
 4	tcl-vm::cross_version_vars_e2e	test	tcl-vm	cross_version_vars_e2e
 4	tcl-vm::language_e2e	test	tcl-vm	language_e2e
+4	tcl-vm::package_diagnostics_e2e	test	tcl-vm	package_diagnostics_e2e
 4	tcl-vm::regexp_cmd_corpus	test	tcl-vm	regexp_cmd_corpus
 4	tcl-vm::tcltest_load	test	tcl-vm	tcltest_load
 4	xtask::bin/xtask	bin	xtask	xtask
