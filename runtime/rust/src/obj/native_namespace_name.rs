@@ -125,10 +125,6 @@ fn install_unchecked_using(
     Ok(())
 }
 
-pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
-    retire_using(value, None)
-}
-
 pub(crate) fn retire_using(
     value: *mut TclObj,
     stage: Option<&dyn Fn() -> Result<(), ValueError>>,

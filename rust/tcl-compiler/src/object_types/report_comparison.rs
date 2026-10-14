@@ -79,6 +79,7 @@ struct ReportCandidates<'a> {
     instance_variables: HashMap<ReportOwner<'a>, &'a HashSet<String>>,
     frames: HashSet<ReportFrame<'a>>,
     original_classes: HashSet<ReportOwner<'a>>,
+    definition_classes: HashSet<ReportOwner<'a>>,
 }
 
 impl ObjectReportSource {
@@ -173,6 +174,11 @@ impl ObjectReportSource {
                 .collect::<Option<_>>()?,
             original_classes: parts
                 .original_classes
+                .iter()
+                .map(|owner| self.owner(owner))
+                .collect::<Option<_>>()?,
+            definition_classes: parts
+                .definition_classes
                 .iter()
                 .map(|owner| self.owner(owner))
                 .collect::<Option<_>>()?,

@@ -4081,7 +4081,7 @@ fn emit_arg_token(
             collect_case_list(body_ctx, *tok, entries, depth + 1, spec, *regexp);
         }
         Some(ArgOverride::KeywordArg) => {
-            push_keyword_arg(line_index, full_source, *tok, entries);
+            push_keyword_arg(ctx, *tok, entries);
         }
         // Verbatim-token overrides are handled by the early return above.
         Some(
@@ -5271,18 +5271,41 @@ fn push_token(
     );
 }
 
-/// Emit a structural keyword word (`if`'s then/elseif/else, `try`'s
-/// on/trap/finally) as a `Keyword` token.  Offsets past any leading
-/// delimiter so a quoted `"else"` — whose span starts on the opening
-/// quote — marks `else` rather than `"els`, and trims the matching
-/// trailing delimiter.
-fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &mut Vec<Entry>) {
-    if let Some((cstart, inner)) = subspec_content(source, tok) {
-        let content = inner.trim_end_matches(['"', '}']);
+/// A current original operand owns its content delimiters independently of
+/// keyword selection. Missing retained operands keep the token-only syntax view.
+fn keyword_operand_content<'a>(
+    source: &'a str,
+    tok: Token,
+    original: Option<&tcl_lexer::NativeWord>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(usize, &'a str)> {
+    if let Some(word) = original {
+        if word.image().bytes() != source.as_bytes()
+            || word.config().nested() != config.nested()
+            || word.group().expand
+            || !word.tokens().contains(&tok)
+        {
+            return None;
+        }
+        let span = word.content_span().ok()?;
+        return source
+            .get(span.as_range())
+            .map(|content| (span.start() as usize, content));
+    }
+    subspec_content(source, tok)
+}
+
+/// Emit the already selected structural keyword using its original content
+/// extent. Literal closing bytes inside that extent remain data.
+fn push_keyword_arg(ctx: ScriptCtx<'_>, tok: Token, entries: &mut Vec<Entry>) {
+    let original = ctx.operand.and_then(|operand| operand.word.as_ref());
+    if let Some((cstart, content)) =
+        keyword_operand_content(ctx.full_source, tok, original, ctx.config)
+    {
         if !content.is_empty() {
             push_subtoken(
-                source,
-                line_index,
+                ctx.full_source,
+                ctx.line_index,
                 cstart,
                 content,
                 TokenKind::Keyword,
@@ -5290,8 +5313,17 @@ fn push_keyword_arg(line_index: &LineIndex, source: &str, tok: Token, entries: &
             );
             return;
         }
+    } else if original.is_some() {
+        return;
     }
-    push_token(line_index, source, tok, TokenKind::Keyword, 0, entries);
+    push_token(
+        ctx.line_index,
+        ctx.full_source,
+        tok,
+        TokenKind::Keyword,
+        0,
+        entries,
+    );
 }
 
 /// Encode entries into the LSP packed integer stream:
@@ -9153,6 +9185,32 @@ mod tests {
             .find(|(_, _, _, _, word)| word == "proc")
             .expect("a `proc` token");
         assert_eq!(proc.3, TokenKind::String as u32, "{proc:?}");
+    }
+
+    #[test]
+    fn original_keyword_contents_preserve_literal_closing_bytes() {
+        let config = tcl_lexer::LexerConfig::for_profile(Some(tcl()));
+        for (source, expected) in [
+            ("{else{}}", "else{}"),
+            ("\"else}\"", "else}"),
+            ("{else}", "else"),
+        ] {
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let word = &plan.commands[0].words[0];
+            let token = word.tokens()[0];
+            assert_eq!(
+                keyword_operand_content(source, token, Some(word), config)
+                    .unwrap()
+                    .1,
+                expected
+            );
+            assert!(keyword_operand_content("foreign", token, Some(word), config).is_none());
+        }
     }
 
     #[test]

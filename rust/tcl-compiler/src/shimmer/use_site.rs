@@ -84,12 +84,8 @@ pub(crate) fn find_use_site_shimmers_with_context(
     // Loop-invariance facts for the S101→S100 downgrade — only needed when
     // the function has at least one loop block.
     let loop_facts = LoopFacts::compute(cfg, ssa, loop_blocks, context);
-    // Array-base symbols are excluded (FP-SH-13): `normalise_var_name` strips
-    // the `(key)` suffix, so `arr(a)` and `arr(b)` share one symbol / version
-    // chain. Two individually-stable but different elements then look, at a
-    // use site, exactly like one variable holding the wrong intrep — the same
-    // conflation the S102 pass already guards. Reuse its exclusion so S100 /
-    // S101 don't false-positive on independent array elements.
+    // Array elements share a root symbol. Exclude that shared version chain
+    // so different element values cannot appear to change one scalar's intrep.
     let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let mut out: Vec<ShimmerWarning> = Vec::new();
 
@@ -253,9 +249,9 @@ impl LoopFacts {
     ///   nothing, but a spurious target flips a loop-invariance judgement
     ///   between S100 and S101 just the same.
     ///
-    /// A lifted call needs no brace gate of its own: its argument words are
-    /// raw source with the braces still on, so the `$` test declines them —
-    /// the same reasoning [`inert_braced_args`] records for its own scope.
+    /// Retained invocation roles decide which effective words are inert,
+    /// including value prefixes. Nested reads require the checked original
+    /// lifted-call inventory and their own invocation owner.
     fn record_use_targets(
         &mut self,
         stmt: &Statement,
@@ -264,7 +260,7 @@ impl LoopFacts {
     ) {
         let registry = context.registry();
         if let Some(invocation) = context.statement(stmt) {
-            let inert = super::hints::inert_effective_args(registry, &invocation);
+            let inert = super::hints::inert_effective_args(&invocation);
             self.record_invocation(&invocation, &inert, source, registry);
         }
         let tokens = match stmt {
@@ -277,7 +273,7 @@ impl LoopFacts {
             if let Some(tokens) = &lifted.tokens
                 && let Some(invocation) = context.invocation(tokens)
             {
-                let inert = super::hints::inert_effective_args(registry, &invocation);
+                let inert = super::hints::inert_effective_args(&invocation);
                 self.record_invocation(&invocation, &inert, source, registry);
             }
         }
@@ -659,7 +655,7 @@ fn check_lifted_calls(
         let Some(invocation) = ctx.context.invocation(tokens) else {
             continue;
         };
-        let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
+        let inert = super::hints::inert_effective_args(&invocation);
         let spans: Vec<_> = invocation
             .effective_words()
             .words
@@ -694,7 +690,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             let Some(invocation) = ctx.context.statement(stmt) else {
                 return;
             };
-            let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
+            let inert = super::hints::inert_effective_args(&invocation);
             let arg_spans: Vec<_> = invocation
                 .effective_words()
                 .words

@@ -2883,6 +2883,14 @@ pub fn native_command_source_word(
 /// source spelling, lookup key or command identity.
 #[must_use]
 pub fn native_command_full_name_bytes(slot: &ByteCommandSlot) -> Vec<u8> {
+    constructed_command_address_bytes(slot)
+}
+
+/// Counted absolute command input from retained namespace components and a tail.
+/// This constructs an address; lookup, table identity and original object headers
+/// remain independent. Literal colons and non-text bytes are not reparsed.
+#[must_use]
+pub fn constructed_command_address_bytes(slot: &ByteCommandSlot) -> Vec<u8> {
     let mut report = native_namespace_full_name_bytes(&slot.namespace);
     if !slot.namespace.is_root() {
         report.extend_from_slice(b"::");

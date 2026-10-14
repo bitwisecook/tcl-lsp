@@ -22442,6 +22442,14 @@ impl Vm {
         }
     }
 
+    pub(crate) fn capture_original_jim_script_parse_failure(
+        &mut self,
+        level: u32,
+        location: &tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>,
+    ) {
+        self.capture_original_jim_error_stack_at(Some((level, location)));
+    }
+
     pub(crate) fn raise_jim_script_parse_failure(
         &mut self,
         tail: FatalTail,

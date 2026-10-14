@@ -1672,59 +1672,6 @@ pub(crate) fn get_elem_at(
     }
 }
 
-/// Frame-addressed [`set`] — the cell takes a **+1** on `obj`.
-#[cfg(test)]
-pub(crate) fn set_at(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    obj: *mut TclObj,
-    level: usize,
-) -> Result<(), VarError> {
-    let place = match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) => p,
-        Resolved::Error(error) => return Err(error),
-    };
-    if let Some(result) = store_retained(&place, obj) {
-        return result;
-    }
-    let t = table_mut(frames, ns, place.home);
-    match place.elem {
-        Some(elem) => place.array_cell.as_ref().map_or_else(
-            || t.store_elem(&place.name, &elem, obj),
-            |cell| cell.store(&elem, obj),
-        ),
-        None => t.store_scalar(&place.name, obj),
-    }
-}
-
-/// Frame-addressed array-element write. The caller retains ownership on an
-/// error, matching [`set_at`].
-#[cfg(test)]
-pub(crate) fn set_elem_at(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    key: &[u8],
-    obj: *mut TclObj,
-    level: usize,
-) -> Result<(), VarError> {
-    let key = separate_element(ns, name, key)?;
-    let place = match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) if p.elem.is_none() => p,
-        Resolved::Place(_) => return Err(VarError::IsScalar),
-        Resolved::Error(error) => return Err(error),
-    };
-    let place = Place {
-        elem: Some(key.clone()),
-        ..place
-    };
-    if let Some(result) = store_retained(&place, obj) {
-        return result;
-    }
-    table_mut(frames, ns, place.home).store_elem(&place.name, &key, obj)
-}
-
 /// `set name(key)` — borrowed.
 #[cfg(test)]
 pub(crate) fn get_elem(
@@ -2652,25 +2599,6 @@ pub(crate) fn original_namespace_link_target(
     root: &[u8],
     element: Option<Vec<u8>>,
 ) -> Result<Link, VarError> {
-    original_namespace_link_target_using(frames, ns, namespace, root, element, true)
-}
-pub(crate) fn selected_namespace_link_target(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    namespace: NsId,
-    root: &[u8],
-    element: Option<Vec<u8>>,
-) -> Result<Link, VarError> {
-    original_namespace_link_target_using(frames, ns, namespace, root, element, false)
-}
-fn original_namespace_link_target_using(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    namespace: NsId,
-    root: &[u8],
-    element: Option<Vec<u8>>,
-    acquire: bool,
-) -> Result<Link, VarError> {
     let mut place = match classify_original_name(frames, ns, namespace, root, Some(namespace)) {
         Resolved::Place(place) => place,
         Resolved::Error(error) => return Err(error),
@@ -2682,13 +2610,7 @@ fn original_namespace_link_target_using(
         native_scalar_entry: place
             .scalar_entry
             .as_ref()
-            .map(|entry| {
-                if acquire {
-                    entry.try_new_binding()
-                } else {
-                    entry.select_new_binding()
-                }
-            })
+            .map(|entry| entry.try_new_binding())
             .transpose()
             .map_err(|_| VarError::NameProtocolUnavailable)?,
         native_element_entry: None,
@@ -2721,18 +2643,6 @@ pub(crate) fn capture_original_namespace_receiver(
     capture_resolved_receiver(frames, ns, place, create)
 }
 
-/// A genuine addressed frame supplies the naming context; missing frames do
-/// not donate the root namespace. No original operand/cache grant is issued.
-pub(crate) fn capture_variable_receiver_at(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    element: Option<Vec<u8>>,
-    level: usize,
-) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
-    capture_variable_receiver_at_with_creation(frames, ns, name, element, level, false)
-}
-
 /// Select the actual addressed store cell before publication and callbacks.
 /// This supplies receiver/trace identity only; the caller owns naming, entered
 /// currency and the independently selected observer operation.
@@ -2742,17 +2652,6 @@ pub(crate) fn capture_variable_store_receiver_at(
     name: &[u8],
     element: Option<Vec<u8>>,
     level: usize,
-) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
-    capture_variable_receiver_at_with_creation(frames, ns, name, element, level, true)
-}
-
-fn capture_variable_receiver_at_with_creation(
-    frames: &mut FrameStack,
-    ns: &mut Namespaces,
-    name: &[u8],
-    element: Option<Vec<u8>>,
-    level: usize,
-    create: bool,
 ) -> Result<Option<(crate::frame::VariableReceiver, TraceHome)>, VarError> {
     if frames.table(level).is_none() {
         return Err(VarError::NameProtocolUnavailable);
@@ -2767,7 +2666,7 @@ fn capture_variable_receiver_at_with_creation(
         }
         place.elem = Some(separate_element(ns, name, &element)?);
     }
-    capture_resolved_receiver(frames, ns, place, create)
+    capture_resolved_receiver(frames, ns, place, true)
 }
 
 fn capture_resolved_receiver(

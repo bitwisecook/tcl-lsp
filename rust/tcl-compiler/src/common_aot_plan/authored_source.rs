@@ -286,7 +286,7 @@ fn original_statement(
                 || !module
                     .retained_source_bindings
                     .as_deref()
-                    .is_some_and(|owner| owner.matches_original_procedure(procedure))
+                    .is_some_and(|owner| owner.matches_original_procedure_summary(*id, procedure))
             {
                 return Err(Residual::DeclarationUnavailable);
             }

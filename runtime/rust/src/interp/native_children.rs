@@ -285,6 +285,7 @@ impl Interp {
         match self.with_child(name, |child| {
             let copied = match parent.copy_original_jim_object_to(child, script.as_ptr()) {
                 Ok(copied) => copied,
+                Err(_) if child.host_refusal_pending() => return Err(child.clone()),
                 Err(error) => return Ok(Err(error)),
             };
             let code = child.eval_body_obj(copied.as_ptr());
@@ -357,6 +358,9 @@ impl Interp {
         })();
         let target_script = match prepared {
             Ok(script) => script,
+            Err(_) if parent.host_refusal_pending() => {
+                return self.transport_host_refusal_from(parent);
+            }
             Err(error) => return self.report_cmd_error(error.into()),
         };
         super::CROSS_INTERP_DEPTH.with(|depth| depth.set(depth.get() + 1));
@@ -378,7 +382,7 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interp::{Command, default_host};
+    use crate::interp::{default_host, Command};
     use crate::namespace::GLOBAL;
 
     fn parent(engine: &str) -> Interp {
@@ -446,16 +450,12 @@ mod tests {
             1
         );
         assert!(crate::native_source::bind_context(original.as_ptr(), &receiver).is_err());
-        assert!(
-            child
-                .copy_original_jim_object_to(&producer_interp, original.as_ptr())
-                .is_err()
-        );
-        assert!(
-            producer_interp
-                .copy_original_jim_object_to(&parent("tcl9.0"), original.as_ptr())
-                .is_err()
-        );
+        assert!(child
+            .copy_original_jim_object_to(&producer_interp, original.as_ptr())
+            .is_err());
+        assert!(producer_interp
+            .copy_original_jim_object_to(&parent("tcl9.0"), original.as_ptr())
+            .is_err());
     }
     #[test]
     fn jim_crossing_constructs_in_the_actual_receiver_allocator() {
@@ -493,15 +493,66 @@ mod tests {
         };
         obj::validate_jim_allocator(returned.as_ptr(), &producer_context.allocation_pool())
             .unwrap();
-        assert!(
-            obj::validate_jim_allocator(returned.as_ptr(), &receiver_context.allocation_pool())
-                .is_err()
-        );
+        assert!(obj::validate_jim_allocator(
+            returned.as_ptr(),
+            &receiver_context.allocation_pool()
+        )
+        .is_err());
         assert_eq!(obj::bytes_of(returned.as_ptr()), b"A\0B");
         assert_eq!(unsafe { (*returned.as_ptr()).ref_count }, 1);
         assert_eq!(unsafe { (*copied.as_ptr()).ref_count }, 1);
         assert!(!producer.host_refusal_pending());
         assert!(!receiver.host_refusal_pending());
+    }
+
+    #[test]
+    fn jim_receiver_entry_refusal_retains_the_actual_child_first_cause() {
+        let mut parent = parent("jim");
+        let child_name = parent.create_child(Some(b"receiver".to_vec()));
+        let first = parent
+            .with_child(&child_name, |child| {
+                child.refuse_host_command("actual child receiver entry");
+                child.native_execution_refusal().unwrap()
+            })
+            .unwrap();
+        let script = obj::Owned::fresh(obj::new_string_bytes(b"set untouched VALUE"));
+        assert_eq!(
+            parent.child_eval_original(&child_name, &[script.as_ptr()]),
+            Code::Error
+        );
+        assert_eq!(parent.native_execution_refusal(), Some(first));
+        parent
+            .with_child(&child_name, |child| {
+                assert!(child.var_get_at(b"untouched", 0).is_none());
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn jim_parent_alias_entry_refusal_retains_the_actual_parent_first_cause() {
+        use super::super::native_operation_currency::NativeOperationScope;
+        let mut child = parent("jim");
+        let mut parent = parent("jim");
+        let prefix = {
+            let _scope = NativeOperationScope::enter(&parent).unwrap();
+            let target = obj::Owned::fresh(obj::new_string_bytes(b"set"));
+            super::super::NativeAliasHeader::new(obj::Owned::fresh(
+                parent.new_list_object(&[target.as_ptr()]),
+            ))
+        };
+        let invoked = {
+            let _scope = NativeOperationScope::enter(&child).unwrap();
+            obj::Owned::fresh(obj::new_string_bytes(b"alias"))
+        };
+        parent.refuse_host_command("actual parent alias entry");
+        let first = parent.native_execution_refusal().unwrap();
+        assert!(!child.host_refusal_pending());
+        assert_eq!(
+            child.dispatch_original_jim_parent_alias(&mut parent, &prefix, &[invoked.as_ptr()]),
+            Code::Error
+        );
+        assert_eq!(child.native_execution_refusal(), Some(first.clone()));
+        assert_eq!(parent.native_execution_refusal(), Some(first));
     }
 
     #[test]
@@ -512,33 +563,27 @@ mod tests {
         // presence. The logical-child control checks only embedding behavior.
         let mut logical = Interp::new();
         let logical_profile = logical.dialect_profile();
-        assert!(
-            tcl_registry::InvocationDialect::of_profile(logical_profile)
-                .native_bootstrap_protocol()
-                .is_none()
-        );
+        assert!(tcl_registry::InvocationDialect::of_profile(logical_profile)
+            .native_bootstrap_protocol()
+            .is_none());
         logical.create_child(Some(b"logical".to_vec()));
         logical
             .with_child(b"logical", |child| {
                 assert!(std::ptr::eq(child.dialect_profile(), logical_profile));
-                assert!(
-                    child
-                        .namespaces
-                        .borrow()
-                        .var_table(GLOBAL)
-                        .has_native_namespace_cell(b"argv")
-                );
+                assert!(child
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .has_native_namespace_cell(b"argv"));
             })
             .unwrap();
 
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let mut parent = parent(engine);
             let profile = parent.dialect_profile();
-            assert!(
-                tcl_registry::InvocationDialect::of_profile(profile)
-                    .native_bootstrap_protocol()
-                    .is_some()
-            );
+            assert!(tcl_registry::InvocationDialect::of_profile(profile)
+                .native_bootstrap_protocol()
+                .is_some());
             parent.create_child(Some(b"native".to_vec()));
             parent
                 .with_child(b"native", |child| {
@@ -637,11 +682,9 @@ mod tests {
                     child.namespaces.borrow().resolve(GLOBAL, b"binary"),
                     Some(Command::Proc(_))
                 ));
-                assert!(
-                    child
-                        .find_command_id(GLOBAL, b"::tcl::binary::format")
-                        .is_none()
-                );
+                assert!(child
+                    .find_command_id(GLOBAL, b"::tcl::binary::format")
+                    .is_none());
             })
             .unwrap();
         parent.delete_child(&name);
@@ -665,13 +708,11 @@ mod tests {
             parent.set_current_ns(namespace);
             parent.create_child(Some(b"kid".to_vec()));
             let original = token(&parent, GLOBAL, b"kid");
-            assert!(
-                parent
-                    .namespaces
-                    .borrow()
-                    .command_in(namespace, b"kid")
-                    .is_none()
-            );
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"kid")
+                .is_none());
             assert_eq!(
                 parent.rename_command(b"kid", b"moved"),
                 crate::namespace::RenameOutcome::Renamed
@@ -679,13 +720,11 @@ mod tests {
             parent.set_current_ns(GLOBAL);
             assert!(parent.delete_child(b"kid"));
             assert!(!parent.child_exists(b"kid"));
-            assert!(
-                parent
-                    .namespaces
-                    .borrow()
-                    .command_in(namespace, b"moved")
-                    .is_none()
-            );
+            assert!(parent
+                .namespaces
+                .borrow()
+                .command_in(namespace, b"moved")
+                .is_none());
             parent.create_child(Some(b"kid".to_vec()));
             let recreated = token(&parent, GLOBAL, b"kid");
             assert!(!original.same_allocation(&recreated));
@@ -733,15 +772,13 @@ mod tests {
                 })
                 .unwrap();
             assert!(parent.child_exists(b"active"));
-            assert!(
-                !parent
-                    .children
-                    .borrow()
-                    .get(b"active".as_slice())
-                    .unwrap()
-                    .pending_delete
-                    .get()
-            );
+            assert!(!parent
+                .children
+                .borrow()
+                .get(b"active".as_slice())
+                .unwrap()
+                .pending_delete
+                .get());
         }
     }
 
@@ -917,7 +954,7 @@ mod tests {
 #[cfg(test)]
 mod completion_capture_tests {
     use super::*;
-    use crate::interp::{Command, WeakInterp, default_host};
+    use crate::interp::{default_host, Command, WeakInterp};
     use tcl_runtime_api::NativeExecutionError;
     use tcl_syntax::raw_string::NativeValueAccessRefusal;
 

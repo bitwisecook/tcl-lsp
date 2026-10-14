@@ -795,7 +795,7 @@ fn typed_reads_of_statement(
             }
             let argument_count = invocation.argument_count();
 
-            let inert = inert_effective_args(ctx.registry, &invocation);
+            let inert = inert_effective_args(&invocation);
             for i in 0..argument_count {
                 if inert.contains(&i) {
                     continue;
@@ -883,7 +883,7 @@ fn push_lifted_reads(
             out.extend(typed_reads_of_executed_expr(ctx, &expression, span));
             continue;
         }
-        let inert = inert_effective_args(ctx.registry, &invocation);
+        let inert = inert_effective_args(&invocation);
 
         for i in 0..invocation.argument_count() {
             if inert.contains(&i) {

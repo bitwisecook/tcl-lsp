@@ -58,6 +58,7 @@ impl Vm {
                 entry,
                 self,
                 &mut frame.jim_evaluation.script,
+                frame.jim_evaluation.procedure_level,
             );
             match prepared {
                 Ok(state) => {

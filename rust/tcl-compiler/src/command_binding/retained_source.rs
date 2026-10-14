@@ -88,7 +88,10 @@ impl OriginalProcedureSource {
     }
 
     fn matches(&self, procedure: &Procedure) -> bool {
-        self.name == procedure.name
+        self.body_kind == procedure.body_kind
+            && self.publication == procedure.publication
+            && self.declaration_site == procedure.declaration_site
+            && self.name == procedure.name
             && self.qualified_name == procedure.qualified_name
             && self.parameters == procedure.params
             && self.parameters_text == procedure.params_raw

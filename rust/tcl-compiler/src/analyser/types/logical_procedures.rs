@@ -45,7 +45,6 @@ impl LogicalSourceProcedureDeclaration {
         if image.bytes() != source.as_bytes()
             || !input.has_logical_source_name_context()
             || !realm.matches_resolved_analysis_input(&input)
-            || procedure.source_name.is_some()
             || procedure.params_computed
         {
             return None;
@@ -201,6 +200,31 @@ mod tests {
                 .is_none()
         );
     }
+    #[test]
+    fn logical_procedure_insertions_keep_nominal_name_metadata_without_native_admission() {
+        let source = "namespace eval N {proc helper {arg} {return $arg}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(analysis.allows_retained_logical_declaration_advice());
+        let procedure = &analysis.all_procs["::N::helper"];
+        assert!(procedure.source_name.is_some());
+        let declaration = analysis
+            .logical_source_procedure_declaration(procedure)
+            .expect("nominal source name accompanies the genuine Logical header");
+        assert_eq!(
+            declaration
+                .source_word(analysis.body_lexer_config.unwrap())
+                .as_deref(),
+            Some("::N::helper")
+        );
+        let mut changed = analysis.clone();
+        changed.resolved_input = None;
+        assert!(
+            changed
+                .logical_source_procedure_declaration(&changed.all_procs["::N::helper"])
+                .is_none()
+        );
+    }
+
     #[test]
     fn logical_procedure_insertions_match_original_fold_extents() {
         for source in [

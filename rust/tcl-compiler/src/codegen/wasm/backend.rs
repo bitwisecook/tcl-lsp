@@ -1535,11 +1535,31 @@ fn direct_expr_supported(
 
 fn direct_proc_eligible(
     module: &Module,
+    id: crate::ir::ProcedureId,
     proc: &Procedure,
     unit: &FunctionUnit,
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
 ) -> bool {
+    if !module.procedure_ids.owns(id)
+        || module
+            .procedures
+            .get(&id)
+            .is_none_or(|held| !std::ptr::eq(held, proc))
+        || unit.body_id != Some(id)
+        || module
+            .source_entry
+            .native_entry
+            .as_ref()
+            .is_none_or(|entry| {
+                proc.body
+                    .namespace_context
+                    .as_deref()
+                    .is_none_or(|namespace| !namespace.is_native_root_in_entry(entry))
+            })
+    {
+        return false;
+    }
     let Some(operations) = original_direct_expression_body_operations(
         registry,
         unit.invocation_metadata_context_for_module(registry, module),
@@ -1550,8 +1570,6 @@ fn direct_proc_eligible(
     };
     if crate::native_compilation_admission::script_requires_admission(&proc.body)
         || proc.namespace_scoped
-        || tcl_syntax::naming::unroot_rooted_key(&proc.qualified_name)
-            .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
         || operations
@@ -2036,6 +2054,7 @@ fn procedure_plan<'a>(
                 unit.procedures.get(id).is_some_and(|function| {
                     direct_proc_eligible(
                         module,
+                        *id,
                         procedure,
                         function,
                         registry,

@@ -38,6 +38,7 @@ pub(super) struct LogicalSourceCandidateOwner {
     instance_variables: HashMap<ObjectFactOwner, HashSet<String>>,
     frames: HashSet<BodyFrameId>,
     original_classes: HashSet<ObjectFactOwner>,
+    definition_classes: HashSet<ObjectFactOwner>,
 }
 
 // Presentation equality cannot substitute for the current retained issuer.
@@ -56,6 +57,7 @@ pub(super) struct LogicalCandidateReport<'a> {
     pub(super) instance_variables: &'a HashMap<ObjectFactOwner, HashSet<String>>,
     pub(super) frames: &'a HashSet<BodyFrameId>,
     pub(super) original_classes: &'a HashSet<ObjectFactOwner>,
+    pub(super) definition_classes: &'a HashSet<ObjectFactOwner>,
 }
 
 impl LogicalSourceCandidateOwner {
@@ -75,6 +77,7 @@ impl LogicalSourceCandidateOwner {
                 instance_variables: &self.instance_variables,
                 frames: &self.frames,
                 original_classes: &self.original_classes,
+                definition_classes: &self.definition_classes,
             })
     }
 }
@@ -99,6 +102,26 @@ impl<'a> LogicalSourceReceiverClassCandidates<'a> {
     pub const fn contents_versions_are_unioned(&self) -> bool {
         true
     }
+}
+
+fn definition_receiver_is_current(
+    owner: &ObjectFactOwner,
+    method: &crate::ir::MethodDef,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+) -> bool {
+    let ObjectFactOwner::DefinitionScript { definition, .. } = owner else {
+        return false;
+    };
+    if method.definition_scope != Some(*definition) {
+        return false;
+    }
+    let Some(source) = module.original_definition_script_source(*definition, registry) else {
+        return false;
+    };
+    method.span.is_some_and(|span| {
+        source.content_span().start() <= span.start() && span.end() <= source.content_span().end()
+    })
 }
 
 impl ObjectHandleFacts {
@@ -187,6 +210,7 @@ impl ObjectHandleFacts {
         }
         let mut instance_variables = HashMap::<ObjectFactOwner, HashSet<String>>::new();
         let mut original_classes = HashSet::new();
+        let mut definition_classes = HashSet::new();
         for (id, method) in &module.methods {
             if !frames.contains(&BodyFrameId::Body(*id)) {
                 continue;
@@ -207,6 +231,9 @@ impl ObjectHandleFacts {
                 {
                     original_classes.insert(owner.clone());
                 }
+                if definition_receiver_is_current(owner, method, module, registry) {
+                    definition_classes.insert(owner.clone());
+                }
                 instance_variables
                     .entry(owner.clone())
                     .or_default()
@@ -223,6 +250,7 @@ impl ObjectHandleFacts {
             instance_variables,
             frames,
             original_classes,
+            definition_classes,
         }));
     }
 }
@@ -294,8 +322,11 @@ impl AnalysisResult {
             ObjectFactOwner::OriginalClass { .. } if !owner.original_classes.contains(&key) => {
                 return None;
             }
-            // The current Module does not retain definition-script ID/body geometry.
-            ObjectFactOwner::DefinitionScript { .. } => return None,
+            ObjectFactOwner::DefinitionScript { .. }
+                if !owner.definition_classes.contains(&key) =>
+            {
+                return None;
+            }
             _ => {}
         }
         let classes = owner.classes.get(&(key, name.to_owned()))?;
@@ -438,6 +469,65 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn definition_receiver_candidates_require_the_actual_selected_definition_body() {
+        use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+        let source = "oo::class create C {variable value; method m {} {$value longMet}}\noo::class create D {variable value; method m {} {$value longMet}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        );
+        let module = &unit.ir_module;
+        let method = module
+            .methods
+            .values()
+            .next()
+            .expect("actual source method");
+        let definition = method.definition_scope.expect("actual issued definition");
+        let owner = ObjectFactOwner::DefinitionScript {
+            definition,
+            receiver: super::super::ObjectScopeReceiver::Instance,
+        };
+        assert!(definition_receiver_is_current(
+            &owner, method, module, registry
+        ));
+        let other = module
+            .methods
+            .values()
+            .find(|other| other.definition_scope != Some(definition))
+            .unwrap();
+        assert!(!definition_receiver_is_current(
+            &owner, other, module, registry
+        ));
+        let mut missing = module.clone();
+        missing.original_definition_scripts.remove(&definition);
+        assert!(!definition_receiver_is_current(
+            &owner, method, &missing, registry
+        ));
+        let mut changed = method.clone();
+        changed.definition_scope = other.definition_scope;
+        assert!(!definition_receiver_is_current(
+            &owner, &changed, module, registry
+        ));
+        let mut outside = method.clone();
+        outside.span = Some(tcl_lexer::Span::new(0, 1));
+        assert!(!definition_receiver_is_current(
+            &owner, &outside, module, registry
+        ));
+    }
+
     #[test]
     fn report_equality_keeps_supplementary_candidate_scope_maps() {
         let a = Analyser::new().analyse("set counter VALUE", "tcl8.6");

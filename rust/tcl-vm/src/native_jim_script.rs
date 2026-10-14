@@ -174,15 +174,16 @@ impl NativeJimScriptState {
         entry: NativeJimScriptEntry,
         vm: &mut crate::Vm,
     ) -> Result<Self, crate::TclError> {
-        Self::prepare(entry, vm, None)
+        Self::prepare(entry, vm, None, None)
     }
 
     pub(crate) fn new_for_evaluation_frame(
         entry: NativeJimScriptEntry,
         vm: &mut crate::Vm,
         location: &mut Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>,
+        procedure_level: u32,
     ) -> Result<Self, crate::TclError> {
-        Self::prepare(entry, vm, Some(location))
+        Self::prepare(entry, vm, Some(location), Some(procedure_level))
     }
 
     fn original_script_location(
@@ -213,6 +214,7 @@ impl NativeJimScriptState {
         entry: NativeJimScriptEntry,
         vm: &mut crate::Vm,
         location: Option<&mut Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>>>,
+        procedure_level: Option<u32>,
     ) -> Result<Self, crate::TclError> {
         let context = vm.native_jim_object_context()?;
         let flags = entry.substitution_flags;
@@ -230,18 +232,22 @@ impl NativeJimScriptState {
                 .value()
                 .prepare_native_jim_script(&context, vm.lexer_config())?,
         };
+        let script_location = if location.is_some() && flags.is_none() {
+            Some(Self::original_script_location(&backing)?)
+        } else {
+            None
+        };
         if let Some(location) = location {
-            *location = if flags.is_none() {
-                Some(Self::original_script_location(&backing)?)
-            } else {
-                None
-            };
+            *location = script_location.clone();
         }
         if flags.is_none() {
             if let Some(message) =
                 tcl_syntax::jim_script_objects::missing_message(backing.ordinary()?.objects.missing)
             {
                 context.publish_result(&Value::new_native_string_bytes(message));
+                if let (Some(level), Some(location)) = (procedure_level, script_location.as_ref()) {
+                    vm.capture_original_jim_script_parse_failure(level, location);
+                }
                 return Err(crate::TclError::new(message));
             }
             context.publish_result(&context.empty_object());
@@ -621,7 +627,8 @@ mod original_source_location_tests {
         let entry = NativeJimScriptEntry::borrowed(original.native_lifetime_lease(), None);
         let mut location = None;
         let mut state =
-            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location).unwrap();
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location, 0)
+                .unwrap();
         assert!(location.as_ref().unwrap().file.is_same_object(&filename));
         let references = filename.native_object_reference_count();
         assert!(matches!(
@@ -640,16 +647,24 @@ mod original_source_location_tests {
         let entry = NativeJimScriptEntry::borrowed(original.native_lifetime_lease(), None);
         let mut location = None;
         assert!(
-            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location,).is_err()
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location, 0)
+                .is_err()
         );
         let reached = location.as_ref().unwrap();
         assert!(reached.file.is_same_object(&filename));
         assert_eq!(reached.line, 8);
+        let trace = vm.jim_stacktrace().as_list().unwrap();
+        assert_eq!(trace.len(), 4);
+        assert!(trace[1].is_same_object(&filename));
+        assert_eq!(trace[0].to_str().as_ref(), "");
+        assert_eq!(trace[2].to_str().as_ref(), "8");
+        assert_eq!(trace[3].to_str().as_ref(), "");
 
         let substituted = Value::new_native_string_bytes(b"$x".as_slice());
         let entry = NativeJimScriptEntry::borrowed(substituted.native_lifetime_lease(), Some(0));
         let state =
-            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location).unwrap();
+            NativeJimScriptState::new_for_evaluation_frame(entry, &mut vm, &mut location, 0)
+                .unwrap();
         assert!(location.is_none());
         assert!(state.current_script_location().unwrap().is_none());
     }

@@ -283,7 +283,7 @@ pub fn procedure_body_for_original_call<'a>(
             module
                 .retained_source_bindings
                 .as_ref()?
-                .matches_original_procedure(procedure)
+                .matches_original_procedure_summary(id, procedure)
                 .then_some(())?;
             vec![id]
         }

@@ -1,0 +1,10 @@
+{
+  "files": {
+    "result.json": "b87a04a04ce66c46ae2a554f772ca1374083554b2a19aed3fa3743495f662cf0",
+    "source-after.json.gz": "798223f31864d401c1a7ec9f52884a5231bbbbe956cb8c0b9308b49bd92cb056",
+    "build.log": "c3283beff58f35c535c6520c1d08a6c23f35ae13625584eb2f390a2b2bf68bbd",
+    "start.json": "be0dc8c22497fcddfa31567755780f3f22ee1a9b41c57786eb25df87e004b4cf",
+    "source-before.json.gz": "3cadb9460eff788043ed534ab71cb5c2f1267316404b1c4ad1bf777084a5896a"
+  },
+  "scope": "Build-only setup failure: xtask has no library target; zero selectors executed; source subset drift zero. Corrected binary target replay136 follows."
+}

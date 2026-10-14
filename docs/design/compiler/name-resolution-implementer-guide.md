@@ -10668,6 +10668,40 @@ substitution, physical cell or definite effect-exclusion proof.
 
 ## Original read and operand consumers
 
+Taint receiver classification carries the original receiver word, actual lexer
+configuration and source point into `unique_instance_class`. Complete scalar
+reference grammar preserves literal empty/sigil names while rejecting array references,
+compound words and expansions. The existing point inventory must have exactly
+one class; a name alone supplies no SSA symbol/version or mitigation proof.
+Standalone warnings keep explicit configuration/original spans, and setter
+mitigation still requires its independent represented read ownership.
+
+Scalar Authored body tokens retain their genuine declaration lookup, scalar scope
+and exact header analysis attachment only after the whole scalar factory succeeds.
+Use `original_authored_scalar_body_scope` for that purpose; existing stronger
+role/control readers keep their terminal refusal and cannot borrow scalar syntax.
+
+`ResolvedInvocation::authored_source_effects_and_state_transitions` projects the
+selected immutable argv with its actual retained source dialect. Registered Return
+source resolvers retain conditional CompletionState and conservative alternatives.
+Native source dependency capture still requires its full current card/body/input
+and vector. This source envelope supplies no Native name protocol, completed
+effect or Normal result; native Return effects keep their separate protocol query.
+
+`Module::original_definition_script_source` reborrows an actually allocated
+definition-script coordinate under the current full source/input/entry/Registry.
+It checks the original whole definer words, literal body extent, selected
+descriptor/grammar and written Body role. Use its original words and spans for
+source structure; its ID supplies no callable body, entered frame or SSA version.
+
+`ObjectHandleFacts::analysis_report_eq` compares Logical analysis reports across
+independent body issuers using unique checked original body coordinates. The
+retained source must still match the reported scopes/classes/returns and candidate
+owners. Physical read evidence, proven reads and Normal-result facts keep exact
+equality. Missing/changed/duplicate mappings refuse; when both reports lack a
+correspondence, ordinary exact equality applies. Runtime owner equality and
+physical identities remain separate from this reporting comparison.
+
 `NativeObjectIncarnation` records an actual allocation birth independently of a
 reusable header address. Runtime exact argument/primary/procedure/lifetime readers
 and VM object equality require that birth alongside their existing currentness.

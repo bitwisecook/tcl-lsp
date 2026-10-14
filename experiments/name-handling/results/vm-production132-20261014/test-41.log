@@ -1,0 +1,6 @@
+
+running 1 test
+test exec::native_script::evaluation_entry_tests::actual_script_missing_guard_precedes_frame_entry_and_success_enters ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1262 filtered out; finished in 0.16s
+

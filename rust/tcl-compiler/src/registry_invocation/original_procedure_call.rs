@@ -141,7 +141,7 @@ pub(crate) fn original_source_procedure_ids_for_word_for_module(
         if !module
             .retained_source_bindings
             .as_ref()?
-            .matches_original_procedure(procedure)
+            .matches_original_procedure_summary(id, procedure)
         {
             return None;
         }
@@ -183,7 +183,7 @@ fn original_procedure_calls_for_targets<'a>(
             if !module
                 .retained_source_bindings
                 .as_ref()?
-                .matches_original_procedure(procedure)
+                .matches_original_procedure_summary(id, procedure)
             {
                 return None;
             }
@@ -278,8 +278,13 @@ pub(crate) fn original_procedure_parameters(
     tcl_dialect::ParameterGrammar,
 )> {
     let retained = module.retained_source_bindings.as_ref()?;
-    if !retained.matches_module(module, registry)
-        || !retained.matches_original_procedure(procedure)
+    let mut owners = module
+        .original_source_procedure_bodies()
+        .filter(|(_, current)| std::ptr::eq(*current, procedure));
+    let (id, _) = owners.next()?;
+    if owners.next().is_some()
+        || !retained.matches_module(module, registry)
+        || !retained.matches_original_procedure_summary(*id, procedure)
         || module.original_invocation_source_purpose(
             registry,
             super::InvocationMetadataContext::for_module(registry, module)?,
@@ -478,7 +483,7 @@ pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
             let procedure = module.body_units.get(id)?;
             (module.procedure_ids.owns(*id)
                 && card.matches_procedure(module, procedure)
-                && retained.matches_original_procedure(procedure))
+                && retained.matches_original_procedure_summary(*id, procedure))
             .then_some((card.source_slot(), card.original_name_input().policy(), *id))
         });
     let mut bodies = lookup.matching_slot_publications(candidates)?;

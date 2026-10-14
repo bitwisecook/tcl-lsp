@@ -448,11 +448,15 @@ impl Interp {
                 _ => return None,
             }
         };
-        let mut full = self.namespaces().qualified_name(self.current_ns());
-        if full != b"::" {
-            full.extend_from_slice(b"::");
-        }
-        full.extend_from_slice(selected);
+        let namespaces = self.namespaces();
+        let namespace = self.current_ns();
+        namespaces.command_generation(namespace, selected)?;
+        let slot = tcl_core_types::NativeByteCommandSlot {
+            namespace: namespaces.native_context_path(namespace)?,
+            simple: selected.as_slice().into(),
+        };
+        let full = tcl_syntax::naming::constructed_command_address_bytes(&slot);
+        drop(namespaces);
         Some(obj::Owned::fresh(obj::new_string_bytes(&full)))
     }
 
@@ -705,6 +709,32 @@ impl Interp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn definition_head_uses_current_constructed_namespace_and_selected_tail() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl9.0"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"proc choice {} {}; namespace eval N {proc literal: {} {}; proc choice {} {}; proc chosen {} {}}"), Code::Ok);
+        let root = interp.oo_definition_head(b"choice").unwrap();
+        assert_eq!(obj::bytes_of(root.as_ptr()), b"::choice");
+        let namespace = interp.find_namespace_id(b"::N").unwrap();
+        interp.set_current_ns(namespace);
+        let exact = interp.oo_definition_head(b"choice").unwrap();
+        assert_eq!(obj::bytes_of(exact.as_ptr()), b"::N::choice");
+        let literal = interp.oo_definition_head(b"lit").unwrap();
+        assert_eq!(obj::bytes_of(literal.as_ptr()), b"::N::literal:");
+        assert!(interp.oo_definition_head(b"cho").is_none());
+        assert!(interp.oo_definition_head(b"").is_none());
+        assert!(interp.oo_definition_head(b"::choice").is_none());
+        interp.set_current_ns(crate::namespace::GLOBAL);
+        let restored = interp.oo_definition_head(b"choice").unwrap();
+        assert_eq!(obj::bytes_of(restored.as_ptr()), b"::choice");
+        assert!(!interp.host_refusal_pending());
+    }
 
     #[test]
     fn self_call_uses_the_selected_uplevel_activation_and_restores_its_caller() {

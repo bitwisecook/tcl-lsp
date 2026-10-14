@@ -4451,7 +4451,7 @@ impl CompilationUnit {
         if retained
             .positioned_for_module(&self.ir_module, registry)
             .is_none()
-            || !retained.matches_original_procedure(procedure)
+            || !retained.matches_original_procedure_summary(id, procedure)
             || self.ir_module.source.try_text().ok() != Some(self.source.as_str())
             || self.original_procedure_cfg_for_body(id) != Some(&current.cfg)
             || candidate.sccp.reads_module

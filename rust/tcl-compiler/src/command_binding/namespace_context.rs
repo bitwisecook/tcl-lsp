@@ -97,6 +97,16 @@ impl SourceNamespaceKey {
         }
     }
 
+    /// Exact root geometry from the same retained native namespace incarnation.
+    /// Source labels and constructed paths cannot supply this native context.
+    #[must_use]
+    pub fn is_native_root_in_entry(&self, entry: &tcl_runtime_api::NativeCompilationEntry) -> bool {
+        self.native_context().is_some_and(|context| {
+            context.path.is_root()
+                && entry.retained_namespace_context(context.token).as_ref() == Ok(context)
+        })
+    }
+
     pub(super) fn is_root(&self) -> bool {
         match self {
             Self::Authored(text) => text == "::",
@@ -445,5 +455,22 @@ impl super::SourceInvocationBinding {
         metadata.source_analysis_input()?;
         advice.closed_lookup().then_some(())?;
         advice.snapshot.state.native_root_namespace_key()
+    }
+}
+
+#[cfg(test)]
+mod native_root_tests {
+    use super::*;
+
+    #[test]
+    fn original_native_root_requires_the_actual_entry_incarnation() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let namespace = SourceNamespaceKey::from_native_entry(&entry).unwrap();
+        assert!(namespace.is_native_root_in_entry(&entry));
+        assert!(!SourceNamespaceKey::authored("::").is_native_root_in_entry(&entry));
+        let (_other_owner, other) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(!namespace.is_native_root_in_entry(&other));
     }
 }

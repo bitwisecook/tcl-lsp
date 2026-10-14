@@ -27,8 +27,8 @@
 //!   which Tcl performs for free rather than a genuine shimmer;
 //!   [`is_free_first_conversion`] asks the same of a value whose producing
 //!   evaluation states its representation, and reads that first.
-//! - [`inert_braced_args`] — the argument positions whose brace-quoted word
-//!   Tcl never substitutes, so nothing in them is read here.
+//! - [`inert_effective_args`] — inert retained-value prefixes and original
+//!   braced operands under the selected invocation's expression roles.
 
 use std::borrow::Cow;
 
@@ -38,7 +38,6 @@ use tcl_syntax::boolean::parse_boolean_word;
 use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
 
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::ir::CommandTokens;
 
 /// Convert captured native representation facts into conversion-cost advice.
 /// Semantic List/Dict contents alone never establish an internal representation.
@@ -209,58 +208,11 @@ pub fn invocation_shimmer_expectation(
     })
 }
 
-/// The argument indices of one call whose word is a **brace-quoted literal
-/// the callee never substitutes in this frame** — the positions whose text
-/// must not be read as a variable reference at all.
-///
-/// Tcl performs no substitution inside `{…}`: `lindex {$x} 0` yields the two
-/// characters `$x` and reads nothing (tclsh 9.0.4). The IR's `args` hold the
-/// *de-braced* word, which is indistinguishable there from a real `$x`, so
-/// the answer comes from the segmenter's per-word token kinds
-/// ([`CommandTokens::arg_is_braced_literal`]) rather than from the text.
-///
-/// The exemption is
-/// [`CommandRegistry::arg_indices_evaluated_in_frame`]: `expr {$x} + 1` and
-/// `if {$c} …` re-evaluate their braced word where the caller's variables
-/// are in scope, so those names *are* read here and now — `expr {$x} + 1`
-/// really is 6 for `x` = 5. `apply {{} {puts $x}}` runs in a fresh frame and
-/// is not exempt.
-///
-/// Only [`crate::ir::Statement::Call`] needs this. A `[cmd …]` lifted out of
-/// a word and the command substitution inside a `Statement::AssignValue`
-/// both carry their argument words as raw source text with the braces still
-/// on, so `is_pure_var_ref("{$x}")` already declines for them.
-#[must_use]
-pub fn inert_braced_args(
-    registry: &CommandRegistry,
-    command: &str,
-    args: &[&str],
-    tokens: Option<&CommandTokens>,
-) -> Vec<usize> {
-    let Some(tokens) = tokens else {
-        return Vec::new();
-    };
-    let braced: Vec<usize> = (0..args.len())
-        .filter(|&idx| tokens.arg_is_braced_literal(idx))
-        .collect();
-    // The overwhelming majority of calls brace nothing; skip the role query
-    // entirely for those rather than run it per statement.
-    if braced.is_empty() {
-        return braced;
-    }
-    let evaluated = registry.arg_indices_evaluated_in_frame(command, args);
-    braced
-        .into_iter()
-        .filter(|idx| !evaluated.contains(idx))
-        .collect()
-}
-
 /// Effective argument positions that cannot read a source variable. Alias
 /// prefixes are retained values, and written braces are interpreted under the
 /// proved callee's caller-frame evaluation contract.
 #[must_use]
 pub fn inert_effective_args(
-    _registry: &CommandRegistry,
     invocation: &crate::registry_invocation::NormalRepresentationInvocation,
 ) -> Vec<usize> {
     let evaluated: Vec<_> = invocation

@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-14T18:47:29.324602+00:00",
+  "scope": "Inactive old line-table executable cache for unrelated f5_xc/differential/model targets. Rebuildable executables only; no source, capture, active artefact or oracle result removed.",
+  "files": [
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/f5_xc-57b1cb3d9cdfc038",
+      "bytes": 257972944,
+      "sha256": "3f28e121817d1a8d4ff042811fb2e2b70639a18675194ccaf6377ca3120eb4d1"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/differential-c62c638f4a1cab1e",
+      "bytes": 257559520,
+      "sha256": "bb26d77fc7c08c7a37126dad62729b8f8c134f9d67362f362f01280ebd3aa3bc"
+    },
+    {
+      "path": "tmp/name-target-clean-20261014/debug/deps/model-905deb66fc951092",
+      "bytes": 257539984,
+      "sha256": "47a4997514294c33c8cbdbc468ec7c02addaa8308814833cbef03c882af391aa"
+    }
+  ]
+}

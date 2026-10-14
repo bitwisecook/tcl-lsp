@@ -136,14 +136,15 @@ pub use native::{
     NativeVariableDiagnosticProjection, NativeVariableDiagnosticReason, NativeVariableFailureSite,
     NativeVariableInputForm, NativeVariableProjection, NativeVariableTraceNames,
     NativeVariableTraceReportingInput, checked_command_slot_utf8, checked_namespace_path_utf8,
-    native_command_full_name_bytes, native_command_source_spelling, native_command_source_word,
-    native_constant_failure_verb, native_jim_namespace_source_spelling,
-    native_namespace_full_name_bytes, native_namespace_source_spelling,
-    native_procedure_compilation_name_input, report_native_c_variable_value_name,
-    report_native_dictionary_missing_key, report_native_name_bytes,
-    report_native_namespace_creation_error, report_native_namespace_lookup_error,
-    report_native_namespace_operation_error, report_native_variable_access_trace_names,
-    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
+    constructed_command_address_bytes, native_command_full_name_bytes,
+    native_command_source_spelling, native_command_source_word, native_constant_failure_verb,
+    native_jim_namespace_source_spelling, native_namespace_full_name_bytes,
+    native_namespace_source_spelling, native_procedure_compilation_name_input,
+    report_native_c_variable_value_name, report_native_dictionary_missing_key,
+    report_native_name_bytes, report_native_namespace_creation_error,
+    report_native_namespace_lookup_error, report_native_namespace_operation_error,
+    report_native_variable_access_trace_names, report_native_variable_diagnostic,
+    report_native_variable_diagnostic_at,
 };
 
 /// Rooted slot for an authored support-command registration label.
