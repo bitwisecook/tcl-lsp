@@ -10668,6 +10668,14 @@ substitution, physical cell or definite effect-exclusion proof.
 
 ## Original read and operand consumers
 
+Source body joins use `matches_original_procedure_summary` with the actual issued
+body ID. The retained snapshot compares original header/formals/body source,
+direct statement geometry, body kind, publication and declaration site; only the
+qualified reporting label is excluded. Memo acceptance, source graph, AOT and
+selected call/formal consumers keep their independent current Module/input/owner
+checks. This source correspondence neither compares every IR expression nor
+supplies a callable body, cell, represented SSA version or execution permission.
+
 Taint receiver classification carries the original receiver word, actual lexer
 configuration and source point into `unique_instance_class`. Complete scalar
 reference grammar preserves literal empty/sigil names while rejecting array references,
