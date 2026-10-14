@@ -194,7 +194,97 @@ const END_MINUS_86_STDIN: &str = "lit: <> <> <> <>\n\
 var: <abcdefghijkl> <a b c d e f g h i j k l> <> <>\ncatch: <>\n\
 top: <> <>\nbody: <> <>\n";
 
+/// `linsert`, `lreplace` and `string replace`, which 8.6 also compiles through
+/// `TclIndexEncode`: a literal `end` offset after the end appends or leaves
+/// the string alone where the same word read at run time wraps before the
+/// first element. `string replace $s 0 end-2147483649 X` is the exception:
+/// `TclCompileStringReplaceCmd` cannot settle a replacement between an
+/// absolute first index and a last one after the end, so it reads its words
+/// at run time even in a proc.
+const REPLACE: &str = r#"proc lit {} {
+    set l {a b c d e f g h i j k l}
+    set s abcdefghijkl
+    set i end-2147483649
+    puts "lit: <[linsert $l end-2147483649 X]> <[lreplace $l 2 end-2147483649 X]> <[string replace $s end-2147483649 end X]> <[string replace $s 0 end-2147483649 X]>"
+    puts "var: <[linsert $l $i X]> <[lreplace $l 2 $i X]> <[string replace $s $i end X]> <[string replace $s 0 $i X]>"
+    set r [linsert $l end-2147483649 X]
+    catch {lreplace $l 2 end-2147483649 X} c
+    puts "set: <$r> <$c>"
+}
+lit
+set l {a b c d e f g h i j k l}
+set s abcdefghijkl
+puts "top: <[linsert $l end-2147483649 X]> <[lreplace $l 2 end-2147483649 X]> <[string replace $s end-2147483649 end X]>"
+foreach _ x {
+    puts "body: <[linsert $l end-2147483649 X]> <[lreplace $l 2 end-2147483649 X]> <[string replace $s end-2147483649 end X]>"
+}
+"#;
+
+const REPLACE_READ: &str = "lit: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X> <abcdefghijkl>\n\
+var: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X> <abcdefghijkl>\n\
+set: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l>\n\
+top: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X>\n\
+body: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X>\n";
+
+const REPLACE_86_FILE: &str = "lit: <a b c d e f g h i j k l X> <a b X> <abcdefghijkl> <abcdefghijkl>\n\
+var: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X> <abcdefghijkl>\n\
+set: <a b c d e f g h i j k l X> <a b X>\n\
+top: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X>\n\
+body: <a b c d e f g h i j k l X> <a b X> <abcdefghijkl>\n";
+
+const REPLACE_86_STDIN: &str = "lit: <a b c d e f g h i j k l X> <a b X> <abcdefghijkl> <abcdefghijkl>\n\
+var: <X a b c d e f g h i j k l> <a b X c d e f g h i j k l> <X> <abcdefghijkl>\n\
+set: <a b c d e f g h i j k l X> <a b X>\n\
+top: <a b c d e f g h i j k l X> <a b X> <abcdefghijkl>\n\
+body: <a b c d e f g h i j k l X> <a b X> <abcdefghijkl>\n";
+
+/// A script that is a canonical list, or a concatenation of them, runs as one
+/// command without being compiled (`TclEvalObjEx`), wherever it runs, so 8.6
+/// reads its literal index as at run time; the same script as a string it
+/// compiles. Every release takes the same path, which only 8.6 shows.
+const EVAL_LIST: &str = r#"set s abcdefghijkl
+puts "eval list: <[eval [list string range $s 0 end-2147483649]]>"
+puts "eval concat: <[eval [list string range] [list $s 0 end-2147483649]]>"
+puts "eval string: <[eval "string range $s 0 end-2147483649"]>"
+puts "uplevel: <[uplevel #0 [list string range $s 0 end-2147483649]]>"
+puts "catch: [catch [list string range $s 0 end-2147483649] r] <$r>"
+puts "if: <[if 1 [list string range $s 0 end-2147483649]]>"
+puts "namespace eval: <[namespace eval :: [list string range $s 0 end-2147483649]]>"
+proc p {s} {
+    list <[eval [list string range $s 0 end-2147483649]]> <[eval {string range $s 0 end-2147483649}]>
+}
+puts "proc: [p $s]"
+"#;
+
+const EVAL_LIST_READ: &str = "eval list: <>\neval concat: <>\neval string: <>\nuplevel: <>\n\
+catch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <>\n";
+
+const EVAL_LIST_86: &str = "eval list: <>\neval concat: <>\neval string: <abcdefghijkl>\n\
+uplevel: <>\ncatch: 0 <>\nif: <>\nnamespace eval: <>\nproc: <> <abcdefghijkl>\n";
+
 const VECTORS: &[Vector] = &[
+    Vector {
+        name: "linsert, lreplace and string replace",
+        script: REPLACE,
+        want: &[
+            (TclVersion::V8_4, REPLACE_READ, REPLACE_READ),
+            (TclVersion::V8_5, REPLACE_READ, REPLACE_READ),
+            (TclVersion::V8_6, REPLACE_86_FILE, REPLACE_86_STDIN),
+            (TclVersion::V9_0, REPLACE_READ, REPLACE_READ),
+            (TclVersion::V9_1, REPLACE_READ, REPLACE_READ),
+        ],
+    },
+    Vector {
+        name: "a canonical-list script",
+        script: EVAL_LIST,
+        want: &[
+            (TclVersion::V8_4, EVAL_LIST_READ, EVAL_LIST_READ),
+            (TclVersion::V8_5, EVAL_LIST_READ, EVAL_LIST_READ),
+            (TclVersion::V8_6, EVAL_LIST_86, EVAL_LIST_86),
+            (TclVersion::V9_0, EVAL_LIST_READ, EVAL_LIST_READ),
+            (TclVersion::V9_1, EVAL_LIST_READ, EVAL_LIST_READ),
+        ],
+    },
     Vector {
         name: "end+2147483647",
         script: END_PLUS,

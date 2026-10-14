@@ -67,7 +67,8 @@ fn eval_body(vm: &mut Vm, body: &Value) -> Completion<Value> {
     if let Err(c) = vm.enter_control_fallback() {
         return c;
     }
-    let result = match vm.eval_source(&body.to_str()) {
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(body));
+    let result = match vm.eval_source_as(&body.to_str(), evaluation) {
         Ok(c) => c,
         Err(e) => completion_from_tcl_error(e),
     };

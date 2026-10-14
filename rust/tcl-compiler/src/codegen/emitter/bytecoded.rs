@@ -255,7 +255,10 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         return false;
     }
     for (i, a) in args.iter().enumerate() {
-        ctx.emit_word_arg(i, a);
+        match ctx.compiled_index_word(a).filter(|_| i == 1) {
+            Some(compiled) => ctx.push_lit_exact(&compiled),
+            None => ctx.emit_word_arg(i, a),
+        }
     }
     ctx.emit(
         Op::LREPLACE4,

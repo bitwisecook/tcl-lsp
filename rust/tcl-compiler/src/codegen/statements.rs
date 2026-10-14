@@ -907,7 +907,7 @@ impl CodegenCtx<'_> {
             self.emit_inline_cmd_subst_with_tokens(value, tokens);
             return true;
         }
-        if self.try_emit_literal_range(&head.0, args) {
+        if self.try_emit_compiled_index_command(&head.0, args) {
             return true;
         }
         // A source snapshot may be unavailable for a compatibility caller.

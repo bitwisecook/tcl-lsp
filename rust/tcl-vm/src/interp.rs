@@ -10239,6 +10239,17 @@ impl Vm {
     }
 
     pub(crate) fn eval_at_level(&mut self, target: usize, src: &str) -> Completion<Value> {
+        self.eval_at_level_as(target, src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::eval_at_level`], the script's own commands evaluated as
+    /// `evaluation` says.
+    pub(crate) fn eval_at_level_as(
+        &mut self,
+        target: usize,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Completion<Value> {
         if target >= self.frames.len() {
             return err(format!("bad level \"{target}\""));
         }
@@ -10259,7 +10270,7 @@ impl Vm {
             self.error_stack
                 .enter_shifted_context(target_frame_count, up_delta);
         }
-        let result = self.eval_source(src);
+        let result = self.eval_source_as(src, evaluation);
         if up_delta != 0 {
             self.error_stack.leave_shifted_context();
         }
@@ -12709,8 +12720,18 @@ impl Vm {
     /// must carry this owner through to frame creation; using the VM's later
     /// ambient state there can acknowledge changes the assembly has never seen.
     pub(crate) fn compile_script_cached(&mut self, src: &str) -> Result<CompiledUnit, TclError> {
+        self.compile_script_cached_as(src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::compile_script_cached`], the script's own commands evaluated as
+    /// `evaluation` says ([`crate::value::script_evaluation`]).
+    pub(crate) fn compile_script_cached_as(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<CompiledUnit, TclError> {
         let namespace = self.current_ns().to_owned();
-        self.compile_script_cached_in_namespace(src, &namespace)
+        self.compile_script_cached_in_namespace_as(src, &namespace, evaluation)
     }
 
     /// Compile a deferred script in an explicit constructed namespace, carrying
@@ -12720,9 +12741,17 @@ impl Vm {
         src: &str,
         namespace: &str,
     ) -> Result<CompiledUnit, TclError> {
+        self.compile_script_cached_in_namespace_as(src, namespace, CommandEvaluation::Compiled)
+    }
+
+    fn compile_script_cached_in_namespace_as(
+        &mut self,
+        src: &str,
+        namespace: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<CompiledUnit, TclError> {
         self.reset_error_state_for_eval();
-        let module =
-            self.compile_cached_in_namespace(src, namespace, CommandEvaluation::Compiled)?;
+        let module = self.compile_cached_in_namespace(src, namespace, evaluation)?;
         self.validate_module_profile(&module)?;
         Self::validate_module_namespace(&module, namespace)?;
         self.merge_procs(&module);
@@ -12742,6 +12771,16 @@ impl Vm {
         &mut self,
         src: &str,
     ) -> Result<PreparedScript, TclError> {
+        self.prepare_script_commands_as(src, CommandEvaluation::Compiled)
+    }
+
+    /// [`Self::prepare_script_commands`], the script's own commands evaluated
+    /// as `evaluation` says.
+    pub(crate) fn prepare_script_commands_as(
+        &mut self,
+        src: &str,
+        evaluation: CommandEvaluation,
+    ) -> Result<PreparedScript, TclError> {
         let Some(compiler) = self.compiler.as_ref() else {
             return Err(TclError::new(
                 "eval / command substitution requires a CompileService",
@@ -12756,7 +12795,7 @@ impl Vm {
         let prefix = if plan.complete_prefix_len == 0 {
             None
         } else {
-            Some(self.compile_script_cached(&src[..plan.complete_prefix_len])?)
+            Some(self.compile_script_cached_as(&src[..plan.complete_prefix_len], evaluation)?)
         };
         Ok(PreparedScript {
             prefix,

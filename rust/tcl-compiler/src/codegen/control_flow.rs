@@ -996,12 +996,17 @@ impl CodegenCtx<'_> {
         };
 
         // Hooks this catch-body dispatcher does not specialise
-        // (`Incr`, `String` and `Lrange` but for a literal index read apart,
-        // …, which only the value-position dispatcher in `cmd_subst` emits
-        // inline) fall to the generic invoke arm, as do guard failures.
+        // (`Incr`, and `String`, `Lrange`, `Linsert` and `Lreplace` but for a
+        // literal index read apart, …, which only the value-position
+        // dispatcher in `cmd_subst` emits inline) fall to the generic invoke
+        // arm, as do guard failures.
         match self.inline_cmd_subst_hook(body_cmd, body_args) {
-            Some(InlineCodegenHookId::String | InlineCodegenHookId::Lrange)
-                if self.try_emit_literal_range(body_cmd, body_args) => {}
+            Some(
+                InlineCodegenHookId::String
+                | InlineCodegenHookId::Lrange
+                | InlineCodegenHookId::Linsert
+                | InlineCodegenHookId::Lreplace,
+            ) if self.try_emit_compiled_index_command(body_cmd, body_args) => {}
             Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
             Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_cmd, body, body_args),
             Some(InlineCodegenHookId::Break) => {

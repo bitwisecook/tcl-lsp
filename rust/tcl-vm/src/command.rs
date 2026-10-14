@@ -403,7 +403,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // before the error is raised (#1603): C parses one command at a time, so
     // the malformed tail is never reached until the commands ahead of it have
     // run.  `catch`/`try` already prepare their bodies this way.
-    match vm.prepare_script_commands(&script) {
+    match vm.prepare_script_commands_as(&script, crate::value::script_evaluation(args)) {
         Ok(prepared) => match prepared.prefix {
             Some(unit) => {
                 vm.pending.eval = Some(crate::exec::EvalReq {
@@ -2069,7 +2069,8 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // code — is absorbed by `finish_catch` (which binds the result/options vars
     // and yields the status code). Mirrors `cmd_eval`'s pending request, but
     // catch's completion is caught rather than propagated.
-    match vm.prepare_script_commands(&script.to_str()) {
+    let evaluation = crate::value::script_evaluation(std::slice::from_ref(script));
+    match vm.prepare_script_commands_as(&script.to_str(), evaluation) {
         Ok(prepared) if prepared.prefix.is_some() => {
             vm.pending.catch = Some(crate::exec::CatchReq {
                 script: prepared.prefix.expect("checked above"),
@@ -2543,8 +2544,9 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // (coroutine-1.7/1.8/1.12). Every other level swaps to a
     // different frame that must be restored afterwards, which a transparent
     // script frame cannot carry, so those keep the nested-drive `eval_at_level`.
+    let evaluation = crate::value::script_evaluation(rest);
     if target == cur {
-        return match vm.compile_script_cached(&script) {
+        return match vm.compile_script_cached_as(&script, evaluation) {
             Ok(script) => {
                 vm.pending.eval = Some(crate::exec::EvalReq {
                     script,
@@ -2557,7 +2559,7 @@ fn cmd_uplevel(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(e) => err(e.message),
         };
     }
-    vm.eval_at_level(target, &script)
+    vm.eval_at_level_as(target, &script, evaluation)
 }
 
 /// `variable ?name value ...? name ?value?` — namespace variables (currently global).

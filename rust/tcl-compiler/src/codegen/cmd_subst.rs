@@ -69,11 +69,37 @@ impl CodegenCtx<'_> {
             })
     }
 
-    /// Emit `string range` or `lrange` through its immediate opcode where one
-    /// of its literal indices reads apart compiled and as the command runs, so
-    /// a command the release compiles reads it compiled where this compiler
-    /// would otherwise keep the generic invoke.
-    pub(super) fn try_emit_literal_range(&mut self, cmd: &str, args: &[(String, bool)]) -> bool {
+    /// The literal index word `word` respelt as the release compiles it,
+    /// where that reading is apart from the one its command makes as it runs:
+    /// `2147483647` after the end and `-1` before the first element, which
+    /// every release's command reads so whatever the length.
+    pub(super) fn compiled_index_word(&self, word: &str) -> Option<String> {
+        self.literal_index_reads_apart(word)
+            .then(|| self.literal_index_imm(word))
+            .flatten()
+            .map(|index| index.to_string())
+    }
+
+    /// Push the index word `word` of a command whose opcode reads it at run
+    /// time, respelt where the release compiles it apart
+    /// ([`Self::compiled_index_word`]).
+    pub(super) fn emit_index_word(&mut self, word: &str, braced: bool) {
+        match self.compiled_index_word(word) {
+            Some(compiled) => self.push_lit_exact(&compiled),
+            None => self.emit_cmd_subst_arg(word, braced),
+        }
+    }
+
+    /// Emit `string range`, `string replace`, `lrange`, `linsert` or
+    /// `lreplace` through its specialised opcode where one of its literal
+    /// indices reads apart compiled and as the command runs, so a command the
+    /// release compiles reads it compiled where this compiler would otherwise
+    /// keep the generic invoke.
+    pub(super) fn try_emit_compiled_index_command(
+        &mut self,
+        cmd: &str,
+        args: &[(String, bool)],
+    ) -> bool {
         let apart = |ctx: &Self, words: &[(String, bool)]| {
             words
                 .iter()
@@ -81,10 +107,27 @@ impl CodegenCtx<'_> {
         };
         let emitted = match (self.inline_cmd_subst_hook_candidate(cmd, args), args) {
             (Some(InlineCodegenHookId::String), [_, _, indices @ ..]) if apart(self, indices) => {
-                self.try_emit_string_range_imm(args)
+                // The hook's own subcommand dispatch settles which opcode.
+                let Some((_, binding)) = self.inline_cmd_subst_resolution(cmd, args) else {
+                    return false;
+                };
+                self.emit_inline_string(cmd, &binding, args);
+                return true;
             }
             (Some(InlineCodegenHookId::Lrange), [_, indices @ ..]) if apart(self, indices) => {
                 self.try_emit_lrange_imm(args)
+            }
+            (Some(InlineCodegenHookId::Linsert), [_, index, _, ..])
+                if apart(self, std::slice::from_ref(index)) =>
+            {
+                self.emit_inline_linsert(args);
+                true
+            }
+            (Some(InlineCodegenHookId::Lreplace), [_, indices @ ..])
+                if indices.len() >= 2 && apart(self, &indices[..2]) =>
+            {
+                self.emit_inline_lreplace(args);
+                true
             }
             _ => false,
         };
@@ -93,6 +136,70 @@ impl CodegenCtx<'_> {
         }
         emitted
     }
+
+    /// Emit `string replace s first last ?new?` as `STR_REPLACE` over its
+    /// indices respelt as the release compiles them, where one reads apart
+    /// and 8.6's `TclCompileStringReplaceCmd` settles the command on its
+    /// encoded indices. Where it does not (a replacement string, `first` not
+    /// before the first element and `last` not after the end), it emits
+    /// `INST_STR_REPLACE` over the words as written, which read as at run time.
+    fn try_emit_compiled_string_replace(&mut self, sargs: &[(String, bool)]) -> bool {
+        if !(3..=4).contains(&sargs.len()) {
+            return false;
+        }
+        let (first, last) = (&sargs[1], &sargs[2]);
+        if !(self.literal_index_reads_apart(&first.0) || self.literal_index_reads_apart(&last.0)) {
+            return false;
+        }
+        let release = self.vm_release();
+        let encoded = |word: &str| tcl_cmd_core::index::encode(word, release, true);
+        let (Some(first_at), Some(last_at)) = (encoded(&first.0), encoded(&last.0)) else {
+            return false;
+        };
+        if !string_replace_compiles_encoded(first_at, last_at, sargs.len() == 4) {
+            return false;
+        }
+        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+        self.emit_index_word(&first.0, first.1);
+        self.emit_index_word(&last.0, last.1);
+        match sargs.get(3) {
+            Some((new, braced)) => self.emit_cmd_subst_arg(new, *braced),
+            None => self.push_lit_exact(""),
+        }
+        self.emit(Op::STR_REPLACE, vec![]);
+        true
+    }
+}
+
+/// Whether 8.6's `TclCompileStringReplaceCmd` compiles `string replace` on
+/// its encoded indices, rather than falling through to `INST_STR_REPLACE`
+/// over the words as written: always without a replacement string, and with
+/// one only for a no-op it can prove, `first` before the first element, or
+/// `last` after the end with `first` relative to `end`.
+fn string_replace_compiles_encoded(
+    first: tcl_cmd_core::index::Encoded,
+    last: tcl_cmd_core::index::Encoded,
+    replacing: bool,
+) -> bool {
+    use tcl_cmd_core::index::Encoded;
+    // `TclIndexEncode`'s spaces: `TCL_INDEX_END` is -2 with `end-N` below it,
+    // `TCL_INDEX_BEFORE` -1, `TCL_INDEX_AFTER` `INT_MAX`.
+    const BEFORE: i64 = -1;
+    const END: i64 = -2;
+    const START: i64 = 0;
+    const AFTER: i64 = i32::MAX as i64;
+    let c = |encoded: Encoded| match encoded {
+        Encoded::Index(index) => index.min(AFTER),
+        Encoded::FromEnd(offset) => END + offset,
+        Encoded::Before => BEFORE,
+        Encoded::After => AFTER,
+    };
+    let (first, last) = (c(first), c(last));
+    let no_op = last == BEFORE
+        || first == AFTER
+        || (first <= END && last <= END && last < first)
+        || (first >= START && last >= START && last < first);
+    no_op || !replacing || (first == BEFORE && last >= START) || (last == AFTER && first <= END)
 }
 
 // Free functions — pure parsing, no emission state needed
@@ -1347,11 +1454,13 @@ impl CodegenCtx<'_> {
                     &site.binding,
                     &inline_args,
                     false,
-                ) && !self.try_emit_literal_range(cmd, &inline_args)
+                ) && !self.try_emit_compiled_index_command(cmd, &inline_args)
                 {
                     return false;
                 }
             }
+            InlineCodegenHookId::Lreplace
+                if self.try_emit_compiled_index_command(cmd, &inline_args) => {}
             _ => return false,
         }
         self.emit(Op::POP, vec![]);
@@ -1662,13 +1771,10 @@ impl CodegenCtx<'_> {
     /// Emit `string range` whose indices are both literal words as
     /// `STR_RANGE_IMM`, as C compiles it in value and statement position
     /// alike, so a literal index reads as the release compiles it.
-    pub(super) fn try_emit_string_range_imm(&mut self, args: &[(String, bool)]) -> bool {
-        let [(subcmd, _), string, first, last] = args else {
+    fn try_emit_string_range_imm(&mut self, sargs: &[(String, bool)]) -> bool {
+        let [string, first, last] = sargs else {
             return false;
         };
-        if subcmd != "range" {
-            return false;
-        }
         let (Some(first), Some(last)) = (
             self.literal_index_imm(&first.0),
             self.literal_index_imm(&last.0),
@@ -1820,7 +1926,7 @@ impl CodegenCtx<'_> {
                 self.emit(Op::STR_INDEX, vec![]);
             }
             "range" if sargs.len() == 3 => {
-                if !self.try_emit_string_range_imm(args) {
+                if !self.try_emit_string_range_imm(sargs) {
                     self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
                     self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
                     self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
@@ -1833,8 +1939,14 @@ impl CodegenCtx<'_> {
             "compare" if sargs.len() == 2 => {
                 self.emit_inline_string_2arg_op(prev_inline, sargs, Op::STR_CMP);
             }
-            "replace" if sargs.len() == 4 => {
-                self.emit_inline_string_replace(sargs);
+            "replace" => {
+                if !self.try_emit_compiled_string_replace(sargs) {
+                    if sargs.len() == 4 {
+                        self.emit_inline_string_replace(sargs);
+                    } else {
+                        self.emit_inline_string_fqn_invoke(prev_inline, subcmd, sargs);
+                    }
+                }
             }
             "length" if sargs.len() == 1 => {
                 self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
@@ -2071,8 +2183,12 @@ impl CodegenCtx<'_> {
     fn emit_inline_lreplace(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        for (i, a) in args.iter().enumerate().skip(1) {
+            if i <= 2 && args.len() >= 3 {
+                self.emit_index_word(&a.0, a.1);
+            } else {
+                self.emit_cmd_subst_arg(&a.0, a.1);
+            }
         }
         self.emit(
             Op::LREPLACE4,
@@ -2083,8 +2199,12 @@ impl CodegenCtx<'_> {
     fn emit_inline_linsert(&mut self, args: &[(String, bool)]) {
         self.used_inline_cmd_subst = true;
         self.emit_cmd_subst_arg(&args[0].0, args[0].1);
-        for a in &args[1..] {
-            self.emit_cmd_subst_arg(&a.0, a.1);
+        for (i, a) in args.iter().enumerate().skip(1) {
+            if i == 1 {
+                self.emit_index_word(&a.0, a.1);
+            } else {
+                self.emit_cmd_subst_arg(&a.0, a.1);
+            }
         }
         self.emit(
             Op::LREPLACE4,
@@ -2813,6 +2933,65 @@ mod tests {
             ops.contains(&Op::LIST_RANGE_IMM),
             "end should use LIST_RANGE_IMM, got {ops:?}",
         );
+    }
+
+    #[test]
+    fn a_literal_insert_index_past_int_is_respelt_where_the_release_compiles_it() {
+        // tclsh 8.6.18: `linsert $l end+2147483647 X` in a proc appends, as
+        // `TclCompileLinsertCmd` encodes the index after the end; read at run
+        // time it wraps and prepends. The VM's `LREPLACE4` reads its index at
+        // run time, so a compiled command pushes it respelt `2147483647`.
+        let registry = CommandRegistry::build_default();
+        for (dialect, direct, pushed) in [
+            ("tcl8.6", false, "2147483647"),
+            ("tcl8.6", true, "end+2147483647"),
+            ("tcl8.5", false, "end+2147483647"),
+            ("tcl9.0", false, "end+2147483647"),
+        ] {
+            let mut ctx = CodegenCtx::new(true, &["lst"], &registry);
+            ctx.dialect = tcl_dialect::DialectProfile::find(dialect);
+            if direct {
+                let span = tcl_lexer::Span::new(0, 1);
+                ctx.direct_commands.push(span);
+                ctx.set_command_source_span(span);
+            }
+            ctx.emit_inline_cmd_subst("[linsert ${lst} end+2147483647 X]");
+            assert!(
+                ctx.literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal == pushed),
+                "{dialect}, direct: {direct}: {:?}",
+                ctx.literals.entries()
+            );
+        }
+    }
+
+    /// `TclCompileStringReplaceCmd` (8.6.18) settles the command on its encoded
+    /// indices without a replacement string, for a no-op it proves, for
+    /// `first` before the first element, and for `last` after the end with
+    /// `first` relative to `end`; otherwise `INST_STR_REPLACE` reads the words
+    /// at run time. Measured in a proc on `abcdefghijkl`: `string replace $s
+    /// end+2147483647 end X` is unchanged (the run-time reading replaces it
+    /// all), and so is `string replace $s 0 end+2147483647 X`, as at run time.
+    #[test]
+    fn string_replace_settles_on_its_encoded_indices_where_8_6_does() {
+        use tcl_cmd_core::index::Encoded::{After, Before, FromEnd, Index};
+        for (first, last, replacing, encoded) in [
+            (After, FromEnd(0), true, true),
+            (Index(0), After, true, false),
+            (Index(0), After, false, true),
+            (Before, After, true, true),
+            (FromEnd(-1), After, true, true),
+            (Index(2), Before, true, true),
+            (Index(2), FromEnd(-1), true, false),
+        ] {
+            assert_eq!(
+                string_replace_compiles_encoded(first, last, replacing),
+                encoded,
+                "{first:?} {last:?} replacing: {replacing}"
+            );
+        }
     }
 
     /// 8.6 compiles a literal `end` offset past `INT_MAX` after the end, which
