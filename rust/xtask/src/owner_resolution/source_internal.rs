@@ -899,7 +899,7 @@ impl ConsumerReferences<'_> {
                 let target = self
                     .modules
                     .resolve(&self.row.consumer_module, &path.path, 0)?;
-                for index in target.match_indices("::").map(|(index, _)| index).rev() {
+                for index in target.rmatch_indices("::").map(|(index, _)| index) {
                     let module = &target[..index];
                     if self.modules.modules.contains_key(module) {
                         return Some(TypedReference {
@@ -1106,9 +1106,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
                 self.invalid = true;
             }
             self.clear_pattern(&arm.pat);
-            if let Some((_, guard)) = &arm.guard {
-                self.visit_expr(guard);
-            }
+            self.visit_pat(&arm.pat);
             self.visit_expr(&arm.body);
             self.locals = previous;
             self.shadowed = shadowed;

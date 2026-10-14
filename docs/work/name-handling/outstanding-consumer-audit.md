@@ -157,3 +157,5 @@ and whole-manifest execution remain independent. Original evidence/provider
 hashes are unchanged; the last strict audit reports 1,959 structural errors,
 with integrated narrow owner updates awaiting a fresh audit. The event contract
 union preserves all existing rows and adds its actual ir.rs declaration owner.
+
+Source gate44 stops in compilation before any controls: source drift 0, no semantic result. The compiler errors concern reverse string matching and Syn3 pattern guards; fixes are integrated. Gate45 is building with no result yet. Source registration15 controls and full actual manifest execution remain pending. DB memo/taint, Core linked hover/rename, OO creator/root-chain, Tk SSA/scalar mutation and original declaration card/Hosted body consumers remain reviewed scratch work awaiting integration after the source freeze.

@@ -1,0 +1,6 @@
+
+running 1 test
+test owner_resolution::tests::public_const_and_async_function_owners_are_recognised_without_prefix_collisions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 314 filtered out; finished in 0.00s
+

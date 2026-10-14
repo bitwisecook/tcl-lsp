@@ -1,0 +1,1358 @@
+{
+  "started_utc": "2026-10-14T06:25:21.898252+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "xtask",
+      "--bin",
+      "xtask",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 0,
+    "seconds": 9.842700080000213,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+    "sha256": "c2da3cc6c41ad2547dc6efeb8a6ba74fe1f5ef3137e5125f5d26651457dbd0f7",
+    "bytes": 433701416
+  },
+  "selected_tests": [
+    "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+    "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+    "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+    "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+    "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+    "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+    "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+    "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+    "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+    "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+    "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+    "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+    "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+    "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+    "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+    "owner_resolution::tests::a_gate_alias_resolves_through_its_prerequisite",
+    "owner_resolution::tests::a_multi_line_dispatch_arm_still_counts",
+    "owner_resolution::tests::associated_fields_and_variants_require_the_exact_public_owner",
+    "owner_resolution::tests::command_guard_category_requires_shared_manager_and_actual_owner",
+    "owner_resolution::tests::command_object_categories_reject_text_lookup_and_checked_snapshot_bypasses",
+    "owner_resolution::tests::counted_name_facade_inventory_uses_shared_purpose_owners",
+    "owner_resolution::tests::counted_name_facades_reject_local_recipes_and_keep_production_after_tests",
+    "owner_resolution::tests::dispatch_check_ignores_comments_and_requires_match_arm",
+    "owner_resolution::tests::handler_and_ensemble_categories_require_original_selected_owners",
+    "owner_resolution::tests::internal_owner_current_namespace_revision_route_resolves",
+    "owner_resolution::tests::internal_owner_file_attributes_preserve_only_declarations",
+    "owner_resolution::tests::internal_owner_rejects_conditionally_available_route_parts",
+    "owner_resolution::tests::internal_owner_rejects_foreign_crates_and_private_sibling_methods",
+    "owner_resolution::tests::internal_owner_requires_the_declared_typed_receiver_and_import_route",
+    "owner_resolution::tests::internal_owner_scopes_are_explicit_and_public_defaults_stay_strict",
+    "owner_resolution::tests::missing_declared_owner_row_is_reported",
+    "owner_resolution::tests::missing_entry_point_is_reported",
+    "owner_resolution::tests::missing_make_gate_is_reported",
+    "owner_resolution::tests::missing_source_is_reported",
+    "owner_resolution::tests::module_qualified_entries_require_the_actual_public_module",
+    "owner_resolution::tests::naming_proof_gate_rejects_incomplete_or_altered_routes",
+    "owner_resolution::tests::naming_proof_gate_resolves_the_complete_python_checker",
+    "owner_resolution::tests::original_trim_guard_requires_selected_getter_order",
+    "owner_resolution::tests::owner_headings_are_limited_to_owner_section",
+    "owner_resolution::tests::parses_marked_manifest_rows",
+    "owner_resolution::tests::private_functions_do_not_satisfy_public_entry_points",
+    "owner_resolution::tests::public_const_and_async_function_owners_are_recognised_without_prefix_collisions",
+    "owner_resolution::tests::resolves_make_targets_to_their_actual_xtask_commands",
+    "owner_resolution::tests::variable_inventory_guard_rejects_post_sort_and_unchecked_tables"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01567671600059839,
+      "log": "test-01.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::actual_file_routes_keep_exact_source_crate_module_and_consumer_identity",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01577590999659151,
+      "log": "test-02.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::file_route_tests::file_routes_refuse_path_overrides_conditionals_and_duplicate_modules",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015654522001568694,
+      "log": "test-03.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_declaration_metadata_keeps_passive_lints_and_refuses_availability_changes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01569875899440376,
+      "log": "test-04.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_manifest_requires_exact_markers_scope_and_repository_paths",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015654712995456066,
+      "log": "test-05.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_accept_actual_nested_static_and_typed_parameter_calls",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015637807999155484,
+      "log": "test-06.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_accept_only_actual_fields_and_constructor_results",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015873147996899206,
+      "log": "test-07.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_clear_every_shadowing_pattern_and_refuse_binding_macros",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015787643002113327,
+      "log": "test-08.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_enclosing_generic_receiver_name_shadows",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015790746998391114,
+      "log": "test-09.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_function_generic_wrappers_and_nested_item_scopes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015851789998123422,
+      "log": "test-10.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_refuse_generic_field_and_nominal_type_argument_erasure",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015784659000928514,
+      "log": "test-11.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_reject_duplicate_declarations_and_wrong_visibility",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01574426799925277,
+      "log": "test-12.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_reject_shadow_macro_alias_and_conditional_calls",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015750146005302668,
+      "log": "test-13.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_require_direct_module_visibility_and_preserve_real_reexports",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01574025200534379,
+      "log": "test-14.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_resolve_actual_reexports_and_reject_private_alias_routes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015764527997816913,
+      "log": "test-15.log",
+      "timed_out": false,
+      "test": "owner_resolution::source_internal::tests::source_routes_verify_actual_parameter_and_producer_fields",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::a_gate_alias_resolves_through_its_prerequisite",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015759130001242738,
+      "log": "test-16.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::a_gate_alias_resolves_through_its_prerequisite",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::a_multi_line_dispatch_arm_still_counts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.0158639180008322,
+      "log": "test-17.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::a_multi_line_dispatch_arm_still_counts",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::associated_fields_and_variants_require_the_exact_public_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01575936899462249,
+      "log": "test-18.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::associated_fields_and_variants_require_the_exact_public_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::command_guard_category_requires_shared_manager_and_actual_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01587962100165896,
+      "log": "test-19.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::command_guard_category_requires_shared_manager_and_actual_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::command_object_categories_reject_text_lookup_and_checked_snapshot_bypasses",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015799469998455606,
+      "log": "test-20.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::command_object_categories_reject_text_lookup_and_checked_snapshot_bypasses",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::counted_name_facade_inventory_uses_shared_purpose_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06395223499566782,
+      "log": "test-21.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::counted_name_facade_inventory_uses_shared_purpose_owners",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::counted_name_facades_reject_local_recipes_and_keep_production_after_tests",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.016035394997743424,
+      "log": "test-22.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::counted_name_facades_reject_local_recipes_and_keep_production_after_tests",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::dispatch_check_ignores_comments_and_requires_match_arm",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015760329995828215,
+      "log": "test-23.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::dispatch_check_ignores_comments_and_requires_match_arm",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::handler_and_ensemble_categories_require_original_selected_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01567564199649496,
+      "log": "test-24.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::handler_and_ensemble_categories_require_original_selected_owners",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_current_namespace_revision_route_resolves",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.4662207900037174,
+      "log": "test-25.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_current_namespace_revision_route_resolves",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_file_attributes_preserve_only_declarations",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015814440994290635,
+      "log": "test-26.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_file_attributes_preserve_only_declarations",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_rejects_conditionally_available_route_parts",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01578969600086566,
+      "log": "test-27.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_rejects_conditionally_available_route_parts",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_rejects_foreign_crates_and_private_sibling_methods",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015645257000869606,
+      "log": "test-28.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_rejects_foreign_crates_and_private_sibling_methods",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_requires_the_declared_typed_receiver_and_import_route",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015623765000782441,
+      "log": "test-29.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_requires_the_declared_typed_receiver_and_import_route",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::internal_owner_scopes_are_explicit_and_public_defaults_stay_strict",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01580719099729322,
+      "log": "test-30.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::internal_owner_scopes_are_explicit_and_public_defaults_stay_strict",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::missing_declared_owner_row_is_reported",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 19.928059354999277,
+      "log": "test-31.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::missing_declared_owner_row_is_reported",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::missing_entry_point_is_reported",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06434380800055806,
+      "log": "test-32.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::missing_entry_point_is_reported",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::missing_make_gate_is_reported",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06400146299711196,
+      "log": "test-33.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::missing_make_gate_is_reported",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::missing_source_is_reported",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015688913998019416,
+      "log": "test-34.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::missing_source_is_reported",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::module_qualified_entries_require_the_actual_public_module",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01593715800117934,
+      "log": "test-35.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::module_qualified_entries_require_the_actual_public_module",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::naming_proof_gate_rejects_incomplete_or_altered_routes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.03179945299780229,
+      "log": "test-36.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::naming_proof_gate_rejects_incomplete_or_altered_routes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::naming_proof_gate_resolves_the_complete_python_checker",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06402113300282508,
+      "log": "test-37.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::naming_proof_gate_resolves_the_complete_python_checker",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::original_trim_guard_requires_selected_getter_order",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015864278000663035,
+      "log": "test-38.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::original_trim_guard_requires_selected_getter_order",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::owner_headings_are_limited_to_owner_section",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015732268999272492,
+      "log": "test-39.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::owner_headings_are_limited_to_owner_section",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::parses_marked_manifest_rows",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015766971999255475,
+      "log": "test-40.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::parses_marked_manifest_rows",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::private_functions_do_not_satisfy_public_entry_points",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015787352000188548,
+      "log": "test-41.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::private_functions_do_not_satisfy_public_entry_points",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::public_const_and_async_function_owners_are_recognised_without_prefix_collisions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.015725468001619447,
+      "log": "test-42.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::public_const_and_async_function_owners_are_recognised_without_prefix_collisions",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::resolves_make_targets_to_their_actual_xtask_commands",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01579496300109895,
+      "log": "test-43.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::resolves_make_targets_to_their_actual_xtask_commands",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-clean-20261014/debug/deps/xtask-7f15d2da2c48a8b1",
+        "owner_resolution::tests::variable_inventory_guard_rejects_post_sort_and_unchecked_tables",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.01570141300180694,
+      "log": "test-44.log",
+      "timed_out": false,
+      "test": "owner_resolution::tests::variable_inventory_guard_rejects_post_sort_and_unchecked_tables",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-14T06:25:55.779363+00:00",
+  "changed_sources": {}
+}

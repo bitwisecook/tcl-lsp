@@ -1,0 +1,10 @@
+{[HTTP::path]} 0 /A
+{[{HTTP::path}]} 0 /A
+{["HTTP::path"]} 0 /A
+{[HTTP\x3a\x3apath]} 0 /A
+{[string tolower [HTTP::path]]} 0 /a
+{[string {tolower} [HTTP::path]]} 0 /a
+{[string tolower {[HTTP::path]}]} 0 {[http::path]}
+{[HTTP::path extra]} 1 {wrong # args: should be "HTTP::path"}
+{[HTTP::path; HTTP::method]} 0 GET
+{[HTTP::path]suffix} 0 /Asuffix

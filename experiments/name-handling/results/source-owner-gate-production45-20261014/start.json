@@ -1,0 +1,17 @@
+{
+  "started_utc": "2026-10-14T06:25:21.898252+00:00",
+  "label": "Strict original and new source registration controls with actual Syn3 guarded patterns",
+  "package": "xtask",
+  "target": "/workspace/tcl-lsp/tmp/name-target-clean-20261014",
+  "source_paths": 34695,
+  "plan": {
+    "filters": [
+      "owner_resolution::"
+    ],
+    "scope": "All original owner-resolution unit controls plus15 new source-internal controls; exact listing/selection and source freeze required. Actual repository manifest validation remains separate; no Native or full consumer acceptance."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "96eab1ae218ab529c9f5c005a5334650708a9c16149c05cf94fc219ae70d9b97",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

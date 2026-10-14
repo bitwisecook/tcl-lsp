@@ -94,7 +94,7 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 06:13 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
+record the bounded 06:28 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
 and 106 FAIL, with zero authored-source drift. Its 303 common Compiler33 controls
 gain seven without regressions. Full Runtime09 executes
 79 controls: 78 PASS and one new C8.5 error-code FAIL; all original 77 pass, with
@@ -184,3 +184,5 @@ and whole-manifest execution remain independent. Original evidence/provider
 hashes are unchanged; the last strict audit reports 1,959 structural errors,
 with integrated narrow owner updates awaiting a fresh audit. The event contract
 union preserves all existing rows and adds its actual ir.rs declaration owner.
+
+Source gate44 stops in compilation before any controls: source drift 0, no semantic result. The compiler errors concern reverse string matching and Syn3 pattern guards; fixes are integrated. Gate45 is building with no result yet. Source registration15 controls and full actual manifest execution remain pending. DB memo/taint, Core linked hover/rename, OO creator/root-chain, Tk SSA/scalar mutation and original declaration card/Hosted body consumers remain reviewed scratch work awaiting integration after the source freeze.

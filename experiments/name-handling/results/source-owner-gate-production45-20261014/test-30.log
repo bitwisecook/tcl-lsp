@@ -1,0 +1,6 @@
+
+running 1 test
+test owner_resolution::tests::internal_owner_scopes_are_explicit_and_public_defaults_stay_strict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 314 filtered out; finished in 0.00s
+

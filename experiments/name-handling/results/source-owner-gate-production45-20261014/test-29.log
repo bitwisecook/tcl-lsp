@@ -1,0 +1,6 @@
+
+running 1 test
+test owner_resolution::tests::internal_owner_requires_the_declared_typed_receiver_and_import_route ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 314 filtered out; finished in 0.00s
+

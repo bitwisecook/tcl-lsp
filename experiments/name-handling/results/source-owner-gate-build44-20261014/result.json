@@ -1,0 +1,25 @@
+{
+  "started_utc": "2026-10-14T06:12:50.723939+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "xtask",
+      "--bin",
+      "xtask",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 101,
+    "seconds": 347.1433177190047,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "finished_utc": "2026-10-14T06:18:40.186452+00:00",
+  "changed_sources": {}
+}
