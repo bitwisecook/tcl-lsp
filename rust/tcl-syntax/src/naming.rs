@@ -275,6 +275,14 @@ pub fn source_variable_name_is_frame_local(
     }
 }
 
+/// Source-local geometry shared by every supported variable lookup policy.
+/// This does not select a runtime policy, activation, cell or presence fact.
+#[must_use]
+pub fn source_variable_name_is_frame_local_for_all_policies(name: &[u8]) -> bool {
+    source_variable_name_is_frame_local(name, tcl_dialect::VariableLookupPolicy::Tcl)
+        && source_variable_name_is_frame_local(name, tcl_dialect::VariableLookupPolicy::Jim)
+}
+
 /// The TextMate-compatible variable-name body used by the generated editor
 /// grammars. A namespace separator is a run of *two or more* colons, matching
 /// [`qualifier_segments`] exactly; keeping the rendered fragment beside the
