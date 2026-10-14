@@ -410,6 +410,8 @@ fn resume(
                 YieldReq::YieldTo(_) => SuspendKind::YieldTo,
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
+            // One that deleted its own command while running has nowhere to
+            // park, so its frozen stack is retired like a deleted suspended one.
             if let Some(key) = key
                 && let Some(state) = vm.coro.live.get_mut(&key)
             {
@@ -417,6 +419,8 @@ fn resume(
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
                 state.last_suspend = kind;
+            } else {
+                vm.retire_parked_coroutine(&mut acts, &mut parked);
             }
             match req {
                 YieldReq::Yield(v) => ok(v),

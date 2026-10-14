@@ -258,6 +258,38 @@ list $created $during $after $again $unknownCreated $unknownAgain $replaced",
     );
 }
 
+/// A loader that deletes its own coroutine and then yields cannot park: the
+/// require is retired (no false circular dependency) and a version it had
+/// already provided is withdrawn.
+#[test]
+fn self_deleting_coroutine_yield_retires_its_require() {
+    assert_every_release(
+        r"package forget sd
+package ifneeded sd 1.0 {
+    if {[info coroutine] ne {}} {
+        rename [info coroutine] {}
+        yield sy
+    }
+    package provide sd 1.0
+}
+set created [coroutine csd apply {{} {package require sd}}]
+set gone [info commands csd]
+set again [package require sd]
+
+package forget sp
+package ifneeded sp 1.0 {
+    package provide sp 1.0
+    if {[info coroutine] ne {}} {
+        rename [info coroutine] {}
+        yield py
+    }
+}
+set pcreated [coroutine csp apply {{} {package require sp}}]
+list $created $gone $again $pcreated [package provide sp]",
+        "sy {} 1.0 py {}",
+    );
+}
+
 /// A failing `coroinject` command unwinds the coroutine through its parked
 /// loader (9.0+; tclsh 9.0.4 and 9.1.0 agree): the error escapes, the version
 /// the loader provided before suspending is withdrawn, and a later require
