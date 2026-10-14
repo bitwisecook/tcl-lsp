@@ -1537,6 +1537,7 @@ impl<'r> Lowerer<'r> {
             self.lower_script(source, &namespace, SourceSegmentationPurpose::WholeInput);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "lowered", source.len(), &self.module);
+        self.retain_module_source_bindings();
         &self.module
     }
 
@@ -1548,6 +1549,8 @@ impl<'r> Lowerer<'r> {
     /// definitions, and traces) for the bytecode backend.
     pub fn lower_procedure_target(&mut self, source: &str, namespace: &str) -> &Module {
         self.start_module();
+        self.module.source =
+            tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         // The runtime ABI carries an unrooted constructed namespace key while
         // compiler IR records rooted constructed keys.  Convert at the shared
         // naming owner without re-parsing the key as a written Tcl word: a
@@ -1563,6 +1566,7 @@ impl<'r> Lowerer<'r> {
             self.in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_script(source, &namespace, SourceSegmentationPurpose::NestedScript)
             });
+        self.retain_module_source_bindings();
         &self.module
     }
 
@@ -1573,11 +1577,25 @@ impl<'r> Lowerer<'r> {
     /// namespace conversion and module provenance field.
     pub fn lower_script_target(&mut self, source: &str, namespace: &str) -> &Module {
         self.start_module();
+        self.module.source =
+            tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         let namespace = self.runtime_target_namespace(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
         self.module.top_level =
             self.lower_script(source, &namespace, SourceSegmentationPurpose::WholeInput);
+        self.retain_module_source_bindings();
         &self.module
+    }
+
+    fn retain_module_source_bindings(&mut self) {
+        self.module.retained_source_bindings =
+            self.module_source_bindings.as_deref().and_then(|bindings| {
+                crate::command_binding::RetainedSourceModuleBindings::retain(
+                    bindings,
+                    &self.module,
+                    self.registry,
+                )
+            });
     }
 
     fn runtime_target_namespace(&mut self, namespace: &str) -> String {
@@ -8679,6 +8697,40 @@ mod tests {
             &m.top_level.statements[0],
             Statement::Return { value: Some(v), .. } if v == "42"
         ));
+    }
+
+    #[test]
+    fn returned_module_snapshots_retain_their_actual_source_owner() {
+        let generation = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let context = Arc::new(generation.with_command_store(Arc::clone(generation.commands())));
+        let registry = generation.commands();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let source = "throw ERROR payload";
+        for target in 0..3 {
+            let mut lowerer = Lowerer::with_config(registry, config)
+                .with_dialect(registry.profile())
+                .with_context_registry(Arc::clone(&context));
+            let module = match target {
+                0 => lowerer.lower(source),
+                1 => lowerer.lower_procedure_target(source, "::N"),
+                _ => lowerer.lower_script_target(source, "::N"),
+            };
+            let owner = module
+                .retained_source_bindings
+                .as_ref()
+                .expect("actual completed source");
+            assert_eq!(module.source.bytes(), source.as_bytes());
+            assert!(
+                owner.positioned_for_module(module, registry).is_some(),
+                "{target}"
+            );
+            let mut changed = module.clone();
+            changed.source = tcl_lexer::SourceImage::document("throw ERROR changed");
+            assert!(owner.positioned_for_module(&changed, registry).is_none());
+            let mut changed = module.clone();
+            changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
+            assert!(owner.positioned_for_module(&changed, registry).is_none());
+        }
     }
 
     #[test]
