@@ -2481,29 +2481,31 @@ fn proc_completions(
     if analysis.allows_lexical_declaration_advice()
         && let Some(config) = analysis.body_lexer_config
     {
-        // These declarations have no original native recipe. Keep their
-        // lexical assistance separate from retained byte publications.
+        // Original Logical headers supply insertion data without Native publications.
         for proc_def in analysis
             .all_procs
             .values()
             .filter(|proc_def| proc_def.source_name.is_none())
         {
-            if !proc_def.name.starts_with(partial) && !proc_def.qualified_name.starts_with(partial)
-            {
-                continue;
-            }
-            let Some(spelling) =
-                tcl_syntax::word_rules::lexical_ascii_source_word(&proc_def.qualified_name, config)
-            else {
+            let Some(declaration) = analysis.logical_source_procedure_declaration(proc_def) else {
                 continue;
             };
-            let count = usage.get(&proc_def.name).copied().unwrap_or(0);
+            let Some(name) = declaration.name() else {
+                continue;
+            };
+            let Some(spelling) = declaration.source_word(config) else {
+                continue;
+            };
+            if !name.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let count = usage.get(name).copied().unwrap_or(0);
             items.push(CompletionItem {
-                label: proc_def.name.clone(),
+                label: name.to_owned(),
                 insert_text: spelling,
                 kind: CompletionKind::Function,
-                detail: Some(proc_signature_str(proc_def)),
-                sort_text: Some(proc_sort_text(&proc_def.name, count)),
+                detail: Some(proc_signature_str(declaration.metadata())),
+                sort_text: Some(proc_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
                 text_edit: None,
@@ -5271,6 +5273,28 @@ mod tests {
 #[cfg(test)]
 mod original_proc_completion_tests {
     use super::*;
+
+    #[test]
+    fn logical_proc_completion_inserts_original_headers_after_report_labels_change() {
+        let source = "namespace eval N {proc helper {arg} {return $arg}}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let original = proc_completions(&analysis, "hel", &FxHashMap::default());
+        assert_eq!(original.len(), 1);
+        assert_eq!(original[0].label, "helper");
+        assert_eq!(original[0].insert_text, "::N::helper");
+        let procedure = analysis.all_procs.get_mut("::N::helper").unwrap();
+        procedure.name = "display".into();
+        procedure.qualified_name = "::foreign::display".into();
+        let current = proc_completions(&analysis, "hel", &FxHashMap::default());
+        assert_eq!(current, original);
+        analysis
+            .all_procs
+            .get_mut("::N::helper")
+            .unwrap()
+            .params
+            .clear();
+        assert!(proc_completions(&analysis, "hel", &FxHashMap::default()).is_empty());
+    }
     use tcl_compiler::analyser::Analyser;
 
     fn inserted_slot(

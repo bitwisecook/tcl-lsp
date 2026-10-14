@@ -31,25 +31,33 @@ pub(super) fn items(
             return Vec::new();
         }
         let mut items = Vec::new();
-        for proc in workspace.procs_matching(partial, "") {
-            if analysis
-                .all_procs
-                .values()
-                .any(|local| local.qualified_name == proc.qualified_name)
+        for (_, declaration) in workspace.logical_procedure_source_candidates() {
+            let Some(name) = declaration.name() else {
+                continue;
+            };
+            let Some(spelling) = declaration.source_word(config) else {
+                continue;
+            };
+            if (!name.starts_with(partial) && !spelling.starts_with(partial))
+                || analysis.all_procs.values().any(|local| {
+                    analysis
+                        .logical_source_procedure_declaration(local)
+                        .and_then(|local| local.source_word(config))
+                        .as_deref()
+                        == Some(spelling.as_str())
+                })
             {
                 continue;
             }
-            let Some(spelling) =
-                tcl_syntax::word_rules::lexical_ascii_source_word(&proc.qualified_name, config)
-            else {
-                continue;
-            };
             items.push(CompletionItem {
-                label: proc.name.clone(),
+                label: name.to_owned(),
                 insert_text: spelling,
                 kind: CompletionKind::Function,
-                detail: Some(format!("{} params (workspace)", proc.param_count)),
-                sort_text: Some(format!("C0_{}", proc.name)),
+                detail: Some(format!(
+                    "{} params (workspace)",
+                    declaration.metadata().params.len()
+                )),
+                sort_text: Some(format!("C0_{name}")),
                 ..CompletionItem::default()
             });
         }
@@ -237,6 +245,38 @@ fn vendor_items(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logical_workspace_insertion_uses_original_header_and_current_indexed_source() {
+        let source = "namespace eval N {proc helper {arg} {return $arg}}";
+        let mut producer = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let consumer = tcl_compiler::analyser::Analyser::new().analyse("hel\n", "tcl");
+        let index = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
+        let original = items("hel\n", 3, &consumer, &index, "hel");
+        assert_eq!(original.len(), 1);
+        assert_eq!(original[0].label, "helper");
+        assert_eq!(original[0].insert_text, "::N::helper");
+        producer
+            .all_procs
+            .get_mut("::N::helper")
+            .unwrap()
+            .qualified_name = "::foreign::display".into();
+        let changed_labels = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
+        assert_eq!(
+            items("hel\n", 3, &consumer, &changed_labels, "hel"),
+            original
+        );
+        producer
+            .all_procs
+            .get_mut("::N::helper")
+            .unwrap()
+            .params
+            .clear();
+        let changed_header = WorkspaceIndex::from_documents([("file:///producer.tcl", &producer)]);
+        assert!(items("hel\n", 3, &consumer, &changed_header, "hel").is_empty());
+        assert!(items("# changed\nhel\n", 3, &consumer, &index, "hel").is_empty());
+    }
+
     use tcl_compiler::analyser::Analyser;
 
     // Implementation contract: naming.core.original-workspace-procedure-completion

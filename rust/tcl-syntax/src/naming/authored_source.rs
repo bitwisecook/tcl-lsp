@@ -42,6 +42,18 @@ pub fn authored_source_command_slot(
     Some(ByteCommandSlot::new(namespace, NameBytes::from(simple)))
 }
 
+/// Absolute insertion data for an already retained Logical source coordinate.
+/// An ambiguous written round trip declines; this grants no Native lookup.
+#[must_use]
+pub fn authored_source_command_spelling(slot: &ByteCommandSlot) -> Option<String> {
+    source_units(&slot.namespace, slot.simple.as_bytes())?;
+    let namespace = super::checked_namespace_path_key(&slot.namespace)?;
+    let simple = std::str::from_utf8(slot.simple.as_bytes()).ok()?;
+    let spelling = super::qualify(&namespace, simple);
+    (authored_source_command_slot(&ByteNamespacePath::root(), spelling.as_bytes())? == *slot)
+        .then_some(spelling)
+}
+
 /// Ordered Logical source candidates from independently retained namespace
 /// components. This is conditional metadata geometry, not native lookup.
 #[must_use]
@@ -98,6 +110,32 @@ mod tests {
         authored_source_namespace_path,
     };
     use tcl_core_types::{ByteNamespacePath, NameBytes};
+
+    #[test]
+    fn original_logical_command_spelling_preserves_coordinate_round_trips() {
+        let root = ByteNamespacePath::root();
+        for (written, expected) in [
+            (b"N:::helper".as_slice(), "::N::helper"),
+            (b"N::", "::N::"),
+            (b":single", ":::single"),
+        ] {
+            let slot = authored_source_command_slot(&root, written).unwrap();
+            let spelling = super::authored_source_command_spelling(&slot);
+            if written == b":single" {
+                assert!(spelling.is_none());
+            } else {
+                assert_eq!(spelling.as_deref(), Some(expected));
+                assert_eq!(
+                    authored_source_command_slot(&root, spelling.unwrap().as_bytes()),
+                    Some(slot)
+                );
+            }
+        }
+        let mut path = root.clone();
+        path.push(NameBytes::from(b"literal::component".as_slice()));
+        let slot = authored_source_command_slot(&path, b"helper").unwrap();
+        assert!(super::authored_source_command_spelling(&slot).is_none());
+    }
 
     #[test]
     fn original_authored_scope_preserves_constructed_components_and_empty_tail() {

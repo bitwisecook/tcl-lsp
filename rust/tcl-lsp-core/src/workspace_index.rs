@@ -1260,6 +1260,8 @@ struct DocumentRecords {
         Option<tcl_compiler::command_binding::OriginalSourceProcedurePublications>,
     original_source_classes: Option<tcl_compiler::command_binding::OriginalSourceClassPublications>,
     original_source_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+    logical_procedure_declarations:
+        Vec<tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration>,
     original_procs: Vec<
         tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
             tcl_compiler::analyser::ProcDef,
@@ -1626,6 +1628,7 @@ impl DocumentRecords {
             original_source_procedures,
             original_source_classes,
             original_source_input,
+            logical_procedure_declarations,
             original_procs,
             original_classes,
             original_symbols,
@@ -1662,6 +1665,7 @@ impl DocumentRecords {
         *original_source_procedures = None;
         *original_source_classes = None;
         *original_source_input = None;
+        logical_procedure_declarations.clear();
         original_procs.clear();
         original_classes.clear();
         original_symbols.clear();
@@ -1876,6 +1880,10 @@ impl DocumentRecords {
         // order is the stable, meaningful order: it is also the order the
         // records take effect in when the file is sourced.
         for proc_def in sorted_by_span(analysis.all_procs.values(), |p| p.name_span) {
+            if let Some(declaration) = analysis.logical_source_procedure_declaration(proc_def) {
+                self.logical_procedure_declarations
+                    .push(declaration.clone());
+            }
             self.procs.push(WorkspaceProc {
                 source_name: proc_def.source_name.clone(),
                 uri: uri.to_owned(),
@@ -4176,6 +4184,30 @@ impl WorkspaceIndex {
             doc.original_procs
                 .iter()
                 .map(|declaration| (doc.uri.as_str(), declaration))
+        })
+    }
+
+    /// Original Logical headers from current indexed source and input owners.
+    /// Suggestions provide insertion data without loaded or callable commands.
+    pub fn logical_procedure_source_candidates(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &str,
+            &tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration,
+        ),
+    > {
+        self.docs.iter().flat_map(|document| {
+            document
+                .logical_procedure_declarations
+                .iter()
+                .filter_map(move |declaration| {
+                    let context = document.diagnostic_source.as_ref()?;
+                    let input = document.original_source_input.as_ref()?;
+                    declaration
+                        .matches_source(context.image(), input)
+                        .then_some((document.uri.as_str(), declaration))
+                })
         })
     }
 

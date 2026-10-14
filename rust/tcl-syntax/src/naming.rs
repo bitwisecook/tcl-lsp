@@ -31,7 +31,7 @@
 mod authored_source;
 pub use authored_source::{
     authored_source_command_candidates, authored_source_command_slot,
-    authored_source_namespace_path,
+    authored_source_command_spelling, authored_source_namespace_path,
 };
 mod aliases;
 mod execution_policy;
