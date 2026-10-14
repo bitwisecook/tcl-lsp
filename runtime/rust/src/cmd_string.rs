@@ -158,7 +158,10 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
     // Not-yet-ported subcommands fall through to the legacy arms below.
     if let Ok(canon_str) = std::str::from_utf8(canonical) {
-        if let Some(result) = tcl_cmd_core::string::dispatch_canon(interp, canon_str, &argv[2..]) {
+        let numbers = interp.runtime_version().number_syntax();
+        if let Some(result) =
+            tcl_cmd_core::string::dispatch_canon(interp, canon_str, &argv[2..], numbers)
+        {
             return match result {
                 Ok(v) => {
                     interp.set_result(v);

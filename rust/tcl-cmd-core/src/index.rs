@@ -78,17 +78,36 @@ impl IndexReading {
 }
 
 /// Resolve an index `spec` against a container length `len` (so `end` is
-/// `len - 1`) as this runtime's release reads it on this host. The result may
-/// be negative or `>= len`; callers clamp per their command's rules. Errors
-/// with the canonical message on an unparseable spec.
+/// `len - 1`) under the numeral grammar `numbers`, as a runtime on this host
+/// reads it. The result may be negative or `>= len`; callers clamp per their
+/// command's rules. Errors with the canonical message on an unparseable spec.
+/// The numeral grammar 8.5 and 8.6 share reads as 8.6 here.
+///
+/// # Errors
+/// `bad index` for a spec `numbers` does not read as an index on this host.
+pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64, CmdError> {
+    read_with(spec, len, numbers)
+        .on_this_host()
+        .ok_or_else(|| bad_index(spec.trim()))
+}
+
+/// [`resolve_with`] under the grammar this thread's interpreter installed
+/// (`tcl_syntax::number::runtime_syntax`). Runtime-only: a caller under a
+/// stated profile — a registry folder, the compiler, a test running two
+/// releases in one process — names its grammar through [`resolve_with`] or
+/// [`resolve_opt_with`] instead, since the ambient is whatever the thread
+/// last installed.
+///
+/// # Errors
+/// As [`resolve_with`].
 pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
-    resolve_opt(spec, len).ok_or_else(|| bad_index(spec.trim()))
+    resolve_with(spec, len, tcl_syntax::number::runtime_syntax())
 }
 
 /// Resolve an index `spec` against `len`, returning `None` (rather than an
 /// error) on an unparseable spec — the `lsearch`/`lsort -index` driving needs the
-/// raw option to classify "bad index" vs "out of range" itself. The numeral
-/// grammar 8.5 and 8.6 share reads as 8.6 here.
+/// raw option to classify "bad index" vs "out of range" itself. Runtime-only,
+/// as [`resolve`] is.
 #[must_use]
 pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
     read_with(spec, len, tcl_syntax::number::runtime_syntax()).on_this_host()
@@ -1014,6 +1033,31 @@ mod tests {
         assert_eq!(resolve_opt("010", 12), Some(10));
         set_runtime_syntax(NumberSyntax::Tcl85);
         assert_eq!(resolve_opt("010", 12), Some(8));
+        set_runtime_syntax(restore);
+    }
+
+    /// The grammar-taking entry ignores the installed grammar. Measured on a
+    /// 12-character subject with `string index` (LANG=C.UTF-8): `010` is 8
+    /// and `end-010` is 3 on tclsh 8.4.20, 8.5.19 and 8.6.18, 10 and 1 on
+    /// 9.0.4 and 9.1.0; `1_0` is `bad index` up to 8.6 and 10 from 9.0.
+    #[test]
+    fn the_grammar_taking_entry_ignores_the_installed_grammar() {
+        use tcl_syntax::number::{NumberSyntax, runtime_syntax, set_runtime_syntax};
+        let restore = runtime_syntax();
+        for ambient in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            set_runtime_syntax(ambient);
+            for numbers in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+                assert_eq!(resolve_with("010", 12, numbers).ok(), Some(8));
+                assert_eq!(resolve_with("end-010", 12, numbers).ok(), Some(3));
+                assert!(resolve_with("1_0", 12, numbers).is_err());
+            }
+            assert_eq!(resolve_with("010", 12, NumberSyntax::Tcl90).ok(), Some(10));
+            assert_eq!(
+                resolve_with("end-010", 12, NumberSyntax::Tcl90).ok(),
+                Some(1)
+            );
+            assert_eq!(resolve_with("1_0", 12, NumberSyntax::Tcl90).ok(), Some(10));
+        }
         set_runtime_syntax(restore);
     }
 }

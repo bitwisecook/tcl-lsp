@@ -167,14 +167,19 @@ default it was not asked for.
   tier into a `BigInt`, the WASM runtime into its bignum — as C Tcl does
   from 8.5. Through explicit arguments: `format_cmd_with_syntax(…, NumberSyntax)`,
   `string_is::class_check(…, NumberSyntax)`, `index::read_with` and `read_under`,
+  `index::resolve_with`, every index-reading `string` core (`index`, `range`,
+  `wordstart`/`wordend`, `first`, `last`, `replace`, `insert`, the ranged case
+  converters, and `dispatch_canon` over them, each taking a `NumberSyntax`),
   `binary::signedness_available(profile)`, `binary::specifier_min_version`,
   `format::is_available`, `list::lset` / `ledit` / `lpop` (a `TclVersion`).
-  And in one place not at all:
-  `index::resolve` reads an index numeral under the ambient grammar
-  `tcl_syntax::number::runtime_syntax()` installed by `set_runtime_syntax`,
-  and `string::range`, `string::index`, and `string::word_bound` call it,
-  so both runtimes read `string range $s 010 end` under whatever release
-  the process was pinned to. Both engines are release-pinnable
+  And through the thread's ambient grammar
+  `tcl_syntax::number::runtime_syntax()`, installed by `set_runtime_syntax`:
+  `index::resolve` and `resolve_opt` read it and are runtime-only, the entry
+  the list, `lsearch`, `lsort` and `regexp -start` cores still use. Both
+  runtimes pass their pinned release's grammar to the `string` cores
+  (`runtime_version().number_syntax()`), so `string range $s 010 end` is
+  `ijkl` under an 8.x pin and `kl` under a 9.x one whatever the thread last
+  installed. Both engines are release-pinnable
   (`Vm::set_runtime_version` / `set_dialect_profile`, `Interp::set_runtime_version`).
 - **Some of the registry's folders are a second implementation.**
   `fold_range` in `rust/tcl-registry/src/commands/tcl/string_.rs` runs the
@@ -254,12 +259,13 @@ its release:
   — `StringCharacterModel` unanimity for a profile that names no release —
   runs in a thin explicit adapter before the core is called, or in the
   semantic owner; it is not smuggled into an override of `char_len`.
-- `string::range` and `string::index` use Unicode scalar vectors and call
-  `index::resolve` directly; overriding `char_len` changes neither their
-  indexing model nor their numeral grammar. The numeral-grammar
-  precondition is likewise an adapter obligation, and the adapter
-  discharges it by *resolving the index itself* rather than by wishing for
-  a `*_with` variant of every core that reads one.
+- `string::range` and `string::index` use Unicode scalar vectors and read
+  their index words under the `NumberSyntax` the caller hands them;
+  overriding `char_len` changes neither their indexing model nor their
+  numeral grammar. A grammar is one release's answer, so the release-less
+  precondition — decline where the releases read the word apart — stays an
+  adapter obligation, and the adapter discharges it by *resolving the index
+  itself* (step 4 below).
 - The runtime adapters still own coercions, byte access, and result
   construction. Calling the same generic function does not prove that
   different adapters produce the same observable result; adapter-level
@@ -440,8 +446,7 @@ impl<'ctx> ConstOps<'ctx> {
     ) -> Result<Self, DeclineReason>;
 
     /// Resolve an index operand under the admitted grammar, returning the
-    /// canonical decimal spelling the cores' own `index::resolve` reads
-    /// identically in every release.
+    /// canonical decimal spelling every release's grammar reads identically.
     fn index(&mut self, spec: &ConstValue, len: usize) -> Result<ConstValue, DeclineReason>;
 
     /// Charge `bytes` before the allocation that would produce them.
@@ -493,11 +498,16 @@ The protocol, in order, and every step is mandatory:
    `string range abcdefghijkl 010 end` to `ijkl` under `tcl8.4` to
    `tcl8.6` and to `kl` under `tcl9.0` and `tcl9.1`, leaves it under the
    release-less `tcl` profile, and folds `string range abcdefghijkl 3 6`
-   to `defg` under every one. Calling `string::range` directly would
-   *lose* that decline, because the core's `index::resolve` reads the
-   ambient grammar. The
-   adapter's `index` step is the whole of the fix, and `index::bad_index`
-   supplies the canonical message when the spec is malformed.
+   to `defg` under every one. The cores take the grammar they read an
+   index under (`string::range(…, NumberSyntax)`), so a named release is
+   never read through the thread's ambient grammar; the adapter hands them
+   `ConstOps::index_numbers`, which reads the canonical spelling alike in
+   every release. Calling `string::range` on the raw word would still
+   *lose* the release-less decline, the 8.6 literal reading
+   (`compiles_apart`) and the host-`long` decline, because one grammar
+   answers for one release; the adapter's `index` step is what keeps them,
+   and `index::bad_index` supplies the canonical message when the spec is
+   malformed.
 5. **Charge before allocating.** Every core whose output size is a
    function of its input charges the bound first.
 6. **Read the cancellation token** at each `CancelPoint` (§ *Budgets and
@@ -1691,8 +1701,10 @@ and declines the rest.
   `tclsh` differential and the fuzzer's `tclsh` pair are the oracle, and a
   shared bug is invisible to a two-way native pair, so agreement between
   our compiler and our runtimes can mean both share a defect. Three kinds
-  of divergence are known. `index::resolve` reads index numerals
-  under the ambient grammar for every release. Three `-nocase` folds are
+  of divergence are known. The list, `lsearch`, `lsort` and
+  `regexp -start` cores read index numerals through the runtime-only
+  `index::resolve`, under the thread's ambient grammar rather than one
+  they are handed (the `string` cores take theirs explicitly). Three `-nocase` folds are
   ASCII-only — `switch::select`'s exact mode, `lsearch`'s sorted-list
   comparison, and `sort`'s `-nocase` and `-dictionary` orders — while C
   Tcl folds the full range on every release: `string equal -nocase` of
