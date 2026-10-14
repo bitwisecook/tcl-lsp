@@ -53,6 +53,7 @@ impl Default for BodyProjectionMemo {
 pub(crate) struct RetainedSourceBodyInventory {
     bindings: Arc<SourceCommandBindings>,
     projections: Arc<BodyProjectionMemo>,
+    logical_realm: Arc<OnceLock<Option<crate::realm::CommandBindingRealm>>>,
 }
 
 impl std::fmt::Debug for RetainedSourceBodyInventory {
@@ -68,6 +69,7 @@ impl From<SourceCommandBindings> for RetainedSourceBodyInventory {
         Self {
             bindings: Arc::new(bindings),
             projections: Arc::default(),
+            logical_realm: Arc::default(),
         }
     }
 }
@@ -81,6 +83,17 @@ impl Deref for RetainedSourceBodyInventory {
 }
 
 impl RetainedSourceBodyInventory {
+    /// Reuse the inventory's complete Logical owner for conditional word advice.
+    /// Other purposes retain their original point-only stamping and refusals.
+    pub(crate) fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
+        match self.logical_realm.get_or_init(|| {
+            crate::realm::original_logical_realm_from_source_bindings(&self.bindings)
+        }) {
+            Some(realm) => realm.stamp_original_tokens(tokens),
+            None => self.bindings.stamp_original_tokens(tokens),
+        }
+    }
+
     /// Share only the exact structural projection of this immutable owner.
     /// The existing selector is namespace-wide: the script's range and mapping
     /// deliberately stay with later per-body queries. No reached operation,

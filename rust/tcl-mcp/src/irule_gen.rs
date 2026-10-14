@@ -526,6 +526,9 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
     let mut by_event: std::collections::HashMap<String, Vec<&Value>> =
         std::collections::HashMap::new();
     for p in ctx.cfg_paths {
+        if p.get("source_kind").and_then(Value::as_str) != Some("event") {
+            continue;
+        }
         let event = p
             .get("event")
             .and_then(Value::as_str)
@@ -539,9 +542,6 @@ fn build_all_test_blocks(test_name: &str, ctx: &ScriptContext) -> Vec<String> {
 
     let mut test_idx = 0;
     for event_name in &order {
-        if event_name.starts_with("proc:") {
-            continue;
-        }
         for path in &by_event[event_name] {
             test_idx += 1;
             let desc = build_test_description(path);
@@ -1563,6 +1563,50 @@ mod tests {
         assert_eq!(
             build_assertion("pool", &["target\nset forged 1".to_owned()])[1],
             "# Source candidate: pool target\\nset forged 1"
+        );
+    }
+    #[test]
+    fn cfg_test_generation_uses_retained_source_kind_instead_of_event_labels() {
+        let objects = ObjectRefs {
+            pools: Vec::new(),
+            datagroups: Vec::new(),
+        };
+        let variables = Variables {
+            static_vars: Vec::new(),
+        };
+        let paths = [
+            json!({"source_kind":"event", "event":"proc:report-data", "conditions":[], "action":{"command":"pool", "args":["p"]}}),
+            json!({"source_kind":"procedure", "event":"HTTP_REQUEST", "conditions":[], "action":{"command":"pool", "args":["q"]}}),
+            json!({"event":"HTTP_RESPONSE", "conditions":[], "action":{"command":"pool", "args":["r"]}}),
+        ];
+        let context = ScriptContext {
+            basename: "owned-kind",
+            source: "",
+            ordered_events: &[],
+            profiles: &[],
+            commands_used: &[],
+            objects: &objects,
+            variables: &variables,
+            cfg_paths: &paths,
+            multi_tmm: false,
+        };
+        let blocks = build_all_test_blocks("owned-kind", &context);
+        assert_eq!(
+            blocks
+                .iter()
+                .filter(|block| block.starts_with("::orch::test "))
+                .count(),
+            1
+        );
+        assert!(
+            blocks
+                .iter()
+                .any(|block| block.contains("proc:report-data"))
+        );
+        assert!(
+            blocks
+                .iter()
+                .all(|block| !block.contains("HTTP_REQUEST") && !block.contains("HTTP_RESPONSE"))
         );
     }
 }

@@ -1034,6 +1034,33 @@ pub struct SignatureCommandInvocation {
 }
 
 impl SignatureCommandInvocation {
+    /// Compatibility callback candidates for an independently selected Logical analysis.
+    /// Original prefix and name producers require their separate retained lookup.
+    #[must_use]
+    pub fn logical_callback_candidate_keys(&self) -> Vec<String> {
+        if self.original_callback_signature_lookup.is_some()
+            || self.original_callback_prefix.is_some()
+            || self.original_name_input.is_some()
+        {
+            return Vec::new();
+        }
+
+        if let Some(reference) = &self.resolved_command_reference {
+            return reference.slot().map(str::to_owned).into_iter().collect();
+        }
+        if !self.resolution_candidates.is_empty() {
+            return self.resolution_candidates.clone();
+        }
+        if tcl_syntax::naming::is_qualified(self.name.as_bytes()) {
+            return tcl_syntax::naming::unroot_rooted_key(&self.name)
+                .is_some()
+                .then(|| tcl_syntax::naming::canonical_written_command(&self.name))
+                .into_iter()
+                .collect();
+        }
+        vec![self.name.clone()]
+    }
+
     /// Record a written name token selected by the source walker. This carries
     /// no resolved implementation or declaration proof. Computed heads and
     /// specialised reference kinds must retain their additional purpose flags.

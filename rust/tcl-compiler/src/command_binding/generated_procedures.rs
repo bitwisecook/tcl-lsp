@@ -362,6 +362,24 @@ impl OriginalNativeProcedureBody {
             OriginalNativeProcedureRecipe::Source(source) => source.body_text(),
         }
     }
+    pub(crate) fn source_children(
+        &self,
+        bindings: &SourceCommandBindings,
+    ) -> Option<std::sync::Arc<super::source_transition_advice::OriginalNativeSourceBodyChildren>>
+    {
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::Source(source) => source.children(bindings, &self.input),
+            OriginalNativeProcedureRecipe::ReadFlow { .. } => None,
+        }
+    }
+    pub(crate) fn owns_source_declaration(
+        &self,
+        declaration: &std::sync::Arc<
+            super::source_transition_advice::OriginalNativeSourceDeclaration,
+        >,
+    ) -> bool {
+        matches!(&self.recipe, OriginalNativeProcedureRecipe::Source(source) if std::sync::Arc::ptr_eq(source, declaration))
+    }
     pub(crate) fn retain_lowered_body(
         mut self,
         body: &crate::ir::Script,
@@ -711,6 +729,140 @@ mod original_native_body_tests {
                     .original_native_source_declarations(&changed)
                     .is_none()
             );
+        }
+    }
+
+    #[test]
+    fn native_source_children_keep_actual_schema_and_open_dependency_owners() {
+        let source = "proc f {x} {set value $x; return $value}\nproc caller {x} {not-declared $x; return $x}\n";
+        let actual = module(source, "tcl8.6");
+        let input = actual.source_metadata_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        assert_eq!(actual.original_native_declaration_body_units.len(), 2);
+        let (id, card) = actual
+            .original_native_declaration_body_units
+            .iter()
+            .find(|(_, card)| {
+                card.body_text()
+                    .is_some_and(|body| body.starts_with("set value"))
+            })
+            .unwrap();
+        let procedure = actual.body_units.get(id).unwrap();
+        assert!(card.matches_procedure(&actual, procedure));
+        assert!(matches!(
+            procedure.body.statements[0],
+            crate::ir::Statement::AssignValue { .. }
+        ));
+        assert!(matches!(
+            procedure.body.statements[1],
+            crate::ir::Statement::Return { .. }
+        ));
+        for statement in &procedure.body.statements {
+            let tokens = statement.tokens().unwrap();
+            let words = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_native_source_words(tokens, input, registry)
+                .unwrap();
+            assert!(matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(_)));
+            assert!(
+                crate::registry_invocation::admitted_native_compiler_invocation(
+                    registry, None, tokens
+                )
+                .is_none()
+            );
+            let mut changed = tokens.clone();
+            changed.argv_texts[0] = "foreign".into();
+            assert!(
+                changed
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .original_native_source_words(&changed, input, registry)
+                    .is_none()
+            );
+        }
+        let caller = actual
+            .original_native_declaration_body_units
+            .iter()
+            .find(|(_, card)| {
+                card.body_text()
+                    .is_some_and(|body| body.starts_with("not-declared"))
+            })
+            .map(|(id, _)| actual.body_units.get(id).unwrap())
+            .unwrap();
+        let tokens = caller.body.statements[0].tokens().unwrap();
+        let dependencies =
+            crate::registry_invocation::original_procedure_may_dependencies_for_word_for_module(
+                tokens,
+                "not-declared",
+                &actual,
+                registry,
+            )
+            .unwrap();
+        assert!(dependencies.unknown_alternatives);
+        assert_eq!(dependencies.bodies.len(), 2);
+        assert!(
+            dependencies
+                .bodies
+                .iter()
+                .all(|body| actual.procedure_ids.owns(*body))
+        );
+        let foreign = module(source, "tcl8.6");
+        assert!(
+            !tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_native_source_may_owner(tokens, &foreign, registry)
+        );
+        assert!(procedure.body.executed_source.is_none());
+        assert!(procedure.body.native_compilation_admission.is_none());
+        let foreign_same_input = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+                .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        let foreign_bindings = foreign_same_input
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .positioned_for_module(&foreign_same_input, registry)
+            .unwrap();
+        assert!(card.source_children(&foreign_bindings).is_none());
+    }
+
+    #[test]
+    fn native_source_children_refuse_original_expansion_cardinality() {
+        for source in ["proc f {} {set {*}{x 1}}", "proc f {args} {set {*}$args}"] {
+            let actual = module(source, "tcl8.6");
+            let input = actual.source_metadata_input.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let (&id, _) = actual
+                .original_native_declaration_body_units
+                .iter()
+                .next()
+                .unwrap();
+            let procedure = actual.body_units.get(&id).unwrap();
+            let tokens = procedure.body.statements[0].tokens().unwrap();
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                input.lexer_config(),
+                Some(input.unit_profile()),
+            )
+            .unwrap();
+            assert!(
+                crate::registry_invocation::original_native_source_structured_invocation(
+                    registry, metadata, tokens
+                )
+                .is_none()
+            );
+            assert!(!matches!(
+                procedure.body.statements[0],
+                crate::ir::Statement::AssignConst { .. } | crate::ir::Statement::AssignValue { .. }
+            ));
         }
     }
 

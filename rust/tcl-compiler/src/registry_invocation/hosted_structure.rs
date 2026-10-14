@@ -12,6 +12,7 @@ use super::{
 pub(crate) enum SourceStructuredInvocation {
     Logical(Box<LogicalStructuredInvocation>),
     Hosted(Box<HostedStructuredInvocation>),
+    NativeSource(Box<HostedStructuredInvocation>),
 }
 
 pub(crate) struct HostedStructuredInvocation {
@@ -73,17 +74,92 @@ pub(crate) fn original_hosted_structured_invocation(
     )))
 }
 
+pub(crate) fn original_native_source_structured_invocation(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<SourceStructuredInvocation> {
+    let input = context.source_analysis_input()?;
+    if input.has_logical_source_name_context()
+        || input.has_hosted_source_name_context()
+        || !context.matches_registry(registry)
+    {
+        return None;
+    }
+    let words = tokens
+        .source_binding
+        .as_ref()?
+        .original_native_source_words(tokens, input, registry)?;
+    let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source()
+    else {
+        return None;
+    };
+    if advice
+        .original_words()
+        .iter()
+        .any(|word| word.group().expand)
+    {
+        return None;
+    }
+    if words
+        .origins()
+        .iter()
+        .enumerate()
+        .any(|(written, origin)| *origin != super::InvocationWordOrigin::Written(written))
+    {
+        return None;
+    }
+    let (descriptor, hook) =
+        words.with_source_schema(input.borrowed_context_registry(), |schema| {
+            use tcl_registry::hooks::LoweringHookId;
+            let hook = schema.facts().lowering_hook?;
+            if !matches!(
+                hook,
+                LoweringHookId::Set
+                    | LoweringHookId::Return
+                    | LoweringHookId::Expr
+                    | LoweringHookId::If
+                    | LoweringHookId::While
+                    | LoweringHookId::For
+                    | LoweringHookId::Foreach
+                    | LoweringHookId::Lmap
+                    | LoweringHookId::Catch
+                    | LoweringHookId::Try
+            ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
+                || !schema.authored_source_argument_roles().1
+            {
+                return None;
+            }
+            for &(argument, role) in words.roles()? {
+                if role == tcl_registry::ArgRole::Body
+                    && words.arguments().get(argument)?.literal_bytes().is_none()
+                {
+                    return None;
+                }
+            }
+            Some((schema.descriptor_key(), hook))
+        })??;
+    Some(SourceStructuredInvocation::NativeSource(Box::new(
+        HostedStructuredInvocation {
+            words,
+            input: input.clone(),
+            descriptor,
+            hook,
+        },
+    )))
+}
+
 impl SourceStructuredInvocation {
     pub(crate) fn canonical_command(&self) -> &str {
         match self {
             Self::Logical(selected) => selected.canonical_command(),
-            Self::Hosted(selected) => selected.descriptor.label(),
+            Self::Hosted(selected) | Self::NativeSource(selected) => selected.descriptor.label(),
         }
     }
     pub(crate) fn descriptor_key(&self) -> tcl_registry::CanonicalCommandDescriptorKey<'_> {
         match self {
             Self::Logical(selected) => selected.descriptor_key(),
-            Self::Hosted(selected) => selected.descriptor,
+            Self::Hosted(selected) | Self::NativeSource(selected) => selected.descriptor,
         }
     }
     pub(crate) fn lowering_identity(&self) -> super::SelectedLoweringBindingIdentity<'_> {
@@ -93,6 +169,9 @@ impl SourceStructuredInvocation {
             }
             Self::Hosted(_) => {
                 super::SelectedLoweringBindingIdentity::HostedSchema(self.descriptor_key())
+            }
+            Self::NativeSource(_) => {
+                super::SelectedLoweringBindingIdentity::NativeSourceSchema(self.descriptor_key())
             }
         }
     }
@@ -107,8 +186,9 @@ impl SourceStructuredInvocation {
             Self::Logical(selected) => {
                 selected.with_metadata_schema(registry, context, realm, apply)
             }
-            Self::Hosted(selected) => {
-                if realm != tcl_dialect::model::InvocationRealm::RuleLoader
+            Self::Hosted(selected) | Self::NativeSource(selected) => {
+                if (matches!(self, Self::Hosted(_))
+                    && realm != tcl_dialect::model::InvocationRealm::RuleLoader)
                     || !context.matches_registry(registry)
                     || context.source_analysis_input() != Some(&selected.input)
                 {
@@ -123,19 +203,21 @@ impl SourceStructuredInvocation {
     pub(crate) fn lowering_hook(&self) -> Option<tcl_registry::hooks::LoweringHookId> {
         match self {
             Self::Logical(selected) => selected.lowering_hook(),
-            Self::Hosted(selected) => Some(selected.hook),
+            Self::Hosted(selected) | Self::NativeSource(selected) => Some(selected.hook),
         }
     }
     pub(crate) fn written_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
         match self {
             Self::Logical(selected) => selected.written_roles(),
-            Self::Hosted(selected) => selected.words.written_argument_roles(),
+            Self::Hosted(selected) | Self::NativeSource(selected) => {
+                selected.words.written_argument_roles()
+            }
         }
     }
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
         match self {
             Self::Logical(selected) => selected.error_context(),
-            Self::Hosted(_) => None,
+            Self::Hosted(_) | Self::NativeSource(_) => None,
         }
     }
 }

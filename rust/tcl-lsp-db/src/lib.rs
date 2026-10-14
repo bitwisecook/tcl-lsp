@@ -1988,7 +1988,8 @@ fn apply_callback_arity<S: std::hash::BuildHasher>(
         if !appended.is_checkable() {
             continue;
         }
-        let Some(candidates) = callback_command_keys(inv)
+        let Some(candidates) = inv
+            .logical_callback_candidate_keys()
             .iter()
             .find_map(|name| arities.get(name))
         else {
@@ -2158,36 +2159,6 @@ fn apply_original_callback_arity_with_mode<'a>(
     }
 }
 
-/// Qualified callback lookup keeps its complete retained candidate keys. Bare
-/// tails remain assistance only for legacy callback records without a lookup.
-fn callback_command_keys(
-    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
-) -> Vec<String> {
-    // An original callback producer requires its independently selected future
-    // lookup purpose. Reporting candidates cannot replace a missing receipt.
-    if invocation.original_callback_signature_lookup.is_some()
-        || invocation.original_callback_prefix.is_some()
-        || invocation.original_name_input.is_some()
-    {
-        return Vec::new();
-    }
-
-    if let Some(reference) = &invocation.resolved_command_reference {
-        return reference.slot().map(str::to_owned).into_iter().collect();
-    }
-    if !invocation.resolution_candidates.is_empty() {
-        return invocation.resolution_candidates.clone();
-    }
-    if tcl_syntax::naming::is_qualified(invocation.name.as_bytes()) {
-        return tcl_syntax::naming::unroot_rooted_key(&invocation.name)
-            .is_some()
-            .then(|| tcl_compiler::naming::canonical_written_command(&invocation.name))
-            .into_iter()
-            .collect();
-    }
-    vec![invocation.name.clone()]
-}
-
 /// Legacy standalone analyser diagnostics for `file` resolved against the
 /// project:
 /// cross-file-resolvable W123 (unknown command) suppressed, plus a
@@ -2276,7 +2247,7 @@ pub fn project_diagnostics(
     // loaded — pull each callback tail in so `apply_callback_arity` can check it.
     for inv in &analysis.command_invocations {
         if analysis.allows_retained_logical_declaration_advice() && inv.callback_arity.is_some() {
-            tails.extend(callback_command_keys(inv));
+            tails.extend(inv.logical_callback_candidate_keys());
         }
     }
     let mut arities: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
@@ -2421,7 +2392,7 @@ fn project_callback_diagnostics_with_mode(
             .command_invocations
             .iter()
             .filter(|invocation| invocation.callback_arity.is_some())
-            .flat_map(callback_command_keys)
+            .flat_map(tcl_compiler::signature_scan::types::SignatureCommandInvocation::logical_callback_candidate_keys)
             .collect::<BTreeSet<_>>();
         for tail in tails {
             let key = CommandTail::new(db, tail.clone());
@@ -3431,6 +3402,9 @@ pub struct CheckSolve {
     /// tail (or the whole-module `optimise_unit` fallback).  Byte-identical to a
     /// bare `optimise_unit`.
     pub optimisations: Vec<Optimisation>,
+    /// Command-head replay availability for compiler checks, independent of warning count.
+    /// Stored callbacks belong to the separate whole-unit taint report.
+    pub taint_replays: tcl_compiler::taint::TaintReplayAnalysis,
 }
 
 /// The checks-path memoised solve for one document.
@@ -4008,6 +3982,7 @@ fn abstain_diagnostics() -> Arc<CompilerDiagnostics> {
     Arc::new(CompilerDiagnostics {
         checks: Vec::new(),
         optimisations: Vec::new(),
+        taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
     })
 }
 
@@ -4301,15 +4276,16 @@ fn compiler_diagnostics_from_unit(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = dialect;
+    let report = tcl_compiler::compiler_checks::compiler_check_report_with_generic_patterns(
+        cu,
+        registry,
+        dialect,
+        generic_patterns,
+    );
     CompilerDiagnostics {
-        checks: tcl_compiler::compiler_checks::run_all_checks_with_generic_patterns(
-            cu,
-            registry,
-            dialect_opt,
-            generic_patterns,
-        ),
-        optimisations: tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt),
+        checks: report.diagnostics,
+        optimisations: tcl_compiler::optimiser::optimise_unit(cu, registry, dialect),
+        taint_replays: report.taint_replays,
     }
 }
 
@@ -4353,7 +4329,7 @@ pub fn compiler_check_diagnostics(
     };
     let mut checks = solve.fn_checks.clone();
     let generic_patterns = config.generic_variable_patterns(db).as_deref();
-    tcl_compiler::compiler_checks::push_taint_and_module_checks(
+    let taint_replays = tcl_compiler::compiler_checks::push_taint_and_module_checks(
         &cu,
         registry,
         dialect_opt,
@@ -4366,6 +4342,7 @@ pub fn compiler_check_diagnostics(
     Arc::new(CompilerDiagnostics {
         checks,
         optimisations: solve.optimisations.clone(),
+        taint_replays,
     })
 }
 
@@ -4480,6 +4457,7 @@ pub fn compiler_check_diagnostics_uncached_from_analysis(
         return CompilerDiagnostics {
             checks: Vec::new(),
             optimisations: Vec::new(),
+            taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
         };
     };
     let profile = analysis
@@ -5062,7 +5040,7 @@ mod tests {
         invocation.resolved_command_reference = None;
         invocation.callback_arity = Some(tcl_registry::AppendedArity::Exactly(2));
         let arities = HashMap::from([("cb".to_owned(), vec![(0, 0)])]);
-        assert!(callback_command_keys(&invocation).is_empty());
+        assert!(invocation.logical_callback_candidate_keys().is_empty());
         assert!(
             apply_project_callback_arity(&analysis, &[], &[invocation], &arities, |_| false)
                 .is_empty()
@@ -9562,13 +9540,12 @@ p\uD801 ordinary";
         );
         assert_eq!(&file.text(&db)[diagnostic.span.as_range()], "cb");
         assert!(
-            callback_command_keys(
-                invocations
-                    .iter()
-                    .find(|inv| inv.original_callback_prefix.is_some())
-                    .unwrap()
-            )
-            .is_empty()
+            invocations
+                .iter()
+                .find(|inv| inv.original_callback_prefix.is_some())
+                .unwrap()
+                .logical_callback_candidate_keys()
+                .is_empty()
         );
         assert_eq!(
             tcl_lsp_core::diagnostic_subject::diagnostic_subject_data(diagnostic).unwrap()["subject"]
@@ -10453,6 +10430,25 @@ p\uD801 ordinary";
             "after an edit, tcl8.6 again shares one build across both consumers"
         );
     }
+    #[test]
+    fn compiler_taint_replay_status_is_retained_by_memo_and_direct_paths() {
+        let db = TclDatabase::default();
+        let source = "set value 1";
+        let dialect = "tcl8.6";
+        let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+        let memo = compiler_check_diagnostics(&db, file, cfg(&db));
+        let registry = db.registry(dialect);
+        let fresh = compiler_check_diagnostics_uncached(source, registry, dialect, None, None);
+        assert_eq!(memo.checks, fresh.checks);
+        assert_eq!(memo.taint_replays, fresh.taint_replays);
+        let unavailable = abstain_diagnostics();
+        assert!(unavailable.checks.is_empty());
+        assert!(!unavailable.taint_replays.is_complete());
+        assert!(matches!(
+            unavailable.taint_replays,
+            tcl_compiler::taint::TaintReplayAnalysis::Unavailable { .. }
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -10635,7 +10631,7 @@ mod compiler_snapshot_memo_tests {
             invocations
                 .iter()
                 .all(|row| row.original_callback_signature_lookup.is_none()
-                    || callback_command_keys(row).is_empty())
+                    || row.logical_callback_candidate_keys().is_empty())
         );
     }
 

@@ -38,10 +38,10 @@ use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
 use tcl_compiler::ir::{Module as IrModule, ProcedureId};
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
-    find_destructive_file_warnings_for_module_function,
+    TaintReplayAnalysis, find_destructive_file_warnings_for_module_function,
     find_path_concat_warnings_for_module_function,
-    find_setter_constraint_warnings_for_module_function, find_taint_warnings_for_module_function,
-    is_irules_dialect,
+    find_setter_constraint_warnings_for_module_function, is_irules_dialect,
+    taint_warning_report_for_module_function,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
@@ -795,7 +795,7 @@ fn collect_taint_warnings(
     >,
     ctx: TaintWarnCtx<'_>,
     out: &mut Vec<Value>,
-) {
+) -> TaintReplayAnalysis {
     let TaintWarnCtx {
         registry,
         unit,
@@ -825,11 +825,12 @@ fn collect_taint_warnings(
     let taints = &taints;
 
     // Sink advice requires the actual retained body and publication scope.
+    let mut replays = TaintReplayAnalysis::unavailable();
     if let Some(shadowed) =
         tcl_compiler::taint::shadowed_builtin_names_for_module_function(fu, unit, registry)
     {
         // 1. Sink injection (T100 / T101 / T102 families).
-        for w in find_taint_warnings_for_module_function(
+        let report = taint_warning_report_for_module_function(
             fu,
             taints,
             &fu.sccp.executable_blocks,
@@ -837,7 +838,9 @@ fn collect_taint_warnings(
             module,
             &shadowed,
             module_traces,
-        ) {
+        );
+        replays = report.replays;
+        for w in report.warnings {
             push(
                 w.code.as_str(),
                 w.span,
@@ -892,6 +895,7 @@ fn collect_taint_warnings(
             &w.sink_command,
         );
     }
+    replays
 }
 
 /// Tainted variable names in `fu` (deduplicated, sorted for a
@@ -992,10 +996,8 @@ fn dataflow_graph_for_input(
     });
 
     // Interprocedural taint solve: colour-aware return summaries + parameter
-    // entry taints. Its `top_taints` / `proc_taints` feed the warning
-    // families (cross-proc entry-taint), feeding
-    // `find_taint_warnings`. The `tainted_variables` listing below keeps the
-    // per-unit `fu.taints` lattice.
+    // entry taints feed the shared reports; the variable listing keeps
+    // each unit's own taint lattice.
     let solved =
         tcl_compiler::taint_interproc::solve_interprocedural_taints(&cu, registry, Some(profile));
 
@@ -1013,7 +1015,7 @@ fn dataflow_graph_for_input(
         line_index: &line_index,
     };
     let mut taint_warnings: Vec<Value> = Vec::new();
-    collect_taint_warnings(
+    let mut taint_replays = collect_taint_warnings(
         &cu.top_level,
         &solved.top_taints,
         taint_ctx,
@@ -1021,12 +1023,12 @@ fn dataflow_graph_for_input(
     );
     for qname in &proc_names {
         let fu = &cu.procedures[*qname];
-        collect_taint_warnings(
+        taint_replays.merge(collect_taint_warnings(
             fu,
             solved.proc_taints.get(*qname).unwrap_or(&fu.taints),
             taint_ctx,
             &mut taint_warnings,
-        );
+        ));
     }
 
     // Tainted variables per scope: top level first, then each procedure.
@@ -1072,10 +1074,37 @@ fn dataflow_graph_for_input(
         }));
     }
 
+    let unavailable_replays = taint_replays
+        .unavailable_replays()
+        .iter()
+        .map(|replay| {
+            let current = replay
+                .source
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.matches_module(&cu.ir_module, registry));
+            json!({
+                "source_span": current.then_some([replay.span.start(), replay.span.end()]),
+                "replay_span": [replay.span.start(), replay.span.end()],
+                "line": current.then(|| line0(&line_index, replay.span.start())),
+                "reason": replay.reason.as_str(),
+                "source_current": current,
+            })
+        })
+        .collect::<Vec<_>>();
+    let replay_status = match &taint_replays {
+        TaintReplayAnalysis::Analysed { .. } => "analysed",
+        TaintReplayAnalysis::Unavailable { .. } => "unavailable",
+    };
     let source_declarations = uncompiled_source_declarations(source, input, &cu.ir_module);
     proc_effects.extend(source_declarations.iter().map(source_effect_card));
     json!({
         "taint_warnings": taint_warnings,
+        "taint_replays": {
+            "scope": "command-heads",
+            "status": replay_status,
+            "complete": taint_replays.is_complete(),
+            "unavailable_replays": unavailable_replays,
+        },
         "tainted_variables": tainted_variables,
         "proc_effects": proc_effects,
         "summary": {
@@ -1398,6 +1427,44 @@ fn memory_alias_graph_for_input(
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    #[test]
+    fn graph_taint_replay_availability_does_not_follow_warning_count() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let mut unit = CompilationUnit::build_for_profile(
+            "set value 1",
+            registry,
+            false,
+            context.unit_profile(),
+        );
+        assert!(unit.top_level.cfg.namespace_context.is_some());
+        unit.top_level.cfg.namespace_context = None;
+        let traces = tcl_compiler::compilation_unit::ModuleTraceFacts {
+            traced_variables: &unit.ir_module.traced_variables,
+            has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+            deferred_writes: &unit.ir_module.deferred_writes,
+        };
+        let index = LineIndex::new("set value 1");
+        let context = TaintWarnCtx {
+            registry,
+            unit: &unit,
+            dialect: context.unit_profile(),
+            module_traces: traces,
+            line_index: &index,
+        };
+        let mut warnings = Vec::new();
+        let replays = collect_taint_warnings(
+            &unit.top_level,
+            &unit.top_level.taints,
+            context,
+            &mut warnings,
+        );
+        assert!(warnings.is_empty());
+        assert!(matches!(replays, TaintReplayAnalysis::Unavailable { .. }));
+        assert!(!replays.is_complete());
+    }
 
     #[test]
     fn original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals() {

@@ -329,6 +329,15 @@ pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
         });
     }
     let binding = tokens.source_binding.as_ref()?;
+    if binding.original_native_source_may_owner(tokens, module, registry) {
+        return Some(OriginalProcedureMayDependencies {
+            bodies: module
+                .original_source_procedure_bodies()
+                .map(|(id, _)| *id)
+                .collect(),
+            unknown_alternatives: true,
+        });
+    }
     let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
     let input = metadata.source_analysis_input()?;
     if input.has_logical_source_name_context()

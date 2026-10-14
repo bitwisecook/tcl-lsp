@@ -69,7 +69,7 @@ use tcl_compiler::state_ssa::adapters::{
     WorldInterpreterScope, WorldNamespaceScope, WorldRegion, WorldRegionKind, WorldSubjectScope,
 };
 use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
-use tcl_compiler::taint::find_taint_warnings_for_cu;
+use tcl_compiler::taint::{TaintReplayAnalysis, taint_warning_report_for_cu};
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 // See the note in `lib.rs`: the explorer resolves against the active pack set.
@@ -1523,8 +1523,7 @@ fn taint_severity(code: &str) -> &'static str {
     }
 }
 
-/// Serialise the `taint` view: information-flow sink warnings. Composes the
-/// taint passes via `find_taint_warnings_for_cu`.
+/// Serialise proven information-flow sink warnings from the shared report.
 #[must_use]
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let Some(retained) = retained_explorer_source(result, source) else {
@@ -1532,7 +1531,9 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
     };
     let registry = retained.registry;
     let dialect = retained.dialect;
-    let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
+    let report = taint_warning_report_for_cu(&result.unit, registry, dialect);
+    let out: Vec<Value> = report
+        .warnings
         .iter()
         .map(|w| {
             json!({
@@ -1546,6 +1547,48 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
         })
         .collect();
     Value::Array(out)
+}
+
+fn taint_replay_status(replays: &TaintReplayAnalysis) -> &'static str {
+    match replays {
+        TaintReplayAnalysis::Analysed { .. } => "analysed",
+        TaintReplayAnalysis::Unavailable { .. } => "unavailable",
+    }
+}
+
+fn serialise_taint_replays(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
+    let Some(retained) = retained_explorer_source(result, source) else {
+        return Value::Null;
+    };
+    let report = taint_warning_report_for_cu(&result.unit, retained.registry, retained.dialect);
+    let unavailable = report
+        .replays
+        .unavailable_replays()
+        .iter()
+        .map(|replay| {
+            let current = replay.source.as_ref().is_some_and(|snapshot| {
+                snapshot.matches_module(&result.unit.ir_module, retained.registry)
+            });
+            let range = if current {
+                range_dict(replay.span, li, source)
+            } else {
+                Value::Null
+            };
+            json!({
+                "sourceSpan": current.then_some([replay.span.start(), replay.span.end()]),
+                "replaySpan": [replay.span.start(), replay.span.end()],
+                "range": range,
+                "reason": replay.reason.as_str(),
+                "sourceCurrent": current,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "scope": "command-heads-and-stored-callbacks",
+        "status": taint_replay_status(&report.replays),
+        "complete": report.replays.is_complete(),
+        "unavailableReplays": unavailable,
+    })
 }
 
 /// Serialise the `optimisations` view: the optimiser rewrites found for
@@ -3390,7 +3433,7 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         dialect,
     ));
     gvn.extend(find_loop_invariants_for_cu(&result.unit, registry, dialect));
-    let taint = find_taint_warnings_for_cu(&result.unit, registry, dialect).len();
+    let taint = taint_warning_report_for_cu(&result.unit, registry, dialect);
     let rewrites = optimise_unit(&result.unit, registry, dialect).len();
     // Dead stores are O109 optimiser findings (no standalone liveness pass).
     let dead_stores = find_dead_stores(&result.unit, registry, dialect).len();
@@ -3404,7 +3447,10 @@ fn serialise_stats(result: &ExplorerResult) -> Value {
         "rewrites": rewrites,
         "shimmerWarnings": shimmer,
         "gvnWarnings": gvn.len(),
-        "taintWarnings": taint,
+        "taintWarnings": taint.warnings.len(),
+        "taintReplayScope": "command-heads-and-stored-callbacks",
+        "taintReplayStatus": taint_replay_status(&taint.replays),
+        "taintReplayComplete": taint.replays.is_complete(),
         "irulesFlowWarnings": irules_flow_warnings(result, &retained).len(),
     })
 }
@@ -3637,7 +3683,7 @@ fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) 
         });
     }
     // Taint.
-    for w in find_taint_warnings_for_cu(&result.unit, registry, dialect) {
+    for w in taint_warning_report_for_cu(&result.unit, registry, dialect).warnings {
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -3799,6 +3845,10 @@ pub fn serialise_result_with_optimisations(
         "taintWarnings".to_owned(),
         serialise_taint(result, &li, &result.source),
     );
+    out.insert(
+        "taintReplays".to_owned(),
+        serialise_taint_replays(result, &li, &result.source),
+    );
     out.insert("gvn".to_owned(), serialise_gvn(result, &li, &result.source));
     let taint_facts = serialise_taint_tracking(result);
     out.insert("taintFacts".to_owned(), taint_facts.clone());
@@ -3884,6 +3934,24 @@ pub fn serialise_result_with_optimisations(
 mod tests {
     use super::*;
     use crate::run_pipeline;
+
+    #[test]
+    fn taint_replay_availability_is_separate_from_empty_warning_arrays() {
+        let mut result = run_pipeline("set value 1", "tcl8.6");
+        let source = result.source.clone();
+        let index = LineIndex::new(&source);
+        assert!(result.unit.top_level.cfg.namespace_context.is_some());
+        result.unit.top_level.cfg.namespace_context = None;
+        assert!(retained_explorer_source(&result, &source).is_some());
+        assert_eq!(serialise_taint(&result, &index, &source), json!([]));
+        let replays = serialise_taint_replays(&result, &index, &source);
+        assert_eq!(replays["status"], "unavailable");
+        assert_eq!(replays["complete"], false);
+        let stats = serialise_stats(&result);
+        assert_eq!(stats["taintWarnings"], 0);
+        assert_eq!(stats["taintReplayComplete"], false);
+        assert!(serialise_taint_replays(&result, &index, "foreign source").is_null());
+    }
 
     #[test]
     fn interproc_method_rows_retain_equal_labels_and_scoped_call_ids() {
@@ -5618,6 +5686,7 @@ mod retained_explorer_source_tests {
             ("shimmer", serialise_shimmer(result, &li, source)),
             ("gvn", serialise_gvn(result, &li, source)),
             ("taintWarnings", serialise_taint(result, &li, source)),
+            ("taintReplays", serialise_taint_replays(result, &li, source)),
             ("cfgPostSsa", serialise_cfg_post_ssa(result, &li, source)),
             ("liveness", serialise_liveness(result)),
             ("irulesFlow", serialise_irules_flow(result, &li, source)),

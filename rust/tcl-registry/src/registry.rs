@@ -3745,16 +3745,7 @@ impl CommandRegistry {
     ) -> Option<crate::native_compilation::NativeCompilationSpec> {
         let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
         let query = dialect.authoring_query()?;
-        let rooted = tcl_syntax::naming::root_unrooted_key(key);
-        let exact_spec = |label: &str| {
-            self.by_name
-                .get(label)
-                .and_then(|specs| self.best_visible(specs, Some(query)))
-                .filter(|spec| {
-                    tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == key
-                })
-        };
-        if let Some(spec) = exact_spec(key).or_else(|| exact_spec(&rooted)) {
+        if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
             return spec
                 .native_compilation
                 .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
@@ -3819,6 +3810,26 @@ impl CommandRegistry {
             }
         }
         selected.or_else(|| self.native_registration_compiler_descriptor(identity, dialect))
+    }
+
+    /// Select the exact authored registration key, without written-name fallback.
+    pub(crate) fn native_registration_exact_descriptor(
+        &self,
+        identity: &str,
+        dialect: crate::InvocationDialect,
+    ) -> Option<&'static CommandSpec> {
+        let key = tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity);
+        let query = dialect.authoring_query()?;
+        let rooted = tcl_syntax::naming::root_unrooted_key(key);
+        let exact = |label: &str| {
+            self.by_name
+                .get(label)
+                .and_then(|specs| self.best_visible(specs, Some(query)))
+                .filter(|spec| {
+                    tcl_syntax::naming::unroot_rooted_key(spec.name).unwrap_or(spec.name) == key
+                })
+        };
+        exact(key).or_else(|| exact(&rooted))
     }
 
     /// A normal worker roster can publish a registration independently of a

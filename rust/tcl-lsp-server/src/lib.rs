@@ -4478,6 +4478,7 @@ async fn compute_compiler_diags(
             return ControlFlow::Continue(Arc::new(tcl_lsp_db::CompilerDiagnostics {
                 checks: Vec::new(),
                 optimisations: Vec::new(),
+                taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
             }));
         };
         let c_text = text.to_owned();
@@ -4504,6 +4505,7 @@ async fn compute_compiler_diags(
                 Arc::new(tcl_lsp_db::CompilerDiagnostics {
                     checks: Vec::new(),
                     optimisations: Vec::new(),
+                    taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
                 })
             }),
         )
@@ -6008,6 +6010,7 @@ async fn run_deep_diagnostics(
         ControlFlow::Break(true) => Arc::new(tcl_lsp_db::CompilerDiagnostics {
             checks: Vec::new(),
             optimisations: Vec::new(),
+            taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
         }),
     };
     // `Some` adds the opt-in project callback-arity checks
@@ -22593,6 +22596,7 @@ impl Backend {
         .unwrap_or_else(|_| tcl_lsp_db::CompilerDiagnostics {
             checks: Vec::new(),
             optimisations: Vec::new(),
+            taint_replays: tcl_compiler::taint::TaintReplayAnalysis::unavailable(),
         })
     }
 

@@ -99,10 +99,7 @@ impl crate::CommandRegistry {
         }
         let member = core::str::from_utf8(words.literal(operand_from)?).ok()?;
         let query = dialect.authoring_query()?;
-        let registration = self.get_for_surface(
-            tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity),
-            Some(query),
-        )?;
+        let registration = self.native_registration_exact_descriptor(identity, dialect)?;
         let selected = registration
             .resolve_subcommand_for_dialect(member, Some(query))?
             .native_compilation?;
@@ -291,6 +288,55 @@ mod tests {
         b"string match {*}{* X}",
         b"string match A",
     ];
+
+    #[test]
+    fn monolithic_member_refinement_uses_the_exact_rooted_registration_descriptor() {
+        use crate::native_compilation::NativeCompilationGrammar;
+        let mut registry = crate::CommandRegistry::build_default();
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V8_4);
+        let shipped = registry
+            .native_registration_exact_descriptor("string", dialect)
+            .unwrap();
+        let rooted = Box::leak(Box::new(crate::CommandSpec {
+            name: "::selected_string_registration",
+            ..shipped.clone()
+        }));
+        registry.insert_static(rooted);
+        let source = b"renamed match * $subject";
+        let parsed = native_script_words_in(
+            SourceImage::native(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            LexerConfig::from_grammar(tcl_dialect::DialectProfile::find("tcl8.4").unwrap().grammar),
+        )
+        .unwrap();
+        let words = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            NativeStringProtocol::C(TclVersion::V8_4),
+        )
+        .unwrap();
+        for identity in [
+            "selected_string_registration",
+            "::selected_string_registration",
+        ] {
+            let selected = registry
+                .native_compilation_for_original_registration(identity, &words, 1, dialect)
+                .unwrap();
+            assert_eq!(
+                selected.grammar,
+                NativeCompilationGrammar::StringMatch(NativeStringMatchScope::PublicMember)
+            );
+        }
+        assert!(
+            registry
+                .native_compilation_for_original_registration(
+                    "::::selected_string_registration",
+                    &words,
+                    1,
+                    dialect
+                )
+                .is_none()
+        );
+    }
 
     #[test]
     fn monolithic_match_member_projection_preserves_registration_and_original_token_scope() {

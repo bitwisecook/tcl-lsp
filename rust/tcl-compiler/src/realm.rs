@@ -872,6 +872,32 @@ pub fn document_realm_bindings_with_source_entry(
     )
 }
 
+/// Retain the same completed Logical source owner for readonly token advice.
+/// This constructs no interpretation, lookup point or execution permission.
+pub(crate) fn original_logical_realm_from_source_bindings(
+    bindings: &SourceCommandBindings,
+) -> Option<CommandBindingRealm> {
+    let input = bindings.original_logical_source_name_advice_input()?;
+    let config = bindings.original_source_lexer_config()?;
+    let context = input.borrowed_context_registry();
+    let image = bindings.source_origin()?.source_image();
+    if !input.has_logical_source_name_context()
+        || bindings.source_metadata_owner().source_analysis_input() != Some(input)
+        || config != input.lexer_config()
+        || !bindings.matches_original_source_image(image, config)
+    {
+        return None;
+    }
+    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        context.commands(),
+        input,
+    )?;
+    Some(
+        realm_from_source_bindings(bindings.clone(), context.commands())
+            .with_resolved_analysis_input(input.clone()),
+    )
+}
+
 fn realm_from_source_bindings(
     bindings: SourceCommandBindings,
     registry: &CommandRegistry,

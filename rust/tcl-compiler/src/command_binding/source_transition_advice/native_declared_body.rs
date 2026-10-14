@@ -163,3 +163,246 @@ impl SourceCommandBindings {
         Some(cards)
     }
 }
+
+/// Whole original declaration/tape used only for readonly child consumers.
+#[derive(Debug)]
+pub(crate) struct OriginalNativeSourceBodyChildren {
+    declaration: Arc<OriginalNativeSourceDeclaration>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    tape: Arc<super::OriginalSourceTransitionAdviceTape>,
+    commands: std::collections::BTreeMap<u32, Arc<[tcl_lexer::NativeWord]>>,
+}
+impl PartialEq for OriginalNativeSourceBodyChildren {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.tape, &other.tape)
+            && self.declaration == other.declaration
+            && self.input == other.input
+            && self.commands == other.commands
+    }
+}
+impl Eq for OriginalNativeSourceBodyChildren {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OriginalNativeSourceCommand {
+    owner: Arc<OriginalNativeSourceBodyChildren>,
+    original: Arc<[tcl_lexer::NativeWord]>,
+}
+impl OriginalNativeSourceDeclaration {
+    pub(crate) fn children(
+        self: &Arc<Self>,
+        bindings: &SourceCommandBindings,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Arc<OriginalNativeSourceBodyChildren>> {
+        if bindings.source_metadata_owner().source_analysis_input() != Some(input)
+            || !Arc::ptr_eq(bindings.source_origin()?, &self.site().source)
+            || !self.matches_source(bindings.source_origin()?.source_image(), input)
+        {
+            return None;
+        }
+        let tape = bindings.original_source_transition_advice_tape_for(
+            input.borrowed_context_registry(),
+            super::OriginalSourceCataloguePurpose::CompletePrefix,
+        )?;
+        let plan = tcl_lexer::native_script_words_in(
+            self.site().source.source_image().clone(),
+            self.body_span(),
+            input.lexer_config(),
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let mut commands = std::collections::BTreeMap::new();
+        for command in plan.commands {
+            let words = command.words.as_slice();
+            commands.insert(words.first()?.span().start(), Arc::from(words));
+        }
+        for advice in tape
+            .advice
+            .values()
+            .chain(tape.body_catalogue.values().flatten())
+        {
+            if advice.original_procedure_source_body() != Some(self.procedure.body.as_ref())
+                || !advice.matches_source(self.site().source.source_image(), input.lexer_config())
+                || !advice.matches_context(input.borrowed_context_registry())
+            {
+                continue;
+            }
+            let original = Arc::<[tcl_lexer::NativeWord]>::from(advice.original_words());
+            let offset = advice.site().offset;
+            if commands
+                .get(&offset)
+                .is_some_and(|words| words != &original)
+            {
+                return None;
+            }
+            commands.insert(offset, original);
+        }
+        Some(Arc::new(OriginalNativeSourceBodyChildren {
+            declaration: Arc::clone(self),
+            input: input.clone(),
+            tape: Arc::new(tape),
+            commands,
+        }))
+    }
+}
+impl OriginalNativeSourceBodyChildren {
+    pub(crate) fn stamp_tokens(
+        self: &Arc<Self>,
+        tokens: &mut crate::ir::CommandTokens,
+    ) -> Option<()> {
+        if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let original = self.commands.get(&offset)?;
+        if crate::registry_invocation::original_native_compiler_words(
+            self.declaration.site().source.source_image(),
+            tokens.words(),
+            offset,
+            self.input.lexer_config(),
+        )?
+        .as_slice()
+            != original.as_ref()
+        {
+            return None;
+        }
+        tokens
+            .source_binding
+            .as_mut()?
+            .original_native_source_command = Some(Arc::new(OriginalNativeSourceCommand {
+            owner: Arc::clone(self),
+            original: Arc::clone(original),
+        }));
+        Some(())
+    }
+}
+impl OriginalNativeSourceCommand {
+    pub(crate) fn matches_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        input == &self.owner.input
+            && registry.snapshot().semantic_key()
+                == input
+                    .borrowed_context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key()
+            && tokens.synthetic.is_none()
+            && tokens.original_words_match_argv_text()
+            && self
+                .owner
+                .declaration
+                .matches_source(self.owner.declaration.site().source.source_image(), input)
+            && self.original.first().is_some_and(|head| {
+                crate::registry_invocation::original_native_compiler_words(
+                    self.owner.declaration.site().source.source_image(),
+                    tokens.words(),
+                    head.span().start(),
+                    input.lexer_config(),
+                )
+                .is_some_and(|words| words.as_slice() == self.original.as_ref())
+            })
+    }
+    pub(crate) fn matches_module(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return false;
+        };
+        self.matches_tokens(tokens, input, registry)
+            && module
+                .original_native_declaration_body_units
+                .iter()
+                .any(|(id, card)| {
+                    module.procedure_ids.owns(*id)
+                        && card.owns_source_declaration(&self.owner.declaration)
+                        && module
+                            .body_units
+                            .get(id)
+                            .is_some_and(|procedure| card.matches_procedure(module, procedure))
+                })
+    }
+    pub(crate) fn words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        if !self.matches_tokens(tokens, input, registry) {
+            return None;
+        }
+        let offset = self.original.first()?.span().start();
+        if self.owner.tape.blocks_registry_source(offset) {
+            return None;
+        }
+        let advice = if let Some(advice) = self.owner.tape.body_catalogue(offset) {
+            advice
+        } else {
+            match self.owner.tape.lookup(offset) {
+                super::OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
+                super::OriginalSourceTransitionAdviceLookup::Refused
+                | super::OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
+            }
+        };
+        if advice.original_words() != self.original.as_ref()
+            || advice.original_procedure_source_body()
+                != Some(self.owner.declaration.procedure.body.as_ref())
+            || tokens.source_binding.as_ref().is_none_or(|binding| {
+                binding.lookup_state.is_some()
+                    && !crate::command_binding::source_targets_match_advice(
+                        input.borrowed_context_registry(),
+                        binding,
+                        advice,
+                    )
+            })
+        {
+            return None;
+        }
+        crate::registry_invocation::source_structure::source_transition_words_from_advice(
+            self.owner
+                .declaration
+                .site()
+                .source
+                .source_image()
+                .try_text()
+                .ok()?,
+            input.lexer_config(),
+            input.borrowed_context_registry(),
+            advice.clone(),
+        )
+    }
+}
+impl crate::command_binding::SourceInvocationBinding {
+    pub(crate) fn original_native_source_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        if tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        self.original_native_source_command
+            .as_ref()?
+            .words(tokens, input, registry)
+    }
+    pub(crate) fn original_native_source_may_owner(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        tokens.source_binding.as_ref() == Some(self)
+            && self
+                .original_native_source_command
+                .as_ref()
+                .is_some_and(|command| command.matches_module(tokens, module, registry))
+    }
+}

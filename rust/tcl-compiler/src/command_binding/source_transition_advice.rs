@@ -34,7 +34,10 @@ pub use source_configured_class::OriginalSourceConfiguredClassReference;
 mod native_declared_body;
 mod source_instance;
 mod source_procedure;
-pub(super) use native_declared_body::OriginalNativeSourceDeclaration;
+pub(crate) use native_declared_body::OriginalNativeSourceBodyChildren;
+pub(super) use native_declared_body::{
+    OriginalNativeSourceCommand, OriginalNativeSourceDeclaration,
+};
 mod source_procedure_publications;
 pub(crate) use produced_prefix::original_single_command_substitution_words;
 pub use produced_prefix::{

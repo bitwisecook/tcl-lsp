@@ -48,8 +48,7 @@ use crate::shimmer::{
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings_for_module_function,
     find_path_concat_warnings_for_module_function,
-    find_setter_constraint_warnings_for_module_function, find_taint_warnings_for_module_function,
-    is_irules_dialect,
+    find_setter_constraint_warnings_for_module_function, is_irules_dialect,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
@@ -328,6 +327,15 @@ fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
     d
 }
 
+/// Compiler diagnostics and availability of required taint replays.
+#[derive(Debug, Clone)]
+pub struct CompilerCheckReport {
+    /// Diagnostics produced by the requested checks.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Command-head replay status for the checked functions; stored callbacks are a separate whole-unit query.
+    pub taint_replays: crate::taint::TaintReplayAnalysis,
+}
+
 /// Run every check against a compilation unit and return a
 /// flat list of diagnostics.
 ///
@@ -358,6 +366,18 @@ pub fn run_all_checks_with_generic_patterns(
     run_all_checks_with_solved_and_patterns(cu, registry, dialect, &solved, generic_patterns)
 }
 
+/// Preserve diagnostics and required replay availability independently.
+#[must_use]
+pub fn compiler_check_report_with_generic_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    generic_patterns: Option<&[String]>,
+) -> CompilerCheckReport {
+    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    compiler_check_report_with_solved_and_patterns(cu, registry, dialect, &solved, generic_patterns)
+}
+
 /// Like [`run_all_checks`] but consumes a pre-computed interprocedural taint
 /// solve, so a caller can supply a memoised one instead of
 /// re-solving the whole module on every edit — that solve is ~95% of this pass.
@@ -381,6 +401,19 @@ pub fn run_all_checks_with_solved_and_patterns(
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
+    compiler_check_report_with_solved_and_patterns(cu, registry, dialect, solved, generic_patterns)
+        .diagnostics
+}
+
+/// Preserve diagnostics and required replay availability independently.
+#[must_use]
+pub fn compiler_check_report_with_solved_and_patterns(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    solved: &crate::taint_interproc::InterprocTaintResult,
+    generic_patterns: Option<&[String]>,
+) -> CompilerCheckReport {
     let mut out: Vec<Diagnostic> = Vec::new();
 
     // Per-function non-taint checks (SCCP constant branches, GVN redundancies,
@@ -407,14 +440,18 @@ pub fn run_all_checks_with_solved_and_patterns(
 
     // Taint (per-function, reading the interprocedural `solved`) + iRules
     // module-level checks — the half that is not per-function-pure.
-    push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
+    let taint_replays =
+        push_taint_and_module_checks(cu, registry, dialect, solved, generic_patterns, &mut out);
 
     retain_diagnostic_source_context(cu, registry, &mut out);
     // Deterministic ordering (producers emit in `HashMap`-iteration order);
     // see [`sort_diagnostics`].
     sort_diagnostics(&mut out);
 
-    out
+    CompilerCheckReport {
+        diagnostics: out,
+        taint_replays,
+    }
 }
 
 /// Every per-function **non-taint** check for one procedure, returned at the
@@ -526,8 +563,11 @@ pub fn push_taint_and_module_checks(
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
-) {
+) -> crate::taint::TaintReplayAnalysis {
     let first = out.len();
+    let mut taint_replays = crate::taint::TaintReplayAnalysis::Analysed {
+        unavailable: Vec::new(),
+    };
     // The interprocedural solve produces colour-aware return summaries and
     // parameter entry taints; its `top_taints` / `proc_taints` supersede the bare
     // per-function `fu.taints` for the warning families so a tainted argument
@@ -554,7 +594,7 @@ pub fn push_taint_and_module_checks(
         if let Some(shadowed) =
             crate::taint::shadowed_builtin_names_for_module_function(fu, cu, registry)
         {
-            for warning in find_taint_warnings_for_module_function(
+            let report = crate::taint::taint_warning_report_for_module_function(
                 fu,
                 &taints,
                 &fu.sccp.executable_blocks,
@@ -562,9 +602,13 @@ pub fn push_taint_and_module_checks(
                 &cu.ir_module,
                 &shadowed,
                 module_traces,
-            ) {
+            );
+            taint_replays.merge(report.replays);
+            for warning in report.warnings {
                 out.push(shift(fu, Diagnostic::from_taint(&warning)));
             }
+        } else {
+            taint_replays.merge(crate::taint::TaintReplayAnalysis::unavailable());
         }
         // Conditional setter metadata follows the actual source owner.
         for w in find_setter_constraint_warnings_for_module_function(
@@ -603,6 +647,7 @@ pub fn push_taint_and_module_checks(
     // iRules-dialect non-taint (module-level / control-flow) checks.
     push_irules_flow_checks(cu, registry, dialect, generic_patterns, out);
     retain_diagnostic_source_context(cu, registry, &mut out[first..]);
+    taint_replays
 }
 
 /// Attach complete original issuer inputs after diagnostics have their final

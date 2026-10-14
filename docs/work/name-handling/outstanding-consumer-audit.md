@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T08:55:41Z on `work`. The machine inventory retains
+Current bounded snapshot: 2026-10-14T09:11:19Z on `work`. The machine inventory retains
 47 actionable rows, the inherited 330 lexical candidates and original issue
 and source observations. Package membership and search absence do not certify
 semantic completion. [Consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -162,10 +162,20 @@ and synthetic-span provenance: complete source entry and actual retained Module
 owner must match; residual spans require complete original/synthetic bounds or a
 genuine registration anchor, with no borrowed original snapshot on unmapped
 synthetic bytes. Actual whole-CU callback and per-function command-head scopes remain distinct
-in Compiler/DB and Explorer/Core reports. The reviewed report/display integration
-and new controls remain pending. Namespace frame/context heap transport is
-independently reviewed with unchanged depth, budget, source and Native guards;
-its fresh fixed-budget graph replay remains required.
+in Compiler/DB and Explorer/Core reports. The report/display and namespace
+frame/context heap transport are integrated after independent review; new
+controls and fresh fixed-budget graph replay remain required. Logical immutable
+body inventory now delegates its positively issued source tokens to the existing
+shared Realm stamping. Native child source grammar is integrated with full
+input/origin/vector/card checks and explicit expansion refusal; its early MAY
+reader remains held for requested-head/tape/reached-refusal repair. Compiler62
+seals build-only missing documentation failures with source drift zero; concise
+API contracts are corrected. Compiler64 is running the expanded current plan
+after the next fixture correction. No semantic result is claimed for that run.
+Shared exact Registry registration descriptor and Logical callback candidate
+projections are independently reviewed and queued. MCP path source categories
+retain actual Event/Procedure kind separately from rendered labels; the typed
+consumer migration is integrated and awaits original actual binary controls.
 These source reviews establish no cache or whole-report acceptance.
 
 The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP

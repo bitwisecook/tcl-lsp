@@ -182,8 +182,29 @@ struct Action {
     source_schema: Option<Value>,
 }
 
+#[derive(Clone, Copy)]
+enum PathSourceKind {
+    Event,
+    Procedure,
+}
+
+impl PathSourceKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Event => "event",
+            Self::Procedure => "procedure",
+        }
+    }
+}
+
+struct PathSource<'a> {
+    kind: PathSourceKind,
+    label: &'a str,
+}
+
 /// A fully annotated path from an event/proc to a terminal action.
 struct PathInfo {
+    source_kind: PathSourceKind,
     event: String,
     conditions: Vec<Condition>,
     action: Action,
@@ -197,6 +218,7 @@ impl PathInfo {
     fn to_json(&self) -> Value {
         json!({
             "event": self.event,
+            "source_kind": self.source_kind.as_str(),
             "conditions": self.conditions.iter().map(Condition::to_json).collect::<Vec<_>>(),
             "action": { "command": self.action.command, "args": self.action.args,
                 "source_span": self.action.source_span, "source_schema": self.action.source_schema },
@@ -304,7 +326,14 @@ fn extract_test_paths(source: &str) -> Vec<PathInfo> {
     if let Some(events) = data.get("events").and_then(Value::as_array) {
         for event in events {
             let name = event.get("name").and_then(Value::as_str).unwrap_or("");
-            walk_flow(flow_of(event), name, &mut Vec::new(), &taints, &mut paths);
+            walk_flow(
+                flow_of(event),
+                PathSourceKind::Event,
+                name,
+                &mut Vec::new(),
+                &taints,
+                &mut paths,
+            );
         }
     }
 
@@ -313,7 +342,14 @@ fn extract_test_paths(source: &str) -> Vec<PathInfo> {
         for proc in procs {
             let name = proc.get("name").and_then(Value::as_str).unwrap_or("");
             let event = format!("proc:{name}");
-            walk_flow(flow_of(proc), &event, &mut Vec::new(), &taints, &mut paths);
+            walk_flow(
+                flow_of(proc),
+                PathSourceKind::Procedure,
+                &event,
+                &mut Vec::new(),
+                &taints,
+                &mut paths,
+            );
         }
     }
 
@@ -340,6 +376,7 @@ fn child_body<'a>(node: &'a Value, key: &str) -> &'a [Value] {
 /// `conditions` is the branch chain built so far; it is pushed/popped in place.
 fn walk_flow(
     nodes: &[Value],
+    source_kind: PathSourceKind,
     event: &str,
     conditions: &mut Vec<Condition>,
     taints: &[Taint],
@@ -351,7 +388,10 @@ fn walk_flow(
                 let command = node.get("command").and_then(Value::as_str).unwrap_or("");
                 let args = string_array(node.get("args"));
                 out.push(build_path(
-                    event,
+                    PathSource {
+                        kind: source_kind,
+                        label: event,
+                    },
                     conditions,
                     command,
                     args,
@@ -376,7 +416,14 @@ fn walk_flow(
                         condition: cond.to_owned(),
                         branch: branch_kind,
                     });
-                    walk_flow(child_body(branch, "body"), event, conditions, taints, out);
+                    walk_flow(
+                        child_body(branch, "body"),
+                        source_kind,
+                        event,
+                        conditions,
+                        taints,
+                        out,
+                    );
                     conditions.pop();
                 }
             }
@@ -389,14 +436,28 @@ fn walk_flow(
                         subject: subject.to_owned(),
                         pattern: pattern.to_owned(),
                     });
-                    walk_flow(child_body(arm, "body"), event, conditions, taints, out);
+                    walk_flow(
+                        child_body(arm, "body"),
+                        source_kind,
+                        event,
+                        conditions,
+                        taints,
+                        out,
+                    );
                     conditions.pop();
                 }
             }
             // Loops / catch / try: descend into the body without adding a
             // condition.
             Some("loop" | "catch" | "try") => {
-                walk_flow(child_body(node, "body"), event, conditions, taints, out);
+                walk_flow(
+                    child_body(node, "body"),
+                    source_kind,
+                    event,
+                    conditions,
+                    taints,
+                    out,
+                );
             }
             _ => {}
         }
@@ -429,7 +490,7 @@ fn original_span(value: Option<&Value>) -> Option<[u32; 2]> {
 /// Build one path from an action terminal, computing its label, priority,
 /// relevant taint warnings, and questions (`_annotate_path`).
 fn build_path(
-    event: &str,
+    source: PathSource<'_>,
     conditions: &[Condition],
     command: &str,
     args: Vec<String>,
@@ -437,6 +498,11 @@ fn build_path(
     source_span: Option<[u32; 2]>,
     source_schema: Option<Value>,
 ) -> PathInfo {
+    let PathSource {
+        kind: source_kind,
+        label: event,
+    } = source;
+
     let path_label = build_label(event, conditions, command, &args);
 
     // Schema families can suggest review priority, without predicting execution.
@@ -488,6 +554,7 @@ fn build_path(
     let questions = generate_questions(event, conditions, &action, &relevant_taints);
 
     PathInfo {
+        source_kind,
         event: event.to_owned(),
         conditions: conditions.iter().map(Condition::clone_owned).collect(),
         action,
@@ -705,7 +772,10 @@ mod tests {
         };
         let schema = Some(json!({"command":"pool","applicability":"conditional-source"}));
         let matching = build_path(
-            "HTTP_REQUEST",
+            PathSource {
+                kind: PathSourceKind::Event,
+                label: "HTTP_REQUEST",
+            },
             &[],
             "unrelated display",
             vec![],
@@ -721,7 +791,10 @@ mod tests {
             raw: json!({"sink_command":"pool"}),
         };
         let unrelated = build_path(
-            "HTTP_REQUEST",
+            PathSource {
+                kind: PathSourceKind::Event,
+                label: "HTTP_REQUEST",
+            },
             &[],
             "pool",
             vec![],
@@ -730,8 +803,45 @@ mod tests {
             schema,
         );
         assert!(unrelated.taint_warnings.is_empty());
-        let unknown = build_path("HTTP_REQUEST", &[], "pool", vec![], &[], None, None);
+        let unknown = build_path(
+            PathSource {
+                kind: PathSourceKind::Event,
+                label: "HTTP_REQUEST",
+            },
+            &[],
+            "pool",
+            vec![],
+            &[],
+            None,
+            None,
+        );
         assert_eq!(unknown.priority.as_str(), "low");
         assert!(unknown.questions.is_empty());
+    }
+    #[test]
+    fn path_source_kind_preserves_the_actual_diagram_category() {
+        let nodes = [json!({"kind":"action", "command":"pool", "args":["p"]})];
+        let mut paths = Vec::new();
+        walk_flow(
+            &nodes,
+            PathSourceKind::Event,
+            "proc:report-data",
+            &mut Vec::new(),
+            &[],
+            &mut paths,
+        );
+        walk_flow(
+            &nodes,
+            PathSourceKind::Procedure,
+            "HTTP_REQUEST",
+            &mut Vec::new(),
+            &[],
+            &mut paths,
+        );
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0].to_json()["source_kind"], "event");
+        assert_eq!(paths[0].to_json()["event"], "proc:report-data");
+        assert_eq!(paths[1].to_json()["source_kind"], "procedure");
+        assert_eq!(paths[1].to_json()["event"], "HTTP_REQUEST");
     }
 }

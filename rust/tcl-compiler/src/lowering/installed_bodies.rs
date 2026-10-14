@@ -156,12 +156,18 @@ impl Lowerer<'_> {
         else {
             return;
         };
+        let children = self
+            .source_bindings
+            .as_ref()
+            .and_then(|bindings| card.source_children(bindings));
+        let previous_children = std::mem::replace(&mut self.native_source_children, children);
         let previous = std::mem::replace(&mut self.readonly_native_declaration_body, true);
         let mut body = self
             .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
                 lowerer.lower_body(&text, span.start(), &namespace)
             });
         self.readonly_native_declaration_body = previous;
+        self.native_source_children = previous_children;
         body.namespace_context = Some(Box::new(card.namespace().clone()));
         let card = std::sync::Arc::new(
             card.as_ref()

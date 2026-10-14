@@ -1118,6 +1118,8 @@ pub struct Lowerer<'r> {
     /// Genuine readonly Logical body preparation cannot issue executed-source metadata.
     readonly_logical_body: bool,
     readonly_native_declaration_body: bool,
+    native_source_children:
+        Option<std::sync::Arc<crate::command_binding::OriginalNativeSourceBodyChildren>>,
     /// Hosted source cards keep their independent declaration owner.
     readonly_hosted_body: bool,
     /// Lexer config for the document's dialect, threaded into every
@@ -1334,6 +1336,7 @@ impl<'r> Lowerer<'r> {
             suppress_proc_register: false,
             readonly_logical_body: false,
             readonly_native_declaration_body: false,
+            native_source_children: None,
             readonly_hosted_body: false,
             config,
             dialect: None,
@@ -2703,6 +2706,13 @@ impl<'r> Lowerer<'r> {
         tokens: &CommandTokens,
     ) -> Option<crate::registry_invocation::SourceStructuredInvocation> {
         let metadata = self.invocation_metadata_context()?;
+        if self.readonly_native_declaration_body {
+            return crate::registry_invocation::original_native_source_structured_invocation(
+                self.registry,
+                metadata,
+                tokens,
+            );
+        }
         if metadata
             .source_analysis_input()
             .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
@@ -2738,6 +2748,9 @@ impl<'r> Lowerer<'r> {
             {
                 let _ = body.stamp_original_tokens(self.registry, input, &mut tokens);
             }
+        }
+        if let Some(owner) = &self.native_source_children {
+            let _ = owner.stamp_tokens(&mut tokens);
         }
         // Implementation contract: naming.consumer.hosted-source-taint-descriptor
         // docs/design/analysis/name-resolution-proofs/hosted-source-taint-descriptor.md

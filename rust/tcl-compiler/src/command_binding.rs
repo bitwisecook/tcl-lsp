@@ -140,7 +140,6 @@ mod source_transition_advice;
 pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
-pub(crate) use source_transition_advice::OriginalSourceCataloguePurpose;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
     OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
@@ -158,6 +157,9 @@ pub use source_transition_advice::{
     OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
     OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
     SourceCommandTransitionObligation,
+};
+pub(crate) use source_transition_advice::{
+    OriginalNativeSourceBodyChildren, OriginalSourceCataloguePurpose,
 };
 pub(crate) use source_transition_advice::{
     OriginalSourceTransitionAdviceLookup, OriginalSourceTransitionAdviceTape,
@@ -1224,6 +1226,8 @@ pub struct SourceInvocationBinding {
     pub(crate) lookup_state: Option<Arc<SourceLookupSnapshot>>,
     pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
     original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
+    original_native_source_command:
+        Option<Arc<source_transition_advice::OriginalNativeSourceCommand>>,
     declaration_layout_observations:
         Option<Arc<[declaration_layout::DeclarationLayoutObservation]>>,
     declaration_flow_inventory: Option<Arc<declaration_flow::DeclarationFlowInventory>>,
@@ -1361,6 +1365,7 @@ impl Default for SourceInvocationBinding {
             lookup_state: None,
             compiler_lookup_state: None,
             original_logical_source_advice: None,
+            original_native_source_command: None,
             declaration_layout_observations: None,
             declaration_flow_inventory: None,
             original_logical_declaration_targets: None,
@@ -1915,6 +1920,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_native_source_command != other.original_native_source_command {
+            self.original_native_source_command = None;
+        }
         if self.original_logical_source_advice != other.original_logical_source_advice {
             self.original_logical_source_advice = None;
         }
@@ -4605,6 +4613,59 @@ fn source_body_context_boxed<'a>(
         }),
         frame,
         depth: context.depth + 1,
+        ..*context
+    })
+}
+
+/// Construct frame copies and derived contexts before recursive descent.
+#[inline(never)]
+fn source_selected_frame_boxed(
+    context: &SourceExecutionContext<'_>,
+    namespace_known: bool,
+) -> Box<crate::var_resolve::VariableExecutionFrame> {
+    Box::new(if namespace_known {
+        context
+            .frame
+            .clone()
+            .with_namespace_identity(context.namespace_identity())
+    } else {
+        context.frame.clone()
+    })
+}
+
+#[inline(never)]
+fn source_parent_frame_boxed(
+    frame: &crate::var_resolve::VariableExecutionFrame,
+) -> Box<crate::var_resolve::VariableExecutionFrame> {
+    Box::new(frame.clone())
+}
+
+#[inline(never)]
+fn source_frame_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    frame: &'a crate::var_resolve::VariableExecutionFrame,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext { frame, ..*context })
+}
+
+#[inline(never)]
+fn source_original_compilation_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    original: Option<&'a original_name_value::OriginalSourceVariableCompilation<'a>>,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        original_variable_compilation: original,
+        ..*context
+    })
+}
+
+#[inline(never)]
+fn source_namespace_context_boxed<'a>(
+    context: &SourceExecutionContext<'a>,
+    namespace: &'a SourceNamespaceKey,
+) -> Box<SourceExecutionContext<'a>> {
+    Box::new(SourceExecutionContext {
+        namespace_key: Some(namespace),
         ..*context
     })
 }
@@ -7915,21 +7976,12 @@ impl SourceCommandBindings {
                         ..
                     }
             );
-        let selected_frame = if namespace_known {
-            context
-                .frame
-                .clone()
-                .with_namespace_identity(context.namespace_identity())
-        } else {
-            context.frame.clone()
-        };
-        let context = &SourceExecutionContext {
-            frame: &selected_frame,
-            ..*context
-        };
-        let previous_frame = state.variable_frame.clone();
+        let selected_frame = source_selected_frame_boxed(context, namespace_known);
+        let selected_context = source_frame_context_boxed(context, &selected_frame);
+        let context = selected_context.as_ref();
+        let previous_frame = source_parent_frame_boxed(&state.variable_frame);
         let parent =
-            (previous_frame != *context.frame).then(|| Arc::clone(&state.source_variables));
+            (previous_frame.as_ref() != context.frame).then(|| Arc::clone(&state.source_variables));
         if parent.is_some() {
             state.source_variables =
                 source_variables_in_frame(&state.source_variables, context.frame);
@@ -8178,10 +8230,10 @@ impl SourceCommandBindings {
             original_name_value::OriginalSourceVariableCompilation::from_selected(
                 &compiled, state, *context,
             );
-        let original_context = Box::new(SourceExecutionContext {
-            original_variable_compilation: original_variable_compilation.as_ref(),
-            ..*context
-        });
+        let original_context = source_original_compilation_context_boxed(
+            context,
+            original_variable_compilation.as_ref(),
+        );
         let context = original_context.as_ref();
         if let Some(outcomes) = self.walk_original_list_assignment(
             SourceCommandInput {
@@ -10261,10 +10313,8 @@ impl SourceCommandBindings {
             &prepared.selection.namespace,
             &prepared.selection.frame,
         );
-        let body_context = Box::new(SourceExecutionContext {
-            namespace_key: Some(&prepared.selection.namespace_key),
-            ..*body_context
-        });
+        let body_context =
+            source_namespace_context_boxed(&body_context, &prepared.selection.namespace_key);
         let namespace_body = boxed_source_completion_receipt(|| {
             original_namespace_body::OriginalNamespaceBody::capture(
                 native, facts, state, *context, &prepared,
@@ -10669,7 +10719,7 @@ impl SourceCommandBindings {
                 self.walk_body_sequence(indices, native.script_operands(), state, context)
             }
             ScriptBodyFlow::ConcatenatedScript { argument_offset } => {
-                self.walk_concatenated_script(*argument_offset, native, state, *context)
+                self.walk_concatenated_script(*argument_offset, native, state, context)
             }
             other => self.walk_other_body_flow(other, native, state, context),
         }
@@ -10961,7 +11011,7 @@ impl SourceCommandBindings {
         argument_offset: usize,
         native: SourceNativeInvocation<'_>,
         state: &mut ModuleCommandBindings,
-        context: SourceExecutionContext<'_>,
+        context: &SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
         if let Some(count) = native.invocation.arguments().exact_argv_len()
             && argument_offset.checked_add(1) == Some(count)
@@ -10970,9 +11020,21 @@ impl SourceCommandBindings {
                 argument_offset,
                 native.script_operands(),
                 state,
-                &context,
+                context,
             );
         }
+        self.walk_materialised_concatenated_script(argument_offset, native, state, context)
+    }
+
+    /// Materialisation temporaries are absent from an original single-body descent.
+    #[inline(never)]
+    fn walk_materialised_concatenated_script(
+        &mut self,
+        argument_offset: usize,
+        native: SourceNativeInvocation<'_>,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
         let Some(values) = frozen_script_operands(native.invocation.arguments(), argument_offset)
         else {
             return opaque_source_invocation(state);
@@ -10997,13 +11059,13 @@ impl SourceCommandBindings {
         let realm = evaluated_script_realm(
             argument_offset..argument_offset + values.len(),
             native.script_operands(),
-            context,
+            *context,
         );
         let context = compiled_invocation::body_context(
             argument_offset,
             native.script_operands(),
             state,
-            context,
+            *context,
         );
         self.walk_materialised_source(
             &script,
@@ -12175,6 +12237,7 @@ fn source_binding_projection_in(
         lookup_state: None,
         compiler_lookup_state: None,
         original_logical_source_advice: None,
+        original_native_source_command: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,
         original_logical_declaration_targets: None,

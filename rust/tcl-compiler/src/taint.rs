@@ -351,6 +351,159 @@ pub struct TaintWarning {
     pub fixes: Vec<CodeFix>,
 }
 
+/// Why a required source-only nested replay could not be analysed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnavailableTaintReplayReason {
+    /// The original source owner is missing or no longer applicable.
+    SourceMetadata,
+    /// The selected procedure constructor cannot support source replay.
+    ProcedureConstructor,
+    /// The selected alias constructor cannot support source replay.
+    AliasConstructor,
+}
+
+impl UnavailableTaintReplayReason {
+    #[must_use]
+    /// Stable reason label for reports.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceMetadata => "source-metadata",
+            Self::ProcedureConstructor => "procedure-constructor",
+            Self::AliasConstructor => "alias-constructor",
+        }
+    }
+}
+
+/// Original source correspondence, independently of execution permission.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaintReplaySourceSnapshot {
+    image: tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    input: Option<crate::analyser::ResolvedAnalysisInput>,
+    entry: crate::command_binding::SourceAnalysisEntry,
+    owner: Option<std::sync::Arc<crate::command_binding::RetainedSourceModuleBindings>>,
+    registry: Option<tcl_registry::RegistrySnapshot>,
+}
+
+impl TaintReplaySourceSnapshot {
+    fn for_module(module: &crate::ir::Module) -> Self {
+        Self {
+            image: module.source.clone(),
+            config: module.lexer_config,
+            input: module.source_metadata_input.clone(),
+            entry: module.source_entry.clone(),
+            owner: module.retained_source_bindings.clone(),
+            registry: module.registry_snapshot.clone(),
+        }
+    }
+
+    #[must_use]
+    /// Check the complete current source entry and retained Registry owner.
+    pub fn matches_module(&self, module: &crate::ir::Module, registry: &CommandRegistry) -> bool {
+        self == &Self::for_module(module)
+            && self
+                .owner
+                .as_ref()
+                .is_some_and(|owner| owner.matches_module(module, registry))
+            && self.registry.as_ref().is_some_and(|captured| {
+                captured.semantic_key() == registry.snapshot().semantic_key()
+            })
+    }
+}
+
+/// A required replay whose original source site remains unavailable.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnavailableTaintReplay {
+    /// Replay span; original coordinates require a matching source snapshot.
+    pub span: Span,
+    /// Missing prerequisite for this replay.
+    pub reason: UnavailableTaintReplayReason,
+    /// Original source correspondence when it was retained.
+    pub source: Option<TaintReplaySourceSnapshot>,
+}
+
+/// Availability of replays in the requested scope, separate from warning count.
+/// Per-function reports cover command heads; whole-unit reports also cover stored callbacks.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TaintReplayAnalysis {
+    /// The requested scope could not be analysed.
+    Unavailable {
+        /// Known replay sites missing their prerequisites.
+        unavailable: Vec<UnavailableTaintReplay>,
+    },
+    /// The requested scope was analysed, possibly with unavailable nested sites.
+    Analysed {
+        /// Nested replay sites missing their prerequisites.
+        unavailable: Vec<UnavailableTaintReplay>,
+    },
+}
+
+impl TaintReplayAnalysis {
+    #[must_use]
+    /// Whether the requested scope and every required nested replay were analysed.
+    pub fn is_complete(&self) -> bool {
+        matches!(self, Self::Analysed { unavailable } if unavailable.is_empty())
+    }
+    #[must_use]
+    /// Represent an unavailable scope with no known source sites.
+    pub const fn unavailable() -> Self {
+        Self::Unavailable {
+            unavailable: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    /// Retained sites whose replay prerequisites are unavailable.
+    pub fn unavailable_replays(&self) -> &[UnavailableTaintReplay] {
+        match self {
+            Self::Unavailable { unavailable } | Self::Analysed { unavailable } => unavailable,
+        }
+    }
+
+    /// Combine scopes while retaining every unavailable site.
+    pub fn merge(&mut self, other: Self) {
+        let was_available =
+            matches!(self, Self::Analysed { .. }) && matches!(other, Self::Analysed { .. });
+        let mut retained = self.unavailable_replays().to_vec();
+        for replay in other.unavailable_replays() {
+            if !retained.contains(replay) {
+                retained.push(replay.clone());
+            }
+        }
+        *self = if was_available {
+            Self::Analysed {
+                unavailable: retained,
+            }
+        } else {
+            Self::Unavailable {
+                unavailable: retained,
+            }
+        };
+    }
+}
+
+/// Proven warnings plus the availability of every required nested replay.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaintWarningReport {
+    /// Warnings established by the completed analyses.
+    pub warnings: Vec<TaintWarning>,
+    /// Availability of replays in this report's scope.
+    pub replays: TaintReplayAnalysis,
+}
+
+impl TaintWarningReport {
+    fn analysed(warnings: Vec<TaintWarning>, unavailable: Vec<UnavailableTaintReplay>) -> Self {
+        Self {
+            warnings,
+            replays: TaintReplayAnalysis::Analysed { unavailable },
+        }
+    }
+    fn merge(&mut self, other: Self) {
+        self.warnings.extend(other.warnings);
+        self.replays.merge(other.replays);
+    }
+}
+
 // Source-command classification
 
 /// Return `true` when `command` is a known taint source — i.e. its
@@ -3121,9 +3274,21 @@ pub fn find_taint_warnings_for_cu(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
-    let mut out = find_taint_warnings_for_cu_base(cu, registry, dialect);
-    let callback_warnings = find_callback_substitution_warnings(cu, registry, dialect, &out);
-    out.extend(callback_warnings);
+    taint_warning_report_for_cu(cu, registry, dialect).warnings
+}
+
+/// Analyse proven warnings while retaining every required replay refusal.
+#[must_use]
+pub fn taint_warning_report_for_cu(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> TaintWarningReport {
+    let mut out =
+        taint_warning_report_for_cu_base_with_external_variable_seeds(cu, registry, dialect, None);
+    let callback_warnings =
+        taint_callback_substitution_report(cu, registry, dialect, &out.warnings);
+    out.merge(callback_warnings);
     out
 }
 
@@ -3131,6 +3296,7 @@ pub fn find_taint_warnings_for_cu(
 /// callback text. Kept separate so callback replay can analyse a synthetic
 /// invocation without recursively replaying every registration in its source
 /// module.
+#[cfg(test)]
 fn find_taint_warnings_for_cu_base(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
@@ -3144,19 +3310,36 @@ fn find_taint_warnings_for_cu_base(
 /// Synthetic callback replays use this rather than spelling a source command
 /// such as `[gets stdin]`: a registration's user input is independent of
 /// source-level command shadowing and aliases.
+#[cfg(test)]
 fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> Vec<TaintWarning> {
-    let mut out = Vec::new();
+    taint_warning_report_for_cu_base_with_external_variable_seeds(
+        cu,
+        registry,
+        dialect,
+        external_variable_seeds,
+    )
+    .warnings
+}
+
+fn taint_warning_report_for_cu_base_with_external_variable_seeds(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) -> TaintWarningReport {
+    let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
     // naming.source.retained-positioned-command-realm
     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
     // Missing original ownership is terminal for this whole-unit query.
     let Some(identities) =
         crate::realm::document_realm_bindings_for_module(&cu.ir_module, registry)
     else {
+        out.replays = TaintReplayAnalysis::unavailable();
         return out;
     };
     let solved = external_variable_seeds.map_or_else(
@@ -3183,9 +3366,10 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             module_traces,
         );
         let Some(shadowed) = shadowed_builtin_names_for_module_function(fu, cu, registry) else {
+            out.replays.merge(TaintReplayAnalysis::unavailable());
             continue;
         };
-        out.extend(find_taint_warnings_for_function_with_identities(
+        out.merge(taint_warning_report_for_function_with_identities(
             fu,
             &taints,
             exec,
@@ -3194,6 +3378,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             &shadowed,
             module_traces,
             &identities,
+            Some(&cu.ir_module),
         ));
         // Only an explicitly standalone Module and CFG may use the legacy
         // source-warning utilities. Missing or withdrawn supplied input keeps
@@ -3204,7 +3389,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
             && cu.ir_module.source_metadata_input.is_none()
             && fu.source_metadata_input().is_none();
         if standalone_warnings {
-            out.extend(find_setter_constraint_warnings(
+            out.warnings.extend(find_setter_constraint_warnings(
                 registry,
                 &fu.cfg,
                 &fu.ssa,
@@ -3214,32 +3399,35 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
                 dialect,
             ));
         } else {
-            out.extend(find_setter_constraint_warnings_for_module_function(
-                fu,
-                &cu.ir_module,
-                registry,
-                &taints,
-            ));
+            out.warnings
+                .extend(find_setter_constraint_warnings_for_module_function(
+                    fu,
+                    &cu.ir_module,
+                    registry,
+                    &taints,
+                ));
         }
-        out.extend(crate::uri_split::find_uri_split_suggestions(
-            &fu.cfg,
-            &fu.ssa,
-            Some(&fu.sccp.values),
-            exec,
-            registry,
-            dialect,
-        ));
+        out.warnings
+            .extend(crate::uri_split::find_uri_split_suggestions(
+                &fu.cfg,
+                &fu.ssa,
+                Some(&fu.sccp.values),
+                exec,
+                registry,
+                dialect,
+            ));
         if standalone_warnings {
-            out.extend(find_destructive_file_warnings(
+            out.warnings.extend(find_destructive_file_warnings(
                 &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
             ));
         } else {
-            out.extend(find_destructive_file_warnings_for_module_function(
-                fu,
-                &cu.ir_module,
-                registry,
-                &taints,
-            ));
+            out.warnings
+                .extend(find_destructive_file_warnings_for_module_function(
+                    fu,
+                    &cu.ir_module,
+                    registry,
+                    &taints,
+                ));
         }
     }
     out
@@ -3387,12 +3575,22 @@ fn callback_taint_inputs_at_call(
 // Candidate discovery, bounded materialisation, and source-span remapping are
 // one safety transaction; keeping them adjacent makes the replay cap auditable.
 #[allow(clippy::too_many_lines)]
+#[cfg(test)]
 fn find_callback_substitution_warnings(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     baseline: &[TaintWarning],
 ) -> Vec<TaintWarning> {
+    taint_callback_substitution_report(cu, registry, dialect, baseline).warnings
+}
+
+fn taint_callback_substitution_report(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    baseline: &[TaintWarning],
+) -> TaintWarningReport {
     let mut candidates = Vec::new();
     // Most files have no statically replayable command-substitution callback.
     // Project the original positioned command owner only when a builder head
@@ -3573,11 +3771,11 @@ fn find_callback_substitution_warnings(
     }
 
     if candidates.is_empty() {
-        return Vec::new();
+        return TaintWarningReport::analysed(Vec::new(), Vec::new());
     }
 
     let (input_var, proc_prefix) = fresh_callback_replay_names(&cu.source);
-    let mut out = Vec::new();
+    let mut out = TaintWarningReport::analysed(Vec::new(), Vec::new());
     // All recoverable callbacks are replayed in bounded batches. The per-batch
     // ranges retain source mapping while bounding the amount of synthetic
     // callback code in each interprocedural solve. Every statically recoverable
@@ -3638,6 +3836,17 @@ fn find_callback_substitution_warnings(
             &cu.ir_module,
         )
         .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input) else {
+            let residuals = replay_spans
+                .iter()
+                .map(|(_, registration, _)| UnavailableTaintReplay {
+                    span: *registration,
+                    reason: UnavailableTaintReplayReason::SourceMetadata,
+                    source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+                })
+                .collect();
+            out.replays.merge(TaintReplayAnalysis::Unavailable {
+                unavailable: residuals,
+            });
             continue;
         };
         let replay_cu = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
@@ -3660,12 +3869,36 @@ fn find_callback_substitution_warnings(
             (format!("::{input_var}"), TaintLattice::tainted()),
             (input_var.clone(), TaintLattice::tainted()),
         ]);
-        for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+        let replay_report = taint_warning_report_for_cu_base_with_external_variable_seeds(
             &replay_cu,
             registry,
             dialect,
             Some(&replay_seed),
-        ) {
+        );
+        let was_analysed = matches!(&replay_report.replays, TaintReplayAnalysis::Analysed { .. });
+        let mut unavailable = Vec::new();
+        for residual in replay_report.replays.unavailable_replays() {
+            unavailable.extend(original_callback_replay_residuals(
+                residual,
+                cu,
+                &replay_spans,
+            ));
+        }
+        if !was_analysed && unavailable.is_empty() {
+            unavailable.extend(replay_spans.iter().map(|(_, registration, _)| {
+                UnavailableTaintReplay {
+                    span: *registration,
+                    reason: UnavailableTaintReplayReason::SourceMetadata,
+                    source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+                }
+            }));
+        }
+        out.replays.merge(if was_analysed {
+            TaintReplayAnalysis::Analysed { unavailable }
+        } else {
+            TaintReplayAnalysis::Unavailable { unavailable }
+        });
+        for mut warning in replay_report.warnings {
             // A prefix can call a local procedure. Its sink then lies in the
             // original procedure body even though the synthetic invocation
             // taints its parameter. Keep that new source span intact. Only a
@@ -3697,10 +3930,43 @@ fn find_callback_substitution_warnings(
                 warning.replacement = None;
                 warning.fixes.clear();
             }
-            out.push(warning);
+            out.warnings.push(warning);
         }
     }
     out
+}
+
+fn original_callback_replay_residuals(
+    residual: &UnavailableTaintReplay,
+    cu: &crate::compilation_unit::CompilationUnit,
+    replay_spans: &[(Span, Span, String)],
+) -> Vec<UnavailableTaintReplay> {
+    let original_end = u32::try_from(cu.source.len()).unwrap_or(u32::MAX);
+    let retained = |span| UnavailableTaintReplay {
+        span,
+        reason: residual.reason,
+        source: Some(TaintReplaySourceSnapshot::for_module(&cu.ir_module)),
+    };
+    if residual.span.start() <= residual.span.end() && residual.span.end() <= original_end {
+        return vec![retained(residual.span)];
+    }
+    if let Some((_, registration, _)) = replay_spans.iter().find(|(synthetic, _, _)| {
+        synthetic.start() <= residual.span.start()
+            && residual.span.start() <= residual.span.end()
+            && residual.span.end() <= synthetic.end()
+    }) {
+        return vec![retained(*registration)];
+    }
+    if !replay_spans.is_empty() {
+        return replay_spans
+            .iter()
+            .map(|(_, registration, _)| retained(*registration))
+            .collect();
+    }
+    vec![UnavailableTaintReplay {
+        source: None,
+        ..residual.clone()
+    }]
 }
 
 /// A word whose runtime value is exactly one command substitution. Quotes
@@ -4218,7 +4484,7 @@ pub fn find_taint_warnings<
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
 ) -> Vec<TaintWarning> {
-    find_taint_warnings_impl(
+    taint_warning_report_impl(
         cfg,
         ssa,
         taints,
@@ -4228,9 +4494,12 @@ pub fn find_taint_warnings<
             dialect,
             source: TaintSourceContext::standalone(registry, dialect),
             shadowed_builtins,
+            original_module: None,
+            unavailable_replays: None,
         },
         None,
     )
+    .warnings
 }
 
 /// Emit taint sink warnings for one complete compiler function unit.
@@ -4296,6 +4565,35 @@ pub fn find_taint_warnings_for_module_function<
     )
 }
 
+/// Retain original Module correspondence and command-head replay availability.
+/// Stored callbacks are included by the whole-unit report.
+#[must_use]
+pub fn taint_warning_report_for_module_function<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    module: &crate::ir::Module,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> TaintWarningReport {
+    taint_warning_report_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        TaintSourceContext::for_module_function(registry, module, fu),
+        shadowed_builtins,
+        module_traces,
+        crate::realm::CommandBindingRealm::none(),
+        Some(module),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn find_taint_warnings_for_function_with_identities<
     S: std::hash::BuildHasher,
@@ -4311,7 +4609,36 @@ fn find_taint_warnings_for_function_with_identities<
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> Vec<TaintWarning> {
-    find_taint_warnings_impl(
+    taint_warning_report_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        source,
+        shadowed_builtins,
+        module_traces,
+        identities,
+        None,
+    )
+    .warnings
+}
+
+fn taint_warning_report_for_function_with_identities<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    source: TaintSourceContext<'_>,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+    original_module: Option<&crate::ir::Module>,
+) -> TaintWarningReport {
+    taint_warning_report_impl(
         &fu.cfg,
         &fu.ssa,
         taints,
@@ -4321,6 +4648,8 @@ fn find_taint_warnings_for_function_with_identities<
             dialect: source.dialect,
             source,
             shadowed_builtins,
+            original_module,
+            unavailable_replays: None,
         },
         Some(CommandHeadContext {
             fu,
@@ -4343,6 +4672,8 @@ struct SinkWarningContext<'a, H> {
     source: TaintSourceContext<'a>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &'a HashSet<String, H>,
+    original_module: Option<&'a crate::ir::Module>,
+    unavailable_replays: Option<&'a std::cell::RefCell<Vec<UnavailableTaintReplay>>>,
 }
 
 impl<H> SinkWarningContext<'_, H> {
@@ -4356,9 +4687,31 @@ impl<H> SinkWarningContext<'_, H> {
                 }),
         )
     }
+    fn unavailable_replay(
+        &self,
+        span: Span,
+        reason: UnavailableTaintReplayReason,
+        command_head: Option<CommandHeadContext<'_>>,
+    ) {
+        let Some(out) = self.unavailable_replays else {
+            return;
+        };
+        let span = command_head.map_or(span, |owner| owner.fu.abs_span(span));
+        let residual = UnavailableTaintReplay {
+            span,
+            reason,
+            source: self
+                .original_module
+                .map(TaintReplaySourceSnapshot::for_module),
+        };
+        let mut out = out.borrow_mut();
+        if !out.contains(&residual) {
+            out.push(residual);
+        }
+    }
 }
 
-fn find_taint_warnings_impl<
+fn taint_warning_report_impl<
     S: std::hash::BuildHasher,
     E: std::hash::BuildHasher,
     H: std::hash::BuildHasher,
@@ -4369,7 +4722,16 @@ fn find_taint_warnings_impl<
     executable_blocks: &HashSet<BlockId, E>,
     context: &SinkWarningContext<'_, H>,
     command_head_ctx: Option<CommandHeadContext<'_>>,
-) -> Vec<TaintWarning> {
+) -> TaintWarningReport {
+    let unavailable_replays = std::cell::RefCell::new(Vec::new());
+    let context = &SinkWarningContext {
+        registry: context.registry,
+        source: context.source,
+        dialect: context.dialect,
+        shadowed_builtins: context.shadowed_builtins,
+        original_module: context.original_module,
+        unavailable_replays: Some(&unavailable_replays),
+    };
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in cfg_order(cfg) {
@@ -4411,7 +4773,15 @@ fn find_taint_warnings_impl<
         emit_branch_condition_warnings(cfg, bn, &branch_ctx, &mut warnings);
     }
 
-    warnings
+    let metadata_available =
+        context.source.allows_nominal_metadata() || context.source.metadata.is_some();
+    let unavailable = unavailable_replays.into_inner();
+    let replays = if metadata_available {
+        TaintReplayAnalysis::Analysed { unavailable }
+    } else {
+        TaintReplayAnalysis::Unavailable { unavailable }
+    };
+    TaintWarningReport { warnings, replays }
 }
 
 /// Emit taint warnings for a single SSA statement.
@@ -5002,16 +5372,34 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         )
     };
     let Some(preliminary_cu) = build_nested(script) else {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
         return;
     };
-    let command_setup = command_head_ctx.map_or_else(String::new, |head_context| {
-        ambient_command_setup(
-            &preliminary_cu,
-            head_context.identities,
-            source_span.start(),
-            context.shadowed_builtins,
-        )
-    });
+    let command_setup = command_head_ctx.map_or_else(
+        || Ok(String::new()),
+        |head_context| {
+            ambient_command_setup(
+                &preliminary_cu,
+                head_context.identities,
+                source_span.start(),
+                context.shadowed_builtins,
+                context.registry,
+                context.source.metadata,
+                context.source.allows_nominal_metadata(),
+            )
+        },
+    );
+    let command_setup = match command_setup {
+        Ok(setup) => setup,
+        Err(reason) => {
+            context.unavailable_replay(source_span, reason, command_head_ctx);
+            return;
+        }
+    };
     let constant_setup = command_head_ctx.map_or_else(String::new, |head_context| {
         ambient_constant_setup(&outer_uses, head_context, ssa, context.source.config)
     });
@@ -5024,14 +5412,34 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         ssa,
     );
     let Some(nested_cu) = build_nested(&replay) else {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
         return;
     };
-    for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+    let nested_report = taint_warning_report_for_cu_base_with_external_variable_seeds(
         &nested_cu,
         context.registry,
         context.dialect,
         Some(&seeds),
-    ) {
+    );
+    if matches!(
+        &nested_report.replays,
+        TaintReplayAnalysis::Unavailable { .. }
+    ) && nested_report.replays.unavailable_replays().is_empty()
+    {
+        context.unavailable_replay(
+            source_span,
+            UnavailableTaintReplayReason::SourceMetadata,
+            command_head_ctx,
+        );
+    }
+    for residual in nested_report.replays.unavailable_replays() {
+        context.unavailable_replay(source_span, residual.reason, command_head_ctx);
+    }
+    for mut warning in nested_report.warnings {
         warning.span = source_span;
         warning.replacement = None;
         warning.fixes.clear();
@@ -5212,9 +5620,12 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
     identities: &crate::realm::CommandBindingRealm,
     at: u32,
     shadowed_builtins: &HashSet<String, H>,
-) -> String {
+    registry: &CommandRegistry,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    standalone: bool,
+) -> Result<String, UnavailableTaintReplayReason> {
     if identities.is_empty() && shadowed_builtins.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
     let mut heads = FxHashSet::default();
     for function in cu.analysable_body_function_units() {
@@ -5255,13 +5666,133 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             }
         }
     }
-    // Establish every alias while `::interp` is still the scaffold builtin;
-    // establish a requested `interp`/`proc` rebinding only afterwards.
-    rebindings.sort_by_key(|(head, _)| matches!(head.as_str(), "interp" | "proc"));
+    let constructors = ScaffoldConstructors::required(
+        registry,
+        metadata,
+        standalone,
+        !rebindings.is_empty(),
+        !aliases.is_empty(),
+    )?;
+    // Keep the constructor that emits each rebinding available until its last use.
+    rebindings.sort_by_key(|(head, _)| constructors.rebinding_priority(registry, metadata, head));
     for (_, rebinding) in rebindings {
         aliases.push_str(&rebinding);
     }
-    aliases
+    Ok(aliases)
+}
+
+struct ScaffoldConstructors<'r> {
+    procedure: Option<&'r tcl_registry::CommandSpec>,
+    alias: Option<&'r tcl_registry::CommandSpec>,
+}
+
+impl<'r> ScaffoldConstructors<'r> {
+    fn required(
+        registry: &'r CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        standalone: bool,
+        needs_procedure: bool,
+        needs_alias: bool,
+    ) -> Result<Self, UnavailableTaintReplayReason> {
+        if !needs_procedure && !needs_alias {
+            return Ok(Self {
+                procedure: None,
+                alias: None,
+            });
+        }
+        if metadata.is_some_and(|actual| !actual.matches_registry(registry))
+            || (metadata.is_none() && !standalone)
+        {
+            return Err(UnavailableTaintReplayReason::SourceMetadata);
+        }
+        let query = metadata.map(|actual| actual.context().authoring_query());
+        let procedure = if needs_procedure {
+            let selected = registry
+                .resolve_invocation("::proc", &["__scaffold_declaration", "args", ""], query)
+                .ok_or(UnavailableTaintReplayReason::ProcedureConstructor)?;
+            selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .any(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::CommandBinding(
+                            tcl_registry::CommandBindingTransition::Define {
+                                kind: tcl_registry::CommandBindingDefinitionKind::Procedure,
+                                ..
+                            }
+                        )
+                    )
+                })
+                .then_some(())
+                .ok_or(UnavailableTaintReplayReason::ProcedureConstructor)?;
+            Some(selected.authored_source_descriptors().command)
+        } else {
+            None
+        };
+        let alias = if needs_alias {
+            let selected = registry
+                .resolve_invocation(
+                    "::interp",
+                    &["alias", "", "__scaffold_alias", "", "__scaffold_target"],
+                    query,
+                )
+                .ok_or(UnavailableTaintReplayReason::AliasConstructor)?;
+            selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .any(|fact| {
+                    matches!(
+                        fact.transition,
+                        tcl_registry::StateTransition::CommandBinding(
+                            tcl_registry::CommandBindingTransition::Alias { .. }
+                        )
+                    )
+                })
+                .then_some(())
+                .ok_or(UnavailableTaintReplayReason::AliasConstructor)?;
+            Some(selected.authored_source_descriptors().command)
+        } else {
+            None
+        };
+        Ok(Self { procedure, alias })
+    }
+
+    fn rebinding_priority(
+        &self,
+        registry: &CommandRegistry,
+        metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+        head: &str,
+    ) -> u8 {
+        let query = metadata.map(|actual| actual.context().authoring_query());
+        if let Some(selected) =
+            registry.resolve_invocation(head, &["__scaffold_declaration", "args", ""], query)
+        {
+            let descriptor = selected.authored_source_descriptors().command;
+            if self
+                .procedure
+                .is_some_and(|actual| std::ptr::eq(actual, descriptor))
+            {
+                return 2;
+            }
+        }
+        if let Some(selected) = registry.resolve_invocation(
+            head,
+            &["alias", "", "__scaffold_alias", "", "__scaffold_target"],
+            query,
+        ) {
+            let descriptor = selected.authored_source_descriptors().command;
+            if self
+                .alias
+                .is_some_and(|actual| std::ptr::eq(actual, descriptor))
+            {
+                return 1;
+            }
+        }
+        0
+    }
 }
 
 /// Emit the direct expression-injection case and report whether this statement
@@ -12417,6 +12948,228 @@ mod tests {
         assert!(
             found.iter().any(|w| w.code == DiagCode::T101),
             "expected T101 for the sink after the switch, got {found:?}"
+        );
+    }
+    #[test]
+    fn required_replay_empty_success_differs_from_withdrawn_source_owner() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let (_owner, unit) = retained_warning_unit("set value 1", &context);
+        let current = taint_warning_report_for_cu(&unit, registry, None);
+        assert!(current.warnings.is_empty());
+        assert!(current.replays.is_complete());
+        let mut withdrawn = unit.clone();
+        withdrawn.ir_module.retained_source_bindings = None;
+        let missing = taint_warning_report_for_cu(&withdrawn, registry, None);
+        assert!(missing.warnings.is_empty());
+        assert!(!missing.replays.is_complete());
+        assert!(matches!(
+            missing.replays,
+            TaintReplayAnalysis::Unavailable { .. }
+        ));
+    }
+
+    #[test]
+    fn unavailable_nested_replay_retains_original_site_and_independent_warnings() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let source = "set payload [gets stdin]\nregexp $payload haystack\n[eval $payload]";
+        let (_owner, unit) = retained_warning_unit(source, &context);
+        let proven = taint_warning_report_for_cu(&unit, registry, None).warnings;
+        assert!(proven.iter().any(|warning| warning.code == DiagCode::T103));
+        let statement = unit
+            .top_level
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find(|statement| {
+                statement
+                    .statement
+                    .tokens()
+                    .and_then(|tokens| tokens.word_exprs.first())
+                    .is_some_and(|word| {
+                        let mut children = Vec::new();
+                        command_substitutions_in_word(word, &mut children);
+                        !children.is_empty()
+                    })
+            })
+            .expect("genuine original command-head substitution");
+        let word = statement
+            .statement
+            .tokens()
+            .unwrap()
+            .word_exprs
+            .first()
+            .unwrap();
+        let mut children = Vec::new();
+        command_substitutions_in_word(word, &mut children);
+        let (spelling, span) = children.first().unwrap();
+        let script = spelling
+            .strip_prefix('[')
+            .unwrap()
+            .strip_suffix(']')
+            .unwrap();
+        let unavailable = std::cell::RefCell::new(Vec::new());
+        let shadowed = HashSet::new();
+        let sink = SinkWarningContext {
+            registry,
+            source: TaintSourceContext::for_input(registry, None, unit.ir_module.lexer_config),
+            dialect: unit.ir_module.dialect_profile,
+            shadowed_builtins: &shadowed,
+            original_module: Some(&unit.ir_module),
+            unavailable_replays: Some(&unavailable),
+        };
+        let mut warnings = proven.clone();
+        emit_isolated_script_warnings(
+            script,
+            *span,
+            statement,
+            &unit.top_level.taints,
+            &mut warnings,
+            &unit.top_level.ssa,
+            &sink,
+            None,
+        );
+        assert_eq!(warnings, proven);
+        let unavailable = unavailable.into_inner();
+        assert_eq!(unavailable.len(), 1);
+        assert_eq!(unavailable[0].span, *span);
+        assert_eq!(
+            unavailable[0].reason,
+            UnavailableTaintReplayReason::SourceMetadata
+        );
+        let captured = unavailable[0].source.as_ref().unwrap();
+        assert!(captured.matches_module(&unit.ir_module, registry));
+        let mut changed = unit.ir_module.clone();
+        changed.source = tcl_lexer::SourceImage::document("set payload fixed");
+        assert!(!captured.matches_module(&changed, registry));
+        let mut changed_entry = unit.ir_module.clone();
+        changed_entry.source_entry.unknown_entry = !changed_entry.source_entry.unknown_entry;
+        assert!(!captured.matches_module(&changed_entry, registry));
+        let mut changed_namespace = unit.ir_module.clone();
+        changed_namespace.top_level_namespace = "::different_replay_source".to_owned();
+        assert!(!captured.matches_module(&changed_namespace, registry));
+        let mut foreign = tcl_registry::CommandRegistry::build_default();
+        foreign.insert(tcl_registry::CommandSpec {
+            name: "__foreign_replay_store",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert!(!captured.matches_module(&unit.ir_module, &foreign));
+    }
+
+    #[test]
+    fn scaffold_constructors_require_actual_selected_descriptor_identity() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let actual = ScaffoldConstructors::required(registry, None, true, true, true).unwrap();
+        assert_eq!(actual.rebinding_priority(registry, None, "proc"), 2);
+        assert_eq!(actual.rebinding_priority(registry, None, "::proc"), 2);
+        assert_eq!(actual.rebinding_priority(registry, None, "interp"), 1);
+        assert_eq!(actual.rebinding_priority(registry, None, "ordinary"), 0);
+        let mut replacement = tcl_registry::CommandRegistry::build_default();
+        replacement.insert(registry.get("proc").unwrap().clone());
+        assert_eq!(actual.rebinding_priority(&replacement, None, "proc"), 0);
+        assert!(matches!(
+            ScaffoldConstructors::required(registry, None, false, true, false),
+            Err(UnavailableTaintReplayReason::SourceMetadata)
+        ));
+        assert!(ScaffoldConstructors::required(registry, None, false, false, false).is_ok());
+        let mut unavailable = tcl_registry::CommandRegistry::build_default();
+        unavailable.insert(tcl_registry::CommandSpec {
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..registry.get("proc").unwrap().clone()
+        });
+        assert!(matches!(
+            ScaffoldConstructors::required(&unavailable, None, true, true, false),
+            Err(UnavailableTaintReplayReason::ProcedureConstructor)
+        ));
+    }
+    #[test]
+    fn callback_unavailable_spans_require_bounded_original_correspondence() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let (_owner, unit) = retained_warning_unit("set value 1", &context);
+        let end = u32::try_from(unit.source.len()).unwrap();
+        let registration = unit.ir_module.top_level.statements.first().unwrap().span();
+        let replay = Span::new(end + 1, end + 21);
+        let spans = [(replay, registration, "input".to_owned())];
+        let residual = |span| UnavailableTaintReplay {
+            span,
+            reason: UnavailableTaintReplayReason::SourceMetadata,
+            source: None,
+        };
+        let original = residual(Span::new(0, end));
+        assert_eq!(
+            original_callback_replay_residuals(&original, &unit, &spans)[0].span,
+            original.span
+        );
+        for span in [
+            Span::new(end + 2, end + 3),
+            Span::new(end - 1, end + 2),
+            Span::new(end + 30, end + 31),
+        ] {
+            let mapped = original_callback_replay_residuals(&residual(span), &unit, &spans);
+            assert_eq!(mapped.len(), 1);
+            assert_eq!(mapped[0].span, registration);
+            assert!(
+                mapped[0]
+                    .source
+                    .as_ref()
+                    .unwrap()
+                    .matches_module(&unit.ir_module, context.commands())
+            );
+        }
+        let out_of_bounds = residual(Span::new(end + 30, end + 31));
+        let unmapped = original_callback_replay_residuals(&out_of_bounds, &unit, &[]);
+        assert_eq!(unmapped[0].span, out_of_bounds.span);
+        assert!(unmapped[0].source.is_none());
+    }
+    #[test]
+    fn public_report_keeps_constructor_refusal_beside_an_independent_warning() {
+        let baseline =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let mut supplied = tcl_registry::CommandRegistry::build_default();
+        supplied.insert(tcl_registry::CommandSpec {
+            state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+            ..baseline.commands().get("proc").unwrap().clone()
+        });
+        let context =
+            std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(supplied)));
+        let registry = context.commands();
+        let source = "set payload [gets stdin]\nregexp $payload haystack\nrename puts replacement\n[puts $payload]";
+        let (_owner, unit) = retained_warning_unit(source, &context);
+        let report = taint_warning_report_for_cu(&unit, registry, None);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::T103)
+        );
+        assert!(!report.replays.is_complete());
+        let refusal = report
+            .replays
+            .unavailable_replays()
+            .iter()
+            .find(|residual| residual.reason == UnavailableTaintReplayReason::ProcedureConstructor)
+            .expect("actual required scaffold constructor is unavailable");
+        assert!(
+            refusal
+                .source
+                .as_ref()
+                .unwrap()
+                .matches_module(&unit.ir_module, registry)
+        );
+        assert_eq!(
+            unit.ir_module
+                .source
+                .bytes()
+                .get(refusal.span.as_range())
+                .unwrap(),
+            b"[puts $payload]"
         );
     }
 }
