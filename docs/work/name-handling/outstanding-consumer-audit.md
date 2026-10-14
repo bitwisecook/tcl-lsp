@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T07:43:03Z on `work`. The machine inventory retains
+Current bounded snapshot: 2026-10-14T07:57:30Z on `work`. The machine inventory retains
 47 actionable rows, the inherited 330 lexical candidates and original issue
 and source observations. Package membership and search absence do not certify
 semantic completion. [Consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -38,7 +38,14 @@ executes two original declaration producer controls: both FAIL, source drift
 zero. The Logical card is lost before final Module issuance; the Hosted header
 and formals pass but the retained source reconciliation remains absent.
 Temporary diagnostic edits are removed; actual producer repairs are required. Compiler49/50
-build-only failures remain retained with zero source drift.
+build-only failures remain retained with zero source drift. Compiler55 stops
+in compilation before all selectors: source drift zero. The shared original
+head lookup API type mismatch is corrected through the existing token facade.
+Compiler56 stops in compilation before any selectors with four test fixture
+ContextRegistry accessor errors and zero source drift. Test-only fixtures now
+use the actual selected registry profile; an integration-only fifth accessor
+remains queued. Compiler57 is running 349 exact original/new selectors plus the
+full var_escape lib filter; no aggregate is available.
 
 DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
 zero and no missing/empty selectors. Whole-file lattice shift passes; the
@@ -125,7 +132,8 @@ zero broken links or unindexed design/KCS entries; actual Rust KCS, diagnostic
 tag and audience checks remain required. Original qualified Hosted-name
 refusals and O124 source-edit applicability remain explicit. The separate Native-name source-only declaration body producer is integrated
 after independent source review and awaits original consumer replay. Native MAY
-dependencies and typed var-escape original-substitution consumers are integrated.
+dependencies and typed var-escape original-substitution consumers are integrated;
+their exact actual static/type API routes and current agent guide are registered.
 Dynamic heads retain all known dependency IDs; open alternatives supply no
 return value, argument binder or selected call. Original-source scanner refusal
 remains pessimistic and Normal frameless ownership stays independent. Its original

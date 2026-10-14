@@ -337,7 +337,7 @@ pub(crate) fn original_procedure_may_dependencies_for_word_for_module(
     {
         return None;
     }
-    let lookup = binding.original_static_command_lookup(tokens)?;
+    let lookup = binding.original_static_head_lookup_for_tokens(tokens)?;
     if lookup.name_input().bytes() != word.as_bytes()
         || lookup.site().source.source_image() != &module.source
     {

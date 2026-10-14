@@ -323,7 +323,10 @@ fn scan_value_for_info_hazards(value: &str) -> (bool, Vec<String>) {
         &source,
         registry,
         false,
-        context.unit_profile(),
+        context
+            .commands()
+            .profile()
+            .expect("fixture context retains its selected Tcl profile"),
     );
     let module = &unit.ir_module;
     let Some(tokens) = module
@@ -359,7 +362,10 @@ mod tests {
             source,
             context.commands(),
             false,
-            context.unit_profile(),
+            context
+                .commands()
+                .profile()
+                .expect("fixture context retains its selected Tcl profile"),
         );
         unit.ir_module
             .top_level

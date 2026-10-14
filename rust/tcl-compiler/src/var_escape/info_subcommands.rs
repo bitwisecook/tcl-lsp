@@ -28,7 +28,10 @@ pub(crate) fn original_info_invocation(
         source,
         registry,
         false,
-        context.unit_profile(),
+        context
+            .commands()
+            .profile()
+            .expect("fixture context retains its selected Tcl profile"),
     );
     let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
         registry,

@@ -831,7 +831,10 @@ mod tests {
             "if {[info exists target]} {set observed yes}",
             registry,
             false,
-            context.unit_profile(),
+            context
+                .commands()
+                .profile()
+                .expect("fixture context retains its selected Tcl profile"),
         );
         let function = &unit.top_level;
         assert!(!function.cfg.condition_binding_sites.is_empty());
