@@ -225,7 +225,7 @@ impl JimCommandNameObservation {
             Self::Exact(original) => original.checked_ptr()?,
             Self::Resident(observed) => observed.current()?,
         };
-        if super::ref_count(pointer) <= 0 {
+        if unsafe { (*pointer).ref_count } <= 0 {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original Jim observed name has no live Native role",
             ));

@@ -10668,6 +10668,36 @@ substitution, physical cell or definite effect-exclusion proof.
 
 ## Original read and operand consumers
 
+`NativeObjectIncarnation` records an actual allocation birth independently of a
+reusable header address. Runtime exact argument/primary/procedure/lifetime readers
+and VM object equality require that birth alongside their existing currentness.
+A neutral lease or `as_ptr` cannot authenticate a replacement object. Birth
+identity grants no native reference, getter or pool-resident observation.
+
+`AnalysisResult::logical_source_object_member_state` selects an actual current
+per-object state by source membership, full input and retained metadata. Its
+`LogicalSourceObjectMembers` view supplies original method words and independently
+selected export/unexport names. Quote insertion through `source_word`; an external
+catalogue cannot supply this receiver's masks. These source suggestions carry no
+Native receiver, method dispatch or editing permission.
+
+`original_authored_scalar_invocation` joins the genuine Standalone declaration
+layout and current source-body scope for bounded Set/Return grammar. It requires
+the unchanged vector/store, matching namespace/descriptor/roles and Local source
+model without execution, aliases or traces. Typed source lowering does not mint a
+cell, SSA version or Normal result. Native children instead use
+`original_native_source_syntax_offset` for held tape/input/attachment/vector
+geometry; unknown handler schema remains unknown after a syntax offset is known.
+
+Configured taint references use `substitution_variable_candidates` with the actual
+source lexer configuration. The shared executable arena keeps array-root and
+nested-index dependencies; residuals widen existing candidates and cannot close
+mitigation coverage. Independently supplied primitive/control typed IR uses
+`standalone_typed_statement_writes_are_covered` only when all source evidence is
+absent. Present original tokens are terminal and require their selected source
+write/effect/provider/trace owners instead. Neither model can donate a Native
+frame/cell, Normal effect, read value or definite SSA version.
+
 Use `original_source_read_at_unit` for an exact original substitution under the
 current compilation owner. It returns that function's private produced symbol
 and optional represented version. A missing version cannot borrow a definition
