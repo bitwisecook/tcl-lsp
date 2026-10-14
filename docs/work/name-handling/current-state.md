@@ -33,7 +33,7 @@ Root owns integration, Git and the single heavy Cargo lease. Compiler finishes g
 
 ## Cadence
 
-Tracking target03:09 UTC on14 October2026; updated03:13 UTC (four minutes late). Next tracking03:24 UTC; hourly report04:13 UTC. Reviewed development commits and pushes are authorised while red. Failures and unexecuted checks remain explicit. No PR is ready.
+Tracking target03:24 UTC on14 October2026; updated03:24 UTC. Next tracking03:39 UTC; hourly report04:13 UTC. Reviewed development commits and pushes are authorised while red. Failures and unexecuted checks remain explicit. No PR is ready.
 
 ## Oracles and F5
 
@@ -46,3 +46,5 @@ Use [existing F5 answers](../../../experiments/name-handling/f5/answers/README.m
 Complete all consumer migrations and their meaningful oracle-based controls. Audit authored/generated documentation and comments repository-wide: current how/why, minimal comments and clear code; remove stale claims, completed TODOs, abandoned plans and process/history narratives. Preserve legal attribution, reproducible experiments and original evidence. Remove this temporary directory/references and the work-specific AGENTS push exception. Format/regenerate and make required gates green before creating a merge-ready PR. No merge is authorised.
 
 Current production follow-ons: Logical captured-prefix provenance, shared complete-role deferred source effects, original W214 formal geometry, class-variable literal union and AI shared symbol/language/currentness consumers are integrated. Current Main TypeScript typecheck passes with unchanged source; real LSP/Electron controls remain unexecuted. Compiler29 builds production dependencies but stops on two private Registry test API calls before semantic controls; public-ingress corrections and two zero-reader helper removals are integrated. Source subset drift0; no complete compiled/provider closure or semantic acceptance is inferred. Genuine upvar/caller-body source ownership, linked-member navigation/editing and effect-safe body literal retention remain active. The current Runtime Jim paired replay, Compiler/Core controls and original DB cold/edit assertions are pending.
+
+Current source integration includes the genuine upvar frame-layout owner, original single-written-child summary adapter, explicit Logical root/current caller-body context, effect-safe local body-literal map, independent Native evaluated-argument reader and shared whole variable-reference parser. Compiler30 stops at three missing public getter docs before controls, source drift0; minimal docs and retired zero-reader helper are corrected. Compiler31 is queued against current source. Original factory/source-scope tests, Native Jim paired replay and DB reuse remain required.

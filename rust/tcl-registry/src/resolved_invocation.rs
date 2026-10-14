@@ -2924,6 +2924,21 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         self.source_frame_script_arguments(true)
     }
 
+    /// Conditional layout of the selected Logical frame descriptor under the
+    /// unanimous authored grammar. This supplies no Native level, entered
+    /// frame, successful argument acceptance or completed variable link.
+    #[must_use]
+    pub fn authored_logical_source_frame_argument_layout(
+        &self,
+    ) -> Option<crate::frame_effect::FrameArgumentResolution> {
+        let frame = self.semantics.frame_effect?;
+        let arguments = self
+            .words
+            .arguments()
+            .slice_from(self.semantics.argument_offset);
+        Some(frame.logical_source_layout(arguments))
+    }
+
     fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md

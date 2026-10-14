@@ -1,0 +1,6 @@
+version 0.84-9-g5bac7c9
+control callerWriterProbe 0 {return replacement}
+control {dynamicWriterProbe body} 0 {return replacement}
+control literalDollarProbe 0 {original separate}
+control escapedNameProbe 0 replacement
+control custom::probe 0 0

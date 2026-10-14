@@ -580,13 +580,35 @@ impl LogicalBodyWalk<'_, '_> {
             }
             return Some(());
         }
-        if schema.semantics.body_kind != tcl_registry::BodyKind::Plain {
+        let selected_frame = schema.semantics.frame_effect.is_some_and(|frame| {
+            frame.layout == tcl_registry::FrameArgLayout::ScriptInSelectedFrame
+        });
+        if schema.semantics.body_kind != tcl_registry::BodyKind::Plain && !selected_frame {
             return Some(());
         }
+        let frame_level = if selected_frame {
+            let Some(tcl_registry::frame_effect::FrameArgumentResolution::Valid { level, .. }) =
+                schema.authored_logical_source_frame_argument_layout()
+            else {
+                return Some(());
+            };
+            if !level.is_current_frame() && !level.is_global_frame() {
+                return Some(());
+            }
+            Some(level)
+        } else {
+            None
+        };
         for body in self.bodies(advice)? {
+            let body = Arc::new(body);
+            let child = if frame_level.is_some_and(tcl_registry::FrameLevel::is_global_frame) {
+                scope.with_global_body(body)?
+            } else {
+                scope.with_body(body)?
+            };
             let mut branch = graph.clone();
-            let child = Arc::new(scope.with_body(Arc::new(body))?);
-            self.script(tape, &mut branch, &child, depth.checked_add(1)?)?;
+            branch.logical_namespace = Some(child.namespace_recipe().clone());
+            self.script(tape, &mut branch, &Arc::new(child), depth.checked_add(1)?)?;
         }
         Some(())
     }
@@ -625,6 +647,59 @@ mod tests {
         )
         .remove(0);
         source_registry_words(source, analysis, &segment)
+    }
+
+    #[test]
+    fn logical_selected_frame_children_keep_root_current_and_unknown_source_owners_distinct() {
+        for (source, fragment, expected_level) in [
+            (
+                "namespace eval N {proc outer {} {uplevel #0 {proc inner {} {set x INNER; puts $x}}}}\n",
+                "proc inner {} {set x INNER; puts $x}",
+                tcl_registry::FrameLevel::Absolute(0),
+            ),
+            (
+                "namespace eval N {proc outer {} {uplevel 0 {proc inner {} {set x INNER; puts $x}}}}\n",
+                "proc inner {} {set x INNER; puts $x}",
+                tcl_registry::FrameLevel::Relative(0),
+            ),
+        ] {
+            let analysis = analyse_source(source);
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let words = words_at(source, &analysis, fragment).expect(fragment);
+            let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                panic!("selected original source frame body")
+            };
+            assert_eq!(advice.logical_source_input(), Some(input));
+            let parent = advice.logical_source_body().unwrap();
+            assert_eq!(
+                parent
+                    .source_words()
+                    .with_source_schema(input.borrowed_context_registry(), |schema| {
+                        schema.authored_logical_source_frame_argument_layout()
+                    }),
+                Some(Some(
+                    tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+                        level_word_len: 1,
+                        level: expected_level,
+                    }
+                ))
+            );
+            assert!(
+                !words
+                    .source_script_bodies(input.borrowed_context_registry())
+                    .is_empty()
+            );
+            assert!(words_at(source, &analysis, "puts $x").is_some());
+            assert!(!words.operands_preserve_source_lookup());
+            assert!(advice.original_head().native_input().is_none());
+            assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config = Some(tcl_lexer::LexerConfig {
+                strict_quoting: !input.lexer_config().strict_quoting,
+                ..input.lexer_config()
+            });
+            assert!(words_at(source, &changed, fragment).is_none());
+        }
     }
 
     #[test]

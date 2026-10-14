@@ -8659,6 +8659,30 @@ Raw memo equality retains the actual owner allocation; registry-only certified
 templates apply their independent reuse boundary. These are conditional source
 effects, not proof of an entered frame, committed write or Native call.
 
+Within the Compiler, `original_logical_frame_invocation_with_metadata_context`
+selects a readonly `OriginalLogicalFrameInvocation` from the complete retained
+Logical input, original words, effective argument origins and actual Registry
+realm. The Registry's `authored_logical_source_frame_argument_layout` delegates
+the selected descriptor to the existing consensus source grammar. Keep
+`FrameArgumentResolution::Valid`, `Invalid` and `Unknown` distinct; a source
+selector describes a conditional layout and grants no Native numeric recipe,
+entered frame, accepted arguments or completed variable link.
+
+Whole-module caller-frame scans retain the actual Module and each Script's
+original command carriers. Literal alias names remain data, including dollar
+signs and open parentheses. A parameter reference comes from a genuine sole
+original scalar substitution and the retained body's declared parameters.
+This source projection does not use a procedure display label to select a
+body or a parameter owner.
+
+`OriginalLogicalFrameInvocation::source_body` accepts only an actual single
+written child, then delegates the retained Module and original parent vector
+to `Lowerer::original_body_for_module`. The child namespace and source stage
+must independently match. Captured, materialized or unavailable child source
+stays opaque. An absolute zero selector cannot borrow the current procedure
+namespace or the Module's top-level namespace as its root frame; the selected
+source-frame context must provide that separate owner.
+
 Prepare module facts once and share the same `PreparedCfgContext` across its
 ordinary and method CFGs. The public ordinary-body entry is
 `build_cfg_function_with_prepared_context`; module builders retain the same

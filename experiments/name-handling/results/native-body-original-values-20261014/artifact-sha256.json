@@ -1,0 +1,9 @@
+{
+  "base/docs/design/contracts/shared-utility-contracts-rust.md": "f2f41d591c65e0077fc1ee76529e7303161bdca934c3937e7c65ad532f824273",
+  "base/rust/tcl-compiler/src/lowering/mod.rs": "c4e3287a8d048f94574b72d78213854de912a0b9a1caab8e7939f891ec0ec15b",
+  "files.json": "cc3f699a67c42ce42b237263a8c0bc87ea83aabc01fe6144c65cb1aa4d116bc6",
+  "implementation.patch": "d201fee8953d76c7d3fc5cef24dbbc1da22432f0c42427b7833405fb4eeca35c",
+  "proposal/docs/design/contracts/shared-utility-contracts-rust.md": "8138cd79827e6fcb07138c7a486989b1d24c8575070fe8168b355e0244765bcd",
+  "proposal/rust/tcl-compiler/src/lowering/mod.rs": "d6af32ac7bfcc28f2f9cf3f6bf65dd323f6fcca66ea3c74f596d9aa17c7893a8",
+  "review.md": "acf6af9c80bf9d68acb74d46e481c636263882e0a0011ef03af0ba4cb5412efb"
+}

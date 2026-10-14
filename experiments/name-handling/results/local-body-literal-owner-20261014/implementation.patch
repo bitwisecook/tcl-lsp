@@ -1,0 +1,333 @@
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -45,7 +45,6 @@
+ use crate::lowering_hooks::{
+     ArgTokenKind, LoweringCommand, ResolvedLowering, extract_proved_expr_arg,
+ };
+-use crate::naming::normalise_var_name;
+ use crate::segmenter::SegmentedCommand;
+ use tcl_dialect::model::surface_admits;
+ use tcl_syntax::word_rules::WordValueRules;
+@@ -683,26 +682,28 @@
+ /// array index, or namespace qualifier) so we only ever track
+ /// proc-local scalars. The RHS must be a single brace-string `Str`
+ /// token.
+-fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
+-    if seg.name() != "set" || seg.args().len() != 2 {
++fn assigned_local_body_literal(
++    seg: &SegmentedCommand,
++    stmt: &Statement,
++    config: tcl_lexer::LexerConfig,
++) -> Option<(String, String)> {
++    let Statement::AssignConst { name, value, .. } = stmt else {
+         return None;
++    };
++    if seg.args().len() != 2
++        || seg.single_token_word.get(..3)? != [true, true, true]
++        || name != &seg.args()[0]
++        || value != &seg.args()[1]
++    {
++        return None;
+     }
+     let arg_tokens = seg.arg_tokens();
+-    if arg_tokens.len() < 2 {
++    let name_tok = *arg_tokens.first()?;
++    let value_tok = *arg_tokens.get(1)?;
++    if name_tok.kind != TokenType::Esc || value_tok.kind != TokenType::Str {
+         return None;
+     }
+-    if !seg.single_token_word.iter().take(3).all(|&b| b) {
+-        return None;
+-    }
+-    let name_tok = arg_tokens[0];
+-    let value_tok = arg_tokens[1];
+-    if value_tok.kind != TokenType::Str {
+-        return None;
+-    }
+-    if name_tok.kind != TokenType::Esc {
+-        return None;
+-    }
+-    let name = &seg.args()[0];
++    let name = crate::value_transfer::literal_token_value(name, name_tok.kind, &config)?;
+     if name.is_empty()
+         || name.contains('$')
+         || name.contains('[')
+@@ -711,8 +712,8 @@
+     {
+         return None;
+     }
+-    let value = seg.args()[1].clone();
+-    Some((normalise_var_name(name).to_string(), value))
++    let value = crate::value_transfer::literal_token_value(value, value_tok.kind, &config)?;
++    Some((name.into_owned(), value.into_owned()))
+ }
+ 
+ /// If *`cmd_text`* is `list lit1 lit2 ...` with all-literal
+@@ -898,20 +899,32 @@
+     false
+ }
+ 
+-fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String>) {
++fn invalidate_const_map_for(
++    stmt: &Statement,
++    scope: &mut HashMap<String, String>,
++    config: tcl_lexer::LexerConfig,
++) {
+     match stmt {
+-        Statement::AssignConst { name, .. }
+-        | Statement::AssignExpr { name, .. }
+-        | Statement::AssignValue { name, .. }
+-        | Statement::Incr { name, .. } => {
+-            scope.remove(normalise_var_name(name));
+-        }
+-        Statement::Call { defs, .. } => {
+-            for v in defs {
+-                scope.remove(normalise_var_name(v));
++        Statement::AssignConst {
++            name, name_braced, ..
++        } => {
++            if let Some(literal) =
++                crate::value_transfer::recorded_word_value(name, *name_braced, &config)
++            {
++                let root = tcl_syntax::naming::split_element_ref(&literal)
++                    .map_or(literal.as_ref(), |(root, _)| root);
++                scope.remove(root);
++            } else {
++                scope.clear();
+             }
+         }
+-        Statement::Barrier { .. }
++        // Calls, substitutions and read traces can write outside their reported target.
++        Statement::Call { .. }
++        | Statement::AssignExpr { .. }
++        | Statement::AssignValue { .. }
++        | Statement::Incr { .. }
++        | Statement::ExprEval { .. }
++        | Statement::Barrier { .. }
+         | Statement::NativeCall { .. }
+         | Statement::Block { .. }
+         | Statement::UpFrame { .. }
+@@ -921,10 +934,8 @@
+         | Statement::Foreach { .. }
+         | Statement::Catch { .. }
+         | Statement::Try { .. }
+-        | Statement::Switch { .. } => {
+-            scope.clear();
+-        }
+-        Statement::Return { .. } | Statement::ExprEval { .. } => {}
++        | Statement::Switch { .. } => scope.clear(),
++        Statement::Return { .. } => {}
+     }
+ }
+ 
+@@ -2540,9 +2551,8 @@
+ 
+     /// Maintain the per-scope const-map after a command lowers.
+     ///
+-    /// Populates a `name → braced-literal` entry when *seg* is a
+-    /// `set var {literal}` shape with a plain bareword LHS;
+-    /// otherwise invalidates entries that *stmt* may have written.
++    /// Retain an actual constant assignment's original literal value under
++    /// its decoded local name; otherwise withdraw possibly written entries.
+     /// Gated on `proc_depth > 0` — globals / namespace vars at
+     /// top-level or inside `namespace eval` cannot be safely
+     /// const-propagated.
+@@ -2550,16 +2560,34 @@
+         if self.proc_depth == 0 {
+             return;
+         }
++        let quiet_store = if matches!(stmt, Statement::AssignConst { .. }) {
++            let tokens = self.cmd_tokens(seg);
++            tokens.source_binding.as_ref().and_then(|binding| {
++                binding.conditional_logical_scalar_store(
++                    &tokens,
++                    &binding.variable_context,
++                    self.invocation_metadata_context()?,
++                    self.registry,
++                )
++            })
++        } else {
++            None
++        };
++        let literal = assigned_local_body_literal(seg, stmt, self.config).filter(|(_, value)| {
++            quiet_store
++                .as_ref()
++                .is_some_and(|store| store.value() == value)
++        });
+         let Some(scope) = self.const_map_stack.last_mut() else {
+             return;
+         };
+-
+-        if let Some((name, value)) = set_literal_body(seg) {
++        if let Some((name, value)) = literal {
+             scope.insert(name, value);
+-            return;
+-        }
+-
+-        invalidate_const_map_for(stmt, scope);
++        } else if matches!(stmt, Statement::AssignConst { .. }) && quiet_store.is_none() {
++            scope.clear();
++        } else {
++            invalidate_const_map_for(stmt, scope, self.config);
++        }
+     }
+ 
+     /// Resolve a `$var` / `${var}` body word against the current
+@@ -10177,6 +10205,146 @@
+     }
+ 
+     #[test]
++    fn local_body_literal_retention_requires_actual_assignment_and_decodes_the_written_key() {
++        let config = tcl_lexer::LexerConfig::default();
++        let source = r"set b\x6fdy {return original}";
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
++        let seg = &commands[0];
++        let assignment = Statement::AssignConst {
++            span: seg.span,
++            name: seg.args()[0].clone(),
++            name_braced: false,
++            value: seg.args()[1].clone(),
++            value_span: None,
++        };
++        assert_eq!(
++            assigned_local_body_literal(seg, &assignment, config),
++            Some(("body".to_owned(), "return original".to_owned()))
++        );
++        let opaque = Statement::Barrier {
++            span: seg.span,
++            reason: "opaque invocation".to_owned(),
++            command: "set".to_owned(),
++            canonical_command: None,
++            args: seg.args().to_vec(),
++            tokens: None,
++        };
++        assert_eq!(assigned_local_body_literal(seg, &opaque, config), None);
++    }
++
++    #[test]
++    fn local_body_literal_invalidation_distinguishes_literal_sigils_and_decodes_write_keys() {
++        let config = tcl_lexer::LexerConfig::default();
++        let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
++        let write = |name: &str, name_braced: bool| Statement::AssignConst {
++            span: tcl_lexer::Span::new(0, 0),
++            name: name.to_owned(),
++            name_braced,
++            value: "replacement".to_owned(),
++            value_span: None,
++        };
++        invalidate_const_map_for(&write("$body", true), &mut scope, config);
++        assert!(scope.contains_key("body"));
++        invalidate_const_map_for(&write("::body", true), &mut scope, config);
++        assert!(scope.contains_key("body"));
++        invalidate_const_map_for(&write(r"b\x6fdy", false), &mut scope, config);
++        assert!(scope.is_empty());
++        scope.insert("body".to_owned(), "return original".to_owned());
++        invalidate_const_map_for(&write("body(index)", true), &mut scope, config);
++        assert!(scope.is_empty());
++        scope.insert("body".to_owned(), "return original".to_owned());
++        invalidate_const_map_for(&write("$computed", false), &mut scope, config);
++        assert!(scope.is_empty());
++    }
++
++    #[test]
++    fn local_body_literal_generic_call_with_empty_defs_withdraws_all_retained_values() {
++        let config = tcl_lexer::LexerConfig::default();
++        let registry = reg();
++        let mut lowerer = Lowerer::new(&registry);
++        let source = "unknown_writer $computed replacement";
++        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
++        let call = lowerer.lower_default(&commands[0], "::");
++        assert!(matches!(&call, Statement::Call { defs, .. } if defs.is_empty()));
++        let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
++        invalidate_const_map_for(&call, &mut scope, config);
++        assert!(scope.is_empty());
++    }
++
++    #[test]
++    fn local_body_literal_quiet_logical_source_retains_factory_names_and_bodies() {
++        let context =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        let source = "proc factory {} {set name {LiteralChild}; set body {return original}; proc $name {} $body}";
++        let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
++            .with_resolved_analysis_input(input);
++        lowerer.lower(source);
++        let module = lowerer.finish_module(source);
++        let child = fixture_id_if_present(&module.procedures, "::LiteralChild")
++            .and_then(|id| module.procedures.get(&id))
++            .expect("genuine quiet Logical source retains the original child");
++        assert_eq!(child.body_source.as_deref(), Some("return original"));
++        assert!(module.source_entry.native_entry.is_none());
++    }
++
++    #[test]
++    fn local_body_literal_opcode_without_original_quiet_source_owner_cannot_retain_contents() {
++        let registry = reg();
++        let source = "set body {return original}";
++        let mut lowerer = Lowerer::new(&registry);
++        lowerer.proc_depth = 1;
++        lowerer.const_map_stack.push(HashMap::from([(
++            "previous".to_owned(),
++            "return stale".to_owned(),
++        )]));
++        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
++        let commands =
++            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
++        let seg = &commands[0];
++        let synthetic = Statement::AssignConst {
++            span: seg.span,
++            name: seg.args()[0].clone(),
++            name_braced: false,
++            value: seg.args()[1].clone(),
++            value_span: None,
++        };
++        lowerer.update_const_map(seg, &synthetic);
++        assert!(lowerer.const_map_stack.last().unwrap().is_empty());
++    }
++
++    #[test]
++    fn local_body_literal_expression_and_value_evaluation_withdraw_unclosed_effects() {
++        let registry = reg();
++        let config = tcl_lexer::LexerConfig::default();
++        for source in [
++            "expr {[overwrite]}",
++            "expr {$watched}",
++            "set other [overwrite]",
++            "set other $watched",
++            "incr other $watched",
++        ] {
++            let module = lower_to_ir(source, &registry);
++            let statement = module
++                .top_level
++                .statements
++                .first()
++                .expect("original statement");
++            assert!(!matches!(statement, Statement::AssignConst { .. }));
++            let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
++            invalidate_const_map_for(statement, &mut scope, config);
++            assert!(scope.is_empty(), "unclosed effects: {source}");
++        }
++    }
++
++    #[test]
+     fn class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries() {
+         let registry = reg();
+         let profile = registry.profile().unwrap();
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -50,7 +50,7 @@
+ | Source-owned analysis cache correspondence | `rust/tcl-compiler/src/body_analysis_capsule.rs` | `BodyAnalysisCapsule`; `BodyAnalysisCapsule::retain`; `BodyAnalysisCapsule::body_id`; `BodyLatticeInputs`; `BodyLatticeInputs::retain`; `BodyLatticeInputs::rebind_cached`; `BodyLatticeCommandBindings`; `BodyLatticeCommandBindings::bindings`; `BodySummaryInputs`; `BodySummaryInputs::retain` | genuine compilation, Module issuer, body ID, FunctionUnit and original source/input/configuration own every analysis; exact source and variable relocation or a closed registry-only Logical dependency certificate permit analytical reuse; cached results rebind onto the current owner and retain current proofs; missing/changed dependencies recompute, and analytical equality supplies no Native compiler, callable, frame, object or execution authority | `xtask-owner-resolution` |
+ | Typed event-body connection scope | `rust/tcl-compiler/src/connection_scope.rs` | `EventCell`; `ConnectionScope`; `ConnectionScope::handler_source_names`; `ConnectionScope::observes_cross_event_place`; `build_connection_scope`; `build_connection_scope_with_registry` | actual CompilationUnit/Module-issued handler IDs and independently retained event metadata preserve repeated event labels; resolved cells and supplied worker/interpreter/storage domains remain separate from report unions; written protection labels project only from the matching handler keys and establish no arbitrary event order or current value | `xtask-owner-resolution` |
+ | Declared frame-effect metadata coordinates | `rust/tcl-registry/src/model/declaration.rs`; `rust/tcl-compiler/src/declared_frame_effects.rs`; `rust/tcl-compiler/src/dynamic_names.rs`; `rust/tcl-compiler/src/deferred_writes.rs` | `DocumentCommandSurface::plain_call_frame_effect_descriptor_keys`; `collect_declared_frame_effects`; `declared_frame_effect_for_metadata` | genuine selected document descriptor labels retain exact optional-root metadata coordinates; distinct colliding declarations withdraw assistance and selected registry commands retain precedence; standalone catalogue readers use this owner while original-source and entered Native frame evidence remain independent | `xtask-owner-resolution` |
+-| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection reads exact decoded literal VarWrite operands from the selected source schema, including captured prefixes, empty names and literal sigils/braces; class declaration unions likewise decode original member tokens under the retained lexer configuration before slot/role selection, keep exact literal names and widen known-name protection on unknown operands; unavailable advice retains separate unparsed source-text protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority | `xtask-owner-resolution` |
++| Selected lowering descriptor transport | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation.rs`; `rust/tcl-compiler/src/lowering/mod.rs` | `InvocationFacts::descriptor_key`; `ResolvedInvocation::descriptor_key`; `AdmittedNativeCompilerInvocation::descriptor_key` | genuine retained selected facts supply exact metadata labels to admitted and Logical hook selection and generic role reporting; private SelectedLoweringBindingIdentity separates actual admitted Native registration requirements from Logical descriptor metadata and delegates their one-root transport to Syntax; compiler admission, original argv/context/guard and reached handler remain independent; method-variable MAY protection reads exact decoded literal VarWrite operands from the selected source schema, including captured prefixes, empty names and literal sigils/braces; class declaration unions likewise decode original member tokens under the retained lexer configuration before slot/role selection, keep exact literal names and widen known-name protection on unknown operands; unavailable advice retains separate unparsed source-text protection instead of proving absence; explicit body-text shape classification selects exact-first Registry metadata and never issues Native lookup or frame authority; local body-literal retention requires the genuine ConditionalLogicalScalarStore quiet positioned source receipt, actual constant-assignment IR and matching original tokens; Native invocations cannot borrow that Logical receipt, decodes names with the current lexer through value_transfer, and invalidates exact literal/array-root writes; generic calls and evaluated expressions/values/increments withdraw the map because reported targets do not prove absence of computed, caller-frame or observer writes | `xtask-owner-resolution` |
+ | Conditional variable observation names | `rust/tcl-compiler/src/variable_observation_names.rs` | `VariableObservationNameSet`; `VariableProtectionPurpose`; `VariableWriteObservationPurpose`; `module_observation_key`; `variable_name_may_be_observed`; `record_variable_write_name` | explicit textual MAY inventories select module report-key, mixed exact/report or one-root native-lowering protection separately; deferred/global and outer-scope write projections retain their own aliases and array-root policies; decoded literal sigils, braces and empty variable names remain data, unknown inventories protect every name; exact VariableCellKey checks and genuine entered-Native observer guards remain independent, with no interpreted lookup, cell identity, callback-free state, absence or erasure permission | `xtask-owner-resolution` |
+ | APL variable convention | `rust/tcl-bigip/src/apl/variable_names.rs` | `tcl_var_to_apl_name`; `apl_name_to_tcl_var` | pure field convention delegates written root/qualifier geometry to Syntax; rooted and simple roots preserve lone colons while namespace-qualified roots decline; conventional export text is reporting only and supplies no appliance publication, native variable lookup or source-edit authority | `xtask-owner-resolution` |
+ | External script command inventory | `rust/tcl-syntax/src/naming/script_name_query.rs`; `rust/tcl-syntax/src/naming/script_command_inventory.rs`; `rust/tcl-cli/src/commands/spec_probe.rs` | `original_script_name_query_support`; `original_script_command_inventory_support`; `render_script` | real shell observations select query grammar without Native authority; C original simple words retain namespace context and checked root addressing; Jim uses its independent flat table; opaque or ambiguous inventory refuses as a whole; scanned registration literals remain unresolved authoring inputs | `xtask-owner-resolution` |

@@ -3276,21 +3276,39 @@ pub(crate) fn detect_upvar_bodies_with_registry(
         .retained_source_bindings
         .as_ref()
         .filter(|owner| owner.matches_module(module, registry));
-    let mut summaries: HashMap<_, _> = module.procedures.iter().map(|(id, procedure)| {
-        let namespace = procedure.body.namespace_context.as_deref()
-            .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
-        let mut info = if let Some(namespace) = namespace.filter(|_| module.procedure_ids.owns(*id)
-            && owner.is_some_and(|owner| owner.matches_original_procedure(procedure))) {
-            upvar_info::collect_upvar_targets_with_bindings(&procedure.body, &procedure.params,
-                registry, &bindings, &namespace,
-                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
-                    .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input))
-        } else { opaque_frame_summary() };
-        if !info.uplevel_forwarded_calls.is_empty() { info = opaque_frame_summary(); }
-        info.param_defaults = upvar_info::name_param_defaults(&info, &procedure.params_raw, module.word_values());
-        info.plain_calls.clear();
-        (*id, info)
-    }).collect();
+    let mut summaries: HashMap<_, _> = module
+        .procedures
+        .iter()
+        .map(|(id, procedure)| {
+            let namespace = procedure
+                .body
+                .namespace_context
+                .as_deref()
+                .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
+            let mut info = if let Some(namespace) = namespace.filter(|_| {
+                module.procedure_ids.owns(*id)
+                    && owner.is_some_and(|owner| owner.matches_original_procedure(procedure))
+            }) {
+                upvar_info::collect_upvar_targets_with_bindings(
+                    &procedure.body,
+                    &procedure.params,
+                    registry,
+                    &bindings,
+                    &namespace,
+                    module,
+                )
+            } else {
+                opaque_frame_summary()
+            };
+            if !info.uplevel_forwarded_calls.is_empty() {
+                info = opaque_frame_summary();
+            }
+            info.param_defaults =
+                upvar_info::name_param_defaults(&info, &procedure.params_raw, module.word_values());
+            info.plain_calls.clear();
+            (*id, info)
+        })
+        .collect();
     let prior = summaries.clone();
     let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
     for (id, procedure) in module.procedures.iter() {

@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "before_sha256": "f2f41d591c65e0077fc1ee76529e7303161bdca934c3937e7c65ad532f824273",
+      "after_sha256": "b004a92daea362513541b06cb233dbc5dc4eec9d3b5eda5602ee7bfa935e6d5e"
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "31606bd7e9a4d24f99f54096e3cc9edfc75639c06f45090d5adb5248c5be4d08",
+      "after_sha256": "dc155d5b6a1398e00a33ff6499294c0d2cbf93153337e310ca42edaa78c82808"
+    }
+  ],
+  "patch_sha256": "d31547460806523b9cc7c87160d14e0ede1e28800e415e6e16b295fc5e547013"
+}

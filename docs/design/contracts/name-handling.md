@@ -42,6 +42,15 @@ no entered activation, completed alias, current contents or Native capability.
 
 ## Source-read and body selection
 
+`OriginalDeclaredLogicalBodyContext` keeps original declaration ancestry separate
+from a selected-frame body. The shared Registry source layout selects relative
+zero under the current source coordinate. Absolute zero retains the actual
+original body, level input and effective ordinal before selecting an independent
+Logical root coordinate. Exact source/input/configuration/context and selected
+body containment remain required. Invalid, dynamic and unavailable caller
+coordinates decline; a procedure or method namespace cannot stand in for them.
+This source recipe supplies no entered frame, physical namespace or edit span.
+
 The Compiler's `SourceReadScope` obtains declaration/read schemas from the
 original transition catalogue. `CompletePrefix` retains completed source
 commands before a fatal tail; it does not admit partial words or execution.

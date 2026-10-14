@@ -1,0 +1,43 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -39,6 +39,7 @@
+ | Logical variable source-scope eligibility | `rust/tcl-compiler/src/analyser/scope.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-compiler/src/analyser/handlers.rs`; `rust/tcl-lsp-core/src/definition.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/rename.rs` | `LogicalVariableScopeAdvice`; `AnalysisResult::logical_variable_scope_advice`; `LogicalVariableScopeAdvice::eligible_scopes`; `LogicalVariableScopeAdvice::root_names_require_qualification` | independently retained Logical input, exact whole image/channel/configuration and checked cursor; shared smallest-body descent and Registry frame-level grammar; distinct namespace/local/root/current/unknown-caller source tables; missing namespace coordinates retain only their own body tables without guessed qualification or bare root fallback; interpreter source bodies and foreign domain owners decline document-root borrowing; consumers retain table/cell selection and independent edit checks; Native/hosted bodies and original readonly aliases cannot issue this source-only selector | `xtask-owner-resolution` |
+ | Source activation-local variable geometry | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-compiler/src/inlining/frame.rs` | `source_variable_name_is_frame_local` | actual retained VariableLookupPolicy and independently owned source-name extent; the empty name is local, C qualifiers select namespace storage, Jim relative qualified names stay local, and initial Jim root markers select global storage; inlining retains the unchanged original Module/metadata/driver policy and declines missing ownership; no Native frame, lookup, input extent, presence or edit permission is issued | `xtask-owner-resolution` |
+ | Original procedure summary ownership | `rust/tcl-compiler/src/cfg_builder/summary_candidates.rs`; `rust/tcl-compiler/src/cfg_builder/mod.rs`; `rust/tcl-compiler/src/compilation_unit.rs` | `OriginalProcedureSummaryOwners`; `OriginalProcedureSummaryOwners::for_module`; `CfgContext`; `PreparedCfgContext`; `PreparedCfgContext::from_source_input`; `LatticeRequest` | the fifth CFG context field retains the matching original Module and Registry; upvar, parameter and outer-write maps use issued ProcedureId coordinates; exact original call targets and effective operands select summaries, including retained child calls; missing, changed or foreign owners widen effects rather than joining display names; raw memo identity retains the Arc owner independently of certified registry-only templates; no Native entry, entered frame, committed write or completion grant | `xtask-owner-resolution` |
++| Original Logical source frame projection | `rust/tcl-registry/src/resolved_invocation.rs`; `rust/tcl-compiler/src/registry_invocation/logical_frame.rs`; `rust/tcl-compiler/src/cfg_builder/upvar_info.rs` | `authored_logical_source_frame_argument_layout`; `OriginalLogicalFrameInvocation`; `original_logical_frame_invocation_with_metadata_context`; `OriginalLogicalFrameInvocation::source_body` | complete original Logical input, selected descriptor, argv origins and realm; consensus source frame grammar preserves valid, invalid and unknown layouts; actual Module and Script carriers select only original written children with independent namespace/stage correspondence; literal alias names remain data; Native handlers, numeric recipes, physical frames, completed links, captured/materialized child source and Normal completion remain independent | `xtask-owner-resolution` |
+ | Retained source body identity | `rust/tcl-core-types/src/body_identity.rs`; `rust/tcl-compiler/src/ir/procedure_identity.rs`; `rust/tcl-compiler/src/ir.rs`; `rust/tcl-compiler/src/source_graph.rs` | `ProcedureId`; `ProcedureIdIssuer`; `ProcedureInventory`; `Module::retain_procedure`; `Module::retain_body_unit`; `procedure_body_for_declaration` | private source_procedure_for_target and source_procedure_for_allocation select original allocating owners; module-scoped opaque body IDs retain repeated displays; clones share issuance, separate modules cannot join equal ordinals; exact allocating instruction/source/image/configuration and independently retained implementation body select originals; ordinal is presentation only, never Native lookup or entry authority | `xtask-owner-resolution` |
+ | Original source-read catalogue | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs`; `rust/tcl-compiler/src/realm/source_transition_advice.rs`; `rust/tcl-compiler/src/registry_invocation/declaration_flow.rs` | `SourceCommandBindings`; `OriginalSourceCommandTransitionAdvice`; `OriginalSourceCommandTransitionAdvice::matches_source`; `OriginalSourceCommandTransitionAdvice::matches_context` | private SourceReadScope, OriginalSourceCataloguePurpose and DeclarationSchemaOrigin retain completed-prefix source schemas with genuine body issuers, original argv and current Registry/context/image/configuration; complete conditional body lookup effects distinguish exact command-resolution mutations from separately retained variable/observer uncertainty; immediate bodies and incomplete layouts keep their existing effect projection; they cannot override actually selected targets or issue reached runtime applicability, current stores or entered frames | `xtask-owner-resolution` |
+ | Logical original alias prefix provenance | `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/logical_prefix.rs`; `rust/tcl-compiler/src/command_binding/logical_operation.rs`; `rust/tcl-compiler/src/command_binding/source_read_scope.rs`; `rust/tcl-compiler/src/registry_invocation.rs` | `SourceCommandTarget::original_logical_prepended_name_inputs` | positively retained Logical input only; complete original alias argv and source allocation, exact image/configuration/ContextRegistry and unanimous authored name policy retain captured original words across the existing target traversal, snapshots and joins; changed or missing provenance withdraws source roles and values; Native and hosted entries keep their independent original prefix owner; no Native object, Normal completion, runtime binding, frame or edit permission is issued | `xtask-owner-resolution` |
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -8659,6 +8659,30 @@
+ templates apply their independent reuse boundary. These are conditional source
+ effects, not proof of an entered frame, committed write or Native call.
+ 
++Within the Compiler, `original_logical_frame_invocation_with_metadata_context`
++selects a readonly `OriginalLogicalFrameInvocation` from the complete retained
++Logical input, original words, effective argument origins and actual Registry
++realm. The Registry's `authored_logical_source_frame_argument_layout` delegates
++the selected descriptor to the existing consensus source grammar. Keep
++`FrameArgumentResolution::Valid`, `Invalid` and `Unknown` distinct; a source
++selector describes a conditional layout and grants no Native numeric recipe,
++entered frame, accepted arguments or completed variable link.
++
++Whole-module caller-frame scans retain the actual Module and each Script's
++original command carriers. Literal alias names remain data, including dollar
++signs and open parentheses. A parameter reference comes from a genuine sole
++original scalar substitution and the retained body's declared parameters.
++This source projection does not use a procedure display label to select a
++body or a parameter owner.
++
++`OriginalLogicalFrameInvocation::source_body` accepts only an actual single
++written child, then delegates the retained Module and original parent vector
++to `Lowerer::original_body_for_module`. The child namespace and source stage
++must independently match. Captured, materialized or unavailable child source
++stays opaque. An absolute zero selector cannot borrow the current procedure
++namespace or the Module's top-level namespace as its root frame; the selected
++source-frame context must provide that separate owner.
++
+ Prepare module facts once and share the same `PreparedCfgContext` across its
+ ordinary and method CFGs. The public ordinary-body entry is
+ `build_cfg_function_with_prepared_context`; module builders retain the same

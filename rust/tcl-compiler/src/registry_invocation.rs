@@ -88,6 +88,10 @@ mod vendor_source_barriers;
 pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
 pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
 
+mod logical_frame;
+pub(crate) use logical_frame::{
+    OriginalLogicalFrameInvocation, original_logical_frame_invocation_with_metadata_context,
+};
 mod variable_write_advice;
 pub(crate) use variable_write_advice::{
     logical_source_variable_write_advice, original_variable_write_advice,

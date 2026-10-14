@@ -45,7 +45,6 @@ use crate::ir::{
 use crate::lowering_hooks::{
     ArgTokenKind, LoweringCommand, ResolvedLowering, extract_proved_expr_arg,
 };
-use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 use tcl_dialect::model::surface_admits;
 use tcl_syntax::word_rules::WordValueRules;
@@ -495,13 +494,6 @@ fn seg_word_substitutes(seg: &SegmentedCommand, idx: usize) -> bool {
     }
 }
 
-/// True iff `nm` is a static instance-variable name (not a `$var` /
-/// `[cmd]` substitution and not an option flag). Dynamic names are
-/// skipped — conservative.
-fn is_instance_var_name(nm: &str) -> bool {
-    !nm.is_empty() && !nm.contains('$') && !nm.contains('[') && !nm.starts_with('-')
-}
-
 /// Qualify a procedure name relative to a namespace.
 fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
     tcl_syntax::naming::qualify(namespace, proc_name)
@@ -683,26 +675,28 @@ fn parse_uplevel_level(text: &str) -> Option<UplevelLevel> {
 /// array index, or namespace qualifier) so we only ever track
 /// proc-local scalars. The RHS must be a single brace-string `Str`
 /// token.
-fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
-    if seg.name() != "set" || seg.args().len() != 2 {
+fn assigned_local_body_literal(
+    seg: &SegmentedCommand,
+    stmt: &Statement,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, String)> {
+    let Statement::AssignConst { name, value, .. } = stmt else {
+        return None;
+    };
+    if seg.args().len() != 2
+        || seg.single_token_word.get(..3)? != [true, true, true]
+        || name != &seg.args()[0]
+        || value != &seg.args()[1]
+    {
         return None;
     }
     let arg_tokens = seg.arg_tokens();
-    if arg_tokens.len() < 2 {
+    let name_tok = *arg_tokens.first()?;
+    let value_tok = *arg_tokens.get(1)?;
+    if name_tok.kind != TokenType::Esc || value_tok.kind != TokenType::Str {
         return None;
     }
-    if !seg.single_token_word.iter().take(3).all(|&b| b) {
-        return None;
-    }
-    let name_tok = arg_tokens[0];
-    let value_tok = arg_tokens[1];
-    if value_tok.kind != TokenType::Str {
-        return None;
-    }
-    if name_tok.kind != TokenType::Esc {
-        return None;
-    }
-    let name = &seg.args()[0];
+    let name = crate::value_transfer::literal_token_value(name, name_tok.kind, &config)?;
     if name.is_empty()
         || name.contains('$')
         || name.contains('[')
@@ -711,8 +705,8 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
     {
         return None;
     }
-    let value = seg.args()[1].clone();
-    Some((normalise_var_name(name).to_string(), value))
+    let value = crate::value_transfer::literal_token_value(value, value_tok.kind, &config)?;
+    Some((name.into_owned(), value.into_owned()))
 }
 
 /// If *`cmd_text`* is `list lit1 lit2 ...` with all-literal
@@ -898,20 +892,32 @@ fn body_has_dynamic_barrier(
     false
 }
 
-fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String>) {
+fn invalidate_const_map_for(
+    stmt: &Statement,
+    scope: &mut HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
+) {
     match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => {
-            scope.remove(normalise_var_name(name));
-        }
-        Statement::Call { defs, .. } => {
-            for v in defs {
-                scope.remove(normalise_var_name(v));
+        Statement::AssignConst {
+            name, name_braced, ..
+        } => {
+            if let Some(literal) =
+                crate::value_transfer::recorded_word_value(name, *name_braced, &config)
+            {
+                let root = tcl_syntax::naming::split_element_ref(&literal)
+                    .map_or(literal.as_ref(), |(root, _)| root);
+                scope.remove(root);
+            } else {
+                scope.clear();
             }
         }
-        Statement::Barrier { .. }
+        // Calls, substitutions and read traces can write outside their reported target.
+        Statement::Call { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. }
+        | Statement::ExprEval { .. }
+        | Statement::Barrier { .. }
         | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. }
@@ -921,10 +927,8 @@ fn invalidate_const_map_for(stmt: &Statement, scope: &mut HashMap<String, String
         | Statement::Foreach { .. }
         | Statement::Catch { .. }
         | Statement::Try { .. }
-        | Statement::Switch { .. } => {
-            scope.clear();
-        }
-        Statement::Return { .. } | Statement::ExprEval { .. } => {}
+        | Statement::Switch { .. } => scope.clear(),
+        Statement::Return { .. } => {}
     }
 }
 
@@ -2540,9 +2544,8 @@ impl<'r> Lowerer<'r> {
 
     /// Maintain the per-scope const-map after a command lowers.
     ///
-    /// Populates a `name → braced-literal` entry when *seg* is a
-    /// `set var {literal}` shape with a plain bareword LHS;
-    /// otherwise invalidates entries that *stmt* may have written.
+    /// Retain a quiet Logical scalar assignment's original literal value
+    /// under its decoded local name; unclosed writes withdraw retained entries.
     /// Gated on `proc_depth > 0` — globals / namespace vars at
     /// top-level or inside `namespace eval` cannot be safely
     /// const-propagated.
@@ -2550,53 +2553,70 @@ impl<'r> Lowerer<'r> {
         if self.proc_depth == 0 {
             return;
         }
+        let quiet_store = if matches!(stmt, Statement::AssignConst { .. }) {
+            let tokens = self.cmd_tokens(seg);
+            tokens.source_binding.as_ref().and_then(|binding| {
+                binding.conditional_logical_scalar_store(
+                    &tokens,
+                    &binding.variable_context,
+                    self.invocation_metadata_context()?,
+                    self.registry,
+                )
+            })
+        } else {
+            None
+        };
+        let literal = assigned_local_body_literal(seg, stmt, self.config).filter(|(_, value)| {
+            quiet_store
+                .as_ref()
+                .is_some_and(|store| store.value() == value)
+        });
         let Some(scope) = self.const_map_stack.last_mut() else {
             return;
         };
-
-        if let Some((name, value)) = set_literal_body(seg) {
+        if let Some((name, value)) = literal {
             scope.insert(name, value);
-            return;
+        } else if matches!(stmt, Statement::AssignConst { .. }) && quiet_store.is_none() {
+            scope.clear();
+        } else {
+            invalidate_const_map_for(stmt, scope, self.config);
         }
-
-        invalidate_const_map_for(stmt, scope);
     }
 
-    /// Resolve a `$var` / `${var}` body word against the current
-    /// const-map and return the bound literal, or `None` if the
-    /// word is not a pure single-token variable reference, the
-    /// variable has no known literal binding, or we are not inside
-    /// a `proc` body (top-level / `namespace eval` scopes are out
-    /// of scope for this optimisation).
+    fn original_native_written_argument_value(
+        &self,
+        seg: &SegmentedCommand,
+        argument: usize,
+    ) -> Option<String> {
+        self.native_entry.as_ref()?;
+        let tokens = self.cmd_tokens(seg);
+        let binding = tokens.source_binding.as_ref()?;
+        (binding.original_invocation_source_purpose(
+            &tokens,
+            self.invocation_metadata_context()?,
+            self.registry,
+        )? == crate::command_binding::OriginalInvocationSourcePurpose::Execution)
+            .then_some(())?;
+        binding
+            .evaluated_written_argument_value(argument)
+            .map(str::to_owned)
+    }
+
+    /// Read a simple body reference from the quiet Logical local-value map.
+    /// Unknown, array and compound references retain runtime dispatch.
     fn const_map_lookup(&self, word: &str) -> Option<String> {
         if self.proc_depth == 0 {
             return None;
         }
-        let scope = self.const_map_stack.last()?;
-        let inner = if let Some(rest) = word.strip_prefix("${") {
-            let inner = rest.strip_suffix('}')?;
-            if inner.contains('$')
-                || inner.contains('[')
-                || inner.contains('{')
-                || inner.contains('(')
-            {
-                return None;
-            }
-            inner
-        } else {
-            let rest = word.strip_prefix('$')?;
-            if rest.is_empty()
-                || rest.contains('(')
-                || rest.contains('$')
-                || rest.contains('[')
-                || rest.contains('{')
-                || rest.starts_with(':')
-            {
-                return None;
-            }
-            rest
-        };
-        scope.get(inner).cloned()
+        let reference =
+            tcl_lexer::word_parts::whole_var_ref(word.as_bytes(), self.config).ok()??;
+        if reference.index.is_some()
+            || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+        {
+            return None;
+        }
+        let name = std::str::from_utf8(reference.name).ok()?;
+        self.const_map_stack.last()?.get(name).cloned()
     }
 
     fn logical_structured_invocation(
@@ -4006,17 +4026,9 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// Resolve a proc name that may be a `$var` / `[cmd]` substitution.
-    ///
-    /// Returns the resolved name, the (possibly rewritten) args
-    /// vector, and a `name_was_substituted` flag.  A literal name
-    /// short-circuits to `Ok` with the original args.  A dynamic
-    /// name that can't be resolved via the const-map returns `Err`
-    /// with a "dynamic proc name" barrier — the caller propagates
-    /// it as the statement.
-    ///
-    /// Multi-token names (`foo_$x`) and command-substitution names
-    /// (`$name[suffix]`) stay on the runtime path.
+    /// Resolve a single variable name from its original Native argument value
+    /// or quiet Logical source binding. Unknown and compound names retain
+    /// runtime dispatch; literal names keep their original argument vector.
     fn resolve_dynamic_proc_name(
         &mut self,
         seg: &SegmentedCommand,
@@ -4035,7 +4047,8 @@ impl<'r> Lowerer<'r> {
                 .first()
                 .is_some_and(|t| t.kind == tcl_lexer::TokenType::Var)
         {
-            self.const_map_lookup(proc_name_initial)
+            self.original_native_written_argument_value(seg, 0)
+                .or_else(|| self.const_map_lookup(proc_name_initial))
         } else {
             None
         };
@@ -4098,12 +4111,16 @@ impl<'r> Lowerer<'r> {
                 // a top-level Tcl command stream and expects the
                 // inner content, so strip the outer `[…]` before
                 // handing it over.
-                args[2]
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .and_then(|inner| self.eval_subst_nocommands_body(inner))
+                self.original_native_written_argument_value(seg, 2)
+                    .or_else(|| {
+                        args[2]
+                            .strip_prefix('[')
+                            .and_then(|s| s.strip_suffix(']'))
+                            .and_then(|inner| self.eval_subst_nocommands_body(inner))
+                    })
             } else if body_is_single && body_tok.kind == tcl_lexer::TokenType::Var {
-                self.const_map_lookup(&args[2])
+                self.original_native_written_argument_value(seg, 2)
+                    .or_else(|| self.const_map_lookup(&args[2]))
             } else {
                 None
             };
@@ -4358,10 +4375,10 @@ impl<'r> Lowerer<'r> {
         let body = if body_tok.kind == TokenType::Str {
             self.lower_body_from_tok(&args[body_tok_idx], Some(body_tok), body_namespace)
         } else if body_tok.kind == TokenType::Var {
-            // `uplevel ?N? $var` with $var resolved by the
-            // const-map to a brace-string literal — fold the literal
-            // in and lower as a static UpFrame.
-            let literal = self.const_map_lookup(&args[body_tok_idx])?;
+            // Retain the original Native argument or quiet Logical source value.
+            let literal = self
+                .original_native_written_argument_value(seg, body_tok_idx)
+                .or_else(|| self.const_map_lookup(&args[body_tok_idx]))?;
             self.lower_script(
                 &literal,
                 body_namespace,
@@ -4485,7 +4502,9 @@ impl<'r> Lowerer<'r> {
         let body = if body_tok.kind == TokenType::Str {
             self.lower_body_from_tok(&args[0], Some(&body_tok), namespace)
         } else if body_tok.kind == TokenType::Var {
-            let literal = self.const_map_lookup(&args[0])?;
+            let literal = self
+                .original_native_written_argument_value(seg, 0)
+                .or_else(|| self.const_map_lookup(&args[0]))?;
             if body_has_dynamic_barrier(&literal, self.registry, self.config) {
                 return None;
             }
@@ -10174,6 +10193,178 @@ mod tests {
             args,
             &vec!["", "$counter", "brace{name}", "a(b)", "-dash", "$dynamic"]
         );
+    }
+
+    #[test]
+    fn local_body_literal_reference_lookup_uses_whole_scalar_source_geometry() {
+        let registry = reg();
+        let mut lowerer = Lowerer::new(&registry);
+        lowerer.proc_depth = 1;
+        lowerer.const_map_stack.push(HashMap::from([(
+            "body".to_owned(),
+            "return original".to_owned(),
+        )]));
+        for reference in ["$body", "${body}"] {
+            assert_eq!(
+                lowerer.const_map_lookup(reference).as_deref(),
+                Some("return original")
+            );
+        }
+        for reference in [
+            "body",
+            "$body suffix",
+            "${body}suffix",
+            "$body(index)",
+            "${body(index)}",
+            "$",
+            "${body",
+            "$::body",
+        ] {
+            assert_eq!(lowerer.const_map_lookup(reference), None, "{reference}");
+        }
+        lowerer.proc_depth = 0;
+        assert_eq!(lowerer.const_map_lookup("$body"), None);
+    }
+
+    #[test]
+    fn local_body_literal_retention_requires_actual_assignment_and_decodes_the_written_key() {
+        let config = tcl_lexer::LexerConfig::default();
+        let source = r"set b\x6fdy {return original}";
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let seg = &commands[0];
+        let assignment = Statement::AssignConst {
+            span: seg.span,
+            name: seg.args()[0].clone(),
+            name_braced: false,
+            value: seg.args()[1].clone(),
+            value_span: None,
+        };
+        assert_eq!(
+            assigned_local_body_literal(seg, &assignment, config),
+            Some(("body".to_owned(), "return original".to_owned()))
+        );
+        let opaque = Statement::Barrier {
+            span: seg.span,
+            reason: "opaque invocation".to_owned(),
+            command: "set".to_owned(),
+            canonical_command: None,
+            args: seg.args().to_vec(),
+            tokens: None,
+        };
+        assert_eq!(assigned_local_body_literal(seg, &opaque, config), None);
+    }
+
+    #[test]
+    fn local_body_literal_invalidation_distinguishes_literal_sigils_and_decodes_write_keys() {
+        let config = tcl_lexer::LexerConfig::default();
+        let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
+        let write = |name: &str, name_braced: bool| Statement::AssignConst {
+            span: tcl_lexer::Span::new(0, 0),
+            name: name.to_owned(),
+            name_braced,
+            value: "replacement".to_owned(),
+            value_span: None,
+        };
+        invalidate_const_map_for(&write("$body", true), &mut scope, config);
+        assert!(scope.contains_key("body"));
+        invalidate_const_map_for(&write("::body", true), &mut scope, config);
+        assert!(scope.contains_key("body"));
+        invalidate_const_map_for(&write(r"b\x6fdy", false), &mut scope, config);
+        assert!(scope.is_empty());
+        scope.insert("body".to_owned(), "return original".to_owned());
+        invalidate_const_map_for(&write("body(index)", true), &mut scope, config);
+        assert!(scope.is_empty());
+        scope.insert("body".to_owned(), "return original".to_owned());
+        invalidate_const_map_for(&write("$computed", false), &mut scope, config);
+        assert!(scope.is_empty());
+    }
+
+    #[test]
+    fn local_body_literal_generic_call_with_empty_defs_withdraws_all_retained_values() {
+        let config = tcl_lexer::LexerConfig::default();
+        let registry = reg();
+        let mut lowerer = Lowerer::new(&registry);
+        let source = "unknown_writer $computed replacement";
+        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let call = lowerer.lower_default(&commands[0], "::");
+        assert!(matches!(&call, Statement::Call { defs, .. } if defs.is_empty()));
+        let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
+        invalidate_const_map_for(&call, &mut scope, config);
+        assert!(scope.is_empty());
+    }
+
+    #[test]
+    fn local_body_literal_quiet_logical_source_retains_factory_names_and_bodies() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let source = "proc factory {} {set name {LiteralChild}; set body {return original}; proc $name {} $body}";
+        let mut lowerer = Lowerer::with_config(context.commands(), input.lexer_config())
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        let module = lowerer.finish_module(source);
+        let child = fixture_id_if_present(&module.procedures, "::LiteralChild")
+            .and_then(|id| module.procedures.get(&id))
+            .expect("genuine quiet Logical source retains the original child");
+        assert_eq!(child.body_source.as_deref(), Some("return original"));
+        assert!(module.source_entry.native_entry.is_none());
+    }
+
+    #[test]
+    fn local_body_literal_opcode_without_original_quiet_source_owner_cannot_retain_contents() {
+        let registry = reg();
+        let source = "set body {return original}";
+        let mut lowerer = Lowerer::new(&registry);
+        lowerer.proc_depth = 1;
+        lowerer.const_map_stack.push(HashMap::from([(
+            "previous".to_owned(),
+            "return stale".to_owned(),
+        )]));
+        lowerer.word_space = WordSpace::new(source, 0, lowerer.source_channel);
+        let commands =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, lowerer.config);
+        let seg = &commands[0];
+        let synthetic = Statement::AssignConst {
+            span: seg.span,
+            name: seg.args()[0].clone(),
+            name_braced: false,
+            value: seg.args()[1].clone(),
+            value_span: None,
+        };
+        lowerer.update_const_map(seg, &synthetic);
+        assert!(lowerer.const_map_stack.last().unwrap().is_empty());
+        assert_eq!(lowerer.original_native_written_argument_value(seg, 1), None);
+    }
+
+    #[test]
+    fn local_body_literal_expression_and_value_evaluation_withdraw_unclosed_effects() {
+        let registry = reg();
+        let config = tcl_lexer::LexerConfig::default();
+        for source in [
+            "expr {[overwrite]}",
+            "expr {$watched}",
+            "set other [overwrite]",
+            "set other $watched",
+            "incr other $watched",
+        ] {
+            let module = lower_to_ir(source, &registry);
+            let statement = module
+                .top_level
+                .statements
+                .first()
+                .expect("original statement");
+            assert!(!matches!(statement, Statement::AssignConst { .. }));
+            let mut scope = HashMap::from([("body".to_owned(), "return original".to_owned())]);
+            invalidate_const_map_for(statement, &mut scope, config);
+            assert!(scope.is_empty(), "unclosed effects: {source}");
+        }
     }
 
     #[test]

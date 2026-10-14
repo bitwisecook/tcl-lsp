@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "e5ebda1c6961ec277d918bed32a657cb2cde90c9ee765c3589d92485090e2c08",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_body.rs",
+      "before_sha256": "f3ae04483998a6486ad0b8693f46846ffe1e284708075886113b78465a744901",
+      "after_sha256": "50d8e54b7527206cee1152135a9c8a7249d8c84ff5d242e8f9f7669f42be325b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "before_sha256": "4b94d9151ac3eb5360ac2d89b05b5d1e8cb7dbc25bff99120b00f5c974d930ea",
+      "after_sha256": "1bf8c58e1cdc69b9b8c638855bbf0c688937d5da6759cd0592722d4024b0f089"
+    }
+  ],
+  "dependency": "Registry authored_logical_source_frame_argument_layout f6c33 integrated before capture",
+  "scope": "Selected-frame Logical source child syntax uses exact Registry frame layout; Relative0 retains current coordinate; Absolute0 sealed original body+level input+ordinal issues independent source-root namespace while original declaration remains ancestry; unknown/invalid caller routes decline; no Native/entered frame/global Module lookup fallback",
+  "validation": "isolated rustfmt and apply-check only; Rust unexecuted",
+  "tests": [
+    "command_binding::source_declared_command::logical_body::tests::logical_root_body_selector_requires_the_original_global_frame_request",
+    "command_binding::source_transition_advice::logical_body::tests::logical_selected_frame_children_keep_root_current_and_unknown_source_owners_distinct",
+    "definition::logical_variable_scope_owner_tests::logical_method_root_and_nested_declared_local_frames_stay_distinct"
+  ],
+  "oracle_evidence": "/tmp/name-logical-caller-body-oracles-20261014/result.json"
+}

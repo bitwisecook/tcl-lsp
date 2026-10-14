@@ -1,0 +1,5 @@
+# Outer-scope empty write alias
+
+The sole production OuterScope reader is cfg_builder/global_write_info.rs::insert_outer_name. Its purpose is a conservative text summary: retain the exact outer-scope write name and one optional-root-free alias for caller-frame consumers. It supplies no physical variable identity or Native store authority. The helper already retains an exact empty name; refusing its alias only for the rooted spelling :: leaves the caller empty key unprotected. The patch removes that one empty filter and preserves the one-root policy. Literal ::: retains both ::: and :, not an arbitrarily collapsed empty key. Existing array-root policy remains unchanged.
+
+The existing deferred_array_and_empty_writes_remain_possible_without_reference_decoration control adds exact rooted-empty/lone-colon assertions. Current direct empty/dollar/brace naming observations are retained in method literal experiments, but this source-only patch does not claim Native acceptance or F5 behavior. Rustfmt and apply-check passed; Cargo/semantic tests unrun, Main untouched.

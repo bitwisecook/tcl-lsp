@@ -1,0 +1,758 @@
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -2924,6 +2924,21 @@
+         self.source_frame_script_arguments(true)
+     }
+ 
++    /// Conditional layout of the selected Logical frame descriptor under the
++    /// unanimous authored grammar. This supplies no Native level, entered
++    /// frame, successful argument acceptance or completed variable link.
++    #[must_use]
++    pub fn authored_logical_source_frame_argument_layout(
++        &self,
++    ) -> Option<crate::frame_effect::FrameArgumentResolution> {
++        let frame = self.semantics.frame_effect?;
++        let arguments = self
++            .words
++            .arguments()
++            .slice_from(self.semantics.argument_offset);
++        Some(frame.logical_source_layout(arguments))
++    }
++
+     fn source_frame_script_arguments(&self, logical: bool) -> Option<Vec<std::ops::Range<usize>>> {
+         // naming.diagnostic.registry-source-ownership
+         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -88,6 +88,10 @@
+ pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
+ pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
+ 
++mod logical_frame;
++pub(crate) use logical_frame::{
++    OriginalLogicalFrameInvocation, original_logical_frame_invocation_with_metadata_context,
++};
+ mod variable_write_advice;
+ pub(crate) use variable_write_advice::{
+     logical_source_variable_write_advice, original_variable_write_advice,
+--- /dev/null
++++ b/rust/tcl-compiler/src/registry_invocation/logical_frame.rs
+@@ -0,0 +1,118 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! Conditional frame layout under an exact original Logical source input.
++
++use super::{
++    CommandRegistry, CommandTokens, InvocationMetadataContext, ResolvedStatementInvocation,
++};
++use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
++
++pub(crate) struct OriginalLogicalFrameInvocation {
++    selected: ResolvedStatementInvocation,
++    layout: Option<FrameArgLayout>,
++    arguments: Option<FrameArgumentResolution>,
++    offset: usize,
++}
++
++impl OriginalLogicalFrameInvocation {
++    pub(crate) fn layout(&self) -> Option<FrameArgLayout> {
++        self.layout
++    }
++
++    pub(crate) fn arguments(&self) -> Option<FrameArgumentResolution> {
++        self.arguments
++    }
++
++    pub(crate) fn offset(&self) -> usize {
++        self.offset
++    }
++
++    pub(crate) fn count(&self) -> usize {
++        self.selected.arguments.len()
++    }
++
++    pub(crate) fn literal(&self, argument: usize) -> Option<String> {
++        self.selected.argument_literal(argument)
++    }
++
++    pub(crate) fn parameter(
++        &self,
++        argument: usize,
++        parameters: &[String],
++        config: tcl_lexer::LexerConfig,
++    ) -> Option<String> {
++        if self.literal(argument).is_some() {
++            return None;
++        }
++        let word = self
++            .selected
++            .effective
++            .words
++            .get(argument.checked_add(1)?)?;
++        let (spelling, source) = word.sole_variable_substitution()?;
++        if source.provenance != crate::ir::Provenance::Source {
++            return None;
++        }
++        let reference =
++            tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config).ok()??;
++        if reference.index.is_some() {
++            return None;
++        }
++        let name = std::str::from_utf8(reference.name).ok()?;
++        parameters
++            .iter()
++            .any(|parameter| parameter == name)
++            .then(|| name.to_owned())
++    }
++
++    /// Original direct child only. A captured or materialized script cannot
++    /// borrow another command's child source or a selected execution frame.
++    pub(crate) fn source_body(
++        &self,
++        module: &crate::ir::Module,
++        registry: &CommandRegistry,
++        tokens: &CommandTokens,
++        argument: usize,
++    ) -> Option<crate::ir::Script> {
++        self.literal(argument)?;
++        let written = self.selected.effective.written_argument(argument)?;
++        crate::lowering::Lowerer::original_body_for_module(module, registry, tokens, written)
++    }
++}
++
++/// Original readonly frame grammar and effective argv, not an entered frame
++/// or a successful variable link. The actual selected source recipe remains
++/// distinct from the Native handler and compilation purposes.
++pub(crate) fn original_logical_frame_invocation_with_metadata_context(
++    registry: &CommandRegistry,
++    context: InvocationMetadataContext<'_>,
++    tokens: &CommandTokens,
++) -> Option<OriginalLogicalFrameInvocation> {
++    let binding = tokens.source_binding.as_ref()?;
++    let context = binding.original_invocation_metadata_for_input(
++        tokens,
++        context.source_analysis_input()?,
++        registry,
++    )?;
++    let selected = super::original_logical_operation_invocation_with_metadata_context(
++        registry, context, tokens,
++    )?;
++    let realm = binding.original_source_realm_for_input(
++        tokens,
++        context.source_analysis_input()?,
++        registry,
++    )?;
++    let (layout, arguments, offset) =
++        selected.with_metadata_schema(registry, context, realm, |schema| {
++            Some((
++                schema.semantics.frame_effect.map(|frame| frame.layout),
++                schema.authored_logical_source_frame_argument_layout(),
++                schema.semantics.argument_offset,
++            ))
++        })?;
++    Some(OriginalLogicalFrameInvocation {
++        selected,
++        layout,
++        arguments,
++        offset,
++    })
++}
+--- a/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/upvar_info.rs
+@@ -593,12 +593,16 @@
+     registry: &CommandRegistry,
+     bindings: &ModuleCommandBindings,
+     namespace: &str,
+-    input: Option<&crate::analyser::ResolvedAnalysisInput>,
++    module: &crate::ir::Module,
+ ) -> UpvarInfo {
+-    let Some((input, metadata)) = input.and_then(|input| {
+-        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+-            .map(|metadata| (input, metadata))
+-    }) else {
++    let Some((input, metadata)) =
++        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
++            .and_then(|metadata| {
++                metadata
++                    .source_analysis_input()
++                    .map(|input| (input, metadata))
++            })
++    else {
+         return UpvarInfo {
+             caller_frame_opaque_writes: true,
+             caller_frame_opaque_reads: true,
+@@ -610,12 +614,14 @@
+         source: bindings,
+         input,
+         metadata,
++        module,
+     };
+     collect_upvar_targets_inner(body, params, registry, Some(bindings), namespace)
+ }
+ 
+ #[derive(Clone, Copy)]
+ struct UpvarBindings<'a> {
++    module: &'a crate::ir::Module,
+     source: &'a ModuleCommandBindings,
+     input: &'a crate::analyser::ResolvedAnalysisInput,
+     metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+@@ -674,39 +680,75 @@
+     namespace: &str,
+ ) -> UpvarInfo {
+     let mut info = UpvarInfo::default();
+-    walk_script(
+-        &body.statements,
+-        params,
+-        registry,
+-        bindings,
+-        namespace,
+-        &mut info,
+-    );
++    walk_script(body, params, registry, bindings, namespace, &mut info);
+     info
+ }
+ 
+ fn walk_script(
+-    stmts: &[Statement],
++    script: &Script,
+     params: &[String],
+     registry: &CommandRegistry,
+     bindings: Option<UpvarBindings<'_>>,
+     namespace: &str,
+     info: &mut UpvarInfo,
+ ) {
+-    for stmt in stmts {
+-        walk_stmt(stmt, params, registry, bindings, namespace, info);
++    for stmt in &script.statements {
++        walk_stmt(
++            stmt,
++            script.retained_source_tokens_for_statement(stmt),
++            params,
++            registry,
++            bindings,
++            namespace,
++            info,
++        );
+     }
+ }
+ 
+ #[allow(clippy::too_many_lines)] // One exhaustive IR walk keeps frame-context transitions coupled.
+ fn walk_stmt(
+     stmt: &Statement,
++    tokens: Option<&CommandTokens>,
+     params: &[String],
+     registry: &CommandRegistry,
+     bindings: Option<UpvarBindings<'_>>,
+     namespace: &str,
+     info: &mut UpvarInfo,
+ ) {
++    if let Some(bindings) = bindings
++        && bindings.input.has_logical_source_name_context()
++        && matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
++    {
++        let selected = tokens.and_then(|tokens| {
++            let metadata = tokens
++                .source_binding
++                .as_ref()?
++                .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
++            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
++                registry, metadata, tokens,
++            )
++        });
++        match (tokens, selected) {
++            (Some(tokens), Some(selected)) => record_logical_frame_invocation(
++                &selected,
++                LogicalFrameScan {
++                    tokens,
++                    current: FrameContext::Own,
++                    params,
++                    registry,
++                    bindings,
++                    namespace,
++                    depth: 0,
++                },
++                info,
++            ),
++            _ => {
++                info.caller_frame_opaque_writes = true;
++                info.caller_frame_opaque_reads = true;
++            }
++        }
++        return;
++    }
+     match stmt {
+         Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+             if let Some(bindings) = bindings {
+@@ -818,14 +860,7 @@
+             // local, but a nested `uplevel 1` still reaches this procedure's
+             // caller and must participate in the summary.
+             (false, 0) => {
+-                walk_script(
+-                    &body.statements,
+-                    params,
+-                    registry,
+-                    bindings,
+-                    namespace,
+-                    info,
+-                );
++                walk_script(&body, params, registry, bindings, namespace, info);
+             }
+             // `uplevel #0` selects the global frame, which is owned by the
+             // global-write summary rather than this caller-frame projection.
+@@ -836,81 +871,39 @@
+             clauses, else_body, ..
+         } => {
+             for c in clauses {
+-                walk_script(
+-                    &c.body.statements,
+-                    params,
+-                    registry,
+-                    bindings,
+-                    namespace,
+-                    info,
+-                );
++                walk_script(&c.body, params, registry, bindings, namespace, info);
+             }
+             if let Some(e) = else_body {
+-                walk_script(&e.statements, params, registry, bindings, namespace, info);
++                walk_script(&e, params, registry, bindings, namespace, info);
+             }
+         }
+         Statement::For {
+             init, next, body, ..
+         } => {
+-            walk_script(
+-                &init.statements,
+-                params,
+-                registry,
+-                bindings,
+-                namespace,
+-                info,
+-            );
+-            walk_script(
+-                &next.statements,
+-                params,
+-                registry,
+-                bindings,
+-                namespace,
+-                info,
+-            );
+-            walk_script(
+-                &body.statements,
+-                params,
+-                registry,
+-                bindings,
+-                namespace,
+-                info,
+-            );
++            walk_script(&init, params, registry, bindings, namespace, info);
++            walk_script(&next, params, registry, bindings, namespace, info);
++            walk_script(&body, params, registry, bindings, namespace, info);
+         }
+         Statement::While { body, .. }
+         | Statement::Foreach { body, .. }
+         | Statement::Catch { body, .. } => {
+-            walk_script(
+-                &body.statements,
+-                params,
+-                registry,
+-                bindings,
+-                namespace,
+-                info,
+-            );
++            walk_script(&body, params, registry, bindings, namespace, info);
+         }
+         Statement::Block {
+             body,
+             namespace: body_namespace,
+             ..
+-        } => walk_script(
+-            &body.statements,
+-            params,
+-            registry,
+-            bindings,
+-            body_namespace,
+-            info,
+-        ),
++        } => walk_script(&body, params, registry, bindings, body_namespace, info),
+         Statement::Switch {
+             arms, default_body, ..
+         } => {
+             for arm in arms {
+                 if let Some(b) = &arm.body {
+-                    walk_script(&b.statements, params, registry, bindings, namespace, info);
++                    walk_script(&b, params, registry, bindings, namespace, info);
+                 }
+             }
+             if let Some(b) = default_body {
+-                walk_script(&b.statements, params, registry, bindings, namespace, info);
++                walk_script(&b, params, registry, bindings, namespace, info);
+             }
+         }
+         Statement::Try {
+@@ -919,26 +912,12 @@
+             finally_body,
+             ..
+         } => {
+-            walk_script(
+-                &body.statements,
+-                params,
+-                registry,
+-                bindings,
+-                namespace,
+-                info,
+-            );
++            walk_script(&body, params, registry, bindings, namespace, info);
+             for h in handlers {
+-                walk_script(
+-                    &h.body.statements,
+-                    params,
+-                    registry,
+-                    bindings,
+-                    namespace,
+-                    info,
+-                );
++                walk_script(&h.body, params, registry, bindings, namespace, info);
+             }
+             if let Some(f) = finally_body {
+-                walk_script(&f.statements, params, registry, bindings, namespace, info);
++                walk_script(&f, params, registry, bindings, namespace, info);
+             }
+         }
+         _ => {}
+@@ -971,6 +950,173 @@
+         ResolvedFrameBodySelection::Selected(
+             FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
+         ) => FrameContext::PastTheCaller,
++    }
++}
++
++struct LogicalFrameScan<'a> {
++    tokens: &'a CommandTokens,
++    current: FrameContext,
++    params: &'a [String],
++    registry: &'a CommandRegistry,
++    bindings: UpvarBindings<'a>,
++    namespace: &'a str,
++    depth: u32,
++}
++
++fn record_logical_frame_invocation(
++    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
++    context: LogicalFrameScan<'_>,
++    info: &mut UpvarInfo,
++) {
++    use tcl_registry::frame_effect::FrameArgumentResolution;
++    let Some(layout) = invocation.layout() else {
++        return;
++    };
++    let selection = match invocation.arguments() {
++        Some(FrameArgumentResolution::Valid {
++            level,
++            level_word_len,
++        }) => (level, invocation.offset() + level_word_len),
++        Some(FrameArgumentResolution::Invalid) => return,
++        Some(FrameArgumentResolution::Unknown) | None => {
++            if layout != FrameArgLayout::ScriptInCurrentFrame {
++                widen_beyond_caller(info);
++                info.caller_frame_opaque_reads = true;
++            }
++            return;
++        }
++    };
++    match layout {
++        FrameArgLayout::AliasPairs => {
++            record_logical_alias_pairs(invocation, selection, context, info)
++        }
++        FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::ScriptInSelectedFrame => {
++            record_logical_frame_script(invocation, layout, selection, context, info);
++        }
++        FrameArgLayout::OpaqueCallerVars => {}
++    }
++}
++
++fn record_logical_alias_pairs(
++    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
++    selection: (FrameLevel, usize),
++    context: LogicalFrameScan<'_>,
++    info: &mut UpvarInfo,
++) {
++    let (level, start) = selection;
++    if level != FrameLevel::Relative(1) {
++        if !level.is_global_frame() && !level.is_current_frame() {
++            widen_beyond_caller(info);
++        }
++        return;
++    }
++    for source in (start..invocation.count()).step_by(2) {
++        let Some(destination) = source
++            .checked_add(1)
++            .filter(|index| *index < invocation.count())
++        else {
++            info.has_unresolvable_caller_target = true;
++            return;
++        };
++        let local = invocation.literal(destination);
++        if let Some(target) = invocation.literal(source) {
++            if let Some(local) = local {
++                info.literal_targets.insert(local, target);
++            } else {
++                info.unnameable_local_aliases.insert(target.clone());
++                info.uplevel_literal_writes.insert(target);
++            }
++        } else if let Some(parameter) = invocation.parameter(
++            source,
++            context.params,
++            context.bindings.input.lexer_config(),
++        ) {
++            if parameter == "args" {
++                if let Some(local) = local {
++                    info.args_tail_upvar.push(local);
++                } else {
++                    info.has_unresolvable_caller_target = true;
++                }
++            } else if let Some(local) = local {
++                info.param_targets.insert(local, parameter);
++            } else {
++                info.uplevel_param_writes.insert(parameter);
++            }
++        } else {
++            info.has_unresolvable_caller_target = true;
++        }
++    }
++}
++
++fn record_logical_frame_script(
++    invocation: &crate::registry_invocation::OriginalLogicalFrameInvocation,
++    layout: FrameArgLayout,
++    selection: (FrameLevel, usize),
++    context: LogicalFrameScan<'_>,
++    info: &mut UpvarInfo,
++) {
++    let selected = if layout == FrameArgLayout::ScriptInCurrentFrame {
++        context.current
++    } else {
++        selected_frame_context(
++            context.current,
++            ResolvedFrameBodySelection::Selected(selection.0),
++        )
++    };
++    if selected == FrameContext::Global {
++        return;
++    }
++    if selected == FrameContext::PastTheCaller {
++        widen_beyond_caller(info);
++        info.caller_frame_opaque_reads = true;
++        return;
++    }
++    let start = if layout == FrameArgLayout::ScriptInCurrentFrame {
++        invocation.offset()
++    } else {
++        selection.1
++    };
++    let body = (start.checked_add(1) == Some(invocation.count()))
++        .then(|| {
++            invocation.source_body(
++                context.bindings.module,
++                context.registry,
++                context.tokens,
++                start,
++            )
++        })
++        .flatten();
++    let Some(body) = body else {
++        if selected == FrameContext::DirectCaller {
++            info.caller_frame_opaque_writes = true;
++            info.caller_frame_opaque_reads = true;
++        }
++        return;
++    };
++    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(context.depth) {
++        info.caller_frame_opaque_writes = true;
++        info.caller_frame_opaque_reads = true;
++        return;
++    }
++    if selected == FrameContext::Own {
++        walk_script(
++            &body,
++            context.params,
++            context.registry,
++            Some(context.bindings),
++            context.namespace,
++            info,
++        );
++    } else {
++        record_upframe_body_at_depth(
++            &body,
++            true,
++            context.registry,
++            Some(context.bindings),
++            context.namespace,
++            info,
++            context.depth + 1,
++        );
+     }
+ }
+ 
+@@ -1057,7 +1203,7 @@
+             let module = lowerer.lower(source).clone();
+             if selected == FrameContext::Own {
+                 walk_script(
+-                    &module.top_level.statements,
++                    &module.top_level,
+                     params,
+                     registry,
+                     Some(bindings),
+@@ -1408,6 +1554,7 @@
+         }
+         compose_selected_statement_aliases(
+             stmt,
++            script.retained_source_tokens_for_statement(stmt),
+             projected_names,
+             any_write,
+             registry,
+@@ -1463,12 +1610,36 @@
+ 
+ fn compose_selected_statement_aliases(
+     stmt: &Statement,
++    tokens: Option<&CommandTokens>,
+     projected_names: &BTreeSet<String>,
+     any_write: bool,
+     registry: &CommandRegistry,
+     bindings: UpvarBindings<'_>,
+     info: &mut UpvarInfo,
+ ) {
++    if bindings.input.has_logical_source_name_context() {
++        if let Some((_, aliases)) = tokens.and_then(|tokens| {
++            let metadata = tokens
++                .source_binding
++                .as_ref()?
++                .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
++            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
++                registry, metadata, tokens,
++            )
++        }) {
++            for alias in &aliases {
++                compose_selected_alias(
++                    alias,
++                    projected_names,
++                    any_write,
++                    registry,
++                    bindings.invocation_dialect(),
++                    info,
++                );
++            }
++        }
++        return;
++    }
+     if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
+         let execution_namespace = ExecutionNamespace::RuntimeSelected;
+         if let Some(command_namespace) =
+@@ -1649,6 +1820,38 @@
+             continue;
+         }
+         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
++            if let Some(bindings) = bindings
++                && bindings.input.has_logical_source_name_context()
++            {
++                let selected = script.retained_source_tokens_for_statement(stmt)
++                    .and_then(|tokens| {
++                        let metadata = tokens.source_binding.as_ref()?
++                            .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
++                        let invocation = crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
++                            registry, metadata, tokens,
++                        )?;
++                        Some((tokens, invocation))
++                    });
++                if let Some((tokens, invocation)) = selected {
++                    record_logical_frame_invocation(
++                        &invocation,
++                        LogicalFrameScan {
++                            tokens,
++                            current: FrameContext::DirectCaller,
++                            params: &[],
++                            registry,
++                            bindings,
++                            namespace,
++                            depth: depth + 1,
++                        },
++                        info,
++                    );
++                } else {
++                    info.caller_frame_opaque_writes = true;
++                    info.caller_frame_opaque_reads = true;
++                }
++                continue;
++            }
+             let execution_namespace = ExecutionNamespace::RuntimeSelected;
+             if let Some(bindings) = bindings
+                 && let Some(command_namespace) =
+@@ -1852,13 +2055,20 @@
+     }
+ 
+     fn module_proc_info(src: &str, qname: &str) -> UpvarInfo {
+-        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("test native core");
+-        let registry = CommandRegistry::build_default().project_for_profile(profile);
+-        let module = crate::lowering::lower_to_ir_with_dialect(
++        let context =
++            crate::environment_ingress::resolve_environment("tcl9.0").default_context_registry();
++        let registry = context.commands();
++        let profile = tcl_dialect::DialectProfile::plain_tcl();
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        );
++        let module = crate::lowering::lower_to_ir_with(
++            crate::lowering::Lowerer::with_config(registry, input.lexer_config())
++                .with_resolved_analysis_input(input),
+             src,
+-            &registry,
+-            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+-            Some(profile),
+         );
+         let bindings = ModuleCommandBindings::analyse(&module, &registry);
+         let procedure = module
+@@ -1876,8 +2086,29 @@
+             &registry,
+             &bindings,
+             namespace,
+-            module.source_metadata_input.as_ref(),
++            &module,
+         )
++    }
++
++    #[test]
++    fn logical_frame_aliases_keep_real_formals_and_literal_dollar_names() {
++        let formal = module_proc_info("proc helper {source} {upvar 1 $source local}", "::helper");
++        assert_eq!(
++            formal.param_targets.get("local"),
++            Some(&"source".to_owned())
++        );
++        assert!(!formal.has_unresolvable_caller_target);
++        assert!(!formal.caller_frame_opaque_writes);
++
++        let literal = module_proc_info(
++            "proc helper {} {upvar 1 {$scalar(open} {$alias}; set {$alias} VALUE}",
++            "::helper",
++        );
++        assert_eq!(
++            literal.literal_targets.get("$alias"),
++            Some(&"$scalar(open".to_owned())
++        );
++        assert!(!literal.has_unresolvable_caller_target);
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -3283,8 +3283,7 @@
+             && owner.is_some_and(|owner| owner.matches_original_procedure(procedure))) {
+             upvar_info::collect_upvar_targets_with_bindings(&procedure.body, &procedure.params,
+                 registry, &bindings, &namespace,
+-                crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+-                    .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input))
++                module)
+         } else { opaque_frame_summary() };
+         if !info.uplevel_forwarded_calls.is_empty() { info = opaque_frame_summary(); }
+         info.param_defaults = upvar_info::name_param_defaults(&info, &procedure.params_raw, module.word_values());

@@ -102,7 +102,7 @@ pub fn record_variable_write_name(
             }
         }
         VariableWriteObservationPurpose::OuterScope => {
-            if unrooted != name && !unrooted.is_empty() {
+            if unrooted != name {
                 names.insert(unrooted.to_owned());
             }
             names.insert(name.to_owned());
@@ -193,6 +193,16 @@ mod tests {
         );
         assert_eq!(outer, names(&["::n::arr(key)", "n::arr(key)"]));
         assert!(!outer.contains("n::arr"));
+        let mut rooted_empty = BTreeSet::new();
+        for name in ["::", ":::"] {
+            record_variable_write_name(
+                &mut rooted_empty,
+                name,
+                VariableWriteObservationPurpose::OuterScope,
+            );
+        }
+        assert_eq!(rooted_empty, names(&["::", "", ":::", ":"]));
+        assert!(!rooted_empty.contains("n"));
     }
 
     #[test]

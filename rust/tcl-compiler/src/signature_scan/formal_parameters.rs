@@ -44,16 +44,19 @@ impl OriginalSourceFormalName {
         }
     }
 
+    /// Decoded declaration name bytes, independent of source spelling.
     #[must_use]
     pub fn name(&self) -> &[u8] {
         &self.name
     }
 
+    /// Tight original name extent when source geometry is available.
     #[must_use]
     pub const fn source_span(&self) -> Option<tcl_lexer::Span> {
         self.span
     }
 
+    /// Whether the original name has the quoted positional-marker convention.
     #[must_use]
     pub const fn quoted_marker(&self) -> bool {
         self.quoted_marker

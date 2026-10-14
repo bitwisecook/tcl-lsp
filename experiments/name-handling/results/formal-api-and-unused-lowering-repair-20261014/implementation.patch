@@ -1,0 +1,35 @@
+--- a/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
++++ b/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
+@@ -44,16 +44,19 @@
+         }
+     }
+ 
++    /// Decoded declaration name bytes, independent of source spelling.
+     #[must_use]
+     pub fn name(&self) -> &[u8] {
+         &self.name
+     }
+ 
++    /// Tight original name extent when source geometry is available.
+     #[must_use]
+     pub const fn source_span(&self) -> Option<tcl_lexer::Span> {
+         self.span
+     }
+ 
++    /// Whether the original name has the quoted positional-marker convention.
+     #[must_use]
+     pub const fn quoted_marker(&self) -> bool {
+         self.quoted_marker
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -497,10 +497,6 @@
+ /// True iff `nm` is a static instance-variable name (not a `$var` /
+ /// `[cmd]` substitution and not an option flag). Dynamic names are
+ /// skipped — conservative.
+-fn is_instance_var_name(nm: &str) -> bool {
+-    !nm.is_empty() && !nm.contains('$') && !nm.contains('[') && !nm.starts_with('-')
+-}
+-
+ /// Qualify a procedure name relative to a namespace.
+ fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
+     tcl_syntax::naming::qualify(namespace, proc_name)
