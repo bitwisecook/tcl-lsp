@@ -107,9 +107,12 @@ with a standalone query.
 `Module::retain_procedure`, `retain_method` and `retain_body_unit` issue shared `ProcedureId`
 values. Module clones retain existing IDs and share issuance state; separately
 built modules cannot join equal ordinals. Inventories retain every body,
-including repeated display names. Select original bodies through
+including repeated display names. Native callable body selection uses
 `source_procedure_for_target` or `source_procedure_for_allocation`, after genuine
-allocation and source correspondence agree. Never recover a body ID from a
+allocation and source correspondence agree. Conditional original declaration
+summaries use `original_source_procedure_bodies` and
+`original_source_procedure_for_target` under the actual unchanged Module owner;
+they do not widen Native callable admission. Never recover a body ID from a
 printed name. The ordinal is only a within-module presentation field.
 
 `AnalysisResult::original_procedure_formal_name_sources` joins an exact retained

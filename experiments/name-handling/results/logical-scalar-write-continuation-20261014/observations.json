@@ -1,0 +1,42 @@
+{
+  "captured_at_utc": "2026-10-14T06:15:40.983132+00:00",
+  "records": [
+    {
+      "provider": "C8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "exit_code": 0,
+      "input_drift": [],
+      "scope": "Original executable, probe, adjacent Tcl library shared object and matching release library captured where present. Host/loader dynamic dependency closure not certified. Direct interpreter observations only; no compiler or Native admission claim."
+    },
+    {
+      "provider": "C8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "exit_code": 0,
+      "input_drift": [],
+      "scope": "Original executable, probe, adjacent Tcl library shared object and matching release library captured where present. Host/loader dynamic dependency closure not certified. Direct interpreter observations only; no compiler or Native admission claim."
+    },
+    {
+      "provider": "C8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "exit_code": 0,
+      "input_drift": [],
+      "scope": "Original executable, probe, adjacent Tcl library shared object and matching release library captured where present. Host/loader dynamic dependency closure not certified. Direct interpreter observations only; no compiler or Native admission claim."
+    },
+    {
+      "provider": "C9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "exit_code": 0,
+      "input_drift": [],
+      "scope": "Original executable, probe, adjacent Tcl library shared object and matching release library captured where present. Host/loader dynamic dependency closure not certified. Direct interpreter observations only; no compiler or Native admission claim."
+    },
+    {
+      "provider": "C9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "exit_code": 0,
+      "input_drift": [],
+      "scope": "Original executable, probe, adjacent Tcl library shared object and matching release library captured where present. Host/loader dynamic dependency closure not certified. Direct interpreter observations only; no compiler or Native admission claim."
+    }
+  ],
+  "f5": "not observed",
+  "tcltest": "not used; direct Tcl program"
+}

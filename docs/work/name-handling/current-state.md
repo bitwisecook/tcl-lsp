@@ -31,7 +31,7 @@ Root owns integration, Git and the single heavy Cargo lease. Compiler finishes o
 
 ## Cadence
 
-Tracking checkpoint06:58 UTC on14 October2026; next07:13 UTC. Hourly report07:13 UTC. Development commits/pushes are authorised while red. All required gates must pass before PR. No PR is ready.
+Tracking checkpoint07:13 UTC on14 October2026; next07:28 UTC. Hourly report08:13 UTC. Development commits/pushes are authorised while red. All required gates must pass before PR. No PR is ready.
 
 ## Oracles and F5
 
@@ -43,4 +43,4 @@ Use [existing F5 answers](../../../experiments/name-handling/f5/answers/README.m
 
 Finish every consumer and its meaningful oracle-based controls. The current strict proof audit reports1959 structural errors; semantically correct records and narrowly reseal only genuinely executed closures. Review all authored/generated documentation and comments for current how/why, minimal comments and clear code. Remove process/history narratives, stale claims and completed TODOs; keep experiments and legal attribution. Fix link/index drift. Remove this temporary directory/references and the work-specific AGENTS push exception. Regenerate/format and pass required rust-check/prep-pr gates before creating a merge-ready PR. No merge is authorised.
 
-Current checkpoint target06:58 UTC: DB48 fresh production build passes and executes all10 original controls,1 pass/9 fail, source subset drift0. Quoted/braced callee-edit reuse regresses against DB38; actual producer repair is required. Compiler43 remains208/322; Core34 remains39/64; neither is a current whole-codebase acceptance. Actual owner CLI46 reports202 errors; reviewed ancestor visibility and exact16 private-owner mappings await replay. Combined Logical/Hosted declaration-body cards and DB/taint/check/optimisation adapters are integrated. The readonly source-effect/frame facade is under final merge review. Original assertions and counts are retained. Next checkpoint07:13 UTC; hourly report07:13 UTC.
+Current checkpoint target07:13 UTC: Compiler51 is running337 exact selectors, including every322 Compiler43 control plus15 new owner/consumer controls. Compiler49/50 fail compilation before semantic tests with source subset drift0; actual Arc-reference correction and owner-local synthetic fixture construction are integrated without exposing the private CFG store. DB48 executes all10 original controls,1 pass/9 fail, source subset drift0; missing Native source-only read-flow body inventory and callee-edit regression require real producer repair. Source-effect/frame/branch-join/recorded-child adapters are integrated; current source-body scope and F5 Call/expression migrations remain reviewed or in preparation. Source gate45 unit44PASS and actual CLI46 pre-fix202 errors remain separate scopes. Core/Runtime/current full ownership/proof gates are incomplete. Next tracking07:28 UTC; hourly08:13 UTC.

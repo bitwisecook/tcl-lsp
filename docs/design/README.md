@@ -215,6 +215,8 @@ fails.
 - [name-resolution-implementer-guide.md](compiler/name-resolution-implementer-guide.md)
   — central query contracts, consumer requirements and native regression
   test recipes.
+- [original-procedure-analysis.md](compiler/original-procedure-analysis.md) — current issued-body inventory,
+  readonly declaration cards, prepared CFG ownership and memo correspondence.
 - [evaluated-tcl-semantics.md](compiler/evaluated-tcl-semantics.md)
   — current command, variable, execution, dialect and host-domain semantics.
 - [resolved-semantic-queries.md](contracts/resolved-semantic-queries.md) — shared

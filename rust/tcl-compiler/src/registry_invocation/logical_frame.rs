@@ -6,8 +6,13 @@ use super::{
 };
 use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
 
+enum LogicalFrameSourceArguments {
+    Layout(ResolvedStatementInvocation),
+    Source(super::source_structure::OriginalRegistryWords),
+}
+
 pub(crate) struct OriginalLogicalFrameInvocation {
-    selected: ResolvedStatementInvocation,
+    selected: LogicalFrameSourceArguments,
     layout: Option<FrameArgLayout>,
     arguments: Option<FrameArgumentResolution>,
     offset: usize,
@@ -29,11 +34,21 @@ impl OriginalLogicalFrameInvocation {
     }
 
     pub(crate) fn count(&self) -> usize {
-        self.selected.arguments.len()
+        match &self.selected {
+            LogicalFrameSourceArguments::Layout(selected) => selected.arguments.len(),
+            LogicalFrameSourceArguments::Source(words) => words.arguments().len(),
+        }
     }
 
     pub(crate) fn literal(&self, argument: usize) -> Option<String> {
-        self.selected.argument_literal(argument)
+        match &self.selected {
+            LogicalFrameSourceArguments::Layout(selected) => selected.argument_literal(argument),
+            LogicalFrameSourceArguments::Source(words) => {
+                std::str::from_utf8(words.arguments().get(argument)?.literal_bytes()?)
+                    .ok()
+                    .map(str::to_owned)
+            }
+        }
     }
 
     pub(crate) fn parameter(
@@ -45,11 +60,15 @@ impl OriginalLogicalFrameInvocation {
         if self.literal(argument).is_some() {
             return None;
         }
-        let word = self
-            .selected
-            .effective
-            .words
-            .get(argument.checked_add(1)?)?;
+        let word = match &self.selected {
+            LogicalFrameSourceArguments::Layout(selected) => {
+                selected.effective.words.get(argument.checked_add(1)?)?
+            }
+            LogicalFrameSourceArguments::Source(_) => self
+                .original
+                .words()
+                .get(self.written_argument(argument)?.checked_add(1)?)?,
+        };
         let (spelling, source) = word.sole_variable_substitution()?;
         if source.provenance != crate::ir::Provenance::Source {
             return None;
@@ -64,6 +83,20 @@ impl OriginalLogicalFrameInvocation {
             .iter()
             .any(|parameter| parameter == name)
             .then(|| name.to_owned())
+    }
+
+    fn written_argument(&self, argument: usize) -> Option<usize> {
+        match &self.selected {
+            LogicalFrameSourceArguments::Layout(selected) => {
+                selected.effective.written_argument(argument)
+            }
+            LogicalFrameSourceArguments::Source(words) => {
+                match words.origins().get(argument.checked_add(1)?)? {
+                    super::InvocationWordOrigin::Written(written) => written.checked_sub(1),
+                    _ => None,
+                }
+            }
+        }
     }
 
     /// Literal source-role candidates in an unavailable caller namespace.
@@ -97,7 +130,7 @@ impl OriginalLogicalFrameInvocation {
             return None;
         }
         self.literal(argument)?;
-        let written = self.selected.effective.written_argument(argument)?;
+        let written = self.written_argument(argument)?;
         let body = original_logical_body_geometry_for_module(module, registry, tokens, written)?;
         let context = input.borrowed_context_registry();
         let mut out = tcl_registry::source_name_ownership::SourceVariableNameOwnership {
@@ -165,7 +198,7 @@ impl OriginalLogicalFrameInvocation {
         argument: usize,
     ) -> Option<crate::ir::Script> {
         self.literal(argument)?;
-        let written = self.selected.effective.written_argument(argument)?;
+        let written = self.written_argument(argument)?;
         crate::lowering::Lowerer::original_logical_body_for_module(
             module, registry, tokens, written,
         )
@@ -184,13 +217,8 @@ pub(crate) fn original_logical_body_geometry_for_module(
     if !input.has_logical_source_name_context() {
         return None;
     }
-    parent
-        .source_binding
-        .as_ref()?
-        .original_invocation_metadata_for_module(parent, module, registry)?;
-    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
-    let words = super::source_structure::original_registry_words_for_supplied_tokens(
-        &realm, input, parent,
+    let words = super::source_structure::original_logical_registry_words_for_module(
+        module, registry, parent,
     )?;
     let original = parent.words().get(argument.checked_add(1)?)?;
     let mut bodies = words
@@ -206,6 +234,41 @@ pub(crate) fn original_logical_body_geometry_for_module(
     bodies.next().is_none().then_some(body)
 }
 
+/// Frame grammar under this exact current Module's readonly source owner.
+pub(crate) fn original_logical_frame_invocation_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+) -> Option<OriginalLogicalFrameInvocation> {
+    let words = super::source_structure::original_logical_registry_words_for_module(
+        module, registry, tokens,
+    )?;
+    logical_source_frame_invocation(words, module.source_metadata_input.as_ref()?, tokens)
+}
+
+fn logical_source_frame_invocation(
+    words: super::source_structure::OriginalRegistryWords,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    tokens: &CommandTokens,
+) -> Option<OriginalLogicalFrameInvocation> {
+    let (layout, arguments, offset) =
+        words.with_source_schema(input.borrowed_context_registry(), |schema| {
+            (
+                schema.semantics.frame_effect.map(|frame| frame.layout),
+                schema.authored_logical_source_frame_argument_layout(),
+                schema.semantics.argument_offset,
+            )
+        })?;
+    Some(OriginalLogicalFrameInvocation {
+        selected: LogicalFrameSourceArguments::Source(words),
+        layout,
+        arguments,
+        offset,
+        original: tokens.clone(),
+        input: input.clone(),
+    })
+}
+
 /// Original readonly frame grammar and effective argv, not an entered frame
 /// or a successful variable link. The actual selected source recipe remains
 /// distinct from the Native handler and compilation purposes.
@@ -214,6 +277,15 @@ pub(crate) fn original_logical_frame_invocation_with_metadata_context(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<OriginalLogicalFrameInvocation> {
+    if context.matches_registry(registry)
+        && let Some(input) = context.source_analysis_input()
+        && let Some(words) = tokens
+            .source_binding
+            .as_ref()?
+            .original_logical_source_words(tokens, input, registry)
+    {
+        return logical_source_frame_invocation(words, input, tokens);
+    }
     let binding = tokens.source_binding.as_ref()?;
     let context = binding.original_invocation_metadata_for_input(
         tokens,
@@ -237,7 +309,7 @@ pub(crate) fn original_logical_frame_invocation_with_metadata_context(
             ))
         })?;
     Some(OriginalLogicalFrameInvocation {
-        selected,
+        selected: LogicalFrameSourceArguments::Layout(selected),
         layout,
         arguments,
         offset,
@@ -263,6 +335,46 @@ mod tests {
                 .with_resolved_analysis_input(input),
             source,
         )
+    }
+
+    #[test]
+    fn protected_source_frame_arguments_keep_actual_values_without_invocation_entry() {
+        let module = module("catch {upvar 1 {} {$literal}}");
+        let registry = module.resolved_registry();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        let child = &children[0];
+        let selected =
+            super::original_logical_frame_invocation_for_module(&module, registry, child).unwrap();
+        assert_eq!(selected.literal(0).as_deref(), Some("1"));
+        assert_eq!(selected.literal(1).as_deref(), Some(""));
+        assert_eq!(selected.literal(2).as_deref(), Some("$literal"));
+        assert_eq!(selected.count(), 3);
+        assert!(selected.layout().is_some());
+        assert!(selected.arguments().is_some());
+        assert!(
+            child
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_invocation_metadata_for_module(child, &module, registry)
+                .is_none()
+        );
+        let mut stale = child.clone();
+        stale.argv_texts[2] = "other".to_owned();
+        assert!(
+            super::original_logical_frame_invocation_for_module(&module, registry, &stale)
+                .is_none()
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            super::original_logical_frame_invocation_for_module(&missing, registry, child)
+                .is_none()
+        );
     }
 
     #[test]

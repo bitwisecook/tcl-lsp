@@ -242,6 +242,42 @@ fn collect_original_expression_calls(
     if !has_braced_commands {
         return Some(());
     }
+    if let Some(input) = metadata.source_analysis_input()
+        && let Some(words) = tokens
+            .source_binding
+            .as_ref()?
+            .original_logical_source_words(tokens, input, registry)
+    {
+        let (roles, traits) =
+            words.with_source_schema(input.borrowed_context_registry(), |schema| {
+                let projection = schema.authored_logical_source_role_projection()?;
+                if projection.selection_unknown()
+                    || projection.argument_roles().iter().any(|(argument, role)| {
+                        *role == tcl_registry::ArgRole::Expr
+                            && !matches!(
+                                words
+                                    .origins()
+                                    .get(argument.checked_add(1).unwrap_or(usize::MAX)),
+                                Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+                            )
+                    })
+                    || (schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+                        && words.origins().iter().any(|origin| {
+                            matches!(
+                                origin,
+                                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+                            )
+                        }))
+                {
+                    return None;
+                }
+                Some((words.written_argument_roles(), schema.semantics.traits))
+            })??;
+        return collect_original_braced_expression_calls(tokens, config, &roles, traits, collected);
+    }
     let logical_source = tokens
         .source_binding
         .as_ref()?
@@ -335,6 +371,20 @@ fn collect_original_expression_calls(
         }
         return (!has_braced_commands).then_some(());
     };
+    collect_original_braced_expression_calls(tokens, config, &roles, traits, collected)
+}
+
+fn collect_original_braced_expression_calls(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    roles: &[(usize, tcl_registry::ArgRole)],
+    traits: tcl_registry::Traits,
+    collected: &mut LiftedCallCollection,
+) -> Option<()> {
+    let has_braced_commands = tokens
+        .words()
+        .iter()
+        .any(|word| matches!(word, WordExpr::BracedLiteral { text, .. } if text.contains('[')));
     let concatenated = traits.contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS);
     if concatenated && has_braced_commands && tokens.words().len() != 2 {
         return None;

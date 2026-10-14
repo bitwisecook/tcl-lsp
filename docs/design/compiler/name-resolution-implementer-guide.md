@@ -10496,9 +10496,11 @@ Encoding names remain original bytes through literal-zero C-string extent and ca
 ## Original declaration summary bodies and word contents
 
 Use `Module::original_source_procedure_bodies` for conditional procedure-effect
-summaries. It retains ordinary procedures and genuine OriginalDeclaration units
-under the actual Module issuer, allocation site and source image. Lambdas and
-installed-only units keep separate purposes.
+summaries. It enumerates ordinary procedures with the same Module issuer.
+OriginalDeclaration units additionally require their genuine declaration site,
+allocation, source image and body kind. Complete retained Module correspondence
+independently checks current signatures before a summary owner accepts the
+Module. Lambdas and installed-only units keep separate purposes.
 `Module::original_source_procedure_for_target` selects exactly one such body
 through the target’s authentic implementation allocation and original image.
 Global, caller-frame and parameter summaries retain that issued ID; a report

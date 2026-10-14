@@ -388,6 +388,36 @@ impl CommandBindingRealm {
             .stamp_original_tokens_with_bindings(tokens, |offset| {
                 self.retained_original_invocation(offset).as_ref().clone()
             });
+        if let Some(input) = self.source_input.as_ref()
+            && input.has_logical_source_name_context()
+            && tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.lookup_state.is_none())
+            && let Some(advice) =
+                self.original_source_transition_advice(input.borrowed_context_registry(), tokens)
+            && let Some(binding) = tokens.source_binding.as_mut()
+        {
+            binding.retain_original_logical_source_advice(advice);
+        }
+        if let Some(input) = self.source_input.as_ref()
+            && input.has_logical_source_name_context()
+        {
+            for (_, binding) in &mut tokens.nested_bindings {
+                if binding.has_original_source_layout_owner() {
+                    continue;
+                }
+                let Some((_, mut child)) = binding.original_recorded_command() else {
+                    continue;
+                };
+                child.source_binding = Some(binding.clone());
+                if let Some(advice) = self
+                    .original_source_transition_advice(input.borrowed_context_registry(), &child)
+                {
+                    binding.retain_original_logical_source_advice(advice);
+                }
+            }
+        }
     }
 
     /// Cursor geometry from an actual rejected procedure's body-delimiter cut.

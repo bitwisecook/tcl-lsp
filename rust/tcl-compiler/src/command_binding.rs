@@ -1220,6 +1220,7 @@ pub struct SourceInvocationBinding {
     pub invocation_variable_reads: Option<Arc<SourceInvocationVariableReads>>,
     pub(crate) lookup_state: Option<Arc<SourceLookupSnapshot>>,
     pub(crate) compiler_lookup_state: Option<Arc<SourceLookupSnapshot>>,
+    original_logical_source_advice: Option<Arc<OriginalSourceCommandTransitionAdvice>>,
     declaration_layout_observations:
         Option<Arc<[declaration_layout::DeclarationLayoutObservation]>>,
     declaration_flow_inventory: Option<Arc<declaration_flow::DeclarationFlowInventory>>,
@@ -1279,6 +1280,64 @@ pub struct SourceInvocationBinding {
     pub unknown: bool,
 }
 
+impl SourceInvocationBinding {
+    pub(crate) fn has_original_source_layout_owner(&self) -> bool {
+        self.lookup_state.is_some()
+            || self.compiler_lookup_state.is_some()
+            || self.declaration_layout_observations.is_some()
+    }
+
+    pub(crate) fn retain_original_logical_source_advice(
+        &mut self,
+        advice: OriginalSourceCommandTransitionAdvice,
+    ) {
+        if self.lookup_state.is_none() && advice.logical_source_input().is_some() {
+            self.original_logical_source_advice = Some(Arc::new(advice));
+        }
+    }
+
+    pub(crate) fn original_logical_source_words(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
+        if self.has_original_source_layout_owner()
+            || tokens.source_binding.as_ref() != Some(self)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || !input.has_logical_source_name_context()
+        {
+            return None;
+        }
+        let advice = self.original_logical_source_advice.as_deref()?;
+        let context = input.borrowed_context_registry();
+        let image = advice.site().source.source_image();
+        let config = input.lexer_config();
+        if !std::ptr::eq(registry, context.commands().as_ref())
+            || advice.logical_source_input() != Some(input)
+            || !advice.matches_source(image, config)
+            || !advice.matches_context(context)
+            || crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                advice.site().offset,
+                config,
+            )?
+            .as_slice()
+                != advice.original_words()
+        {
+            return None;
+        }
+        crate::registry_invocation::source_structure::source_transition_words_from_advice(
+            image.try_text().ok()?,
+            config,
+            context,
+            advice.clone(),
+        )
+    }
+}
+
 impl Default for SourceInvocationBinding {
     fn default() -> Self {
         Self {
@@ -1298,6 +1357,7 @@ impl Default for SourceInvocationBinding {
             invocation_variable_reads: None,
             lookup_state: None,
             compiler_lookup_state: None,
+            original_logical_source_advice: None,
             declaration_layout_observations: None,
             declaration_flow_inventory: None,
             original_logical_declaration_targets: None,
@@ -1852,6 +1912,9 @@ impl SourceInvocationBinding {
     }
 
     fn join_original_operand_receipts(&mut self, other: &Self) {
+        if self.original_logical_source_advice != other.original_logical_source_advice {
+            self.original_logical_source_advice = None;
+        }
         if self.original_variable_operands != other.original_variable_operands {
             self.original_variable_operands = None;
         }
@@ -12108,6 +12171,7 @@ fn source_binding_projection_in(
         invocation_variable_reads: None,
         lookup_state: None,
         compiler_lookup_state: None,
+        original_logical_source_advice: None,
         declaration_layout_observations: None,
         declaration_flow_inventory: None,
         original_logical_declaration_targets: None,
@@ -23939,5 +24003,81 @@ mod original_logical_source_layout_tests {
         assert!(binding.proved_handler_target().is_none());
         assert_eq!(entry.execution_point, environment.point());
         drop(owner);
+    }
+}
+
+#[cfg(test)]
+mod logical_source_advice_join_tests {
+    use super::*;
+
+    fn original_child(source: &str) -> (crate::ir::Module, crate::ir::CommandTokens) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let mut children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, context.commands(), parent).unwrap();
+        (module, children.remove(0))
+    }
+
+    #[test]
+    fn logical_source_advice_join_requires_the_same_complete_original_owner() {
+        let (module, tokens) = original_child("catch {set ::hits VALUE}");
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let registry = module.resolved_registry();
+        let original = tokens.source_binding.as_ref().unwrap();
+        assert!(original.original_logical_source_advice.is_some());
+        let mut same = original.clone();
+        same.join(original);
+        let mut joined = tokens.clone();
+        joined.source_binding = Some(same);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_some()
+        );
+        let (_, other) = original_child("catch {set ::other VALUE}");
+        let mut different = original.clone();
+        different.join(other.source_binding.as_ref().unwrap());
+        assert!(different.original_logical_source_advice.is_none());
+        joined.source_binding = Some(different);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_none()
+        );
+        let mut absent = original.clone();
+        absent.original_logical_source_advice = None;
+        let mut mixed = original.clone();
+        mixed.join(&absent);
+        assert!(mixed.original_logical_source_advice.is_none());
+        joined.source_binding = Some(mixed);
+        assert!(
+            joined
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_logical_source_words(&joined, input, registry)
+                .is_none()
+        );
     }
 }

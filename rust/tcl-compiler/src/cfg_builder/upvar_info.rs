@@ -740,16 +740,11 @@ fn record_original_child_frame_effects(
         if !seen.insert(site.offset) {
             continue;
         }
-        let selected = parent.source_binding.as_ref().and_then(|binding| {
-            let metadata = binding.original_invocation_metadata_for_module(
-                &parent,
-                bindings.module,
-                registry,
-            )?;
-            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
-                registry, metadata, &parent,
-            )
-        });
+        let selected = crate::registry_invocation::original_logical_frame_invocation_for_module(
+            bindings.module,
+            registry,
+            &parent,
+        );
         let Some(selected) = selected else {
             info.caller_frame_opaque_writes = true;
             info.caller_frame_opaque_reads = true;

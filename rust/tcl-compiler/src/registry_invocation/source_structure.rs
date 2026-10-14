@@ -2174,6 +2174,59 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
     Some(selected)
 }
 
+/// Conditional source argv under the complete current Logical Module.
+/// The retained tape owns deferred child syntax independently of dispatch.
+pub(crate) fn original_logical_registry_words_for_module(
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalRegistryWords> {
+    let input = module.source_metadata_input.as_ref()?;
+    if !input.has_logical_source_name_context()
+        || module.source_entry.native_entry.is_some()
+        || module.source_entry.hosted_execution_context.is_some()
+        || module.source_entry.unknown_entry
+        || tokens.synthetic.is_some()
+        || !tokens.original_words_match_argv_text()
+        || module.native_lexer_config() != input.lexer_config()
+    {
+        return None;
+    }
+    super::InvocationMetadataContext::for_module(registry, module)?;
+    let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_source_layout_owner() {
+        return original_registry_words_for_supplied_tokens(&realm, input, tokens);
+    }
+    let retained = binding.original_logical_source_words(tokens, input, registry)?;
+    let offset = tokens.words().first()?.source().span.start();
+    let original = super::original_native_compiler_words(
+        &module.source,
+        tokens.words(),
+        offset,
+        input.lexer_config(),
+    )?;
+    let context = input.borrowed_context_registry();
+    if realm.original_source_registry_barrier(context, tokens) {
+        return None;
+    }
+    let advice = realm.original_source_transition_advice(context, tokens)?;
+    if advice.logical_source_input() != Some(input)
+        || advice.original_words() != original.as_slice()
+        || !advice.matches_source(&module.source, input.lexer_config())
+        || !advice.matches_context(context)
+    {
+        return None;
+    }
+    let current = source_transition_words_from_advice(
+        module.source.try_text().ok()?,
+        input.lexer_config(),
+        context,
+        advice,
+    )?;
+    (current == retained).then_some(current)
+}
+
 /// Complete immediate Plain-body commands under the unchanged Module owner.
 /// Each child retains its own original source point; no body entry is issued.
 pub(crate) fn original_immediate_body_commands_for_module(
@@ -2183,34 +2236,20 @@ pub(crate) fn original_immediate_body_commands_for_module(
 ) -> Option<Vec<crate::ir::CommandTokens>> {
     let input = module.source_metadata_input.as_ref()?;
     input.has_logical_source_name_context().then_some(())?;
-    let binding = parent.source_binding.as_ref()?;
-    let metadata = binding.original_invocation_metadata_for_module(parent, module, registry)?;
-    if binding.original_source_advice_purpose(parent, metadata, registry)?
-        != crate::command_binding::OriginalInvocationSourcePurpose::Logical
-    {
-        return None;
-    }
-    let selected = super::original_logical_operation_invocation_with_metadata_context(
-        registry, metadata, parent,
-    )?;
-    let source_realm = binding.original_source_realm_for_input(parent, input, registry)?;
-    let no_script_body =
-        selected.with_metadata_schema(registry, metadata, source_realm, |schema| {
-            let (roles, complete) = schema.authored_logical_source_argument_roles();
-            Some(
-                complete
-                    && !roles
-                        .iter()
-                        .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
-                    && schema.authored_source_case_invocation().is_none(),
-            )
-        })?;
+    let words = original_logical_registry_words_for_module(module, registry, parent)?;
+    let context = input.borrowed_context_registry();
+    let no_script_body = words.with_source_schema(context, |schema| {
+        let (roles, complete) = schema.authored_logical_source_argument_roles();
+        complete
+            && !roles
+                .iter()
+                .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+            && schema.authored_source_case_invocation().is_none()
+    })?;
     if no_script_body {
         return Some(Vec::new());
     }
     let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
-    let words = original_registry_words_for_supplied_tokens(&realm, input, parent)?;
-    let context = input.borrowed_context_registry();
     let immediate = words.with_source_schema(context, |schema| {
         let mut selected = Vec::new();
         for &(argument, role) in words.roles()? {
@@ -2271,7 +2310,7 @@ pub(crate) fn original_immediate_body_commands_for_module(
                 crate::ir::CommandTokens::from_segmented(&map, input.lexer_config(), &segments[0]);
             realm.stamp_original_tokens(&mut child);
             let binding = child.source_binding.as_ref()?;
-            binding.original_invocation_metadata_for_module(&child, module, registry)?;
+            original_logical_registry_words_for_module(module, registry, &child)?;
             let site = binding.invocation_site()?;
             let actual = super::original_native_compiler_words(
                 &module.source,

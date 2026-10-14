@@ -59,6 +59,20 @@ impl<'a> GlobalWriteSemantics<'a> {
         tcl_registry::VariableWriteProjection,
         Vec<tcl_registry::VariableCellAliasTransition>,
     )> {
+        if let Some(module) = self.module {
+            let input = module.source_metadata_input.as_ref()?;
+            let words = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
+                module, self.registry, tokens,
+            )?;
+            return words.with_source_schema(input.borrowed_context_registry(), |schema| {
+                Some((
+                    tcl_registry::CommandRegistry::variable_write_projection_for_selected_source(
+                        schema,
+                    ),
+                    schema.authored_logical_source_variable_aliases()?,
+                ))
+            })?;
+        }
         crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
             self.registry,
             self.metadata?,
@@ -1523,6 +1537,106 @@ mod tests {
         assert!(crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
             &dynamic, dynamic.resolved_registry(), parent,
         ).is_none());
+    }
+
+    #[test]
+    fn logical_source_child_effects_keep_readonly_ownership_and_refuse_stale_modules() {
+        let module = module("catch {set ::hits VALUE}");
+        let registry = module.resolved_registry();
+        let input = module.source_metadata_input.as_ref().unwrap();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let children = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        let child = &children[0];
+        let binding = child.source_binding.as_ref().unwrap();
+        assert!(binding.lookup_state.is_none());
+        assert!(
+            binding
+                .original_invocation_metadata_for_module(child, &module, registry)
+                .is_none()
+        );
+        let words = binding
+            .original_logical_source_words(child, input, registry)
+            .unwrap();
+        assert!(matches!(
+            words.source(),
+            crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+                _
+            )
+        ));
+        assert!(!words.operands_preserve_source_lookup());
+        assert_eq!(
+            words
+                .with_source_schema(
+                    input.borrowed_context_registry(),
+                    tcl_registry::CommandRegistry::variable_write_projection_for_selected_source
+                )
+                .unwrap()
+                .literal_names,
+            vec!["::hits"]
+        );
+        let mut stale = child.clone();
+        stale.argv_texts[1] = "::other".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &stale).is_none());
+        let mut missing_carrier = child.clone();
+        missing_carrier.source_binding = Some(Default::default());
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &missing_carrier).is_none());
+        let mut missing_words = child.clone();
+        missing_words.source_binding = None;
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &missing_words).is_none());
+        for facet in 0..5 {
+            let mut stale = module.clone();
+            match facet {
+                0 => stale.source_metadata_input = None,
+                1 => stale.source = tcl_lexer::SourceImage::document("catch {set ::other VALUE}"),
+                2 => stale.retained_source_bindings = None,
+                3 => stale.lexer_config.strict_quoting = !stale.lexer_config.strict_quoting,
+                4 => stale.source_entry.unknown_entry = true,
+                _ => unreachable!(),
+            }
+            assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&stale, registry, child).is_none(), "changed facet {facet}");
+        }
+        let profile = tcl_dialect::DialectProfile::find("tcl9.1").unwrap();
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut stronger = module.clone();
+        stronger.source_entry.native_entry = Some(std::sync::Arc::new(entry));
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&stronger, registry, child).is_none());
+    }
+
+    #[test]
+    fn protected_child_substitutions_retain_their_own_source_effect_carriers() {
+        let module = module("catch {set ::hits [incr ::other]}");
+        let registry = module.resolved_registry();
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, &module)
+                .unwrap();
+        let parent = module
+            .top_level
+            .retained_source_tokens_for_statement(&module.top_level.statements[0])
+            .unwrap();
+        let body = crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(&module, registry, parent).unwrap();
+        let children = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
+            &body[0],
+            module.native_lexer_config(),
+            registry,
+            metadata,
+        )
+        .unwrap();
+        assert_eq!(children.len(), 1);
+        let child = children[0].tokens.as_ref().unwrap();
+        let (writes, _) =
+            crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
+                registry, metadata, child,
+            )
+            .unwrap();
+        assert_eq!(writes.literal_names, vec!["::other"]);
+        assert!(!writes.opaque_variable_frame);
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, child).is_some());
+        let mut stale = child.clone();
+        stale.argv_texts[1] = "::unowned".to_owned();
+        assert!(crate::registry_invocation::source_structure::original_logical_registry_words_for_module(&module, registry, &stale).is_none());
     }
 
     #[test]

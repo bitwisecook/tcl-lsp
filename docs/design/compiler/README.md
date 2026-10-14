@@ -19,6 +19,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [name-resolution-implementer-guide.md](name-resolution-implementer-guide.md) —
   proof-purpose API selection, consumer requirements, runtime entry contracts,
   physical storage, native compiler admission, and discriminating test recipes.
+- [original-procedure-analysis.md](original-procedure-analysis.md) — current issued-body inventory,
+  readonly declaration cards, prepared CFG ownership and memo correspondence.
 - [evaluated-tcl-semantics.md](evaluated-tcl-semantics.md) —
   shared command/cell resolution, evaluated bodies, dialect policy, package
   provenance, completion and F5 storage domains.

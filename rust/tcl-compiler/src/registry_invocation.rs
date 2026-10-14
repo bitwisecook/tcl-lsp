@@ -91,6 +91,7 @@ pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
 mod logical_frame;
 pub(crate) use logical_frame::{
     OriginalLogicalFrameInvocation, original_logical_body_geometry_for_module,
+    original_logical_frame_invocation_for_module,
     original_logical_frame_invocation_with_metadata_context,
 };
 mod variable_write_advice;
@@ -747,6 +748,22 @@ pub(crate) fn original_logical_variable_footprint_with_metadata_context(
     tcl_registry::VariableWriteProjection,
     Vec<tcl_registry::VariableCellAliasTransition>,
 )> {
+    if context.matches_registry(registry)
+        && let Some(words) = tokens
+            .source_binding
+            .as_ref()?
+            .original_logical_source_words(tokens, context.source_analysis_input()?, registry)
+    {
+        return words.with_source_schema(
+            context.source_analysis_input()?.borrowed_context_registry(),
+            |schema| {
+                Some((
+                    CommandRegistry::variable_write_projection_for_selected_source(schema),
+                    schema.authored_logical_source_variable_aliases()?,
+                ))
+            },
+        )?;
+    }
     let binding = tokens.source_binding.as_ref()?;
     let context = binding.original_invocation_metadata_for_input(
         tokens,

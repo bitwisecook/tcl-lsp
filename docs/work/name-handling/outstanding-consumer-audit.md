@@ -1,72 +1,54 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 05:28 UTC snapshot on `work`. The machine inventory keeps
-47 actionable rows, the inherited 330 lexical LSP candidates and original issue
-and source observations. Package membership or lexical search absence does not
-certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
-record each integrated owner and its remaining execution obligation.
+Current bounded snapshot: 2026-10-14T07:11:43Z on `work`. The machine inventory retains
+47 actionable rows, the inherited 330 lexical candidates and original issue
+and source observations. Package membership and search absence do not certify
+semantic completion. [Consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
+record current shared ownership and remaining execution obligations.
 
-## Current execution
+## Current execution and integration
 
-| Capture | Actual result | Scope and remaining work |
-| --- | --- | --- |
-| Compiler40 | Running; no final aggregate. | Current consumer/source repairs require exact original controls. Root source freeze remains active; older captures do not accept this newer source. |
-| Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
-| Full Runtime09 | 79 controls: 78 PASS, 1 FAIL; zero source/compiled-input/artifact drift. | All original 77 controls pass. Only new C8.5 rename error-code expectation fails. The independent per-engine correction is integrated and requires fresh replay. Engine host/guest closure remains separate. |
-| Core34 diagnostic | 64 controls: 39 PASS, 25 FAIL; zero authored-source drift. | Common original 30 gain 2 with no regressions; original scope 9 is 8 PASS/1 FAIL and earlier 14 is 13 PASS/1 FAIL. Linked definition 2 pass; hover 4/rename and provider/seed fail. Graph13 overflows during analysis producer; strict Native inlay has no definitions/types. |
-| DB38 | Build PASS; ten exact controls: 2 PASS, 8 FAIL; zero source drift and no missing selectors. | Whole-file lattice shift and original quoted/braced callee-edit memo observations pass. Original body-shift/parameter/optimisation/taint/cascade and source-input controls fail; assertions remain unchanged. Earlier DB36/37 compile failures supply no semantic results. |
-| Paired Runtime08 | 2 controls: 1 PASS, 1 FAIL; zero source/compiled/artifact drift. | Only Jim rename message NUL extent fails. Actual C8.4/C8.5 observations retain counted full diagnostics; universal CString proposal rejected before Main, per-engine correction active. Prior Runtime07 76/77 remains retained scoped evidence. |
-| AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
+The current shared consumers retain complete original source, analysis input,
+configuration, Registry and issued body identity. Logical and Hosted readonly
+cards, DB held FunctionUnit/card joins, Core linked navigation, OO creator/body
+owners, SSA name/scalar owners and private source registrations are integrated.
+Logical effect/frame consumers use genuine retained source advice when no
+reached/compiler/declaration layout owner exists. A present stronger owner
+keeps its old route or refusal. Branch joins retain this advice only when both
+complete original receipts agree; nested children retain their recorded source
+owner. Strict invocation metadata, Normal transfers and Native entry remain
+independent.
 
-Compiler33 diagnostic build and selected replay are complete. Main fixes after
-that frozen capture require fresh replay and do not inherit its outcomes.
-Authentic original-declaration summary inventory/allocation selection is now
-integrated alongside issued-body fixture selection. Original assertions remain
-unchanged and need fresh execution. The source-provider seed currently lacks
-its genuine Scope.naming_scope producer field; a bounded repair is ready for
-review and exact replay.
+Compiler51 is running 337 exact selectors; no aggregate is available. Compiler49 and Compiler50
+stopped in compilation before semantic controls with zero source drift. The Arc
+pointer correction and an owner-local test fixture constructor are integrated;
+the latter preserves the original hand CFG and assertions without exposing
+private production fields. The latest sealed compiler semantic
+capture is Compiler43: build PASS, 322 controls, 208 PASS/114 FAIL, zero source
+drift and no missing/empty selectors. Its 311 common Compiler40 controls gain
+one and regress one: literal empty/dollar reads improve; original nested-write
+projection fails. New event owner controls fail in that older capture and must
+be replayed against the integrated declaration cards.
 
-## Integrated repairs awaiting replay
+DB48 builds and executes all ten original controls: 1 PASS/9 FAIL, source drift
+zero and no missing/empty selectors. Whole-file lattice shift passes; the
+original quoted/braced callee-edit control regresses from DB38. Unchanged cold,
+edit, supplied-input and uncached comparison assertions remain required. Core34
+retains 39 PASS/25 FAIL across 64 controls with zero source drift; linked hover,
+rename, graph producer and strict Native inlay remain open. Runtime09 retains
+78 PASS/1 FAIL across 79 controls, all original 77 PASS and zero source,
+compiled-input and artifact drift; the C8.5 error-code correction awaits replay.
+The real native server build and eleven editor controls pass in their bounded
+capture with zero source/output/binary drift. MCP41 dependency linking fails
+before semantic controls; this supplies no MCP acceptance.
 
-Original source-realm selection now uses the genuine readonly source advice
-purpose when no reached owner exists. The reached branch remains terminal; full
-original input, registry, source vector and closed declaration checks remain.
-This source correspondence grants no Native handler, Normal transfer or frame.
-
-SSA uses separate positively retained Logical source roles for literal by-name
-reads and original loop-name metadata. Braced name payloads retain empty names
-and dollar sigils without lexical substitution. Native definitions, completed
-stores and value forwarding keep their independent owners. Slot tests retain
-the actual compilation unit CFG and SSA rather than rebuilding detached
-Standalone graphs. Exact/foreign/unavailable/array/nested-command assertions
-remain unchanged and require replay.
-
-W214 formal controls and Logical inlining fixtures now use actual plain-Tcl full
-source input and its authored naming contract. Their prior projected Jim079
-profile had no authored naming policy and could not establish positive source
-naming geometry. Existing source and assertions remain intact. Inlining readonly
-source context retains original declaration correspondence without fabricating
-a reached lookup. Compiler33 shows that the readonly frame consumer still
-requests the absent Native variable policy for unversioned Tcl. The integrated
-consumer now selects the shared authored policy after positive Logical purpose;
-original frame controls require fresh replay.
-Native splice/admission remains separate.
-
-Current body-unit source joins, server case/provider, W116/W143 document-stub,
-namespace rename MAY hazard and Native descriptor transport delegates are
-integrated. Genuine authored factory value and Logical evaluated-body readers
-retain their independent original word/purpose/source owners. Current/root
-Logical child lowering retains actual Module realm and shared body geometry;
-unknown-caller source coordinates remain unavailable. Its integrated separate
-MAY vocabulary query preserves opaque read/write hazards and cannot borrow
-current/root tables. Shared source-name ownership retains legal empty and
-literal dollar names through the same array partition. Command visibility
-diagnostics and original OO manufacturer-word consumers now delegate shared
-owners; unused captured-static readers are retired. Every subsequent
-patch needs current execution; old source hashes or passing captures are not
-renewed by these tracking updates. Deferred source-effect unknown-command
-residual, global/upvar/deferred effects, linked-member reference/edit hazards,
-strict Native SSA definition hints and DB original cold/edit reuse remain active.
+The F5 XC call/expression migration completes independent source review.
+Canonical descriptors come from the actual supplied Registry and original
+call, condition offsets or switch operand span. Missing/stale/foreign ownership,
+literal bracket text and unavailable translation descriptors decline advice.
+Integration and the original differential/model controls remain pending.
+Appliance questions remain unanswered; software and C/Jim observations do not
+establish Native F5 dispatch or execution.
 
 ## Reconciled inherited rows
 
@@ -107,59 +89,29 @@ before the merge-ready PR; durable documentation describes current contracts.
 
 ## Current final-gate audit
 
-The strict current proof audit fails with 1,959 structural errors across 2,606
-questions. It reports 969 changed evidence references across 631 files, 952
-census digest mismatches, 12 census paths and four absent owners. No evidence,
-provider, replay or census hash is renewed; current-source inspection does not
-certify immutable execution or Native acceptance.
+Source registration gate45 builds and passes 44 exact controls, including the
+15 new source-registration controls, with zero source drift and no missing or
+empty selectors. The full owner CLI46 retains 202 failures from before the
+ancestor visibility repair; the repaired full current manifest is unverified.
+Thirteen initial and sixteen additional private source routes are integrated.
+Fifty-four lexical candidates are actual public trait members checked by the
+existing declaration gate; 149 candidates retain route/shape review obligations.
+Private helpers cannot become public solely to satisfy documentation checks.
 
-Public owner rows require actual unrestricted public declarations. Accurate
-private source registration completes independent review of receiver shadowing,
-scoped generics, local items, intermediate module visibility and macros. Source registration is integrated; its 15 controls and full manifest checks
-remain unexecuted. Exact source
-routes preserve the existing Runtime typed getter rule.
-Thirteen exact new mappings and 217 restricted/private-looking entries across
-69 surfaces are retained for AST review; trait and re-export cases are not
-resolved by lexical triage. Helpers cannot become public solely for the map.
+The last strict proof audit reports 1,959 structural errors across 2,606 questions;
+narrow owner-description corrections are integrated, and a fresh audit remains
+required. Original provider, evidence, source-anchor, replay and census digests
+are preserved. Changed-source evidence is not renewed by documentation edits.
+The link/index mirror checks 3,259 Markdown files and 126,064 local links with
+zero broken links or unindexed design/KCS entries; actual Rust KCS, diagnostic
+tag and audience checks remain required. Original qualified Hosted-name
+refusals and O124 source-edit applicability remain explicit. The Native
+source-only declaration-body producer remains unavailable; Logical or Hosted
+cards cannot fill its missing ownership.
 
-The read-only documentation mirror checks 3,259 Markdown files and 126,061
-local links. The F5 fragment and five design index entries are corrected. The linked-member
-current contract is relocated byte-identically to the contracts directory.
-Original appliance/probe/legal text remains intact. Real Rust KCS, diagnostic
-tag and audience checks remain required.
-
-MCP selected-dialect migration, AI selected slot pairs and regex retirement,
-original realm restamping and immediate protected body consumers are integrated.
-Compiler40 seals 311 controls: 205 PASS/106 FAIL, authored-source drift 0;
-its 303 common Compiler33 controls gain seven without regressions. The actual
-native server build passes and 11 selected editor checks pass with zero source,
-output and binary drift. These bounded checks do not close remaining Core, DB,
-Runtime, private registration, proof or whole-surface gates.
-
-The integrated link/index cleanup rechecks clean in the read-only mirror:
-3,259 Markdown files, 126,064 local links and no missing design/KCS index entries.
-Real Rust KCS, tag and audience checks remain required. MCP41 fails dependency
-linking with a bus error before any semantic controls; authored-source drift is
-zero. Narrow current-owner proof records are integrated without renewing original
-provider/evidence/source/replay fields or resolving their changed-source digests.
-
-Event/provider, readonly source value, upvar protection and F5 selected parameter
-getter consumers are integrated; the dead lexical adapter is retired. Formatting is complete before fresh Compiler43; its bounded results remain partial. Retained original
-binaries and hashes remain unchanged after build target cleanup.
-
-Compiler43 seals 322 exact controls: 208 PASS/114 FAIL, build PASS and authored-source drift 0. No selectors are missing or empty. Across 311 common Compiler40 controls, one improves and one regresses: lowered literal empty/dollar reads improve; original nested-write projection fails. The new event owner controls fail and supply no event acceptance.
-
-Sixteen additional private compiler/Core/diagram mappings complete independent
-source review; integration and actual gate execution remain pending. Fifty-four
-lexical hits are actual public trait APIs covered by the existing declaration
-check; 149 candidates still need route/shape validation. Source gate15 controls
-and whole-manifest execution remain independent. Original evidence/provider
-hashes are unchanged; the last strict audit reports 1,959 structural errors,
-with integrated narrow owner updates awaiting a fresh audit. The event contract
-union preserves all existing rows and adds its actual ir.rs declaration owner.
-
-Source gate44 stops in compilation before any controls: source drift 0, no semantic result. The compiler errors concern reverse string matching and Syn3 pattern guards; fixes are integrated. Gate45 is building with no result yet. Source registration15 controls and full actual manifest execution remain pending. DB memo/taint, Core linked hover/rename, OO creator/root-chain, Tk SSA/scalar mutation and original declaration card/Hosted body consumers remain reviewed scratch work awaiting integration after the source freeze.
-
-Source gate45 seals 44 exact controls: 44 PASS, build PASS, no missing/empty selectors and source drift 0. The 15 new source-registration controls are included; full current owner-manifest execution remains separate. Hosted declaration owner and caller reviews retain genuine original RootScript/Global scope, whole source entry/input/vector/body/formals and unknown handler alternatives. The caller requires the actual current issued body row and held FunctionUnit/card; changed or missing rows refuse even when a saved procedure snapshot matches. Combined readonly Logical/Hosted transport suppresses execution/math/expression/native-failure attachments and executable roots. These reviewed packets still require integration and actual consumer execution; qualified unmeasured Hosted declaration names and O124 editing applicability stay explicit.
-
-Combined genuine declaration cards/readonly Logical and Hosted transport, DB held-owner transports, Core linked hover/rename, OO creator/root-chain, SSA scalar/name and private16/ancestor visibility consumers are integrated. DB production47 stops in compilation: build101, zero semantic controls and source drift0. No new DB aggregate is established. The actual owner CLI46 retains its 202 failures from before the ancestor repair; source gate45 44/44 controls remains bounded. Final Logical source-effect carrier retains authentic source advice under exact whole Module/input/store/image/vector and refuses a present reached/compiler/declaration layout owner. Global/Upvar source MAY adapters remain reviewed packets; strict invocation metadata, Normal and Native APIs remain independent.
+The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP
+rows still require complete surface reconciliation. Original experiments,
+failures, oracle sources, legal attribution and unanswered F5 questions remain
+retained. No whole-codebase, Native, F5 or PR-ready acceptance is established.
+This temporary coordination directory and its references are removed before
+the merge-ready PR; durable documentation describes current contracts.
