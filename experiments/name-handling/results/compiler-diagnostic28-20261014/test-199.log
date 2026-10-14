@@ -1,0 +1,6 @@
+
+running 1 test
+test var_refs::tests::scan_script_still_finds_a_bare_substitution_in_a_script_body_issue_1024 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9631 filtered out; finished in 0.01s
+

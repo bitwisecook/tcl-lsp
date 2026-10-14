@@ -1,0 +1,132 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_script_names_what_it_writes ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=6 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=10 passed=true count=1
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=0 stage=body-advice available=false
+ORIGINAL_DECLARATION offset=0 stage=body-unavailable
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_DECLARATION offset=0 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=3
+ISSUER_TAPE stage=words offset=0 selected=true
+ISSUER_TAPE stage=receiver offset=0 selected=false
+ISSUER_TAPE stage=operand_effects offset=0 selected=Some(false)
+ISSUER_TAPE stage=header offset=0 selected=false
+ISSUER_TAPE stage=selection offset=0 head=[97, 102, 116, 101, 114] cell=Some("descriptor") selected=true barrier=false
+ISSUER_TAPE stage=schema offset=0 command="after" selected=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(11) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(11) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=command.header offset=Some(12) passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=command.substitutions offset=Some(12) passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=command.words offset=Some(12) passed=true count=3
+ISSUER_BODY stage=selection offset=12 head=[115, 101, 116] cell=Some("descriptor") selected=true inventory=false source_body=false catalogue=true
+ISSUER_BODY stage=schema offset=12 command="set" selected=true
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(12) passed=true count=1
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.request_input offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.reached_lookup offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.point_metadata offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(0) words=3 synthetic=None written=true compiler=true declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(0) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.known offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=footprint.present offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.closed_domain offset=Some(0) passed=false
+ORIGINAL_CHILD_GUARD label=footprint.quiet offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.no_step offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.origin offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.image offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.store offset=Some(0) passed=true
+ORIGINAL_CHILD_GUARD label=footprint.config offset=Some(0) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=3
+ISSUER_TAPE stage=words offset=0 selected=true
+ISSUER_TAPE stage=receiver offset=0 selected=false
+ISSUER_TAPE stage=operand_effects offset=0 selected=Some(false)
+ISSUER_TAPE stage=header offset=0 selected=false
+ISSUER_TAPE stage=selection offset=0 head=[97, 102, 116, 101, 114] cell=Some("descriptor") selected=true barrier=false
+ISSUER_TAPE stage=schema offset=0 command="after" selected=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=script.plan offset=Some(11) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=script.complete offset=Some(11) passed=true count=1
+ORIGINAL_BODY_INVENTORY stage=command.header offset=Some(12) passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=command.substitutions offset=Some(12) passed=true count=3
+ORIGINAL_BODY_INVENTORY stage=command.words offset=Some(12) passed=true count=3
+ISSUER_BODY stage=selection offset=12 head=[115, 101, 116] cell=Some("descriptor") selected=true inventory=false source_body=false catalogue=true
+ISSUER_BODY stage=schema offset=12 command="set" selected=true
+ORIGINAL_BODY_INVENTORY stage=expressions.roles offset=Some(12) passed=true count=1
+
+thread 'deferred_writes::tests::a_callback_script_names_what_it_writes' (207176) panicked at rust/tcl-compiler/src/deferred_writes.rs:1076:13:
+assertion `left == right` failed: after 100 { set done 1 }
+  left: []
+ right: ["done"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_script_names_what_it_writes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9631 filtered out; finished in 0.18s
+

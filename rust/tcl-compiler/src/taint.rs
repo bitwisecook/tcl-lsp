@@ -11914,7 +11914,10 @@ mod tests {
                 false,
                 profile,
             );
-            let id = crate::test_body_identity::fixture_id(&unit.procedures, "::ns::run");
+            let id = crate::interprocedural::test_body_identity::fixture_id(
+                &unit.procedures,
+                "::ns::run",
+            );
             let function = unit.procedures.get_mut(&id).unwrap();
             function.name = "::counterfactual::run".to_owned();
             assert_eq!(
@@ -11941,8 +11944,10 @@ mod tests {
                 false,
                 profile,
             );
-            let foreign =
-                crate::test_body_identity::fixture_id(&foreign_unit.procedures, "::foreign");
+            let foreign = crate::interprocedural::test_body_identity::fixture_id(
+                &foreign_unit.procedures,
+                "::foreign",
+            );
             unit.procedures.get_mut(&id).unwrap().body_id = Some(foreign);
             assert!(
                 shadowed_builtin_names_for_module_function(

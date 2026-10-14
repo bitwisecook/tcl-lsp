@@ -1,0 +1,114 @@
+
+running 1 test
+test deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=89 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=93 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=98 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=89 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=100 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=106 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=109 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=100 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=110 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=110 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=118 passed=true count=1
+ORIGINAL_DECLARATION offset=89 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=100 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=89 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=89 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=89 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=89 stage=body-unavailable
+ORIGINAL_DECLARATION offset=100 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=100 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=100 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=100 stage=body-unavailable
+ORIGINAL_DECLARATION offset=89 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=100 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=89 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=100 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(89) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(89) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(89) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(89) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(100) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(100) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(100) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(100) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=75 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=79 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=84 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=75 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=86 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=92 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=95 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=86 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=96 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=96 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=104 passed=true count=1
+ORIGINAL_DECLARATION offset=75 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=86 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=75 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=75 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=75 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=75 stage=body-unavailable
+ORIGINAL_DECLARATION offset=86 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=86 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=86 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=86 stage=body-unavailable
+ORIGINAL_DECLARATION offset=75 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=86 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=75 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=86 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(75) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(75) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(75) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(75) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(86) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(86) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(86) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(86) passed=true
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=86 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=90 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=95 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=86 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=97 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=103 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=106 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=97 passed=true count=3
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=107 passed=true count=2
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=107 passed=true count=1
+ORIGINAL_SOURCE_JOIN stage=projection.complete offset=115 passed=true count=1
+ORIGINAL_DECLARATION offset=86 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=97 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=86 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=86 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=86 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=86 stage=body-unavailable
+ORIGINAL_DECLARATION offset=97 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=97 stage=body-advice available=true
+ORIGINAL_DECLARATION offset=97 stage=procedure-recipe available=false arity=Some(true) roles=true
+ORIGINAL_DECLARATION offset=97 stage=body-unavailable
+ORIGINAL_DECLARATION offset=86 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=97 stage=owner entry=true config=true words=true frame=true origin=true context=true
+ORIGINAL_DECLARATION offset=86 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_DECLARATION offset=97 stage=layout logical=false frame=Global targets=1 unknown=false absent=false opaque=false
+ORIGINAL_WORD_CONFIG stage=request offset=Some(86) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(86) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(86) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(86) passed=true
+ORIGINAL_WORD_CONFIG stage=request offset=Some(97) words=3 synthetic=None written=true compiler=false declaration=true
+ORIGINAL_WORD_CONFIG stage=compatibility_vector offset=Some(97) passed=true
+ORIGINAL_WORD_CONFIG stage=written_site offset=Some(97) passed=true
+ORIGINAL_WORD_CONFIG stage=written_vector offset=Some(97) passed=true
+
+thread 'deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global' (207182) panicked at rust/tcl-compiler/src/deferred_writes.rs:1202:9:
+assertion failed: declared_writes("db_bind {spec} -frame own").is_clear()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    deferred_writes::tests::a_callback_that_reaches_its_frame_by_unstated_names_writes_any_global
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9631 filtered out; finished in 0.18s
+

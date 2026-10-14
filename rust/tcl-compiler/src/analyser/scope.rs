@@ -4686,7 +4686,14 @@ mod tests {
         // configured segmenter sees the iRules `}{` boundary as a second
         // argument, while the 8.4 config keeps `{*}` literal.
         let source = "set out [expr {$x + [set y]}] cmd {a}{b}";
-        let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("f5-irules").unwrap();
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, "f5-irules");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let config = input.lexer_config();
+        let registry = input.borrowed_context_registry().commands();
         let cmd = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
             .into_iter()
             .next()
@@ -4697,9 +4704,8 @@ mod tests {
             "configured iRules words: {:?}",
             cmd.texts
         );
-        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let mut reads = Vec::new();
-        collect_script_command_reads(source, &cmd, registry, config, &mut reads);
+        collect_script_command_reads(source, &analysis, &cmd, registry, config, &mut reads);
         assert!(reads.iter().any(|r| r.name == "x"));
         assert!(reads.iter().any(|r| r.name == "y"));
 

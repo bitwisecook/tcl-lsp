@@ -7788,7 +7788,7 @@ mod tests {
             let module = lower_module(source);
             let registry = module.resolved_registry();
             let prepared = prepare_cfg_context_bundle(&module, registry);
-            let builder = CfgBuilder::new_with_classes(
+            let builder = CfgBuilder::new_with_upvars_and_classes(
                 false,
                 prepared.context.0.clone(),
                 prepared.context.1.clone(),

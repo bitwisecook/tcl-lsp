@@ -687,10 +687,11 @@ mod tests {
             .values()
             .find(|body| body.name == "::p")
             .unwrap();
-        let mut foreign = context.commands().clone();
+        let mut foreign = CommandRegistry::build_default();
         let mut added = foreign.get("set").unwrap().clone();
         added.name = "foreign_probe";
         foreign.insert(added);
+        assert!(foreign.snapshot().semantic_key() != context.commands().snapshot().semantic_key());
         let (id, block) = return_site(&body.cfg);
         let foreign_reads = terminator_read_names(&body.cfg, id, block, &body.ssa, &foreign);
         assert!(foreign_reads.contains("value"), "{foreign_reads:?}");
