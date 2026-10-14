@@ -231,9 +231,9 @@ trusts the package (`[build] trusted` / `tcl pkg trust <name>`) — mirroring np
 v12 / pnpm / Bun / Deno's "scripts off by default". When it does run, it is the
 most confined profile: environment scrubbed of secrets, `HOME` pointed at a
 throwaway directory, network denied unless the manifest declared it (and policy
-allows it), its filesystem confined to the project tree, the temporary directory
-and the Tcl libraries named by `TCL_LIBRARY`/`TCLLIBPATH` where the host
-enforces it, with the achieved isolation level reported.
+allows it), `TMPDIR` pointed at a throwaway directory inside the project, its
+filesystem confined to the project tree and the Tcl libraries named by
+`TCL_LIBRARY`/`TCLLIBPATH` where the host enforces it, with the achieved isolation level reported.
 
 ## CLI surface
 

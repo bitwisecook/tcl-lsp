@@ -1488,10 +1488,11 @@ fn run_search(query: &str, json: bool, offline: bool) -> anyhow::Result<u8> {
 
 /// The build script's sandbox profile. Deprivileged: network denied unless
 /// declared (and still policy-clamped), environment scrubbed of secrets, output
-/// streamed, and a throwaway HOME keeping the script away from the user's
-/// dotfiles. Where the OS-native tier can, the script reaches the project, the
-/// temporary directory, the interpreter's installation and the Tcl libraries it
-/// was handed, and nothing else of the operator's.
+/// streamed, and a throwaway HOME and TMPDIR inside the project keeping the
+/// script away from the user's dotfiles and the shared temporary directory.
+/// Where the OS-native tier can, the script reaches the project, the
+/// interpreter's installation and the Tcl libraries it was handed, and nothing
+/// else of the operator's.
 fn build_profile(
     tclsh: &Path,
     project_dir: &Path,
@@ -1499,17 +1500,20 @@ fn build_profile(
     network: bool,
 ) -> tcl_sandbox::Profile {
     let build_home = project_dir.join(".tclpkg-build-home");
+    let build_tmp = project_dir.join(".tclpkg-build-tmp");
     let _ = std::fs::create_dir_all(&build_home);
+    let _ = std::fs::create_dir_all(&build_tmp);
     let mut profile = tcl_sandbox::Profile::new("pkg-build", tclsh, project_dir)
         .arg(script.to_string_lossy())
         .network(network)
         .capture(false)
         .set_env("HOME", build_home.to_string_lossy())
+        .set_env("TMPDIR", build_tmp.to_string_lossy())
         .set_env("TCLPKG_BUILD", "1");
-    for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
+    for name in ["PATH", "TCL_LIBRARY", "TCLLIBPATH"] {
         profile = profile.pass_env(name);
     }
-    profile.fs_write = vec![project_dir.to_path_buf(), std::env::temp_dir()];
+    profile.fs_write = vec![project_dir.to_path_buf()];
     profile.fs_read = tcl_pkg::venv::tclsh_installation(tclsh)
         .into_iter()
         .chain(std::env::var_os("TCL_LIBRARY").map(PathBuf::from))

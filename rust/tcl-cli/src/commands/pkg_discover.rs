@@ -49,6 +49,7 @@ const SKIP_DIRECTORIES: &[&str] = &[
     ".svn",
     ".venv",
     ".tclpkg-build-home",
+    ".tclpkg-build-tmp",
     "__pycache__",
     "build",
     "dist",

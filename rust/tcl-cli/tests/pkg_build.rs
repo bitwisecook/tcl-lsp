@@ -88,7 +88,8 @@ fn a_build_script_builds_in_the_project_without_an_undeclared_network() {
         format!(
             "set f [open built.txt w]; puts -nonewline $f built; close $f\n\
              catch {{socket 127.0.0.1 {port}}} net\n\
-             set f [open net.txt w]; puts -nonewline $f $net; close $f\n"
+             set f [open net.txt w]; puts -nonewline $f $net; close $f\n\
+             set f [open tmpdir.txt w]; puts -nonewline $f $::env(TMPDIR); close $f\n"
         ),
     )
     .expect("writes the build script");
@@ -105,6 +106,11 @@ fn a_build_script_builds_in_the_project_without_an_undeclared_network() {
         .lines()
         .find(|line| line.contains("\"label\":\"pkg-build\""))
         .expect("a pkg-build record");
+    let tmpdir = std::fs::read_to_string(dir.join("tmpdir.txt")).expect("the script reported");
+    assert!(
+        std::path::Path::new(&tmpdir).starts_with(&dir),
+        "the build's TMPDIR is its own, inside the project: {tmpdir}"
+    );
     let net = std::fs::read_to_string(dir.join("net.txt")).expect("the script reported");
     assert_eq!(
         net.starts_with("sock"),

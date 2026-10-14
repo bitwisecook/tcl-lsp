@@ -459,6 +459,8 @@ pub(crate) fn every_value_builder_answers_to_the_value_size_budget<E: Engine>(ne
          abcdefgh]",
         "return [join [lrepeat 8 abcdefgh] --]",
         "return [format %100s x]",
+        "return [format %.100d 1]",
+        "return [lseq 10000000 10000020]",
         "return [string map {a abcdefgh} aaaaaaaaaa]",
         "set s abcdefgh; while 1 {append s $s}",
         "set s abcdefgh; while 1 {set s $s$s}",
