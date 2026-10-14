@@ -469,6 +469,36 @@ pub fn original_word_unicode_value_with_variables(
     Some(value)
 }
 
+/// One original scalar reference with an exact decoded literal prefix.
+/// Original grouping and executable components remain authoritative; this
+/// classifies source syntax and supplies no variable read or name lookup.
+#[must_use]
+pub fn original_scalar_variable_with_prefix(
+    word: &tcl_lexer::NativeWord,
+    prefixes: &[&[u8]],
+) -> Option<Vec<u8>> {
+    let mut name = None;
+    let prefix = original_word_unicode_value_with_variables(word, |arena, component| {
+        let tcl_lexer::ExecutablePart::Variable {
+            name: span,
+            index: None,
+        } = component.part
+        else {
+            return None;
+        };
+        let bytes = arena.bytes(span)?;
+        if name.is_some() || crate::naming::split_element_ref_bytes(bytes).is_some() {
+            return None;
+        }
+        name = Some(bytes.to_vec());
+        Some(Vec::new())
+    })?;
+    prefixes
+        .contains(&prefix.as_slice())
+        .then_some(name?)
+        .filter(|name| !name.is_empty())
+}
+
 fn original_unicode_text_component(
     arena: &tcl_lexer::ExecutablePartArena,
     component: &tcl_lexer::SpannedExecutablePart,
@@ -698,6 +728,44 @@ mod original_metadata_tests {
         let length = u32::try_from(image.len()).unwrap();
         let plan = tcl_lexer::native_script_words_in(image, Span::new(0, length), config).unwrap();
         plan.commands[0].words[0].clone()
+    }
+
+    #[test]
+    fn original_scalar_prefix_shape_keeps_grouping_and_real_variable_components() {
+        let config = LexerConfig::default();
+        for source in [
+            "$name",
+            "${name}",
+            "::$name",
+            "::${name}",
+            r#""::$name""#,
+            r"\x3a\x3a$name",
+        ] {
+            let original = word(SourceImage::document(source), config);
+            assert_eq!(
+                original_scalar_variable_with_prefix(&original, &[b"", b"::"]),
+                Some(b"name".to_vec()),
+                "{source}"
+            );
+        }
+        for source in [
+            "{$name}",
+            "{::$name}",
+            ":::$name",
+            "prefix$name",
+            "$name-suffix",
+            "$name(index)",
+            "${name(index)}",
+            "$name$name",
+            "[opaque]",
+            r"\$name",
+        ] {
+            let original = word(SourceImage::document(source), config);
+            assert!(
+                original_scalar_variable_with_prefix(&original, &[b"", b"::"]).is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]

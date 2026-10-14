@@ -1,0 +1,5 @@
+{
+  "inlay": "original patch reversed exactly",
+  "graph": "reviewed diff consisted only of formatted temporary stage instrumentation; restored current tracked production file",
+  "production_graph_sha256": "fe0490093cc91b3457cf8fd6070b69bacbce4449358c748f7fa34a58fae31dc5"
+}

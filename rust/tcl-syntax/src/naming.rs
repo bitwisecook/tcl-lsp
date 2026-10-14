@@ -107,7 +107,8 @@ pub use namespace_spans::{
 mod native;
 pub use native::{
     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
-    NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeDictionaryMissingKeyError,
+    NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeCommandVisibilityDiagnostic,
+    NativeCommandVisibilityFailure, NativeDictionaryMissingKeyError,
     NativeDictionaryMissingKeyOperation, NativeJimNamespaceCommandQueryCandidate,
     NativeJimNamespaceConstruction, NativeNameContext, NativeNameProjection, NativeNameProtocol,
     NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,

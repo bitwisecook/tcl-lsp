@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-This is the bounded 04:40 UTC snapshot on `work`. The machine inventory keeps
+This is the bounded 04:55 UTC snapshot on `work`. The machine inventory keeps
 47 actionable rows, the inherited 330 lexical LSP candidates and original issue
 and source observations. Package membership or lexical search absence does not
 certify semantic completion. [Current consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -11,9 +11,9 @@ record each integrated owner and its remaining execution obligation.
 | Capture | Actual result | Scope and remaining work |
 | --- | --- | --- |
 | Compiler33 diagnostic | 304 controls: 194 PASS, 110 FAIL; zero authored-source drift. | Among 295 common Compiler31 controls, 19 improve and one regresses. Source geometry and consumer repairs have measurable gains; global/upvar/deferred effects, source-frame fixture ownership and original summary body coverage still fail. Diagnostic capture does not establish Native provider acceptance. |
-| Core32 | 30 controls: 20 PASS, 10 FAIL; zero authored-source drift. | OriginalScope9 is 6 PASS, 3 FAIL; original14 is 11 PASS, 3 FAIL. Namespace04, nested method03 and custom prefix28 pass. Current-level scope05/06/08, repeated type/colon and strict original SSA hint failures remain. |
 | Full Runtime09 | 79 controls: 78 PASS, 1 FAIL; zero source/compiled-input/artifact drift. | All original 77 controls pass. Only new C8.5 rename error-code expectation fails. The independent per-engine correction is integrated and requires fresh replay. Engine host/guest closure remains separate. |
-| Core34 diagnostic | 40 exact controls plus 26 namespace-rename controls running; no aggregate. | Current source/effect/body and incoming-provider repairs require their exact positive/refusal assertions. Prior Core32 results do not accept this newer source. |
+| Core34 diagnostic | 64 controls: 39 PASS, 25 FAIL; zero authored-source drift. | Common original 30 gain 2 with no regressions; original scope 9 is 8 PASS/1 FAIL and earlier 14 is 13 PASS/1 FAIL. Linked definition 2 pass; hover 4/rename and provider/seed fail. Graph13 overflows during analysis producer; strict Native inlay has no definitions/types. |
+| DB36 | Build fails before semantic controls after 144.04s; zero authored-source drift. | Seven VM policy/signature errors stop compilation. No reuse counts or unchanged original assertions have executed in this capture. |
 | Paired Runtime08 | 2 controls: 1 PASS, 1 FAIL; zero source/compiled/artifact drift. | Only Jim rename message NUL extent fails. Actual C8.4/C8.5 observations retain counted full diagnostics; universal CString proposal rejected before Main, per-engine correction active. Prior Runtime07 76/77 remains retained scoped evidence. |
 | AI/editor | Current TypeScript typecheck PASS. | Real LSP/Electron provider, language/currentness and unavailable-owner controls remain unexecuted. |
 
@@ -21,7 +21,9 @@ Compiler33 diagnostic build and selected replay are complete. Main fixes after
 that frozen capture require fresh replay and do not inherit its outcomes.
 Authentic original-declaration summary inventory/allocation selection is now
 integrated alongside issued-body fixture selection. Original assertions remain
-unchanged and need fresh execution.
+unchanged and need fresh execution. The source-provider seed currently lacks
+its genuine Scope.naming_scope producer field; a bounded repair is ready for
+review and exact replay.
 
 ## Integrated repairs awaiting replay
 
@@ -54,7 +56,12 @@ namespace rename MAY hazard and Native descriptor transport delegates are
 integrated. Genuine authored factory value and Logical evaluated-body readers
 retain their independent original word/purpose/source owners. Current/root
 Logical child lowering retains actual Module realm and shared body geometry;
-unknown-caller source coordinates remain unavailable. Every subsequent
+unknown-caller source coordinates remain unavailable. Its integrated separate
+MAY vocabulary query preserves opaque read/write hazards and cannot borrow
+current/root tables. Shared source-name ownership retains legal empty and
+literal dollar names through the same array partition. Command visibility
+diagnostics and original OO manufacturer-word consumers now delegate shared
+owners; unused captured-static readers are retired. Every subsequent
 patch needs current execution; old source hashes or passing captures are not
 renewed by these tracking updates. Deferred source-effect unknown-command
 residual, global/upvar/deferred effects, linked-member reference/edit hazards,

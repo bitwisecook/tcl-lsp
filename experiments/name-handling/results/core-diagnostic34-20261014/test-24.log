@@ -1,0 +1,8 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_format_hints_keep_actual_context_and_full_source_currency ... INLAY_STAGE lexical=true declarations=0 variables=0 write_advice=0 module_procedures=0 module_body_units=0 units_procedures=0 units_body_units=0
+INLAY_STAGE lexical=true declarations=0 variables=0 write_advice=0 module_procedures=0 module_body_units=0 units_procedures=0 units_body_units=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3026 filtered out; finished in 1.30s
+

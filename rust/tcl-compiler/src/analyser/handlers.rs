@@ -7609,12 +7609,34 @@ impl Analyser {
             let Some(name_arg) = manufacturer.names_instance_at else {
                 return UnknownBodyEvidence::Nothing;
             };
-            // The instance-name word must be exactly the fallback's own first
-            // parameter, optionally with Tcl's global namespace qualifier.
-            return if args.get(name_arg as usize).is_some_and(|word| {
-                let name_word = word.strip_prefix("::").unwrap_or(word);
-                crate::value_shapes::whole_word_scalar_var_name(name_word) == Some(word_param)
-            }) {
+            let config = self.file_lexer_config();
+            let bindings = self.head_identities.source_bindings();
+            let Some(origin) = bindings.source_origin() else {
+                return UnknownBodyEvidence::Nothing;
+            };
+            let image = origin.source_image();
+            if image.bytes() != self.source.as_bytes()
+                || !bindings.matches_original_source_image(image, config)
+            {
+                return UnknownBodyEvidence::Nothing;
+            }
+            let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, seg);
+            let original = crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                seg.span.start(),
+                config,
+            );
+            return if original
+                .as_ref()
+                .and_then(|words| {
+                    tcl_syntax::word_rules::original_scalar_variable_with_prefix(
+                        words.get(usize::from(name_arg).checked_add(1)?)?,
+                        &[b"", b"::"],
+                    )
+                })
+                .is_some_and(|name| name == word_param.as_bytes())
+            {
                 UnknownBodyEvidence::Constructs
             } else {
                 UnknownBodyEvidence::Nothing

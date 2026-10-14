@@ -1,0 +1,19 @@
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -2315,10 +2315,16 @@
+             self.path_constant_source_namespace = Some(seed.clone());
+             let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
+             let mut base: Vec<usize> = Vec::new();
++            let policy = self.declaration_name_policy();
++            let mut naming_scope = self
++                .selected_logical_declaration_advice()
++                .then(|| crate::signature_scan::scope::SignatureNamespaceScope::root(policy));
+             for segment in crate::naming::key_segments(&seed) {
++                naming_scope = naming_scope.and_then(|scope| scope.child(&segment, policy));
+                 let mut child =
+                     super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
+                 child.body_span = Some(tcl_lexer::Span::new(0, end));
++                child.naming_scope = naming_scope.clone();
+                 let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
+                     .expect("seed scope path is self-built");
+                 parent.children.push(child);

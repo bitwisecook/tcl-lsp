@@ -1,0 +1,8 @@
+{
+  "common": 30,
+  "improved": [
+    "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+    "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables"
+  ],
+  "regressed": []
+}

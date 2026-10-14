@@ -1,0 +1,18 @@
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -8511,7 +8511,6 @@
+         &mut self,
+         cmd: &[u8],
+         token: &[u8],
+-        policy: NamePolicyProtocol,
+     ) -> Result<(), CommandVisibilityError> {
+         let policy = self.command_visibility_policy()?;
+         let cmd = self.select_hidden_token_bytes(cmd)?;
+@@ -8725,6 +8724,7 @@
+         hide: bool,
+         cmd: &[u8],
+         token: &[u8],
++        policy: NamePolicyProtocol,
+     ) -> Result<(), CommandVisibilityError> {
+         if hide {
+             // The hide destination is the hidden token. Check it first: in

@@ -1922,24 +1922,9 @@ impl<'r> Lowerer<'r> {
         let positioned = retained.positioned_for_module(module, registry)?;
         let binding = parent.source_binding.as_ref()?;
         binding.original_invocation_metadata_for_module(parent, module, registry)?;
-        let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
-        let words = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
-            &realm, input, parent,
+        let body = crate::registry_invocation::original_logical_body_geometry_for_module(
+            module, registry, parent, argument,
         )?;
-        let original = parent.words().get(argument.checked_add(1)?)?;
-        let mut bodies = words
-            .source_script_bodies(input.borrowed_context_registry())
-            .into_iter()
-            .filter(|body| {
-                body.original_container().span()
-                    == tcl_lexer::word_span_at(module.source.bytes(), original.source().span)
-                    && body.matches_source(&module.source, input.lexer_config())
-                    && body.matches_context(input.borrowed_context_registry())
-            });
-        let body = bodies.next()?;
-        if bodies.next().is_some() {
-            return None;
-        }
         let namespace = binding.original_logical_frame_body_namespace(registry, input, parent)?;
         let source = module.source.try_text().ok()?;
         let text = source.get(body.content_span().as_range())?;

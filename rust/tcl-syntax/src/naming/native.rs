@@ -1997,6 +1997,127 @@ impl NativeNameProtocol {
     }
 }
 
+/// Actual native hide/expose failure, independent of command lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeCommandVisibilityFailure {
+    /// Hidden destination token contains a namespace qualifier.
+    InvalidHiddenToken,
+    /// Selected command to hide is outside the global namespace.
+    HideNonGlobal,
+    /// Requested exposed destination contains a namespace qualifier.
+    ExposeNonGlobal,
+    /// Actual hidden source is outside the global namespace.
+    HiddenSourceNonGlobal,
+    /// Visible source command was absent.
+    MissingCommand,
+    /// Hidden source token was absent during exposure.
+    MissingHiddenToken,
+    /// Hidden invocation token was absent.
+    InvokeHiddenMissing,
+    /// Hidden destination token was occupied.
+    AlreadyHidden,
+    /// Visible destination command was occupied.
+    CommandExists,
+}
+
+/// Native visibility diagnostic bytes with the selected explicit tuple.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCommandVisibilityDiagnostic {
+    /// Exact native diagnostic bytes.
+    pub message: Vec<u8>,
+    /// Explicit native tuple; absence uses the adapter's neutral error path.
+    pub error_code: Option<Vec<u8>>,
+}
+
+impl NativeNameProtocol {
+    /// Project an actual C hide/expose refusal without selecting any binding.
+    ///
+    /// # Errors
+    /// Jim has no C hidden-command operation.
+    pub fn command_visibility_diagnostic(
+        self,
+        failure: NativeCommandVisibilityFailure,
+        original: &[u8],
+    ) -> Result<NativeCommandVisibilityDiagnostic, NameProjectionUnavailable> {
+        let Self::C(version) = self else {
+            return Err(NameProjectionUnavailable::PurposeNotModelled);
+        };
+        let name = c_string_extent(original);
+        let (message, code) = match failure {
+            NativeCommandVisibilityFailure::InvalidHiddenToken => (
+                b"cannot use namespace qualifiers in hidden command token (rename)".to_vec(),
+                b"TCL VALUE HIDDENTOKEN".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::HideNonGlobal => (
+                b"can only hide global namespace commands (use rename then hide)".to_vec(),
+                b"TCL HIDE NON_GLOBAL".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::ExposeNonGlobal => (
+                if version == TclVersion::V8_4 {
+                    b"can not expose to a namespace (use expose to toplevel, then rename)".to_vec()
+                } else {
+                    b"cannot expose to a namespace (use expose to toplevel, then rename)".to_vec()
+                },
+                b"TCL EXPOSE NON_GLOBAL".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::HiddenSourceNonGlobal => (
+                if version <= TclVersion::V8_5 {
+                    b"trying to expose a non global command name space command".to_vec()
+                } else {
+                    b"trying to expose a non-global command namespace command".to_vec()
+                },
+                b"NONE".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::MissingCommand => (
+                [b"unknown command \"".as_slice(), name, b"\""].concat(),
+                b"TCL LOOKUP COMMAND".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::MissingHiddenToken => (
+                [b"unknown hidden command \"".as_slice(), name, b"\""].concat(),
+                b"TCL LOOKUP HIDDENTOKEN".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::InvokeHiddenMissing => (
+                [b"invalid hidden command name \"".as_slice(), name, b"\""].concat(),
+                b"TCL LOOKUP HIDDENTOKEN".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::AlreadyHidden => (
+                [
+                    b"hidden command named \"".as_slice(),
+                    name,
+                    b"\" already exists",
+                ]
+                .concat(),
+                b"TCL HIDE ALREADY_HIDDEN".as_slice(),
+            ),
+            NativeCommandVisibilityFailure::CommandExists => (
+                [b"exposed command \"".as_slice(), name, b"\" already exists"].concat(),
+                b"TCL EXPOSE COMMAND_EXISTS".as_slice(),
+            ),
+        };
+        let error_code = ((version >= TclVersion::V8_6
+            || (version == TclVersion::V8_5
+                && failure == NativeCommandVisibilityFailure::MissingCommand))
+            && failure != NativeCommandVisibilityFailure::HiddenSourceNonGlobal)
+            .then(|| {
+                let mut tuple = code.to_vec();
+                if matches!(
+                    failure,
+                    NativeCommandVisibilityFailure::MissingCommand
+                        | NativeCommandVisibilityFailure::MissingHiddenToken
+                        | NativeCommandVisibilityFailure::InvokeHiddenMissing
+                ) {
+                    tuple.push(b' ');
+                    crate::list::append_list_element(&mut tuple, name, false);
+                }
+                tuple
+            });
+        Ok(NativeCommandVisibilityDiagnostic {
+            message,
+            error_code,
+        })
+    }
+}
+
 /// Native namespace lookup failure, with a complete current-context report.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeNamespaceLookupError {
@@ -4916,5 +5037,104 @@ mod rename_reporting_tests {
                 assert_eq!(lookup.selected(), original);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod command_visibility_diagnostic_tests {
+    use super::*;
+
+    fn hex(text: &str) -> Vec<u8> {
+        text.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn command_visibility_diagnostics_match_original_eight_reason_c_releases() {
+        for (version, original) in [
+            (
+                TclVersion::V8_4,
+                include_str!("native/original_visibility/c8_4.stdout"),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!("native/original_visibility/c8_5.stdout"),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!("native/original_visibility/c8_6.stdout"),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!("native/original_visibility/c9_0.stdout"),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!("native/original_visibility/c9_1.stdout"),
+            ),
+        ] {
+            let mut count = 0;
+            for row in original.lines() {
+                let fields: Vec<_> = row.split_whitespace().collect();
+                assert_eq!(fields.len(), 4);
+                assert_eq!(fields[1], "1");
+                let (failure, name) = match fields[0] {
+                    "invalid-token" => (
+                        NativeCommandVisibilityFailure::InvalidHiddenToken,
+                        b"N::held".as_slice(),
+                    ),
+                    "hide-non-global" => (
+                        NativeCommandVisibilityFailure::HideNonGlobal,
+                        b"N::p".as_slice(),
+                    ),
+                    "expose-non-global" => (
+                        NativeCommandVisibilityFailure::ExposeNonGlobal,
+                        b"::destination".as_slice(),
+                    ),
+                    "missing-command" => (
+                        NativeCommandVisibilityFailure::MissingCommand,
+                        b"missing".as_slice(),
+                    ),
+                    "missing-hidden" => (
+                        NativeCommandVisibilityFailure::MissingHiddenToken,
+                        b"N::missing".as_slice(),
+                    ),
+                    "already-hidden" => (
+                        NativeCommandVisibilityFailure::AlreadyHidden,
+                        b"held".as_slice(),
+                    ),
+                    "command-exists" => (
+                        NativeCommandVisibilityFailure::CommandExists,
+                        b"other".as_slice(),
+                    ),
+                    "invoke-hidden-missing" => (
+                        NativeCommandVisibilityFailure::InvokeHiddenMissing,
+                        b"N::missing".as_slice(),
+                    ),
+                    unknown => panic!("unexpected original reason {unknown}"),
+                };
+                let error = NativeNameProtocol::C(version)
+                    .command_visibility_diagnostic(failure, name)
+                    .unwrap();
+                assert_eq!(error.message, hex(fields[2]), "{version:?} {}", fields[0]);
+                assert_eq!(
+                    error.error_code.as_deref().unwrap_or(b"NONE"),
+                    hex(fields[3]),
+                    "{version:?} {}",
+                    fields[0]
+                );
+                count += 1;
+            }
+            assert_eq!(count, 8);
+        }
+        assert_eq!(
+            NativeNameProtocol::Jim084.command_visibility_diagnostic(
+                NativeCommandVisibilityFailure::MissingCommand,
+                b"missing"
+            ),
+            Err(NameProjectionUnavailable::PurposeNotModelled)
+        );
     }
 }

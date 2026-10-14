@@ -1,0 +1,15 @@
+wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch {uplevel 1 $script} message options"
+    while compiling
+"set code [catch {uplevel 1 $script} message options]"
+    (compiling body of proc "outcome", line 2)
+    invoked from within
+"outcome {interp hide {} N::p}"
+    invoked from within
+"list [outcome {interp hide {} N::p}] [outcome {interp expose {} N::p}] [outcome {interp hide kid N::p}] [outcome {interp expose kid N::p}] [outcome {k..."
+    invoked from within
+"puts [proc outcome script {
+                 set code [catch {uplevel 1 $script} message options]
+                 list $code $message [dict get $opti..."
+    (file "/tmp/name-remaining-consumers-20261014/oracles/original-vm-visibility-fixture.tcl" line 1)

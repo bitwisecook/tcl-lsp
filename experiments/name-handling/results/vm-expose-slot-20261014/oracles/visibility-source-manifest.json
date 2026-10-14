@@ -1,0 +1,76 @@
+{
+  "rows": [
+    {
+      "script": "original-vm-visibility-fixture.tcl",
+      "script_sha256": "70977ed45e11cc3808b20be44ff5defe207cc7393323e9806c00c425bd7d69ec",
+      "provider": "TCL_LSP_TCLSH84",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "returncode": 1
+    },
+    {
+      "script": "original-vm-visibility-fixture.tcl",
+      "script_sha256": "70977ed45e11cc3808b20be44ff5defe207cc7393323e9806c00c425bd7d69ec",
+      "provider": "TCL_LSP_TCLSH85",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "returncode": 0
+    },
+    {
+      "script": "original-vm-visibility-fixture.tcl",
+      "script_sha256": "70977ed45e11cc3808b20be44ff5defe207cc7393323e9806c00c425bd7d69ec",
+      "provider": "TCL_LSP_TCLSH86",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "returncode": 0
+    },
+    {
+      "script": "original-vm-visibility-fixture.tcl",
+      "script_sha256": "70977ed45e11cc3808b20be44ff5defe207cc7393323e9806c00c425bd7d69ec",
+      "provider": "TCL_LSP_TCLSH90",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "returncode": 0
+    },
+    {
+      "script": "original-vm-visibility-fixture.tcl",
+      "script_sha256": "70977ed45e11cc3808b20be44ff5defe207cc7393323e9806c00c425bd7d69ec",
+      "provider": "TCL_LSP_TCLSH91",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "returncode": 0
+    },
+    {
+      "script": "visibility-source-token.tcl",
+      "script_sha256": "ecc57ebcf390a407d24094c59b705f810a45f2f5cda9d61324468361cbe54dc0",
+      "provider": "TCL_LSP_TCLSH84",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "returncode": 0
+    },
+    {
+      "script": "visibility-source-token.tcl",
+      "script_sha256": "ecc57ebcf390a407d24094c59b705f810a45f2f5cda9d61324468361cbe54dc0",
+      "provider": "TCL_LSP_TCLSH85",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "returncode": 0
+    },
+    {
+      "script": "visibility-source-token.tcl",
+      "script_sha256": "ecc57ebcf390a407d24094c59b705f810a45f2f5cda9d61324468361cbe54dc0",
+      "provider": "TCL_LSP_TCLSH86",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "returncode": 0
+    },
+    {
+      "script": "visibility-source-token.tcl",
+      "script_sha256": "ecc57ebcf390a407d24094c59b705f810a45f2f5cda9d61324468361cbe54dc0",
+      "provider": "TCL_LSP_TCLSH90",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "returncode": 0
+    },
+    {
+      "script": "visibility-source-token.tcl",
+      "script_sha256": "ecc57ebcf390a407d24094c59b705f810a45f2f5cda9d61324468361cbe54dc0",
+      "provider": "TCL_LSP_TCLSH91",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "returncode": 0
+    }
+  ],
+  "scope": "unchanged VM fixture script extracted exactly from Rust source; C84 options/dict unsupported result retained, not conformance success; separate simplecatch source tokens supported all C5",
+  "tcltest_used": false
+}

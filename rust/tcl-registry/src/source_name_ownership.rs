@@ -42,7 +42,7 @@ pub struct SourceVariableNameOwnership {
 impl SourceVariableNameOwnership {
     fn include(names: &mut Vec<String>, name: &str) {
         let root = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
-        if !root.is_empty() && !names.iter().any(|name| name == root) {
+        if !names.iter().any(|name| name == root) {
             names.push(root.to_owned());
         }
     }
@@ -149,5 +149,62 @@ impl ResolvedInvocation<'_, '_> {
                 .intersects(Traits::CREATES_SCOPE_ALIAS | Traits::ALIASES_GLOBAL)
                 && !self.semantics.state_transitions.is_declared());
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SourceNameOwnershipPurpose, SourceRolePurpose};
+
+    #[test]
+    fn original_source_roles_keep_empty_and_literal_dollar_read_write_names() {
+        // experiments/name-handling/results/ssa-empty-read-write-names/results.json
+        // experiments/name-handling/results/variable-protection-owner-20261014/oracles/observations.json
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let context =
+                crate::model::ingress::resolve_environment(environment).default_context_registry();
+            for (head, arguments, writes, reads) in [
+                ("set", vec!["", "VALUE"], vec![""], vec![]),
+                ("set", vec![""], vec![], vec![""]),
+                ("foreach", vec!["{}", "VALUE", ""], vec![""], vec![]),
+                (
+                    "foreach",
+                    vec!["{$name}", "VALUE", ""],
+                    vec!["$name"],
+                    vec![],
+                ),
+                ("set", vec!["$counter", "VALUE"], vec!["$counter"], vec![]),
+                ("set", vec!["$counter"], vec![], vec!["$counter"]),
+            ] {
+                let arguments = arguments
+                    .iter()
+                    .map(|value| crate::InvocationWord::Literal(value))
+                    .collect::<Vec<_>>();
+                let selected =
+                    crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+                        context.commands(),
+                        Some(context.context()),
+                        crate::InvocationWords::structured(
+                            crate::InvocationWord::Literal(head),
+                            &arguments,
+                        )
+                        .with_profile(context.commands().profile()),
+                        tcl_dialect::model::InvocationRealm::RuleLoader,
+                    );
+                let schema = selected.resolved().expect("available original descriptor");
+                let names = schema.authored_source_name_ownership(
+                    SourceRolePurpose::Original,
+                    SourceNameOwnershipPurpose::BindingsOrNameReads,
+                );
+                assert_eq!(
+                    names.bindings, writes,
+                    "{environment}: {head} {arguments:?}"
+                );
+                assert_eq!(
+                    names.by_name_reads, reads,
+                    "{environment}: {head} {arguments:?}"
+                );
+            }
+        }
     }
 }

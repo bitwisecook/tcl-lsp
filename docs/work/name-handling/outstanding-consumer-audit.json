@@ -13150,13 +13150,13 @@
     "Parent-authorized bounded original C5/Jim snapshot-pattern and sixteen original source-form snapshot controls were added; compiled Rust controls remain unexecuted. No Native allocation/cell identity, F5 result, new GitHub read or proof/census digest renewal follows."
   ],
   "current_refresh": {
-    "head": "201f29d910daa73c9faf751c615b94e2dba3e5db",
-    "checkpoint_utc": "2026-10-14T04:40:32Z",
-    "tracking_basis": "Actual Main owner/caller reconciliation with sealed Compiler33/Core32 and full Runtime09 results; Core34 diagnostic replay running. Original snapshots and isolated evidence remain unchanged.",
+    "head": "9aa4d70f997affad4d69e57379fa92122f9b0427",
+    "checkpoint_utc": "2026-10-14T04:55:08Z",
+    "tracking_basis": "Actual Main owner/caller reconciliation with sealed Compiler33/Core34/Runtime09 and DB36 build failure. Original source/issue/isolated baselines remain unchanged.",
     "scope": "Only explicit current actionable states supersede earlier statuses. Baseline head, hashes, inherited 330-row roster, source/isolated snapshots and issue records unchanged; no old proof digest renewed.",
-    "validation": "Compiler33 diagnostic304=194PASS110FAIL, authored-source drift0; common295 improve19/regress1. Core32 30=20PASS10FAIL source drift0. Full Runtime09 79=78PASS1FAIL; all original77 controls PASS, only new C8.5 rename error-code control FAIL; ALL source/compiled-input/artifact drift0. Its per-engine error-code correction is integrated and unexecuted. Core34 diagnostic40 exact plus namespace rename26 running, no aggregate claimed. AI TypeScript typecheck PASS; real LSP/Electron and DB original reuse controls pending. No whole-codebase/Native/F5/PR-ready acceptance.",
+    "validation": "Compiler33 diagnostic304=194PASS110FAIL source drift 0. Core34 diagnostic64=39PASS25FAIL source drift 0; common original 30 gains 2/no regressions, original scope 9 now8PASS1FAIL and earlier 14 now13PASS1FAIL. Linked definitions2PASS; linked hovers4/rename and source-provider/seed controls remain FAIL. Graph13 stack overflow occurs during analysis producer; Native inlay34 has definitions 0/types 0. DB36 build FAIL144.04s with 7 VM policy/signature errors before any semantic tests, authored-source drift 0. Runtime09 79=78PASS1FAIL all 3 drift0, original 77PASS; new C85 rename code correction requires current replay. AI TypeScript PASS, real LSP/Electron unexecuted. No whole-codebase/Native/F5/PR-ready acceptance.",
     "source_write_policy": "Root-authorised three tracking documents only; no Rust/runtime/experiments/scripts/specs/Cargo/Git writes by this agent.",
-    "additional_bounded_families": "Original declaration summary inventory/allocation consumers, readonly Logical frame authored policy, current/root body owner, authored factory value reader and Logical evaluated body reader are integrated with their current contracts, awaiting fresh original controls. Additional W116/W143 document-stub, namespace rename MAY hazard and Native descriptor transport delegates are integrated, unexecuted. Unknown-caller effects and full remaining consumer reconciliation remain active.",
+    "additional_bounded_families": "Shared original summary64/currentbody/e5 unknowncaller MAY,681 legalempty source-name ownership,576 command visibility diagnostic/VM transport,0fb original OO manufacturer word helper and retirement28 are integrated. Producer source naming scope repair320 is review-ready, unexecuted. DB cache reuse assertions, strict Native SSA hints, source graph stack/IDs, OO navigation/edit controls and remaining audit reconciliation stay active.",
     "reconciled_live_rows": [
       "bpf-thread-hint",
       "vm-authored-ns-wrappers",
@@ -13169,6 +13169,6 @@
       "bpf-selected-descriptor"
     ],
     "immutable_evidence_policy": "Earlier baseline fields, source/isolated snapshots, inherited330/package/issue rows and proof digests unchanged; current_review observations are not new execution evidence.",
-    "next_commit_due_utc": "2026-10-14T04:42:00Z"
+    "next_commit_due_utc": "2026-10-14T04:57:00Z"
   }
 }

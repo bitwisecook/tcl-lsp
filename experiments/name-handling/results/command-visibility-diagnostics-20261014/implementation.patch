@@ -1,0 +1,462 @@
+--- a/runtime/rust/src/cmd_alias.rs
++++ b/runtime/rust/src/cmd_alias.rs
+@@ -941,16 +941,17 @@
+         cmd.clone()
+     };
+     if tcl_syntax::naming::is_qualified(&token) {
+-        return match op {
+-            CommandVisibilityOp::Hide => interp.error_with_code(
+-                b"cannot use namespace qualifiers in hidden command token (rename)",
+-                b"TCL VALUE HIDDENTOKEN",
+-            ),
+-            CommandVisibilityOp::Expose => interp.error_with_code(
+-                b"cannot expose to a namespace (use expose to toplevel, then rename)",
+-                b"TCL EXPOSE NON_GLOBAL",
+-            ),
+-        };
++        return interp.report_command_visibility_failure(
++            match op {
++                CommandVisibilityOp::Hide => {
++                    tcl_syntax::naming::NativeCommandVisibilityFailure::InvalidHiddenToken
++                }
++                CommandVisibilityOp::Expose => {
++                    tcl_syntax::naming::NativeCommandVisibilityFailure::ExposeNonGlobal
++                }
++            },
++            &token,
++        );
+     }
+     let moved = interp.with_child_path(path, |c| match op {
+         CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
+--- a/runtime/rust/src/interp.rs
++++ b/runtime/rust/src/interp.rs
+@@ -16089,55 +16089,70 @@
+         destination: &[u8],
+         outcome: CommandVisibilityOutcome,
+     ) -> Code {
+-        let (message, error_code) = match (op, outcome) {
++        let (failure, original) = match (op, outcome) {
+             (_, CommandVisibilityOutcome::Moved) => {
+                 self.set_result_bytes(b"");
+                 return Code::Ok;
+             }
+-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => {
+-                let mut message = b"unknown command \"".to_vec();
+-                message.extend_from_slice(source);
+-                message.push(b'"');
+-                (
+-                    message,
+-                    error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", source]),
++            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingCommand,
++                source,
++            ),
++            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingHiddenToken,
++                source,
++            ),
++            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::HideNonGlobal,
++                source,
++            ),
++            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::HiddenSourceNonGlobal,
++                source,
++            ),
++            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::AlreadyHidden,
++                destination,
++            ),
++            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => (
++                tcl_syntax::naming::NativeCommandVisibilityFailure::CommandExists,
++                destination,
++            ),
++        };
++        self.report_command_visibility_failure(failure, original)
++    }
++
++    pub(crate) fn report_command_visibility_failure(
++        &mut self,
++        failure: tcl_syntax::naming::NativeCommandVisibilityFailure,
++        original: &[u8],
++    ) -> Code {
++        let Some(policy) = self.name_policy_protocol() else {
++            return self.report_cmd_error(
++                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                    "command visibility diagnostic",
+                 )
+-            }
+-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => {
+-                let mut message = b"unknown hidden command \"".to_vec();
+-                message.extend_from_slice(source);
+-                message.push(b'"');
+-                (
+-                    message,
+-                    error_code_list(&[b"TCL", b"LOOKUP", b"HIDDENTOKEN", source]),
++                .into(),
++            );
++        };
++        let error = match policy
++            .recipe()
++            .command_visibility_diagnostic(failure, original)
++        {
++            Ok(error) => error,
++            Err(_) => {
++                return self.report_cmd_error(
++                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        "command visibility diagnostic",
++                    )
++                    .into(),
+                 )
+             }
+-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
+-                b"can only hide global namespace commands (use rename then hide)".to_vec(),
+-                b"TCL HIDE NON_GLOBAL".to_vec(),
+-            ),
+-            // C keeps this branch behind its own "theoretically impossible"
+-            // comment (tclBasic.c:2500): only `Tcl_HideCommand` fills the
+-            // hidden table, and it already refused a non-global source, so
+-            // `expose_command` never reports it either.
+-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
+-                b"trying to expose a non-global command namespace command".to_vec(),
+-                b"NONE".to_vec(),
+-            ),
+-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => {
+-                let mut message = b"hidden command named \"".to_vec();
+-                message.extend_from_slice(destination);
+-                message.extend_from_slice(b"\" already exists");
+-                (message, b"TCL HIDE ALREADY_HIDDEN".to_vec())
+-            }
+-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => {
+-                let mut message = b"exposed command \"".to_vec();
+-                message.extend_from_slice(destination);
+-                message.extend_from_slice(b"\" already exists");
+-                (message, b"TCL EXPOSE COMMAND_EXISTS".to_vec())
+-            }
+-        };
+-        self.error_with_code(&message, &error_code)
++        };
++        match error.error_code {
++            Some(code) => self.error_with_code(&error.message, &code),
++            None => self.error(&error.message),
++        }
+     }
+ 
+     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
+@@ -16149,12 +16164,10 @@
+                 fqn.extend_from_slice(name);
+                 self.dispatch_prebound(argv, Some((fqn, binding)))
+             }
+-            None => {
+-                let mut m = b"invalid hidden command name \"".to_vec();
+-                m.extend_from_slice(name);
+-                m.push(b'"');
+-                self.error(&m)
+-            }
++            None => self.report_command_visibility_failure(
++                tcl_syntax::naming::NativeCommandVisibilityFailure::InvokeHiddenMissing,
++                name,
++            ),
+         }
+     }
+ 
+--- a/rust/tcl-syntax/src/naming/native.rs
++++ b/rust/tcl-syntax/src/naming/native.rs
+@@ -1994,6 +1994,127 @@
+             message,
+             error_code,
+         }
++    }
++}
++
++/// Actual native hide/expose failure, independent of command lookup.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum NativeCommandVisibilityFailure {
++    /// Hidden destination token contains a namespace qualifier.
++    InvalidHiddenToken,
++    /// Selected command to hide is outside the global namespace.
++    HideNonGlobal,
++    /// Requested exposed destination contains a namespace qualifier.
++    ExposeNonGlobal,
++    /// Actual hidden source is outside the global namespace.
++    HiddenSourceNonGlobal,
++    /// Visible source command was absent.
++    MissingCommand,
++    /// Hidden source token was absent during exposure.
++    MissingHiddenToken,
++    /// Hidden invocation token was absent.
++    InvokeHiddenMissing,
++    /// Hidden destination token was occupied.
++    AlreadyHidden,
++    /// Visible destination command was occupied.
++    CommandExists,
++}
++
++/// Native visibility diagnostic bytes with the selected explicit tuple.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct NativeCommandVisibilityDiagnostic {
++    /// Exact native diagnostic bytes.
++    pub message: Vec<u8>,
++    /// Explicit native tuple; absence uses the adapter's neutral error path.
++    pub error_code: Option<Vec<u8>>,
++}
++
++impl NativeNameProtocol {
++    /// Project an actual C hide/expose refusal without selecting any binding.
++    ///
++    /// # Errors
++    /// Jim has no C hidden-command operation.
++    pub fn command_visibility_diagnostic(
++        self,
++        failure: NativeCommandVisibilityFailure,
++        original: &[u8],
++    ) -> Result<NativeCommandVisibilityDiagnostic, NameProjectionUnavailable> {
++        let Self::C(version) = self else {
++            return Err(NameProjectionUnavailable::PurposeNotModelled);
++        };
++        let name = c_string_extent(original);
++        let (message, code) = match failure {
++            NativeCommandVisibilityFailure::InvalidHiddenToken => (
++                b"cannot use namespace qualifiers in hidden command token (rename)".to_vec(),
++                b"TCL VALUE HIDDENTOKEN".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::HideNonGlobal => (
++                b"can only hide global namespace commands (use rename then hide)".to_vec(),
++                b"TCL HIDE NON_GLOBAL".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::ExposeNonGlobal => (
++                if version == TclVersion::V8_4 {
++                    b"can not expose to a namespace (use expose to toplevel, then rename)".to_vec()
++                } else {
++                    b"cannot expose to a namespace (use expose to toplevel, then rename)".to_vec()
++                },
++                b"TCL EXPOSE NON_GLOBAL".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::HiddenSourceNonGlobal => (
++                if version <= TclVersion::V8_5 {
++                    b"trying to expose a non global command name space command".to_vec()
++                } else {
++                    b"trying to expose a non-global command namespace command".to_vec()
++                },
++                b"NONE".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::MissingCommand => (
++                [b"unknown command \"".as_slice(), name, b"\""].concat(),
++                b"TCL LOOKUP COMMAND".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::MissingHiddenToken => (
++                [b"unknown hidden command \"".as_slice(), name, b"\""].concat(),
++                b"TCL LOOKUP HIDDENTOKEN".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::InvokeHiddenMissing => (
++                [b"invalid hidden command name \"".as_slice(), name, b"\""].concat(),
++                b"TCL LOOKUP HIDDENTOKEN".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::AlreadyHidden => (
++                [
++                    b"hidden command named \"".as_slice(),
++                    name,
++                    b"\" already exists",
++                ]
++                .concat(),
++                b"TCL HIDE ALREADY_HIDDEN".as_slice(),
++            ),
++            NativeCommandVisibilityFailure::CommandExists => (
++                [b"exposed command \"".as_slice(), name, b"\" already exists"].concat(),
++                b"TCL EXPOSE COMMAND_EXISTS".as_slice(),
++            ),
++        };
++        let error_code = ((version >= TclVersion::V8_6
++            || (version == TclVersion::V8_5
++                && failure == NativeCommandVisibilityFailure::MissingCommand))
++            && failure != NativeCommandVisibilityFailure::HiddenSourceNonGlobal)
++            .then(|| {
++                let mut tuple = code.to_vec();
++                if matches!(
++                    failure,
++                    NativeCommandVisibilityFailure::MissingCommand
++                        | NativeCommandVisibilityFailure::MissingHiddenToken
++                        | NativeCommandVisibilityFailure::InvokeHiddenMissing
++                ) {
++                    tuple.push(b' ');
++                    crate::list::append_list_element(&mut tuple, name, false);
++                }
++                tuple
++            });
++        Ok(NativeCommandVisibilityDiagnostic {
++            message,
++            error_code,
++        })
+     }
+ }
+ 
+@@ -4918,3 +5039,102 @@
+         }
+     }
+ }
++
++#[cfg(test)]
++mod command_visibility_diagnostic_tests {
++    use super::*;
++
++    fn hex(text: &str) -> Vec<u8> {
++        text.as_bytes()
++            .chunks_exact(2)
++            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
++            .collect()
++    }
++
++    #[test]
++    fn command_visibility_diagnostics_match_original_eight_reason_c_releases() {
++        for (version, original) in [
++            (
++                TclVersion::V8_4,
++                include_str!("native/original_visibility/c8_4.stdout"),
++            ),
++            (
++                TclVersion::V8_5,
++                include_str!("native/original_visibility/c8_5.stdout"),
++            ),
++            (
++                TclVersion::V8_6,
++                include_str!("native/original_visibility/c8_6.stdout"),
++            ),
++            (
++                TclVersion::V9_0,
++                include_str!("native/original_visibility/c9_0.stdout"),
++            ),
++            (
++                TclVersion::V9_1,
++                include_str!("native/original_visibility/c9_1.stdout"),
++            ),
++        ] {
++            let mut count = 0;
++            for row in original.lines() {
++                let fields: Vec<_> = row.split_whitespace().collect();
++                assert_eq!(fields.len(), 4);
++                assert_eq!(fields[1], "1");
++                let (failure, name) = match fields[0] {
++                    "invalid-token" => (
++                        NativeCommandVisibilityFailure::InvalidHiddenToken,
++                        b"N::held".as_slice(),
++                    ),
++                    "hide-non-global" => (
++                        NativeCommandVisibilityFailure::HideNonGlobal,
++                        b"N::p".as_slice(),
++                    ),
++                    "expose-non-global" => (
++                        NativeCommandVisibilityFailure::ExposeNonGlobal,
++                        b"::destination".as_slice(),
++                    ),
++                    "missing-command" => (
++                        NativeCommandVisibilityFailure::MissingCommand,
++                        b"missing".as_slice(),
++                    ),
++                    "missing-hidden" => (
++                        NativeCommandVisibilityFailure::MissingHiddenToken,
++                        b"N::missing".as_slice(),
++                    ),
++                    "already-hidden" => (
++                        NativeCommandVisibilityFailure::AlreadyHidden,
++                        b"held".as_slice(),
++                    ),
++                    "command-exists" => (
++                        NativeCommandVisibilityFailure::CommandExists,
++                        b"other".as_slice(),
++                    ),
++                    "invoke-hidden-missing" => (
++                        NativeCommandVisibilityFailure::InvokeHiddenMissing,
++                        b"N::missing".as_slice(),
++                    ),
++                    unknown => panic!("unexpected original reason {unknown}"),
++                };
++                let error = NativeNameProtocol::C(version)
++                    .command_visibility_diagnostic(failure, name)
++                    .unwrap();
++                assert_eq!(error.message, hex(fields[2]), "{version:?} {}", fields[0]);
++                assert_eq!(
++                    error.error_code.as_deref().unwrap_or(b"NONE"),
++                    hex(fields[3]),
++                    "{version:?} {}",
++                    fields[0]
++                );
++                count += 1;
++            }
++            assert_eq!(count, 8);
++        }
++        assert_eq!(
++            NativeNameProtocol::Jim084.command_visibility_diagnostic(
++                NativeCommandVisibilityFailure::MissingCommand,
++                b"missing"
++            ),
++            Err(NameProjectionUnavailable::PurposeNotModelled)
++        );
++    }
++}
+--- a/rust/tcl-syntax/src/naming.rs
++++ b/rust/tcl-syntax/src/naming.rs
+@@ -107,7 +107,8 @@
+ mod native;
+ pub use native::{
+     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
+-    NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeDictionaryMissingKeyError,
++    NativeCommandNamespaceRoute, NativeCommandSlotProjection, NativeCommandVisibilityDiagnostic,
++    NativeCommandVisibilityFailure, NativeDictionaryMissingKeyError,
+     NativeDictionaryMissingKeyOperation, NativeJimNamespaceCommandQueryCandidate,
+     NativeJimNamespaceConstruction, NativeNameContext, NativeNameProjection, NativeNameProtocol,
+     NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/native/original_visibility/c8_4.stdout
+@@ -0,0 +1,8 @@
++invalid-token 1 63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d6529 4e4f4e45
++hide-non-global 1 63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e206869646529 4e4f4e45
++expose-non-global 1 63616e206e6f74206578706f736520746f2061206e616d6573706163652028757365206578706f736520746f20746f706c6576656c2c207468656e2072656e616d6529 4e4f4e45
++missing-command 1 756e6b6e6f776e20636f6d6d616e6420226d697373696e6722 4e4f4e45
++missing-hidden 1 756e6b6e6f776e2068696464656e20636f6d6d616e6420224e3a3a6d697373696e6722 4e4f4e45
++already-hidden 1 68696464656e20636f6d6d616e64206e616d6564202268656c642220616c726561647920657869737473 4e4f4e45
++command-exists 1 6578706f73656420636f6d6d616e6420226f746865722220616c726561647920657869737473 4e4f4e45
++invoke-hidden-missing 1 696e76616c69642068696464656e20636f6d6d616e64206e616d6520224e3a3a6d697373696e6722 4e4f4e45
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/native/original_visibility/c8_5.stdout
+@@ -0,0 +1,8 @@
++invalid-token 1 63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d6529 4e4f4e45
++hide-non-global 1 63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e206869646529 4e4f4e45
++expose-non-global 1 63616e6e6f74206578706f736520746f2061206e616d6573706163652028757365206578706f736520746f20746f706c6576656c2c207468656e2072656e616d6529 4e4f4e45
++missing-command 1 756e6b6e6f776e20636f6d6d616e6420226d697373696e6722 54434c204c4f4f4b555020434f4d4d414e44206d697373696e67
++missing-hidden 1 756e6b6e6f776e2068696464656e20636f6d6d616e6420224e3a3a6d697373696e6722 4e4f4e45
++already-hidden 1 68696464656e20636f6d6d616e64206e616d6564202268656c642220616c726561647920657869737473 4e4f4e45
++command-exists 1 6578706f73656420636f6d6d616e6420226f746865722220616c726561647920657869737473 4e4f4e45
++invoke-hidden-missing 1 696e76616c69642068696464656e20636f6d6d616e64206e616d6520224e3a3a6d697373696e6722 4e4f4e45
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/native/original_visibility/c8_6.stdout
+@@ -0,0 +1,8 @@
++invalid-token 1 63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d6529 54434c2056414c55452048494444454e544f4b454e
++hide-non-global 1 63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e206869646529 54434c2048494445204e4f4e5f474c4f42414c
++expose-non-global 1 63616e6e6f74206578706f736520746f2061206e616d6573706163652028757365206578706f736520746f20746f706c6576656c2c207468656e2072656e616d6529 54434c204558504f5345204e4f4e5f474c4f42414c
++missing-command 1 756e6b6e6f776e20636f6d6d616e6420226d697373696e6722 54434c204c4f4f4b555020434f4d4d414e44206d697373696e67
++missing-hidden 1 756e6b6e6f776e2068696464656e20636f6d6d616e6420224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67
++already-hidden 1 68696464656e20636f6d6d616e64206e616d6564202268656c642220616c726561647920657869737473 54434c204849444520414c52454144595f48494444454e
++command-exists 1 6578706f73656420636f6d6d616e6420226f746865722220616c726561647920657869737473 54434c204558504f534520434f4d4d414e445f455849535453
++invoke-hidden-missing 1 696e76616c69642068696464656e20636f6d6d616e64206e616d6520224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/native/original_visibility/c9_0.stdout
+@@ -0,0 +1,8 @@
++invalid-token 1 63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d6529 54434c2056414c55452048494444454e544f4b454e
++hide-non-global 1 63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e206869646529 54434c2048494445204e4f4e5f474c4f42414c
++expose-non-global 1 63616e6e6f74206578706f736520746f2061206e616d6573706163652028757365206578706f736520746f20746f706c6576656c2c207468656e2072656e616d6529 54434c204558504f5345204e4f4e5f474c4f42414c
++missing-command 1 756e6b6e6f776e20636f6d6d616e6420226d697373696e6722 54434c204c4f4f4b555020434f4d4d414e44206d697373696e67
++missing-hidden 1 756e6b6e6f776e2068696464656e20636f6d6d616e6420224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67
++already-hidden 1 68696464656e20636f6d6d616e64206e616d6564202268656c642220616c726561647920657869737473 54434c204849444520414c52454144595f48494444454e
++command-exists 1 6578706f73656420636f6d6d616e6420226f746865722220616c726561647920657869737473 54434c204558504f534520434f4d4d414e445f455849535453
++invoke-hidden-missing 1 696e76616c69642068696464656e20636f6d6d616e64206e616d6520224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67
+--- /dev/null
++++ b/rust/tcl-syntax/src/naming/native/original_visibility/c9_1.stdout
+@@ -0,0 +1,8 @@
++invalid-token 1 63616e6e6f7420757365206e616d657370616365207175616c69666965727320696e2068696464656e20636f6d6d616e6420746f6b656e202872656e616d6529 54434c2056414c55452048494444454e544f4b454e
++hide-non-global 1 63616e206f6e6c79206869646520676c6f62616c206e616d65737061636520636f6d6d616e647320287573652072656e616d65207468656e206869646529 54434c2048494445204e4f4e5f474c4f42414c
++expose-non-global 1 63616e6e6f74206578706f736520746f2061206e616d6573706163652028757365206578706f736520746f20746f706c6576656c2c207468656e2072656e616d6529 54434c204558504f5345204e4f4e5f474c4f42414c
++missing-command 1 756e6b6e6f776e20636f6d6d616e6420226d697373696e6722 54434c204c4f4f4b555020434f4d4d414e44206d697373696e67
++missing-hidden 1 756e6b6e6f776e2068696464656e20636f6d6d616e6420224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67
++already-hidden 1 68696464656e20636f6d6d616e64206e616d6564202268656c642220616c726561647920657869737473 54434c204849444520414c52454144595f48494444454e
++command-exists 1 6578706f73656420636f6d6d616e6420226f746865722220616c726561647920657869737473 54434c204558504f534520434f4d4d414e445f455849535453
++invoke-hidden-missing 1 696e76616c69642068696464656e20636f6d6d616e64206e616d6520224e3a3a6d697373696e6722 54434c204c4f4f4b55502048494444454e544f4b454e204e3a3a6d697373696e67

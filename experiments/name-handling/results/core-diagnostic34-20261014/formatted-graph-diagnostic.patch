@@ -1,0 +1,79 @@
+diff --git a/rust/tcl-lsp-core/src/graphs.rs b/rust/tcl-lsp-core/src/graphs.rs
+index 0933b02d7..d9fd93f03 100644
+--- a/rust/tcl-lsp-core/src/graphs.rs
++++ b/rust/tcl-lsp-core/src/graphs.rs
+@@ -334,10 +334,19 @@ pub fn symbol_graph_with_source_input(
+ }
+ 
+ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value {
++    let trace = std::env::var_os("TCL_LSP_TRACE_GRAPH_STAGE").is_some();
++    let mark = |stage: &str| {
++        if trace {
++            eprintln!("GRAPH_STAGE {stage}");
++        }
++    };
++    mark("analyse.before");
+     let result = Analyser::new()
+         .with_resolved_input(input.clone())
+         .analyse(source, input.analyser_profile().name);
++    mark("analyse.after");
+     let line_index = LineIndex::new(source);
++    mark("scopes.before");
+ 
+     let scopes = vec![scope_to_value(
+         &result.global_scope,
+@@ -347,6 +356,8 @@ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value
+         0,
+     )];
+ 
++    mark("scopes.after");
++    mark("procedure_references.before");
+     // Every proc's deduplicated references, in declaration order.
+     let mut all_procs = crate::procedure_symbol::declarations(source, &result).unwrap_or_default();
+     all_procs.sort_by_key(|p| p.name_span.start());
+@@ -362,6 +373,8 @@ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value
+         }
+     }
+ 
++    mark("procedure_references.after");
++    mark("packages.before");
+     let package_requires: Vec<Value> = result
+         .package_requires
+         .iter()
+@@ -379,7 +392,11 @@ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value
+         })
+         .collect();
+ 
++    mark("packages.after");
++    mark("original_procedure_view.before");
+     let original = original::procedure_view(source, &result, None);
++    mark("original_procedure_view.after");
++    mark("counts.before");
+     let total_procs = original
+         .as_ref()
+         .and_then(|graph| graph["nodes"].as_array())
+@@ -387,7 +404,9 @@ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value
+     let total_variables = count_variables(&result.global_scope, 0);
+     let total_namespaces = count_namespaces(&result.global_scope, 0);
+ 
+-    json!({
++    mark("counts.after");
++    mark("json.before");
++    let graph = json!({
+         "scopes": scopes,
+         "declarations": original,
+         "proc_references": Value::Object(proc_references),
+@@ -397,7 +416,12 @@ fn symbol_graph_for_input(source: &str, input: &ResolvedAnalysisInput) -> Value
+             "total_variables": total_variables,
+             "total_namespaces": total_namespaces,
+         },
+-    })
++    });
++    mark("json.after");
++    mark("result_drop.before");
++    drop(result);
++    mark("result_drop.after");
++    graph
+ }
+ 
+ // call graph

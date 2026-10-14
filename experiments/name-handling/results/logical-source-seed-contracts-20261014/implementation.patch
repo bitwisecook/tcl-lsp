@@ -1,0 +1,27 @@
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -35,6 +35,7 @@
+ | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
+ | --- | --- | --- | --- | --- |
+ | Debugger current-frame variable reporting | `rust/tcl-vm/src/interp.rs`; `rust/tcl-debugger/src/backend.rs`; `rust/tcl-vm/src/debug.rs` | `Vm::debug_snapshot`; `DebugBackend::evaluate`; `DebugVar` | actual current frame local bindings and arena VarIds select scalar/array state before native name bytes are rendered; undefined and linked bindings retain their existing exclusion; arrays retain empty root values; valid UTF-8 stays literal and opaque bytes use full existing escape rendering; captured labels carry reporting purpose only and replay requires one matching label, declining collisions without dropping displayed cards; this grants no native variable-name acceptance, new frame selection or live evaluation | `xtask-owner-resolution` |
++| Logical declaration source views | `rust/tcl-lsp-core/src/workspace_index.rs`; `rust/tcl-lsp-server/src/lib.rs` | `WorkspaceIndex::logical_declaration_source_names_at` | complete current Logical source/input/configuration and actual document URI select original declaration occurrences across retained indexed views; actual typed publication slots retain repeated sites and absolute names; optional checked spellings report the selected slots, and missing/stale/unrepresented views decline without constructing seed labels; no Native loading, dispatch or edit authority follows | `xtask-owner-resolution` |
+ | Current Logical member-provider correspondence | `rust/tcl-lsp-core/src/call_hierarchy.rs`; `rust/tcl-lsp-core/src/workspace_index.rs`; `rust/tcl-lsp-server/src/lib.rs` | `LogicalCallTarget::capture`; `WorkspaceIndex::logical_member_provider_matches_target`; `LogicalCallTarget::matches_indexed_member_provider` | positive Logical full-source input, current image/configuration/registry, original class occurrence and original member declaration/side are retained together; actual indexed provider ownership and declaring URI are required; changed source, detached copied provider, ambiguous source publication or missing member owner declines; class display labels do not establish provider identity and this issues no Native dispatch or edit authority | `xtask-owner-resolution` |
+ | Native rename diagnostic operand reporting | `rust/tcl-syntax/src/naming/native.rs`; `runtime/rust/src/cmd_alias.rs`; `rust/tcl-vm/src/interp/native_rename.rs`; `rust/tcl-vm/src/command.rs` | `report_native_name_bytes`; `NativeNameReportPurpose::RenameCommandError`; `NativeNameProtocol::rename_diagnostic`; `NativeRenameFailure`; `NativeRenameDiagnostic` | audited original C8.4/8.5/8.6/9.0/9.1 retains counted original operand bytes for missing-source and occupied-destination messages; original latest Jim formats its selected operand through CString reporting; shared failure-stage reporting selects no explicit tuple for C8.4/8.5 and Jim, exact TCL LOOKUP COMMAND tuples for later-C missing rename/delete and TCL OPERATION RENAME TARGET_EXISTS for occupied destinations; adapters retain their neutral-error path when no tuple is selected; lookup operands, command generations and retirement/check ordering remain independent | `xtask-owner-resolution` |
+ | Native command visibility diagnostics | `rust/tcl-syntax/src/naming/native.rs`; `runtime/rust/src/cmd_alias.rs`; `runtime/rust/src/interp.rs`; `rust/tcl-vm/src/interp.rs` | `NativeNameProtocol::command_visibility_diagnostic`; `NativeCommandVisibilityFailure`; `NativeCommandVisibilityDiagnostic` | actual retained C naming protocol and independently selected hide/expose/invokehidden failure; names retain the selected C-string report extent; C8.4 uses its original expose wording and neutral codes, C8.5 retains delegated missing-visible-command lookup codes while other refusals use the neutral adapter, C8.6–9.1 use exact structured tuples; Jim refuses this unavailable C purpose; reporting preserves original lookup, retirement and observer order and cannot select command slots or issue Native authority | `xtask-owner-resolution` |
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -608,3 +608,14 @@
+ The original comparison control is
+ `rename_error_reporting_original_c_and_jim`; pure geometry uses
+ `rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent`.
++
++## Logical declaration source views
++
++`WorkspaceIndex::logical_declaration_source_names_at` joins a cursor's original
++declaration occurrence to the actual indexed views of the same document.
++Complete source bytes, configuration and resolved input must match. Each view
++retains its own publication slot, so absolute declarations stay absolute and
++repeated declarations keep their original source sites. Consumers use checked
++slot spellings for their report interface; they do not concatenate namespace
++seed labels. Missing or stale views decline. This source query grants no
++interpreter loading, dispatch or writable edit.

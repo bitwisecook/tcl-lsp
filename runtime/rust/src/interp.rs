@@ -16089,55 +16089,70 @@ impl Interp {
         destination: &[u8],
         outcome: CommandVisibilityOutcome,
     ) -> Code {
-        let (message, error_code) = match (op, outcome) {
+        let (failure, original) = match (op, outcome) {
             (_, CommandVisibilityOutcome::Moved) => {
                 self.set_result_bytes(b"");
                 return Code::Ok;
             }
-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => {
-                let mut message = b"unknown command \"".to_vec();
-                message.extend_from_slice(source);
-                message.push(b'"');
-                (
-                    message,
-                    error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", source]),
-                )
-            }
-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => {
-                let mut message = b"unknown hidden command \"".to_vec();
-                message.extend_from_slice(source);
-                message.push(b'"');
-                (
-                    message,
-                    error_code_list(&[b"TCL", b"LOOKUP", b"HIDDENTOKEN", source]),
-                )
-            }
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Missing) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingCommand,
+                source,
+            ),
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Missing) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::MissingHiddenToken,
+                source,
+            ),
             (CommandVisibilityOp::Hide, CommandVisibilityOutcome::NonGlobal) => (
-                b"can only hide global namespace commands (use rename then hide)".to_vec(),
-                b"TCL HIDE NON_GLOBAL".to_vec(),
+                tcl_syntax::naming::NativeCommandVisibilityFailure::HideNonGlobal,
+                source,
             ),
-            // C keeps this branch behind its own "theoretically impossible"
-            // comment (tclBasic.c:2500): only `Tcl_HideCommand` fills the
-            // hidden table, and it already refused a non-global source, so
-            // `expose_command` never reports it either.
             (CommandVisibilityOp::Expose, CommandVisibilityOutcome::NonGlobal) => (
-                b"trying to expose a non-global command namespace command".to_vec(),
-                b"NONE".to_vec(),
+                tcl_syntax::naming::NativeCommandVisibilityFailure::HiddenSourceNonGlobal,
+                source,
             ),
-            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => {
-                let mut message = b"hidden command named \"".to_vec();
-                message.extend_from_slice(destination);
-                message.extend_from_slice(b"\" already exists");
-                (message, b"TCL HIDE ALREADY_HIDDEN".to_vec())
-            }
-            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => {
-                let mut message = b"exposed command \"".to_vec();
-                message.extend_from_slice(destination);
-                message.extend_from_slice(b"\" already exists");
-                (message, b"TCL EXPOSE COMMAND_EXISTS".to_vec())
+            (CommandVisibilityOp::Hide, CommandVisibilityOutcome::Collision) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::AlreadyHidden,
+                destination,
+            ),
+            (CommandVisibilityOp::Expose, CommandVisibilityOutcome::Collision) => (
+                tcl_syntax::naming::NativeCommandVisibilityFailure::CommandExists,
+                destination,
+            ),
+        };
+        self.report_command_visibility_failure(failure, original)
+    }
+
+    pub(crate) fn report_command_visibility_failure(
+        &mut self,
+        failure: tcl_syntax::naming::NativeCommandVisibilityFailure,
+        original: &[u8],
+    ) -> Code {
+        let Some(policy) = self.name_policy_protocol() else {
+            return self.report_cmd_error(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "command visibility diagnostic",
+                )
+                .into(),
+            );
+        };
+        let error = match policy
+            .recipe()
+            .command_visibility_diagnostic(failure, original)
+        {
+            Ok(error) => error,
+            Err(_) => {
+                return self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "command visibility diagnostic",
+                    )
+                    .into(),
+                )
             }
         };
-        self.error_with_code(&message, &error_code)
+        match error.error_code {
+            Some(code) => self.error_with_code(&error.message, &code),
+            None => self.error(&error.message),
+        }
     }
 
     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
@@ -16149,12 +16164,10 @@ impl Interp {
                 fqn.extend_from_slice(name);
                 self.dispatch_prebound(argv, Some((fqn, binding)))
             }
-            None => {
-                let mut m = b"invalid hidden command name \"".to_vec();
-                m.extend_from_slice(name);
-                m.push(b'"');
-                self.error(&m)
-            }
+            None => self.report_command_visibility_failure(
+                tcl_syntax::naming::NativeCommandVisibilityFailure::InvokeHiddenMissing,
+                name,
+            ),
         }
     }
 

@@ -197,6 +197,7 @@ existence of a structured type does not establish a consumer's ownership.
 | Command lookup base order | `naming::command_lookup_bases` supplies current/path/root coordinates; `NativeCommandSlotProjection::{lookup_bases, lookup_uses_namespace_path}` selects original C extent and path availability. Logical candidate renderers, authored source geometry, native compilation snapshots and live runtime adapters reuse that order; source consumers retain separate path alternatives and stop before later uncertainty when an earlier binding settles lookup. Coordinates grant no live namespace, command binding or closed-world evidence. |
 | Variable namespace geometry and query order | `NativeNameProjection::variable_namespace_projection` retains the selected C `VariableRoot` or `NamespaceVariableQuery` components; `NativeVariableNamespaceProjection::namespace_query_bases` admits only the namespace query purpose and selects its C8.4–8.6 global alternate. `variable_namespace_lookup_bases` supplies the same coordinate sequence under an explicit Logical fallback policy. Ordinary scalar/element operation flags, frames, aliases, cell presence and lifetimes remain adapter-owned; Jim query canonicalization is independent. |
 | Empty namespace address | `NativeNameProtocol::namespace_address_path` distinguishes `EmptyNamespaceOutsideRoot` from unsupported recipes. Lookup treats that selected invalid address as missing; `report_native_namespace_creation_error` supplies the C creation diagnostic and release-selected error-code update. This supplies no native String allocation or entered namespace. |
+| Hidden-command refusal | `NativeNameProtocol::command_visibility_diagnostic` receives the actual C hide, expose or hidden-invocation failure and original operand. C8.4 retains its expose wording; C8.5 retains the missing-visible-command lookup tuple independently of its other neutral refusals; C8.6–9.1 retain the selected structured codes. Jim declines the unavailable C operation. Reporting does not perform lookup or change command retirement and observer order. |
 | Rename refusal | `NativeNameProtocol::rename_diagnostic` consumes the actual missing-source/delete or occupied-destination failure stage and original counted operand. C messages retain counted bytes; Jim messages use its selected C-string extent. C8.4/8.5 and Jim select the neutral adapter path, while C8.6–9.1 select exact lookup or destination-exists codes. Reporting never selects bindings or changes retirement and observer order. |
 | Shared static slot projection | `tcl_runtime_api::command_identity::{StaticCommandSlot, display_namespace, display_command, encode_command_slot}` |
 | Original name recipes | `NativeNameProtocol` and the selected operation's checked object/input facade; C, Jim and hosted issuers remain independent |
@@ -607,3 +608,14 @@ without replacing lookup bytes, actual command identity or retirement order.
 The original comparison control is
 `rename_error_reporting_original_c_and_jim`; pure geometry uses
 `rename_diagnostics_preserve_counted_lookup_operands_and_selected_report_extent`.
+
+## Logical declaration source views
+
+`WorkspaceIndex::logical_declaration_source_names_at` joins a cursor's original
+declaration occurrence to the actual indexed views of the same document.
+Complete source bytes, configuration and resolved input must match. Each view
+retains its own publication slot, so absolute declarations stay absolute and
+repeated declarations keep their original source sites. Consumers use checked
+slot spellings for their report interface; they do not concatenate namespace
+seed labels. Missing or stale views decline. This source query grants no
+interpreter loading, dispatch or writable edit.

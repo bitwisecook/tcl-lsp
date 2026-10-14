@@ -57,6 +57,7 @@ use tcl_runtime_api::{
     VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::eval;
+use tcl_syntax::naming::{NamePolicyProtocol, NativeCommandVisibilityFailure};
 use variable_trace_outcomes::VariableTraceOutcome;
 
 mod authored_math;
@@ -238,69 +239,76 @@ pub(crate) enum UpvarLinkError {
 /// user error with similar wording from being misclassified later.
 #[derive(Debug)]
 pub(crate) enum CommandVisibilityError {
-    InvalidHiddenToken,
-    HideNonGlobal,
-    ExposeNonGlobal,
-    MissingCommand(NameBytes),
-    MissingHiddenToken(NameBytes),
-    AlreadyHidden(NameBytes),
-    CommandExists(NameBytes),
+    InvalidHiddenToken(NamePolicyProtocol),
+    HideNonGlobal(NamePolicyProtocol),
+    ExposeNonGlobal(NamePolicyProtocol),
+    MissingCommand(NameBytes, NamePolicyProtocol),
+    MissingHiddenToken(NameBytes, NamePolicyProtocol),
+    AlreadyHidden(NameBytes, NamePolicyProtocol),
+    CommandExists(NameBytes, NamePolicyProtocol),
     InterpreterGone,
     NativeUnavailable(Completion<Value>),
 }
 
-fn native_visibility_lookup_error(
-    prefix: &[u8],
-    kind: &[u8],
-    name: &NameBytes,
+fn native_visibility_completion(
+    policy: NamePolicyProtocol,
+    failure: NativeCommandVisibilityFailure,
+    name: &[u8],
 ) -> Completion<Value> {
-    let mut message = prefix.to_vec();
-    message.push(b'"');
-    message.extend_from_slice(name.as_bytes());
-    message.push(b'"');
-    let mut tuple = b"TCL LOOKUP ".to_vec();
-    tuple.extend_from_slice(kind);
-    tuple.push(b' ');
-    tcl_syntax::list::append_list_element(&mut tuple, name.as_bytes(), false);
-    err_with_code(message, tuple)
+    let diagnostic = policy
+        .recipe()
+        .command_visibility_diagnostic(failure, name)
+        .expect("selected C hidden-table operation has a visibility recipe");
+    match diagnostic.error_code {
+        Some(code) => err_with_code(diagnostic.message, code),
+        None => err(diagnostic.message),
+    }
 }
 
 impl CommandVisibilityError {
     pub(crate) fn into_completion(self) -> Completion<Value> {
-        match self {
-            Self::InvalidHiddenToken => err_with_code(
-                "cannot use namespace qualifiers in hidden command token (rename)",
-                "TCL VALUE HIDDENTOKEN",
+        let (failure, name, policy) = match self {
+            Self::InvalidHiddenToken(policy) => (
+                NativeCommandVisibilityFailure::InvalidHiddenToken,
+                None,
+                policy,
             ),
-            Self::HideNonGlobal => err_with_code(
-                "can only hide global namespace commands (use rename then hide)",
-                "TCL HIDE NON_GLOBAL",
+            Self::HideNonGlobal(policy) => {
+                (NativeCommandVisibilityFailure::HideNonGlobal, None, policy)
+            }
+            Self::ExposeNonGlobal(policy) => (
+                NativeCommandVisibilityFailure::ExposeNonGlobal,
+                None,
+                policy,
             ),
-            Self::ExposeNonGlobal => err_with_code(
-                "cannot expose to a namespace (use rename then expose)",
-                "TCL EXPOSE NON_GLOBAL",
+            Self::MissingCommand(name, policy) => (
+                NativeCommandVisibilityFailure::MissingCommand,
+                Some(name),
+                policy,
             ),
-            Self::MissingCommand(name) => {
-                native_visibility_lookup_error(b"unknown command ", b"COMMAND", &name)
-            }
-            Self::MissingHiddenToken(name) => {
-                native_visibility_lookup_error(b"unknown hidden command ", b"HIDDENTOKEN", &name)
-            }
-            Self::AlreadyHidden(name) => {
-                let mut message = b"hidden command named \"".to_vec();
-                message.extend_from_slice(name.as_bytes());
-                message.extend_from_slice(b"\" already exists");
-                err_with_code(message, "TCL HIDE ALREADY_HIDDEN")
-            }
-            Self::CommandExists(name) => {
-                let mut message = b"exposed command \"".to_vec();
-                message.extend_from_slice(name.as_bytes());
-                message.extend_from_slice(b"\" already exists");
-                err_with_code(message, "TCL EXPOSE COMMAND_EXISTS")
-            }
-            Self::NativeUnavailable(completion) => completion,
-            Self::InterpreterGone => err("interpreter no longer exists"),
-        }
+            Self::MissingHiddenToken(name, policy) => (
+                NativeCommandVisibilityFailure::MissingHiddenToken,
+                Some(name),
+                policy,
+            ),
+            Self::AlreadyHidden(name, policy) => (
+                NativeCommandVisibilityFailure::AlreadyHidden,
+                Some(name),
+                policy,
+            ),
+            Self::CommandExists(name, policy) => (
+                NativeCommandVisibilityFailure::CommandExists,
+                Some(name),
+                policy,
+            ),
+            Self::NativeUnavailable(completion) => return completion,
+            Self::InterpreterGone => return err("interpreter no longer exists"),
+        };
+        native_visibility_completion(
+            policy,
+            failure,
+            name.as_ref().map_or(&[], NameBytes::as_bytes),
+        )
     }
 }
 
@@ -8052,10 +8060,14 @@ impl Vm {
                 .cloned()
                 .map(|command| (key, command))
         }) else {
-            return native_visibility_lookup_error(
-                b"invalid hidden command name ",
-                b"HIDDENTOKEN",
-                &selected,
+            let policy = match self.command_visibility_policy() {
+                Ok(policy) => policy,
+                Err(error) => return error.into_completion(),
+            };
+            return native_visibility_completion(
+                policy,
+                NativeCommandVisibilityFailure::InvokeHiddenMissing,
+                selected.as_bytes(),
             );
         };
         let identity = self.hidden.builtin_identities.get(&key).map(String::as_str);
@@ -8423,6 +8435,16 @@ impl Vm {
             })
     }
 
+    fn command_visibility_policy(&mut self) -> Result<NamePolicyProtocol, CommandVisibilityError> {
+        self.name_policy_protocol().ok_or_else(|| {
+            CommandVisibilityError::NativeUnavailable(
+                self.refuse_host_command(
+                    "native command-visibility protocol unavailable".to_owned(),
+                ),
+            )
+        })
+    }
+
     fn select_hidden_token_bytes(
         &mut self,
         original: &[u8],
@@ -8490,17 +8512,28 @@ impl Vm {
         cmd: &[u8],
         token: &[u8],
     ) -> Result<(), CommandVisibilityError> {
+        let policy = self.command_visibility_policy()?;
         let cmd = self.select_hidden_token_bytes(cmd)?;
         let token_name = self.select_hidden_token_bytes(token)?;
-        Self::validate_command_visibility_args_bytes(true, cmd.as_bytes(), token_name.as_bytes())?;
+        Self::validate_command_visibility_args_bytes(
+            true,
+            cmd.as_bytes(),
+            token_name.as_bytes(),
+            policy,
+        )?;
         let token = self.reserve_hidden_storage_key(token_name.clone());
         if self.hidden.commands.contains_key(&token) {
-            return Err(CommandVisibilityError::AlreadyHidden(token_name.clone()));
+            return Err(CommandVisibilityError::AlreadyHidden(
+                token_name.clone(),
+                policy,
+            ));
         }
         let source =
             match self.resolve_command_bytes_checked(self.current_ns_id(), cmd.as_bytes(), true) {
                 Ok(Some(key)) => key,
-                Ok(None) => return Err(CommandVisibilityError::MissingCommand(cmd.clone())),
+                Ok(None) => {
+                    return Err(CommandVisibilityError::MissingCommand(cmd.clone(), policy));
+                }
                 Err(error) => {
                     return Err(CommandVisibilityError::NativeUnavailable(
                         self.refuse_host_command(error.to_string()),
@@ -8511,13 +8544,13 @@ impl Vm {
             .visible_command_at_key(&source)
             .is_some_and(|command| self.builtin_command_visible_for_surface(&source, &command))
         {
-            return Err(CommandVisibilityError::MissingCommand(cmd.clone()));
+            return Err(CommandVisibilityError::MissingCommand(cmd.clone(), policy));
         }
         let source_generation = self.live_command_generation(&source);
         let import_origin = self.imported_commands.get(&source).cloned();
         let builtin_identity = self.builtin_identity_for_key(&source);
         let Some(command) = self.take_command_unchecked_key(&source) else {
-            return Err(CommandVisibilityError::MissingCommand(cmd.clone()));
+            return Err(CommandVisibilityError::MissingCommand(cmd.clone(), policy));
         };
         let cross_target = match &command {
             Command::CrossAlias { target, .. } => Some(*target),
@@ -8585,36 +8618,48 @@ impl Vm {
         cmd: &[u8],
         token: &[u8],
     ) -> Result<(), CommandVisibilityError> {
+        let policy = self.command_visibility_policy()?;
         let source_name = self.select_hidden_token_bytes(cmd)?;
         let token = self.select_hidden_token_bytes(token)?;
         Self::validate_command_visibility_args_bytes(
             false,
             source_name.as_bytes(),
             token.as_bytes(),
+            policy,
         )?;
         let Some(cmd) = self.hidden.tokens_by_name.get(&source_name).cloned() else {
-            return Err(CommandVisibilityError::MissingHiddenToken(source_name));
+            return Err(CommandVisibilityError::MissingHiddenToken(
+                source_name,
+                policy,
+            ));
         };
         // `interp expose` always installs the destination in the global
         // namespace.  A contextual lookup here would incorrectly see (and
         // reject because of) a same-spelled local command in the caller's
         // namespace, instead of checking the exact global table owner.
-        let destination_display =
-            NameBytes::from(tcl_syntax::naming::written_command_tail(token.as_bytes()));
+        let selected = policy
+            .recipe()
+            .exposed_command_publication_slot(token.as_bytes())
+            .map_err(|error| {
+                CommandVisibilityError::NativeUnavailable(
+                    self.refuse_host_command(error.to_string()),
+                )
+            })?;
         let destination_slot = CommandSlot {
             namespace: ROOT_NS,
-            simple: destination_display.clone(),
+            simple: selected.simple,
         };
         if self
             .command_storage_key_at_slot(&destination_slot)
             .is_some_and(|key| self.visible_command_exists_exact(&key))
         {
-            return Err(CommandVisibilityError::CommandExists(token.clone()));
+            return Err(CommandVisibilityError::CommandExists(token.clone(), policy));
         }
         self.note_native_command_token_changed(&CommandSidecarKey::hidden(&cmd));
         let Some(c) = self.hidden.commands.remove(&cmd) else {
             return Err(CommandVisibilityError::MissingHiddenToken(
                 source_name.clone(),
+                policy,
             ));
         };
         let source_generation = self.hidden.generations.remove(&cmd);
@@ -8679,26 +8724,24 @@ impl Vm {
         hide: bool,
         cmd: &[u8],
         token: &[u8],
+        policy: NamePolicyProtocol,
     ) -> Result<(), CommandVisibilityError> {
         if hide {
             // The hide destination is the hidden token. Check it first: in
             // the one-argument child shorthand the source and token spellings
             // are equal, and Tcl identifies the qualified token role.
             if token.windows(2).any(|pair| pair == b"::") {
-                return Err(CommandVisibilityError::InvalidHiddenToken);
+                return Err(CommandVisibilityError::InvalidHiddenToken(policy));
             }
             if !tcl_cmd_core::namespace::qualifiers(cmd).is_empty() {
-                return Err(CommandVisibilityError::HideNonGlobal);
+                return Err(CommandVisibilityError::HideNonGlobal(policy));
             }
         } else {
             // Expose checks its visible destination first. Thus a qualified
             // one-argument shorthand is NON_GLOBAL even though that same word
             // also names the hidden source token.
-            if !tcl_cmd_core::namespace::qualifiers(token).is_empty() {
-                return Err(CommandVisibilityError::ExposeNonGlobal);
-            }
-            if cmd.windows(2).any(|pair| pair == b"::") {
-                return Err(CommandVisibilityError::InvalidHiddenToken);
+            if tcl_syntax::naming::is_qualified(token) {
+                return Err(CommandVisibilityError::ExposeNonGlobal(policy));
             }
         }
         Ok(())
@@ -31109,6 +31152,114 @@ mod native_hidden_byte_names {
         ok(vm
             .invoked_name_value()
             .expect("original hidden invocation value"))
+    }
+
+    #[test]
+    fn command_visibility_completions_match_original_c_release_results() {
+        fn from_hex(text: &str) -> Vec<u8> {
+            text.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let rows = include_str!("../tests/fixtures/original_visibility_errors.tsv");
+        let mut compared = 0;
+        for row in rows.lines() {
+            let fields = row.split_whitespace().collect::<Vec<_>>();
+            assert_eq!(fields.len(), 5);
+            let mut vm = Vm::with_output(Box::new(std::io::sink()));
+            vm.set_dialect_profile(crate::environment::profile_for_dialect(fields[0]));
+            let policy = vm.command_visibility_policy().unwrap();
+            let completion = match fields[1] {
+                "invalid-token" => {
+                    CommandVisibilityError::InvalidHiddenToken(policy).into_completion()
+                }
+                "hide-non-global" => {
+                    CommandVisibilityError::HideNonGlobal(policy).into_completion()
+                }
+                "expose-non-global" => {
+                    CommandVisibilityError::ExposeNonGlobal(policy).into_completion()
+                }
+                "missing-command" => {
+                    CommandVisibilityError::MissingCommand(NameBytes::from(b"missing"), policy)
+                        .into_completion()
+                }
+                "missing-hidden" => CommandVisibilityError::MissingHiddenToken(
+                    NameBytes::from(b"N::missing"),
+                    policy,
+                )
+                .into_completion(),
+                "already-hidden" => {
+                    CommandVisibilityError::AlreadyHidden(NameBytes::from(b"held"), policy)
+                        .into_completion()
+                }
+                "command-exists" => {
+                    CommandVisibilityError::CommandExists(NameBytes::from(b"other"), policy)
+                        .into_completion()
+                }
+                "invoke-hidden-missing" => native_visibility_completion(
+                    policy,
+                    NativeCommandVisibilityFailure::InvokeHiddenMissing,
+                    b"N::missing",
+                ),
+                _ => panic!("unexpected original failure kind"),
+            };
+            assert_eq!(fields[2], "1");
+            assert_eq!(completion.code, Code::Error);
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                from_hex(fields[3])
+            );
+            let expected_code = from_hex(fields[4]);
+            let actual_code = crate::command::opt_get(&completion.options, "-errorcode");
+            if expected_code == b"NONE" {
+                assert!(actual_code.is_none(), "{row}");
+            } else {
+                assert_eq!(
+                    actual_code.unwrap().string_bytes().as_ref(),
+                    expected_code,
+                    "{row}"
+                );
+            }
+            compared += 1;
+        }
+        assert_eq!(compared, 40);
+    }
+
+    #[test]
+    fn exposed_slots_preserve_empty_and_distinct_hidden_source_roles() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut vm = Vm::with_output(Box::new(std::io::sink()));
+            vm.set_dialect_profile(crate::environment::profile_for_dialect(
+                version.dialect_profile_name(),
+            ));
+            vm.register_command_in_slot(
+                CommandSlot {
+                    namespace: ROOT_NS,
+                    simple: NameBytes::from(b"kept"),
+                },
+                Command::Builtin(echo_original),
+            );
+            vm.hide_command_bytes(b"kept", b"held").unwrap();
+            for destination in [b"::root".as_slice(), b"::", b"N::q"] {
+                assert!(matches!(
+                    vm.expose_own_command_bytes(b"held", destination),
+                    Err(CommandVisibilityError::ExposeNonGlobal(_))
+                ));
+                assert_eq!(vm.own_hidden_names_bytes(), [NameBytes::from(b"held")]);
+            }
+            assert!(
+                matches!(vm.expose_own_command_bytes(b"N::missing", b"allowed"),
+                Err(CommandVisibilityError::MissingHiddenToken(name, _)) if name.as_bytes() == b"N::missing")
+            );
+            vm.expose_own_command_bytes(b"held", b"").unwrap();
+            assert!(
+                vm.lookup_command_bytes_checked(ROOT_NS, b"")
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(vm.own_hidden_names_bytes().is_empty());
+        }
     }
 
     #[test]

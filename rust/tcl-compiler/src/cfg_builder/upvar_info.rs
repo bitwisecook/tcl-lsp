@@ -749,6 +749,35 @@ fn walk_stmt(
         }
         return;
     }
+    if let (Some(bindings), Some(tokens)) = (bindings, tokens)
+        && bindings.input.has_logical_source_name_context()
+        && matches!(
+            stmt,
+            Statement::UpFrame {
+                absolute: false,
+                frame_shift: 1,
+                ..
+            }
+        )
+    {
+        let candidates = tokens.source_binding.as_ref().and_then(|binding| {
+            let metadata = binding.original_invocation_metadata_for_module(
+                tokens,
+                bindings.module,
+                registry,
+            )?;
+            crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )?
+            .unknown_caller_variable_candidates(bindings.module, registry, tokens)
+        });
+        if let Some(candidates) = candidates {
+            info.uplevel_literal_writes.extend(candidates.bindings);
+        }
+        info.caller_frame_opaque_writes = true;
+        info.caller_frame_opaque_reads = true;
+        return;
+    }
     match stmt {
         Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
             if let Some(bindings) = bindings {

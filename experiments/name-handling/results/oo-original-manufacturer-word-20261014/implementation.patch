@@ -1,0 +1,127 @@
+--- a/rust/tcl-syntax/src/word_rules.rs
++++ b/rust/tcl-syntax/src/word_rules.rs
+@@ -467,6 +467,36 @@
+     }
+     std::str::from_utf8(&value).ok()?;
+     Some(value)
++}
++
++/// One original scalar reference with an exact decoded literal prefix.
++/// Original grouping and executable components remain authoritative; this
++/// classifies source syntax and supplies no variable read or name lookup.
++#[must_use]
++pub fn original_scalar_variable_with_prefix(
++    word: &tcl_lexer::NativeWord,
++    prefixes: &[&[u8]],
++) -> Option<Vec<u8>> {
++    let mut name = None;
++    let prefix = original_word_unicode_value_with_variables(word, |arena, component| {
++        let tcl_lexer::ExecutablePart::Variable {
++            name: span,
++            index: None,
++        } = component.part
++        else {
++            return None;
++        };
++        let bytes = arena.bytes(span)?;
++        if name.is_some() || crate::naming::split_element_ref_bytes(bytes).is_some() {
++            return None;
++        }
++        name = Some(bytes.to_vec());
++        Some(Vec::new())
++    })?;
++    prefixes
++        .contains(&prefix.as_slice())
++        .then_some(name?)
++        .filter(|name| !name.is_empty())
+ }
+ 
+ fn original_unicode_text_component(
+@@ -701,6 +731,44 @@
+     }
+ 
+     #[test]
++    fn original_scalar_prefix_shape_keeps_grouping_and_real_variable_components() {
++        let config = LexerConfig::default();
++        for source in [
++            "$name",
++            "${name}",
++            "::$name",
++            "::${name}",
++            r#""::$name""#,
++            r"\x3a\x3a$name",
++        ] {
++            let original = word(SourceImage::document(source), config);
++            assert_eq!(
++                original_scalar_variable_with_prefix(&original, &[b"", b"::"]),
++                Some(b"name".to_vec()),
++                "{source}"
++            );
++        }
++        for source in [
++            "{$name}",
++            "{::$name}",
++            ":::$name",
++            "prefix$name",
++            "$name-suffix",
++            "$name(index)",
++            "${name(index)}",
++            "$name$name",
++            "[opaque]",
++            r"\$name",
++        ] {
++            let original = word(SourceImage::document(source), config);
++            assert!(
++                original_scalar_variable_with_prefix(&original, &[b"", b"::"]).is_none(),
++                "{source}"
++            );
++        }
++    }
++
++    #[test]
+     fn static_unicode_values_keep_original_units_separate_from_replacement_presentation() {
+         // naming.source.original-static-unicode-value-projection
+         // docs/design/analysis/name-resolution-proofs/source-original-static-unicode-value-projection.md
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -7609,12 +7609,34 @@
+             let Some(name_arg) = manufacturer.names_instance_at else {
+                 return UnknownBodyEvidence::Nothing;
+             };
+-            // The instance-name word must be exactly the fallback's own first
+-            // parameter, optionally with Tcl's global namespace qualifier.
+-            return if args.get(name_arg as usize).is_some_and(|word| {
+-                let name_word = word.strip_prefix("::").unwrap_or(word);
+-                crate::value_shapes::whole_word_scalar_var_name(name_word) == Some(word_param)
+-            }) {
++            let config = self.file_lexer_config();
++            let bindings = self.head_identities.source_bindings();
++            let Some(origin) = bindings.source_origin() else {
++                return UnknownBodyEvidence::Nothing;
++            };
++            let image = origin.source_image();
++            if image.bytes() != self.source.as_bytes()
++                || !bindings.matches_original_source_image(image, config)
++            {
++                return UnknownBodyEvidence::Nothing;
++            }
++            let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, seg);
++            let original = crate::registry_invocation::original_native_compiler_words(
++                image,
++                tokens.words(),
++                seg.span.start(),
++                config,
++            );
++            return if original
++                .as_ref()
++                .and_then(|words| {
++                    tcl_syntax::word_rules::original_scalar_variable_with_prefix(
++                        words.get(usize::from(name_arg).checked_add(1)?)?,
++                        &[b"", b"::"],
++                    )
++                })
++                .is_some_and(|name| name == word_param.as_bytes())
++            {
+                 UnknownBodyEvidence::Constructs
+             } else {
+                 UnknownBodyEvidence::Nothing

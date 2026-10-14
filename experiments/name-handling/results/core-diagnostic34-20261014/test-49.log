@@ -1,0 +1,15 @@
+
+running 1 test
+test namespace_rename::tests::tp_refuses_an_unattributed_embedded_name ... 
+thread 'namespace_rename::tests::tp_refuses_an_unattributed_embedded_name' (242825) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1016:51:
+an embedded name must refuse: "namespace eval ::new { proc tick {} {} }\nset handlers [list ::old::tick]\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    namespace_rename::tests::tp_refuses_an_unattributed_embedded_name
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3026 filtered out; finished in 0.67s
+

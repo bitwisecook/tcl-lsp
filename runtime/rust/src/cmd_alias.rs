@@ -941,16 +941,17 @@ fn hidectl_in_original(
         cmd.clone()
     };
     if tcl_syntax::naming::is_qualified(&token) {
-        return match op {
-            CommandVisibilityOp::Hide => interp.error_with_code(
-                b"cannot use namespace qualifiers in hidden command token (rename)",
-                b"TCL VALUE HIDDENTOKEN",
-            ),
-            CommandVisibilityOp::Expose => interp.error_with_code(
-                b"cannot expose to a namespace (use expose to toplevel, then rename)",
-                b"TCL EXPOSE NON_GLOBAL",
-            ),
-        };
+        return interp.report_command_visibility_failure(
+            match op {
+                CommandVisibilityOp::Hide => {
+                    tcl_syntax::naming::NativeCommandVisibilityFailure::InvalidHiddenToken
+                }
+                CommandVisibilityOp::Expose => {
+                    tcl_syntax::naming::NativeCommandVisibilityFailure::ExposeNonGlobal
+                }
+            },
+            &token,
+        );
     }
     let moved = interp.with_child_path(path, |c| match op {
         CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),

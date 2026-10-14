@@ -294,13 +294,6 @@ pub(super) fn static_value(word: &NativeWord) -> Option<String> {
     static_bytes_text(&bytes)
 }
 
-/// A retained captured operand keeps its byte value, not its presentation arm.
-pub(super) fn captured_static_value(
-    word: &crate::registry_invocation::EffectiveInvocationWord,
-) -> Option<String> {
-    static_bytes_text(word.literal_bytes()?)
-}
-
 fn static_bytes_text(bytes: &[u8]) -> Option<String> {
     if bytes.contains(&0) {
         return None;
@@ -703,16 +696,24 @@ proc p "other {last default}" {return SECOND}"#;
         use crate::registry_invocation::EffectiveInvocationWord;
         let bytes = EffectiveInvocationWord::ByteLiteral(Arc::from("café $literal".as_bytes()));
         assert_eq!(
-            captured_static_value(&bytes),
+            static_bytes_text(bytes.literal_bytes().unwrap()),
             Some("café $literal".to_owned())
         );
         assert_eq!(bytes.literal_bytes(), Some("café $literal".as_bytes()));
         assert_eq!(
-            captured_static_value(&EffectiveInvocationWord::Literal("café $literal".into())),
-            captured_static_value(&bytes)
+            static_bytes_text(
+                EffectiveInvocationWord::Literal("café $literal".into())
+                    .literal_bytes()
+                    .unwrap()
+            ),
+            static_bytes_text(bytes.literal_bytes().unwrap())
         );
         assert_eq!(
-            captured_static_value(&EffectiveInvocationWord::ByteLiteral(Arc::from(&b""[..]))),
+            static_bytes_text(
+                EffectiveInvocationWord::ByteLiteral(Arc::from(&b""[..]))
+                    .literal_bytes()
+                    .unwrap()
+            ),
             Some(String::new())
         );
         for value in [
@@ -724,7 +725,11 @@ proc p "other {last default}" {return SECOND}"#;
             EffectiveInvocationWord::Expanded,
             EffectiveInvocationWord::KnownExpansion(vec!["café".into()]),
         ] {
-            assert_eq!(captured_static_value(&value), None, "{value:?}");
+            assert_eq!(
+                value.literal_bytes().and_then(static_bytes_text),
+                None,
+                "{value:?}"
+            );
         }
     }
 

@@ -1,0 +1,6 @@
+
+running 1 test
+test graphs::tests::deeply_nested_namespaces_survive_symbol_graph ... GRAPH_STAGE analyse.before
+
+thread 'graphs::tests::deeply_nested_namespaces_survive_symbol_graph' (242625) has overflowed its stack
+fatal runtime error: stack overflow, aborting

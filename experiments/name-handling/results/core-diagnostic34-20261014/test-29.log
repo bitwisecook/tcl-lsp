@@ -1,0 +1,20 @@
+
+running 1 test
+test inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids ... INLAY_STAGE lexical=true declarations=2 variables=0 write_advice=2 module_procedures=2 module_body_units=0 units_procedures=2 units_body_units=0
+INLAY_STAGE logical_unit body=ProcedureId { scope: 2, ordinal: 1 } current=true types=1 known_types=0
+INLAY_STAGE logical_unit body=ProcedureId { scope: 2, ordinal: 0 } current=true types=1 known_types=0
+INLAY_STAGE logical_scope body_span=Span { start: 17, end: 30 } matching_declarations=1 selected=None
+INLAY_STAGE logical_scope body_span=Span { start: 49, end: 64 } matching_declarations=1 selected=None
+
+thread 'inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids' (242657) panicked at rust/tcl-lsp-core/src/inlay_hints.rs:3150:9:
+[]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    inlay_hints::retained_hint_context_tests::logical_type_hints_keep_repeated_declarations_on_their_original_body_ids
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3026 filtered out; finished in 0.89s
+

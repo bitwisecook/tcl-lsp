@@ -1616,26 +1616,7 @@ fn interp_visibility_qualifier_validation_is_shared_by_every_entry_form() {
                  [outcome {interp expose kid N::held q}] \
                  [outcome {interp hide kid N::p held}] \
                  [outcome {interp expose kid held N::q}]"),
-        "{1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
-             {TCL VALUE HIDDENTOKEN}} \
-         {1 {can only hide global namespace commands (use rename then hide)} \
-             {TCL HIDE NON_GLOBAL}} \
-         {1 {cannot expose to a namespace (use rename then expose)} \
-             {TCL EXPOSE NON_GLOBAL}}"
+        "{1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}} {1 {cannot use namespace qualifiers in hidden command token (rename)} {TCL VALUE HIDDENTOKEN}} {1 {unknown hidden command \"N::held\"} {TCL LOOKUP HIDDENTOKEN N::held}} {1 {can only hide global namespace commands (use rename then hide)} {TCL HIDE NON_GLOBAL}} {1 {cannot expose to a namespace (use expose to toplevel, then rename)} {TCL EXPOSE NON_GLOBAL}}"
     );
 }
 

@@ -10531,3 +10531,16 @@ known current/root source coordinates; relative caller and dynamic levels
 decline. The child does not fabricate an entered `executed_source` or Native
 body receipt. Existing `original_body_for_module` keeps its independent
 reached/Native checks.
+
+`original_logical_body_geometry_for_module` retains one whole original body
+container under the unchanged parent vector, actual Module realm, source/input
+and lexer configuration. Geometry supplies no child namespace or entered body.
+`OriginalLogicalFrameInvocation::unknown_caller_variable_candidates` uses that
+carrier only for literal MAY vocabulary admitted by the current Registry
+context. It always keeps opaque caller read/write hazards; a descriptor cannot
+prove what the unavailable caller binds. Current/root tables and Native
+body-entry receipts remain unavailable.
+
+`SourceVariableNameOwnership` preserves the legal empty name and literal dollar
+sigils through the shared array-root partition. A name payload is not a
+substitution, physical cell or definite effect-exclusion proof.
