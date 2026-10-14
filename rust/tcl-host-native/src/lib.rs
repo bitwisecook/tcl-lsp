@@ -263,6 +263,28 @@ impl Env for NativeEnv {
             .ok()
             .map(|p| p.to_string_lossy().into_owned())
     }
+
+    /// Read from `/etc/passwd`: the sixth field of the entry whose first is
+    /// `user`. A user only a directory service (NSS, LDAP, macOS Open
+    /// Directory) names is not found.
+    fn user_home(&self, user: &str) -> Option<String> {
+        if !cfg!(unix) || user.is_empty() {
+            return None;
+        }
+        let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+        passwd_home(&passwd, user)
+    }
+}
+
+/// The home directory `passwd` (the text of `/etc/passwd`) gives `user`.
+fn passwd_home(passwd: &str, user: &str) -> Option<String> {
+    passwd.lines().find_map(|entry| {
+        let mut fields = entry.split(':');
+        (fields.next() == Some(user))
+            .then(|| fields.nth(4))
+            .flatten()
+            .map(str::to_owned)
+    })
 }
 
 struct NativeFs;
@@ -524,6 +546,15 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_user_home_is_the_sixth_passwd_field() {
+        let passwd = "# comment\nroot:x:0:0:root:/root:/bin/bash\nab:x:1:1::/home/ab:/bin/sh\n";
+        assert_eq!(passwd_home(passwd, "root").as_deref(), Some("/root"));
+        assert_eq!(passwd_home(passwd, "ab").as_deref(), Some("/home/ab"));
+        assert_eq!(passwd_home(passwd, "a"), None);
+        assert_eq!(passwd_home(passwd, "nosuch"), None);
+    }
 
     #[test]
     fn system_encoding_follows_tcl_unix_locale_defaults() {

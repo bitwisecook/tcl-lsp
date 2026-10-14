@@ -326,6 +326,12 @@ pub trait Env {
     fn current_exe(&self) -> Option<String> {
         None
     }
+    /// The home directory of the user named `user` (`getpwnam`'s `pw_dir`):
+    /// `None` where the host knows no such user, or names no users at all
+    /// (the browser, WASI).
+    fn user_home(&self, _user: &str) -> Option<String> {
+        None
+    }
 }
 
 /// Stream sockets (`socket`). Conditional — absent under WASI preview 1 and in

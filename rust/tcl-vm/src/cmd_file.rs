@@ -25,11 +25,13 @@
 //! [`NativeHost`](crate::host_native::NativeHost), subprocess via
 //! `host.process()` (absent → the faithful "unsupported" error).
 
-use std::path::{Path, PathBuf};
+use std::borrow::Cow;
 
+use tcl_cmd_core::path::{self, PathReading};
 use tcl_platform::Filesystem;
 use tcl_runtime_api::Completion;
 
+use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -147,64 +149,89 @@ fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
 
 /// The platform-independent path-text subcommands of `file` (no filesystem
 /// access): `join`, `dirname`, `tail`, `extension`, `rootname`, `split`,
-/// `normalize`, `nativename`, `pathtype`, `separator`. The `/`-based path text
+/// `normalize`, `nativename`, `pathtype`, `home`, `tildeexpand`,
+/// `separator`. The `/`-based path text
 /// ops are the shared `tcl_cmd_core::path` core (platform-independent, unlike
 /// `std::path::Path`). Returns `None` for any other
 /// subcommand so the caller falls through to the filesystem-backed ops.
 fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<Value>> {
-    let s = |v: &Value| v.to_str().to_string();
+    let release = vm.runtime_version();
+    let reading = PathReading::of_release(release);
     Some(match canon {
         "join" => {
             let names: Vec<String> = rest.iter().map(|name| name.to_str().to_string()).collect();
-            path_str(&tcl_cmd_core::path::join(&names))
+            path_str(&path::join(&names, reading))
         }
-        "dirname" => match rest {
-            [p] => path_str(&tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file dirname name\""),
-        },
-        "tail" => match rest {
-            [p] => path_str(tcl_cmd_core::path::tail(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file tail name\""),
+        "dirname" | "tail" => match rest {
+            [p] => {
+                let name = p.to_str();
+                let host = vm.host_rc();
+                match path::part_name(name.as_bytes(), release, host.env(), host.filesystem()) {
+                    Ok(part) if canon == "dirname" => path_str(&path::dirname(&part, reading)),
+                    Ok(part) => path_str(&path::tail(&part, reading)),
+                    Err(error) => completion_from_cmd_error(error),
+                }
+            }
+            _ => err(format!("wrong # args: should be \"file {canon} name\"")),
         },
         "extension" => match rest {
-            [p] => path_str(tcl_cmd_core::path::extension(p.to_str().as_bytes())),
+            [p] => path_str(path::extension(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file extension name\""),
         },
         "rootname" => match rest {
-            [p] => path_str(tcl_cmd_core::path::rootname(p.to_str().as_bytes())),
+            [p] => path_str(path::rootname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file rootname name\""),
         },
         "split" => match rest {
             [p] => ok(Value::list(
-                tcl_cmd_core::path::split(p.to_str().as_bytes())
-                    .into_iter()
+                path::split(p.to_str().as_bytes(), reading)
+                    .iter()
                     .map(|element| Value::string(std::str::from_utf8(element).unwrap_or("")))
                     .collect(),
             )),
             _ => err("wrong # args: should be \"file split name\""),
         },
-        "normalize" => match rest {
+        "normalize" | "nativename" => match rest {
             [p] => {
-                let cwd = vm.host().env().cwd().unwrap_or_else(|_| "/".to_string());
-                ok(Value::string(normalize(&s(p), &cwd)))
+                let name = p.to_str();
+                let host = vm.host_rc();
+                let built = if canon == "normalize" {
+                    path::normalize(name.as_bytes(), release, host.env(), host.filesystem())
+                } else {
+                    path::translate(name.as_bytes(), release, host.env()).map(Cow::into_owned)
+                };
+                match built {
+                    Ok(built) => path_str(&built),
+                    Err(error) => completion_from_cmd_error(error),
+                }
             }
-            _ => err("wrong # args: should be \"file normalize name\""),
-        },
-        "nativename" => match rest {
-            [p] => ok(Value::string(s(p))),
-            _ => err("wrong # args: should be \"file nativename name\""),
+            _ => err(format!("wrong # args: should be \"file {canon} name\"")),
         },
         "pathtype" => match rest {
             [p] => ok(Value::string(
-                if Path::new(&s(p)).is_absolute() {
-                    "absolute"
-                } else {
-                    "relative"
-                }
-                .to_string(),
+                path::path_type(p.to_str().as_bytes(), reading).name(),
             )),
             _ => err("wrong # args: should be \"file pathtype name\""),
         },
+        "home" | "tildeexpand" => {
+            let host = vm.host_rc();
+            let built = match (canon, rest) {
+                ("home", []) => path::home_directory(host.env(), b"", release),
+                ("home", [user]) => {
+                    path::home_directory(host.env(), user.to_str().as_bytes(), release)
+                }
+                ("tildeexpand", [p]) => {
+                    path::tilde_expand(p.to_str().as_bytes(), release, host.env())
+                        .map(Cow::into_owned)
+                }
+                ("home", _) => return Some(err("wrong # args: should be \"file home ?user?\"")),
+                _ => return Some(err("wrong # args: should be \"file tildeexpand path\"")),
+            };
+            match built {
+                Ok(built) => path_str(&built),
+                Err(error) => completion_from_cmd_error(error),
+            }
+        }
         "separator" => ok(Value::string("/")),
         _ => return None,
     })
@@ -334,31 +361,10 @@ fn file_mtime(fs: Option<&dyn Filesystem>, path: &str) -> Completion<Value> {
     }
 }
 
-/// `file join` over two names, on the shared path core.
+/// A directory and one of its entries joined on the shared path core, the
+/// entry read as the literal name it is (a `~` in it names no home).
 fn file_join(base: &str, name: &str) -> String {
-    String::from_utf8(tcl_cmd_core::path::join(&[base, name])).unwrap_or_default()
-}
-
-/// `file normalize` — make absolute (against the cwd) and resolve `.`/`..`
-/// lexically (no symlink resolution).
-fn normalize(p: &str, cwd: &str) -> String {
-    let base = if Path::new(p).is_absolute() {
-        PathBuf::from(p)
-    } else {
-        PathBuf::from(cwd).join(p)
-    };
-    let mut parts: Vec<String> = Vec::new();
-    for c in base.components() {
-        match c {
-            std::path::Component::ParentDir => {
-                parts.pop();
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::RootDir => parts.clear(),
-            other => parts.push(other.as_os_str().to_string_lossy().into_owned()),
-        }
-    }
-    format!("/{}", parts.join("/"))
+    String::from_utf8(path::join(&[base, name], PathReading::Tcl9)).unwrap_or_default()
 }
 
 /// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
@@ -539,6 +545,99 @@ fn glob_join(
                 results.push(path);
             } else {
                 glob_join(filesystem, &path, remaining, results);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tcl_dialect::TclVersion;
+    use tcl_runtime_api::Code;
+
+    use super::cmd_file;
+    use crate::interp::Vm;
+    use crate::value::Value;
+
+    /// `file` on names the releases read apart, as tclsh 8.4.20, 8.5.19,
+    /// 8.6.18 and 9.0.4 (9.1.0 as 9.0.4) answer: a leading `//` (#2420), a
+    /// `~` (#2421), the zipfs volume and 8.5's as-given `join`. An error
+    /// reads `ERR: message`.
+    const RELEASE_PATHS: &[(&str, [&str; 4])] = &[
+        ("split //a", ["/ a", "/ a", "/ a", "//a"]),
+        ("dirname //a", ["/", "/", "/", "//a"]),
+        ("tail //a", ["a", "a", "a", ""]),
+        ("join //h b", ["/h/b", "/h/b", "/h/b", "//h/b"]),
+        ("join a //b", ["/b", "//b", "/b", "//b"]),
+        ("split a/~b", ["a ./~b", "a ./~b", "a ./~b", "a ~b"]),
+        ("join a ~b", ["~b", "~b", "~b", "a/~b"]),
+        ("tail a/~b", ["./~b", "./~b", "./~b", "~b"]),
+        ("dirname ~b/c", ["~b", "~b", "~b", "~b"]),
+        (
+            "pathtype ~b",
+            ["absolute", "absolute", "absolute", "relative"],
+        ),
+        ("join /./~b", ["/~b", "/./~b", "/./~b", "/./~b"]),
+        (
+            "split //zipfs:/x/y",
+            [
+                "/ zipfs: x y",
+                "/ zipfs: x y",
+                "/ zipfs: x y",
+                "//zipfs:/ x y",
+            ],
+        ),
+        (
+            "pathtype //zipfsxy",
+            ["absolute", "absolute", "absolute", "volumerelative"],
+        ),
+        (
+            "nativename //zipfsxy",
+            ["/zipfsxy", "//zipfsxy", "/zipfsxy", "//zipfs:y"],
+        ),
+        (
+            "normalize /./no_such_dir_x",
+            [
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+                "//no_such_dir_x",
+                "//no_such_dir_x",
+            ],
+        ),
+        (
+            "normalize //no_such_dir_x/b/..",
+            [
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+            ],
+        ),
+        (
+            "dirname ~no_such_user_x",
+            [
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                ".",
+            ],
+        ),
+    ];
+
+    #[test]
+    fn path_names_read_as_the_emulated_release_reads_them() {
+        for (column, release) in TclVersion::ALL.into_iter().enumerate() {
+            let column = column.min(3);
+            let mut vm = Vm::new();
+            vm.set_runtime_version(release);
+            for &(call, answers) in RELEASE_PATHS {
+                let words: Vec<Value> = call.split(' ').map(Value::string).collect();
+                let done = cmd_file(&mut vm, &words);
+                let got = match done.code {
+                    Code::Ok => done.result.to_str().to_string(),
+                    _ => format!("ERR: {}", done.result.to_str()),
+                };
+                assert_eq!(got, answers[column], "{release:?} file {call}");
             }
         }
     }
