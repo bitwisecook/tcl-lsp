@@ -40,8 +40,8 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
-use crate::value_shapes::is_static_var_word;
 use crate::value_transfer::{LatticeDriver, StateStep};
+use tcl_syntax::naming::is_static_variable_source_word;
 
 mod original_simulation;
 pub use original_simulation::{
@@ -93,13 +93,13 @@ pub fn simple_var_ref(text: &str) -> Option<String> {
         .strip_prefix("${")
         .and_then(|s| s.strip_suffix('}'))
     {
-        if !is_static_var_word(inner) {
+        if !is_static_variable_source_word(inner) {
             return None;
         }
         inner
     } else {
         let rest = stripped.strip_prefix('$')?;
-        if !is_static_var_word(rest) {
+        if !is_static_variable_source_word(rest) {
             return None;
         }
         rest

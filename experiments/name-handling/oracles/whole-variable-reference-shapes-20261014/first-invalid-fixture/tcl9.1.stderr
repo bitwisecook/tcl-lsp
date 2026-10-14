@@ -1,0 +1,4 @@
+missing close-brace
+    while executing
+"set {"
+    (file "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl" line 8)

@@ -42,7 +42,7 @@ use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, Numbers};
 
 use super::cells::{
-    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution,
+    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution, name_data_place,
     variable_reference_place, variable_word_place, whole_reference,
 };
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
@@ -1039,13 +1039,31 @@ impl<'a> Lowerer<'a> {
         invoke: &GenericInvoke,
         argv: &[NativeValueId],
     ) -> Option<StatementOutcome> {
-        let name_word = invoke.original_words.get(1)?;
-        let (text, braced) = match name_word {
-            WordExpr::Literal { text, .. } => (text.as_str(), false),
-            WordExpr::BracedLiteral { text, .. } => (text.as_str(), true),
-            _ => return None,
+        let place = if let Some(binding) = &invoke.source_binding {
+            let (_, mut tokens) = binding.original_recorded_command()?;
+            (tokens.words() == invoke.original_words).then_some(())?;
+            tokens.source_binding = Some(binding.clone());
+            let value = crate::registry_invocation::original_literal_argument_data_for_module(
+                self.input.registry,
+                self.input.module,
+                &tokens,
+                0,
+            )?;
+            name_data_place(&value)?
+        } else {
+            self.source_absent_model().then_some(())?;
+            let word = invoke.original_words.get(1)?;
+            let crate::registry_invocation::EffectiveInvocationWord::Literal(value) =
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    self.lexer_config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&self.lexer_config),
+                )
+            else {
+                return None;
+            };
+            name_data_place(&value)?
         };
-        let place = cell_place(text, braced)?;
         match update {
             CellUpdate::Increment => {
                 if argv.len() > 3 {
@@ -1112,6 +1130,39 @@ impl<'a> Lowerer<'a> {
         self.record_cell(place, CellAccessKind::Update, barrier, shadow.is_some());
     }
 
+    fn source_absent_model(&self) -> bool {
+        self.input.module.source.is_empty()
+            && self.input.module.retained_source_bindings.is_none()
+            && self.input.module.source_metadata_input.is_none()
+            && self.input.module.source_entry.native_entry.is_none()
+    }
+
+    fn lowered_name_place(
+        &self,
+        operation: &LoweredOperation,
+        name: &str,
+        braced: bool,
+    ) -> Option<CellPlace> {
+        if let Some(tokens) = operation.original_tokens.as_deref() {
+            (operation.source.provenance == crate::ir::Provenance::Source).then_some(())?;
+            let (command, _) = tokens
+                .source_binding
+                .as_ref()?
+                .original_recorded_command()?;
+            (command.span == operation.source.span).then_some(())?;
+            (tokens.argv_texts.get(1).map(String::as_str) == Some(name)).then_some(())?;
+            let value = crate::registry_invocation::original_literal_argument_data_for_module(
+                self.input.registry,
+                self.input.module,
+                tokens,
+                0,
+            )?;
+            return name_data_place(&value);
+        }
+        self.source_absent_model().then_some(())?;
+        cell_place(name, braced)
+    }
+
     // Already-lowered operations.
 
     #[allow(clippy::too_many_lines)]
@@ -1123,7 +1174,7 @@ impl<'a> Lowerer<'a> {
                 value,
                 ..
             } => {
-                let Some(place) = cell_place(name, *name_braced) else {
+                let Some(place) = self.lowered_name_place(operation, name, *name_braced) else {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
@@ -1138,7 +1189,7 @@ impl<'a> Lowerer<'a> {
                 tokens,
                 ..
             } => {
-                let Some(place) = cell_place(name, *name_braced) else {
+                let Some(place) = self.lowered_name_place(operation, name, *name_braced) else {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
@@ -1171,7 +1222,7 @@ impl<'a> Lowerer<'a> {
                 expr,
                 ..
             } => {
-                let Some(place) = cell_place(name, *name_braced) else {
+                let Some(place) = self.lowered_name_place(operation, name, *name_braced) else {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
@@ -1186,7 +1237,7 @@ impl<'a> Lowerer<'a> {
                 amount,
                 ..
             } => {
-                let Some(place) = cell_place(name, *name_braced) else {
+                let Some(place) = self.lowered_name_place(operation, name, *name_braced) else {
                     return self
                         .decline(&operation.source, NativeLoweringDecline::ComputedCellName);
                 };
@@ -1285,7 +1336,7 @@ impl<'a> Lowerer<'a> {
             // A retained `$name` word carries no lexical extent here, so the
             // owner's name reading decides it: an element access is not one
             // scalar operand.
-            let place = cell_place(whole_reference(text, self.lexer_config)?, true)?;
+            let place = name_data_place(whole_reference(text, self.lexer_config)?)?;
             if matches!(place, CellPlace::Element { .. }) {
                 return None;
             }

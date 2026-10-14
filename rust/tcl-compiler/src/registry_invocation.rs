@@ -46,6 +46,10 @@ mod source_receiver_names;
 pub(crate) use source_receiver_names::{
     SourceReceiverNameOperand, original_source_receiver_name_operand,
 };
+mod original_word_data;
+pub(crate) use original_word_data::{
+    original_literal_argument_data, original_literal_argument_data_for_module,
+};
 mod source_name_roles;
 pub(crate) use source_name_roles::{
     OriginalVariableNameOperand, SourceNameRoleInventory, original_assignment_name_operand,
@@ -5382,6 +5386,47 @@ pub(crate) fn advisory_value_assignments_with_metadata_context(
                     dialect.word_values,
                 )?,
                 value: shape.effective.words.get(2)?.clone(),
+            })
+        })
+        .collect()
+}
+
+/// Possible original value stores under the complete selected source schema.
+/// No handler, completed write, native cell or value-version fact follows.
+pub(crate) fn original_advisory_value_assignments_with_metadata_context(
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
+    tokens: &CommandTokens,
+) -> Vec<AdvisoryValueAssignment> {
+    let Some(context) = context.filter(|context| context.permits_logical_source_names()) else {
+        return Vec::new();
+    };
+    let Some(assistance) = original_registry_invocation_assistance_with_metadata_context(
+        registry,
+        Some(context),
+        tokens,
+    ) else {
+        return Vec::new();
+    };
+    assistance
+        .candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            candidate.with_source_schema(registry, context, tokens, |schema| {
+                (schema.facts().operation
+                    == tcl_registry::SemanticOperationId::StructuredLowering(
+                        tcl_registry::hooks::LoweringHookId::Set,
+                    )
+                    && candidate.effective.words.len() == 3)
+                    .then_some(())?;
+                Some(AdvisoryValueAssignment {
+                    name: schema
+                        .words
+                        .arguments()
+                        .literal_at(schema.semantics.argument_offset)?
+                        .to_owned(),
+                    value: candidate.effective.words.get(2)?.clone(),
+                })
             })
         })
         .collect()

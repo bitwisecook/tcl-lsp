@@ -97,6 +97,19 @@ impl Interp {
         }
     }
 
+    pub(crate) fn ensure_global_namespace_address(
+        &mut self,
+        original: &[u8],
+    ) -> Result<NsId, tcl_cmd_core::CmdError> {
+        self.invalidate_command_environment();
+        let (anchor, components) = self
+            .namespace_address_components(GLOBAL, original)
+            .map_err(NamespaceAddressError::into_creation_error)?;
+        Ok(self
+            .namespaces_mut()
+            .ensure_namespace_at_components(anchor, &components))
+    }
+
     pub(crate) fn ensure_namespace_address(
         &mut self,
         original: &[u8],
@@ -127,5 +140,112 @@ impl Interp {
         Ok(self
             .namespaces_mut()
             .ensure_namespace_at_components(anchor, &components))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_address_keeps_selected_extent_and_ignores_the_callers_namespace() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut interpreter = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let caller = interpreter.ensure_namespace(b"::Caller");
+            interpreter.set_current_ns(caller);
+            let selected = interpreter
+                .ensure_global_namespace_address(b"Selected\0Ignored")
+                .unwrap();
+            assert_eq!(interpreter.current_ns(), caller);
+            assert_eq!(
+                interpreter.namespaces().find_namespace(GLOBAL, b"Selected"),
+                Some(selected),
+            );
+            assert!(interpreter
+                .namespaces()
+                .find_namespace(caller, b"Selected")
+                .is_none());
+            assert!(interpreter
+                .namespaces()
+                .find_namespace(GLOBAL, b"Selected\0Ignored")
+                .is_none());
+            assert_eq!(
+                interpreter.ensure_global_namespace_address(b"").unwrap(),
+                GLOBAL,
+            );
+        }
+    }
+
+    #[test]
+    fn hidden_global_address_keeps_a_dying_token_through_its_original_callback() {
+        for version in tcl_dialect::TclVersion::ALL {
+            if version == tcl_dialect::TclVersion::V8_4 {
+                continue;
+            }
+            let mut interpreter = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let source = br#"
+set ::observations {}
+proc during {name1 name2 operation} {
+    foreach script {
+        {interp invokehidden {} -namespace retiring hiddenNamespace current}
+        {interp invokehidden {} hiddenNamespace exists retiring}
+        {interp invokehidden {} hiddenNamespace eval retiring {}}
+    } {
+        set code [catch {uplevel #0 $script} value]
+        lappend ::observations [list $code $value]
+    }
+}
+namespace eval retiring {
+    variable sentinel HELD
+    trace add variable sentinel unset ::during
+}
+interp hide {} namespace hiddenNamespace
+set deleted [catch {interp invokehidden {} hiddenNamespace delete retiring} message]
+list $deleted $message $::observations [interp invokehidden {} hiddenNamespace exists retiring]
+"#;
+            assert_eq!(interpreter.eval_str(source), crate::interp::Code::Ok);
+            assert_eq!(
+                interpreter.result_bytes(),
+                br#"0 {} {{0 ::retiring} {0 0} {1 {can't create namespace "retiring": already exists}}} 0"#,
+            );
+            assert_eq!(interpreter.current_ns(), GLOBAL);
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
+    }
+
+    #[test]
+    fn global_address_refuses_missing_or_jim_authority_before_creation() {
+        for environment in ["irules", "jim"] {
+            let mut interpreter = if environment == "jim" {
+                Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(environment),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap()
+            } else {
+                let mut interpreter = Interp::new();
+                interpreter
+                    .set_dialect_profile(crate::environment::profile_for_dialect(environment));
+                interpreter
+            };
+            assert!(interpreter
+                .ensure_global_namespace_address(b"Unadmitted")
+                .is_err());
+            assert!(interpreter
+                .namespaces()
+                .find_namespace(GLOBAL, b"Unadmitted")
+                .is_none());
+        }
     }
 }

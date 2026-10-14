@@ -136,6 +136,8 @@ pub use namespace_spans::{
     native_variable_root_is_under_namespace, native_written_namespace_member_extent,
     native_written_namespace_prefix_extent,
 };
+mod hidden_invocation;
+pub use hidden_invocation::{NativeHiddenInvocationGrammar, NativeHiddenInvocationOption};
 mod native;
 pub use native::{
     NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
@@ -893,6 +895,53 @@ pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarSty
     // the shared closed-element partition decides whether parentheses denote
     // an array. Unmatched opens and suffix text remain scalar name bytes.
     split_array_name_for_style(name, style).0
+}
+
+/// Fixed identifier subset for emitting a variable-name word without quoting:
+/// `[A-Za-z_][A-Za-z0-9_:]*`. This construction policy is deliberately narrower
+/// than Tcl's accepted names and supplies no reference parsing or lookup proof.
+///
+/// ```
+/// use tcl_syntax::naming::is_static_variable_source_word;
+/// assert!(is_static_variable_source_word("ns::var"));
+/// assert!(!is_static_variable_source_word("1abc"));
+/// assert!(!is_static_variable_source_word("has space"));
+/// ```
+#[must_use]
+pub fn is_static_variable_source_word(text: &str) -> bool {
+    let mut iter = text.bytes();
+    let Some(first) = iter.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == b'_') {
+        return false;
+    }
+    iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':'))
+}
+
+/// Whether the complete source fragment is one variable reference under its grammar.
+/// This shape supplies no selected cell, completed read or invocation authority.
+#[must_use]
+pub fn is_whole_variable_reference(source: &str, config: tcl_lexer::LexerConfig) -> bool {
+    matches!(
+        tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config),
+        Ok(Some(_))
+    )
+}
+
+/// A whole scalar reference's literal name under the selected source grammar.
+/// Separate and combined array references decline; empty and literal sigil names
+/// remain data. The caller must independently authenticate the source and read.
+#[must_use]
+pub fn whole_scalar_variable_reference_name(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<&str> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
+    if reference.index.is_some() || split_element_ref_bytes(reference.name).is_some() {
+        return None;
+    }
+    core::str::from_utf8(reference.name).ok()
 }
 
 /// A whole original substitution's analytical variable root under its grammar.
@@ -2249,6 +2298,47 @@ mod tests {
                 assert_eq!(split_array_name_for_style(source, style).0, root);
             }
         }
+    }
+
+    #[test]
+    fn whole_reference_shapes_follow_original_provider_grammar() {
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
+        let nested = tcl_lexer::LexerConfig::default();
+        let jim = tcl_lexer::LexerConfig::for_dialect("jim");
+        for config in [first, nested, jim] {
+            for (source, name) in [("$a", "a"), ("${}", ""), ("${scalar(open}", "scalar(open")] {
+                assert!(is_whole_variable_reference(source, config));
+                assert_eq!(
+                    whole_scalar_variable_reference_name(source, config),
+                    Some(name)
+                );
+            }
+            for source in ["$arr(key)", "${arr(key)}"] {
+                assert!(is_whole_variable_reference(source, config));
+                assert_eq!(whole_scalar_variable_reference_name(source, config), None);
+            }
+            for source in ["$a:b", "$arr(key)tail", "$a$b", "plain", "${missing"] {
+                assert!(!is_whole_variable_reference(source, config));
+                assert_eq!(whole_scalar_variable_reference_name(source, config), None);
+            }
+        }
+        assert_eq!(whole_scalar_variable_reference_name("$café", first), None);
+        assert_eq!(
+            whole_scalar_variable_reference_name("$café", jim),
+            Some("café")
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${a{b}c}", first),
+            None
+        );
+        assert_eq!(
+            whole_scalar_variable_reference_name("${a{b}c}", nested),
+            Some("a{b}c")
+        );
+        assert_eq!(whole_scalar_variable_reference_name("$(1+2)", jim), None);
     }
 
     #[test]

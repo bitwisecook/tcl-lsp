@@ -76,7 +76,7 @@ struct TryHandlerBindings {
 /// specialisers. Other valid Tcl variable names (qualified names, arrays, and
 /// names requiring quoting) stay on the generic runtime path.
 fn is_inline_local_scalar_name(name: &str) -> bool {
-    crate::value_shapes::is_static_var_word(name) && !is_qualified(name)
+    tcl_syntax::naming::is_static_variable_source_word(name) && !is_qualified(name)
 }
 
 /// Parse a `dict for`/`dict map` variable-list word by the Tcl list grammar

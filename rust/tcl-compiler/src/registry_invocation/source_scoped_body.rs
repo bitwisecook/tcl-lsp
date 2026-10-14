@@ -453,6 +453,29 @@ impl OriginalSourceScriptBody {
             && self.source.matches_registry(context.commands())
     }
 
+    /// This original script role preserves immediate caller source metadata.
+    /// It supplies no physical frame, runtime entry or completed invocation.
+    #[must_use]
+    pub fn inherits_immediate_caller_source_context(&self, context: &ContextRegistry) -> bool {
+        if !self.matches_context(context) {
+            return false;
+        }
+        self.source.with_source_schema(context, |schema| {
+            let roles = self.source.roles().unwrap_or_default();
+            let mut bodies = roles
+                .iter()
+                .filter(|(_, role)| *role == ArgRole::Body)
+                .peekable();
+            schema.facts().body_kind == tcl_registry::BodyKind::Plain
+                && schema.facts().body_interpreter == tcl_registry::BodyInterpreter::Current
+                && bodies.peek().is_some()
+                && bodies.all(|(argument, _)| {
+                    schema.authored_source_script_timing_at(*argument)
+                        == Some(tcl_registry::ScriptTiming::SameInvocation)
+                })
+        }) == Some(true)
+    }
+
     /// Source definition vocabulary for this genuine body, independently of
     /// entered frames. A new authored definition body selects itself; ordinary
     /// bodies inherit only explicit immediate caller-context source metadata.
@@ -467,25 +490,10 @@ impl OriginalSourceScriptBody {
         if !self.matches_context(context) {
             return None;
         }
-        let (opens, inherits) = self.source.with_source_schema(context, |schema| {
-            let roles = self.source.roles().unwrap_or_default();
-            let body_count = roles
-                .iter()
-                .filter(|(_, role)| *role == ArgRole::Body)
-                .count();
-            (
-                schema.authored_source_definition_body_grammar().is_some(),
-                schema.facts().body_kind == tcl_registry::BodyKind::Plain
-                    && schema.facts().body_interpreter == tcl_registry::BodyInterpreter::Current
-                    && body_count != 0
-                    && roles.iter().filter(|(_, role)| *role == ArgRole::Body).all(
-                        |(argument, _)| {
-                            schema.authored_source_script_timing_at(*argument)
-                                == Some(tcl_registry::ScriptTiming::SameInvocation)
-                        },
-                    ),
-            )
+        let opens = self.source.with_source_schema(context, |schema| {
+            schema.authored_source_definition_body_grammar().is_some()
         })?;
+        let inherits = self.inherits_immediate_caller_source_context(context);
         if opens {
             return Some(self.clone());
         }

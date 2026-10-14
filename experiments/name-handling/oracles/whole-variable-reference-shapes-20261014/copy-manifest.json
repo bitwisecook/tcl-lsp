@@ -1,0 +1,181 @@
+{
+  "destination_root": "experiments/name-handling/oracles/whole-variable-reference-shapes-20261014",
+  "files": [
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/capture.py",
+      "destination": "first-invalid-fixture/capture.py",
+      "sha256": "8027707a4e94369531cb5ed58be7a590d041435143b2daec032943942ced5421"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/jim.stderr",
+      "destination": "first-invalid-fixture/jim.stderr",
+      "sha256": "45d40eb6f43ca2572e57afab348e91e405f7f3c06c883fdd7965ccb3485ce4dc"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/jim.stdout",
+      "destination": "first-invalid-fixture/jim.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl",
+      "destination": "first-invalid-fixture/probe.tcl",
+      "sha256": "c88d2b322ac609782ab14d9fce5125d6dd6abcd83ea286b91ea5c6c9c019d7c7"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/results.json",
+      "destination": "first-invalid-fixture/results.json",
+      "sha256": "62d41c008b148f3393bbca5f224819067c3dadee58c71e71c96a30749dc295b9"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.4.stderr",
+      "destination": "first-invalid-fixture/tcl8.4.stderr",
+      "sha256": "a6118096e87f4078e8ff4dda6c1b18733f328caa91a68a25597f945e2285ee63"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.4.stdout",
+      "destination": "first-invalid-fixture/tcl8.4.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.5.stderr",
+      "destination": "first-invalid-fixture/tcl8.5.stderr",
+      "sha256": "a6118096e87f4078e8ff4dda6c1b18733f328caa91a68a25597f945e2285ee63"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.5.stdout",
+      "destination": "first-invalid-fixture/tcl8.5.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.6.stderr",
+      "destination": "first-invalid-fixture/tcl8.6.stderr",
+      "sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.6.stdout",
+      "destination": "first-invalid-fixture/tcl8.6.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.0.stderr",
+      "destination": "first-invalid-fixture/tcl9.0.stderr",
+      "sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.0.stdout",
+      "destination": "first-invalid-fixture/tcl9.0.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.1.stderr",
+      "destination": "first-invalid-fixture/tcl9.1.stderr",
+      "sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.1.stdout",
+      "destination": "first-invalid-fixture/tcl9.1.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/capture.py",
+      "destination": "corrected-source-observation/capture.py",
+      "sha256": "fedf92f8dcc2cafe3f31c22b9ca99b73965b61a2114f21d2d197cee485059aa5"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/jim.stderr",
+      "destination": "corrected-source-observation/jim.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/jim.stdout",
+      "destination": "corrected-source-observation/jim.stdout",
+      "sha256": "1ffe4b561a08182bffaf7a1a7b6738861978dca2fc2d54404829be7ceecf872f"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/probe.tcl",
+      "destination": "corrected-source-observation/probe.tcl",
+      "sha256": "a528c41b33bf9a8660bde65b15d9f591b5822e8b28e2f22bae789dfe3dbe81de"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/results.json",
+      "destination": "corrected-source-observation/results.json",
+      "sha256": "5c07cc8408d620b6a58db4769b66a2a56fe57177b6db3c1eaa8b674101f577c4"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.4.stderr",
+      "destination": "corrected-source-observation/tcl8.4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.4.stdout",
+      "destination": "corrected-source-observation/tcl8.4.stdout",
+      "sha256": "36dcc681947b1b2bbb80f3f4f65acff978664800f2bb97383523711dfd15cb68"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.5.stderr",
+      "destination": "corrected-source-observation/tcl8.5.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.5.stdout",
+      "destination": "corrected-source-observation/tcl8.5.stdout",
+      "sha256": "36dcc681947b1b2bbb80f3f4f65acff978664800f2bb97383523711dfd15cb68"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.6.stderr",
+      "destination": "corrected-source-observation/tcl8.6.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl8.6.stdout",
+      "destination": "corrected-source-observation/tcl8.6.stdout",
+      "sha256": "36dcc681947b1b2bbb80f3f4f65acff978664800f2bb97383523711dfd15cb68"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl9.0.stderr",
+      "destination": "corrected-source-observation/tcl9.0.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl9.0.stdout",
+      "destination": "corrected-source-observation/tcl9.0.stdout",
+      "sha256": "f7f0d3445c5fc8bd86acc8224b17f5d20df05cd3230d7f547c8b9def1670d249"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl9.1.stderr",
+      "destination": "corrected-source-observation/tcl9.1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-variable-reference-shapes-oracles-corrected-20261014/tcl9.1.stdout",
+      "destination": "corrected-source-observation/tcl9.1.stdout",
+      "sha256": "f7f0d3445c5fc8bd86acc8224b17f5d20df05cd3230d7f547c8b9def1670d249"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "destination": "original-init/tcl8.4.20/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "destination": "original-init/tcl8.5.19/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "destination": "original-init/tcl8.6.18/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "destination": "original-init/tcl9.0.4/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "destination": "original-init/tcl9.1.0/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    }
+  ],
+  "scope": "Six original executable source observations. Initial invalid quoted-name fixture failure retained; corrected fixture all six exit0. C original matching init files retained; no tcltest used. No Rust test run, Native admission, read/currentness or F5/Hosted acceptance."
+}

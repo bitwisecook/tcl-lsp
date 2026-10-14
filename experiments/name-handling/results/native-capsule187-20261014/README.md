@@ -1,0 +1,1 @@
+Production181 compiled binary focused replay: 1/5 exact tests pass, captured authored source drift zero. Original assertions and host timeouts unchanged. This scope is separate from broader compiler/Core suites and full Native/provider closure. Full compressed raw outputs, exact selectors, source inventory and artifact SHA are retained.

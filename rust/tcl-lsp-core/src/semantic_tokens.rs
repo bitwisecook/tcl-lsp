@@ -2164,7 +2164,7 @@ fn insert_self_method_overrides(
             .is_some_and(|name| {
                 matches!(name, "self" | "this")
                     && ctx
-                        .oo_grammar
+                        .receiver_grammar
                         .is_some_and(|grammar| grammar.implicit_vars.contains(&name))
             });
         if !implicit_self && !original_self_accessor(ctx, *head) {
@@ -3059,6 +3059,8 @@ struct ScriptCtx<'a> {
     /// highlight — see [`crate::oo_body`].  Outside one, a same-named user proc
     /// is never treated as a member.
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
+    /// Selected source member receiver vocabulary, without an entered frame.
+    receiver_grammar: Option<&'static DefinitionBodyGrammar>,
     /// Genuine source-only definition parent. Native source vocabulary does
     /// not come from rendered head/argument strings or a nominal grammar.
     original_definition_parent:
@@ -3691,6 +3693,12 @@ fn collect_script(
                 None
             };
             let token_body_ctx = ScriptCtx {
+                receiver_grammar: matches!(
+                    overrides.get(&tok.span.start()),
+                    Some(ArgOverride::BodyScript)
+                )
+                .then(|| original::receiver_grammar_for_body(ctx, &seg, original.as_ref(), *tok))
+                .flatten(),
                 original_definition_parent: definition_parent.as_ref(),
                 original_definition_members: None,
                 ..body_ctx
@@ -4874,6 +4882,7 @@ fn collect_entries(
         } else {
             None
         },
+        receiver_grammar: None,
         original_definition_parent: None,
         original_definition_members: None,
         scoped_env: None,
@@ -10786,6 +10795,29 @@ mod configured_semantic_receiver_tests {
         assert!(lines.contains(&3), "{lines:?}");
         assert!(!lines.contains(&4), "{lines:?}");
         assert!(!lines.contains(&5), "{lines:?}");
+    }
+
+    #[test]
+    fn implicit_self_receiver_vocabulary_does_not_leak_into_fresh_bodies() {
+        let source = concat!(
+            "source_class C {\n",
+            "method m {} {}\n",
+            "method run {} {\n",
+            "${this} m\n",
+            "if {1} {${this} m}\n",
+            "proc helper {} {${this} m}\n",
+            "apply {{} {${this} m}}\n",
+            "{${this}} m\n",
+            "}\n",
+            "}\n",
+        );
+        let current = analyse(source, tcl_lexer::LexerConfig::default(), true);
+        let lines = method_lines(source, &current);
+        assert!(lines.contains(&3), "{lines:?}");
+        assert!(lines.contains(&4), "{lines:?}");
+        for line in [5, 6, 7] {
+            assert!(!lines.contains(&line), "{line}: {lines:?}");
+        }
     }
 
     #[test]

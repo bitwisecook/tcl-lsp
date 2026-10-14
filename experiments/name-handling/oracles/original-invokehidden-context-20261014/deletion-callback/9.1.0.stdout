@@ -1,0 +1,4 @@
+PROVIDER 9.1.0
+DELETE 0 {}
+CALLBACKS {{0 ::retiring} {0 0} {1 {can't create namespace "retiring": already exists}}}
+FINAL_EXISTS 0

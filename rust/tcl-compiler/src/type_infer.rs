@@ -181,19 +181,9 @@ pub(crate) fn original_literal_argument_contents(
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_module(tokens, module, registry)?;
     let input = metadata.source_analysis_input()?;
-    let config = input.lexer_config();
-    let word = tokens.words().get(argument.checked_add(1)?)?;
-    let decoded = crate::registry_invocation::effective_invocation_word(
-        word,
-        config.escapes,
-        tcl_syntax::word_rules::WordValueRules::from_config(&config),
-    );
-    let crate::registry_invocation::EffectiveInvocationWord::Literal(value) = decoded else {
-        return None;
-    };
-    if value.contains('\0') {
-        return None;
-    }
+    let value = crate::registry_invocation::original_literal_argument_data_for_module(
+        registry, module, tokens, argument,
+    )?;
     Some(OriginalLiteralArgumentContents {
         value,
         numbers: input.unit_profile().grammar.numbers,

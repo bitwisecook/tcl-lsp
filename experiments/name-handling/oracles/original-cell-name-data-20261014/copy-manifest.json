@@ -1,0 +1,215 @@
+{
+  "scope": "Raw original-oracle evidence and original probes; no compiler acceptance or F5 answer claims. Initial failures retained alongside corrected 6-provider success.",
+  "files": [
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.4.20/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.4.20/original-init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.4.20/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.4.20/stderr.txt",
+      "sha256": "d25a6f45dfa41ec15c449cb052090e32a97b6f9d25258c92f0be3c128b054f27"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.4.20/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.4.20/stdout.txt",
+      "sha256": "cfc90ee55cd1917ac4f4090e5f312f4cf08edf2052762644be53c5ce7b172494"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.5.19/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.5.19/original-init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.5.19/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.5.19/stderr.txt",
+      "sha256": "d25a6f45dfa41ec15c449cb052090e32a97b6f9d25258c92f0be3c128b054f27"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.5.19/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.5.19/stdout.txt",
+      "sha256": "cfc90ee55cd1917ac4f4090e5f312f4cf08edf2052762644be53c5ce7b172494"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.6.18/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.6.18/original-init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.6.18/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.6.18/stderr.txt",
+      "sha256": "82ddb92b05b247d96c8499e25abbc6a176c43643963f52d31065bd4933c100e7"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/8.6.18/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/8.6.18/stdout.txt",
+      "sha256": "cbb960e82ade3e72c24bc28109ff03cff6dc1c1d8c41ce7d4af36e4b8773c9a9"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.0.4/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.0.4/original-init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.0.4/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.0.4/stderr.txt",
+      "sha256": "82ddb92b05b247d96c8499e25abbc6a176c43643963f52d31065bd4933c100e7"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.0.4/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.0.4/stdout.txt",
+      "sha256": "cbb960e82ade3e72c24bc28109ff03cff6dc1c1d8c41ce7d4af36e4b8773c9a9"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.1.0/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.1.0/original-init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.1.0/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.1.0/stderr.txt",
+      "sha256": "82ddb92b05b247d96c8499e25abbc6a176c43643963f52d31065bd4933c100e7"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/9.1.0/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/9.1.0/stdout.txt",
+      "sha256": "cbb960e82ade3e72c24bc28109ff03cff6dc1c1d8c41ce7d4af36e4b8773c9a9"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/jim-latest/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/jim-latest/stderr.txt",
+      "sha256": "64276d255ac9b23ffa44676a7d1e5d851c267f313180eec9ee1724aa4ccc753c"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/jim-latest/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/jim-latest/stdout.txt",
+      "sha256": "cbb960e82ade3e72c24bc28109ff03cff6dc1c1d8c41ce7d4af36e4b8773c9a9"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/probe.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/probe.tcl",
+      "sha256": "b45c2b19cb1e42a4121b8eb1d14919f2e7238d88987a8247d877d17054b16a55"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-initial-20261014/result.json",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/initial/result.json",
+      "sha256": "d3cf5d57d459987d33eb5e0d2889b6a5113d3fd65b5e5f23e8f9d35f360ac7a5"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.4.20/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.4.20/original-init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.4.20/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.4.20/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.4.20/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.4.20/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.5.19/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.5.19/original-init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.5.19/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.5.19/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.5.19/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.5.19/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.6.18/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.6.18/original-init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.6.18/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.6.18/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/8.6.18/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/8.6.18/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.0.4/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.0.4/original-init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.0.4/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.0.4/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.0.4/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.0.4/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.1.0/original-init.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.1.0/original-init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.1.0/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.1.0/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/9.1.0/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/9.1.0/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/jim-latest/stderr.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/jim-latest/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/jim-latest/stdout.txt",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/jim-latest/stdout.txt",
+      "sha256": "87bae1fa6c42a858783cb9aa09e47e55e5aec5376357e56927d62f01f0057a4a"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/probe.tcl",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/probe.tcl",
+      "sha256": "d645f934daa65a82bc5105f7b82f9ca4d47a0aeeb865e8f84b8fb52975d0daa1"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracles-corrected-20261014/result.json",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/corrected/result.json",
+      "sha256": "1942c13c3e78e1330852d641bd127ba6e5232162ebd15e1e6bb866ed8efac6ea"
+    },
+    {
+      "source": "/tmp/name-cell-data-oracles-20261014.py",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/capture-initial.py",
+      "sha256": "56c43796c3f8d6aa2f7b1409fe08e616113d68f2ed1a3f3a2a355d6c52d90cb9"
+    },
+    {
+      "source": "/tmp/name-cell-data-oracles-corrected-20261014.py",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/capture-corrected.py",
+      "sha256": "61b17a140b592241190d9c2419bcf63005c2639abed561a58c362db309a76cd4"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracle-retention-20261014/README.md",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/README.md",
+      "sha256": "21e6b1e49b0bee1e12307927bb80ea56d6910ed7e99deb93b6f89779594cacf6"
+    },
+    {
+      "source": "/tmp/name-original-cell-name-data-oracle-retention-20261014/bigip-questions.md",
+      "destination": "experiments/name-handling/oracles/original-cell-name-data-20261014/bigip-questions.md",
+      "sha256": "f49be6001d57a513068410b6494aeb50942e3e1e3d990bebdc5a4099d551a005"
+    }
+  ]
+}

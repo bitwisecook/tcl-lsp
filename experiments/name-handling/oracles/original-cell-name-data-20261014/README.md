@@ -1,0 +1,1 @@
+Original source name-value probes from C Tcl8.4–9.1 and current Jim. Initial mistaken fixture premises and raw failures remain alongside corrected ten-case passes for each provider, original matching init.tcl and executable hashes. No tcltest was used. This is scoped name-data observation, not Native/compiler admission or F5 validation.

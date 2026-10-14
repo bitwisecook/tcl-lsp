@@ -175,7 +175,9 @@ impl ObjectHandleFacts {
                         .filter(|id| {
                             module.procedure_ids.owns(*id)
                                 && (module.methods.contains_key(id)
-                                    || module.body_units.contains_key(id))
+                                    || module
+                                        .original_source_procedure_bodies()
+                                        .any(|(body, _)| body == id))
                                 && function
                                     .invocation_metadata_context_for_module(registry, module)
                                     .is_some()
@@ -197,10 +199,13 @@ impl ObjectHandleFacts {
                 !module.procedure_ids.owns(id)
                     || module.methods.get(&id).map_or_else(
                         || {
-                            module
-                                .body_units
-                                .get(&id)
-                                .is_none_or(|body| body.span != scope.span)
+                            let mut bodies = module
+                                .original_source_procedure_bodies()
+                                .filter(|(body, _)| **body == id);
+                            bodies
+                                .next()
+                                .is_none_or(|(_, body)| body.span != scope.span)
+                                || bodies.next().is_some()
                         },
                         |method| method.span != Some(scope.span),
                     )
@@ -453,6 +458,21 @@ mod tests {
                 .is_none()
         );
     }
+    #[test]
+    fn logical_receiver_candidates_keep_unrelated_original_procedure_scopes() {
+        let source = "proc unrelated {} {return VALUE}\noo::class create C {method m {} {}}\nset object [C new]\n$object m";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let head = original_head(&analysis, source.rfind("$object").unwrap() as u32);
+        let registry = analysis.resolved_registry().unwrap();
+        let candidates = analysis
+            .logical_source_receiver_class_candidates(&head, registry)
+            .expect("unrelated original proc cannot withdraw the top-level source owner");
+        assert!(candidates.classes().any(|class| class == "::C"));
+        assert!(candidates.has_unknown_residual());
+        assert!(analysis.object_handle_facts.proven_reads.is_empty());
+        assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+    }
+
     #[test]
     fn logical_assignment_candidates_keep_literal_data_separate_from_reads() {
         for (value, expected) in [

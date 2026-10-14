@@ -18760,17 +18760,22 @@ impl Vm {
                     .get(start)
                     .copied()
                     .unwrap_or(ROOT_NS);
-                let local = self
-                    .var_table(VarTableOwner::Namespace(token))
-                    .is_some_and(|table| table.contains_key(name));
-                let global = self
-                    .var_table(VarTableOwner::Namespace(ROOT_NS))
-                    .is_some_and(|table| table.contains_key(name));
-                VarTableOwner::Namespace(if self.ns_var_global_fallback() && !local && global {
-                    ROOT_NS
-                } else {
-                    token
+                let namespace = tcl_syntax::naming::variable_namespace_lookup_bases(
+                    false,
+                    token,
+                    self.ns_var_global_fallback(),
+                )
+                .find_map(|base| {
+                    let candidate = match base {
+                        tcl_syntax::naming::VariableLookupBase::Context(namespace) => namespace,
+                        tcl_syntax::naming::VariableLookupBase::Root => ROOT_NS,
+                    };
+                    self.var_table(VarTableOwner::Namespace(candidate))
+                        .is_some_and(|table| table.contains_key(name))
+                        .then_some(candidate)
                 })
+                .unwrap_or(token);
+                VarTableOwner::Namespace(namespace)
             } else {
                 self.compiled_local_dynamic_slot(start, name)
                     .map_or(VarTableOwner::Frame(start), |slot| {
@@ -18808,22 +18813,34 @@ impl Vm {
                 .copied()
                 .unwrap_or(ROOT_NS)
         };
-        let walk = |token: NsId| self.namespace_descendant_token(token, qualifiers.as_segments());
-        let selected = walk(context);
-        if !absolute
-            && self.ns_var_global_fallback()
-            && selected.is_none_or(|token| {
-                self.var_table(VarTableOwner::Namespace(token))
-                    .is_none_or(|table| !table.contains_key(simple.as_bytes()))
-            })
-            && let Some(token) = walk(ROOT_NS)
-        {
-            let global = VarBinding {
-                owner: VarTableOwner::Namespace(token),
-                name: simple.clone(),
+        let walk = |base| {
+            let token = match base {
+                tcl_syntax::naming::VariableLookupBase::Context(namespace) => namespace,
+                tcl_syntax::naming::VariableLookupBase::Root => ROOT_NS,
             };
-            if self.bound_var_id(&global).is_some() {
-                return Some(global);
+            self.namespace_descendant_token(token, qualifiers.as_segments())
+        };
+        let mut bases = tcl_syntax::naming::variable_namespace_lookup_bases(
+            absolute,
+            context,
+            self.ns_var_global_fallback(),
+        );
+        let selected = walk(bases.next()?);
+        if selected.is_none_or(|token| {
+            self.var_table(VarTableOwner::Namespace(token))
+                .is_none_or(|table| !table.contains_key(simple.as_bytes()))
+        }) {
+            for base in bases {
+                let Some(token) = walk(base) else {
+                    continue;
+                };
+                let alternate = VarBinding {
+                    owner: VarTableOwner::Namespace(token),
+                    name: simple.clone(),
+                };
+                if self.bound_var_id(&alternate).is_some() {
+                    return Some(alternate);
+                }
             }
         }
         Some(VarBinding {

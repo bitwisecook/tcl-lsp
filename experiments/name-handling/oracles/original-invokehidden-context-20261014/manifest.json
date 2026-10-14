@@ -1,0 +1,147 @@
+{
+  "captured_at": "2026-10-14T21:48:09.161065+00:00",
+  "providers": [
+    {
+      "version": "8.4.20",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "original_init_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "exit": 0
+    },
+    {
+      "version": "8.5.19",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "original_init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "exit": 0
+    },
+    {
+      "version": "8.6.18",
+      "executable": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "original_init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "exit": 0
+    },
+    {
+      "version": "9.0.4",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "original_init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "exit": 0
+    },
+    {
+      "version": "9.1.0",
+      "executable": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "original_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "original_init_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "exit": 0
+    }
+  ],
+  "probe_sha256": "e9e2196a76dd4f9eccae3d4cc695be2500066c15d37e0f7462675b865bf26431",
+  "scope": "Original C Tcl interp invokehidden namespace operation, no tcltest; selected original init.tcl for each provider. No implementation test or F5 inference.",
+  "fixture_correction": "Original hidden set cannot be used by kid eval; value readback now invokes the same actual hidden set with absolute data name. First raw fixture/results retained unchanged.",
+  "colon_readback_correction": "Use the original explicit namespace operand again, rather than reconstructing a non-invertible colon-colliding report spelling. Both earlier fixture/results retained unchanged.",
+  "jim": {
+    "executable": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "exit": 1,
+    "scope": "Same original script. Probe stops at unsupported original interp create; no C namespace capability inferred."
+  },
+  "original_provider_source_copies": [
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "copy": "provider-sources/8.4.20/library/init.tcl",
+      "sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "bytes": 22434
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInterp.c",
+      "copy": "provider-sources/8.4.20/generic/tclInterp.c",
+      "sha256": "76c22a84c35e960f7936999f0f19a1aef60c83756a4f3d26d885cfdbd4288230",
+      "bytes": 72213
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c",
+      "copy": "provider-sources/8.4.20/generic/tclNamesp.c",
+      "sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb",
+      "bytes": 128490
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "copy": "provider-sources/8.5.19/library/init.tcl",
+      "sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "bytes": 24873
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInterp.c",
+      "copy": "provider-sources/8.5.19/generic/tclInterp.c",
+      "sha256": "958e2492c5afe9e57a7776cd774ed995224d9c93402b02708ef8c6611588cc04",
+      "bytes": 126433
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c",
+      "copy": "provider-sources/8.5.19/generic/tclNamesp.c",
+      "sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f",
+      "bytes": 210509
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "copy": "provider-sources/8.6.18/library/init.tcl",
+      "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "bytes": 25023
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInterp.c",
+      "copy": "provider-sources/8.6.18/generic/tclInterp.c",
+      "sha256": "b2597dfae723709bd21c6dfe9dd0cd4eb6d38f90ea082419b59a2aa2c00881ca",
+      "bytes": 134391
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c",
+      "copy": "provider-sources/8.6.18/generic/tclNamesp.c",
+      "sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24",
+      "bytes": 153092
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "copy": "provider-sources/9.0.4/library/init.tcl",
+      "sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "bytes": 23574
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInterp.c",
+      "copy": "provider-sources/9.0.4/generic/tclInterp.c",
+      "sha256": "5c944998c2f89689ef9f591983ea7b0e322dd40756fe5baca641e2258969b125",
+      "bytes": 135738
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c",
+      "copy": "provider-sources/9.0.4/generic/tclNamesp.c",
+      "sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d",
+      "bytes": 157723
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "copy": "provider-sources/9.1.0/library/init.tcl",
+      "sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "bytes": 18886
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInterp.c",
+      "copy": "provider-sources/9.1.0/generic/tclInterp.c",
+      "sha256": "f7880cfc3cd9787502134b22832475df5ebad0432e66c8fae2281ddd98abe59d",
+      "bytes": 159248
+    },
+    {
+      "source": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c",
+      "copy": "provider-sources/9.1.0/generic/tclNamesp.c",
+      "sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815",
+      "bytes": 157214
+    }
+  ]
+}

@@ -19,12 +19,7 @@
 //! Literal parsing and Tcl-source rendering for the optimiser.
 
 use crate::analyses::ConstValue;
-// The static variable-name grammar lives with the other word-shape
-// predicates in `value_shapes`; re-exported here so the optimiser's
-// `helpers::literals::is_static_var_word` call sites keep one import
-// path and there is still only one definition.
 use crate::tcl_expr_eval::{FoldPolicy, TclValue, format_tcl_value_with_policy};
-pub use crate::value_shapes::is_static_var_word;
 
 /// Grammar of a word that can be emitted into Tcl source without
 /// needing brace quoting:
@@ -204,13 +199,17 @@ mod tests {
 
     #[test]
     fn static_var_word_grammar() {
-        assert!(is_static_var_word("foo"));
-        assert!(is_static_var_word("_foo"));
-        assert!(is_static_var_word("ns::var"));
-        assert!(!is_static_var_word(""));
-        assert!(!is_static_var_word("1abc"));
-        assert!(!is_static_var_word("ab-cd"));
-        assert!(!is_static_var_word("has space"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word("foo"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word("_foo"));
+        assert!(tcl_syntax::naming::is_static_variable_source_word(
+            "ns::var"
+        ));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word(""));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word("1abc"));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word("ab-cd"));
+        assert!(!tcl_syntax::naming::is_static_variable_source_word(
+            "has space"
+        ));
     }
 
     #[test]

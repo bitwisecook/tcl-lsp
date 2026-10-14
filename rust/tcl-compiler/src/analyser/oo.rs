@@ -1060,7 +1060,7 @@ impl Analyser {
             return; // a multi-variable group — no single name a `$var` could mean
         }
         let var_name = &var_names[0];
-        if !crate::value_shapes::is_static_var_word(var_name) {
+        if !tcl_syntax::naming::is_static_variable_source_word(var_name) {
             return;
         }
         let Some(list_tok) = cmd.argv.get(list_idx + 1) else {

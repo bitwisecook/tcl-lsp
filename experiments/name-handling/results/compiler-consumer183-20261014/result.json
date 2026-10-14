@@ -1,0 +1,1850 @@
+{
+  "started_utc": "2026-10-14T21:55:19.875201+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+    "sha256": "1d486d2ba6dcf2b3c531a526f47db17b5ae7fc4693de718e91d60ebeaac31ff8",
+    "bytes": 236419256
+  },
+  "selected_tests": [
+    "body_analysis_capsule::tests::changed_source_registry_or_body_owner_withdraws_the_capsule",
+    "body_analysis_capsule::tests::equal_source_and_display_do_not_replace_the_module_owner",
+    "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+    "body_analysis_capsule::tests::original_document_target_keeps_its_actual_summary_dependencies",
+    "body_analysis_capsule::tests::source_body_capsule_keeps_the_actual_module_and_function",
+    "cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners",
+    "object_types::logical_source_candidates::tests::definition_receiver_candidates_require_the_actual_selected_definition_body",
+    "object_types::logical_source_candidates::tests::logical_assignment_candidates_keep_literal_data_separate_from_reads",
+    "object_types::logical_source_candidates::tests::logical_receiver_candidates_keep_original_scope_and_unknown_contents",
+    "object_types::logical_source_candidates::tests::logical_receiver_candidates_refuse_array_and_nul_name_geometry",
+    "object_types::logical_source_candidates::tests::report_equality_keeps_supplementary_candidate_scope_maps",
+    "object_types::tests::advisory_argument_edges_keep_original_substitution_shapes",
+    "object_types::tests::aliasing_copies_handle_class",
+    "object_types::tests::any_scope_is_verbatim_object_handle_classes",
+    "object_types::tests::bareword_widget_path_is_a_handle",
+    "object_types::tests::by_scope_alias_within_one_unit_still_propagates",
+    "object_types::tests::by_scope_cross_unit_call_edges_still_bind",
+    "object_types::tests::by_scope_does_not_import_another_units_binding_through_an_alias",
+    "object_types::tests::by_scope_instance_var_alias_reads_the_class_owner",
+    "object_types::tests::child_constructor_arguments_do_not_require_the_parent_assignment_handler",
+    "object_types::tests::collection_and_global_cell_facts_are_exported",
+    "object_types::tests::collection_class_bridges_across_methods",
+    "object_types::tests::collection_of_objects_is_tracked",
+    "object_types::tests::colliding_method_reports_have_distinct_scoped_object_candidates",
+    "object_types::tests::constructor_param_typed_from_object_arg",
+    "object_types::tests::empty_seed_fast_path_is_behaviour_preserving",
+    "object_types::tests::factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input",
+    "object_types::tests::generic_factory_return_candidates_flow_without_a_return_type_receipt",
+    "object_types::tests::instance_var_from_constructor_param_bridges_methods",
+    "object_types::tests::interproc_param_flows_through_call_chain",
+    "object_types::tests::interproc_param_from_object_arg_is_a_handle",
+    "object_types::tests::materialised_receiver_reads_do_not_enter_document_offset_queries",
+    "object_types::tests::method_return_capture_types_the_handle",
+    "object_types::tests::method_return_edge_abstains_on_computed_member_and_literal_return",
+    "object_types::tests::method_return_edge_does_not_import_another_units_receiver",
+    "object_types::tests::non_constructor_assignment_is_not_a_handle",
+    "object_types::tests::normal_callable_return_types_do_not_require_a_tcloo_class",
+    "object_types::tests::normal_naming_factory_candidates_require_the_actual_loaded_handler",
+    "object_types::tests::normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership",
+    "object_types::tests::normal_return_type_receipts_do_not_follow_a_reused_proc_name",
+    "object_types::tests::opaque_constructor_cannot_prove_the_original_concrete_class",
+    "object_types::tests::owner_attribution_alias_edge_binds_in_the_assigning_unit",
+    "object_types::tests::owner_attribution_ctor_param_edge_binds_in_the_constructor",
+    "object_types::tests::owner_attribution_instance_var_is_owned_by_the_class",
+    "object_types::tests::owner_attribution_param_edge_binds_in_the_callee",
+    "object_types::tests::owner_attribution_return_edge_binds_in_the_assigning_unit",
+    "object_types::tests::owner_spans_are_sorted_and_resolve_the_innermost_scope",
+    "object_types::tests::physical_type_receipts_do_not_close_object_method_dispatch",
+    "object_types::tests::receiver_read_does_not_preserve_class_across_argument_mutation",
+    "object_types::tests::registry_factory_operator_form_binds_nothing",
+    "object_types::tests::registry_factory_operator_form_binds_nothing_by_scope",
+    "object_types::tests::registry_naming_factory_handles",
+    "object_types::tests::replaced_class_command_does_not_seed_factory_provenance",
+    "object_types::tests::retained_procedure_factory_candidates_do_not_require_an_executable_unit",
+    "object_types::tests::same_cell_reclassification_does_not_prove_the_old_object_class",
+    "object_types::tests::scalar_handle_from_constructor",
+    "object_types::tests::snit_named_constructor_has_nominal_name_without_a_physical_class",
+    "object_types::tests::source_positioned_receiver_proofs_do_not_reuse_an_older_object_value",
+    "object_types::tests::spicegentcl_configurable_device_shape_resolves",
+    "object_types::tests::unprovided_widget_and_container_catalogues_do_not_donate_handles",
+    "object_types::tests::var_captured_widget_path_is_a_handle"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "body_analysis_capsule::tests::changed_source_registry_or_body_owner_withdraws_the_capsule",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1177792589878663,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::changed_source_registry_or_body_owner_withdraws_the_capsule",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "body_analysis_capsule::tests::equal_source_and_display_do_not_replace_the_module_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.8696069699944928,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::equal_source_and_display_do_not_replace_the_module_owner",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 4.126603791999514,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "body_analysis_capsule::tests::original_document_target_keeps_its_actual_summary_dependencies",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.570486629003426,
+      "log": "test-04.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::original_document_target_keeps_its_actual_summary_dependencies",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "body_analysis_capsule::tests::source_body_capsule_keeps_the_actual_module_and_function",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.3178348090004874,
+      "log": "test-05.log.gz",
+      "timed_out": false,
+      "test": "body_analysis_capsule::tests::source_body_capsule_keeps_the_actual_module_and_function",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31507591299305204,
+      "log": "test-06.log.gz",
+      "timed_out": false,
+      "test": "cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::logical_source_candidates::tests::definition_receiver_candidates_require_the_actual_selected_definition_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.8667448420019355,
+      "log": "test-07.log.gz",
+      "timed_out": false,
+      "test": "object_types::logical_source_candidates::tests::definition_receiver_candidates_require_the_actual_selected_definition_body",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::logical_source_candidates::tests::logical_assignment_candidates_keep_literal_data_separate_from_reads",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6170200810011011,
+      "log": "test-08.log.gz",
+      "timed_out": false,
+      "test": "object_types::logical_source_candidates::tests::logical_assignment_candidates_keep_literal_data_separate_from_reads",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::logical_source_candidates::tests::logical_receiver_candidates_keep_original_scope_and_unknown_contents",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6678473810025025,
+      "log": "test-09.log.gz",
+      "timed_out": false,
+      "test": "object_types::logical_source_candidates::tests::logical_receiver_candidates_keep_original_scope_and_unknown_contents",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::logical_source_candidates::tests::logical_receiver_candidates_refuse_array_and_nul_name_geometry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.3684128020104254,
+      "log": "test-10.log.gz",
+      "timed_out": false,
+      "test": "object_types::logical_source_candidates::tests::logical_receiver_candidates_refuse_array_and_nul_name_geometry",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::logical_source_candidates::tests::report_equality_keeps_supplementary_candidate_scope_maps",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.6658976350008743,
+      "log": "test-11.log.gz",
+      "timed_out": false,
+      "test": "object_types::logical_source_candidates::tests::report_equality_keeps_supplementary_candidate_scope_maps",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::advisory_argument_edges_keep_original_substitution_shapes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2147891370113939,
+      "log": "test-12.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::advisory_argument_edges_keep_original_substitution_shapes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::aliasing_copies_handle_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2647824089945061,
+      "log": "test-13.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::aliasing_copies_handle_class",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::any_scope_is_verbatim_object_handle_classes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.6162550989974989,
+      "log": "test-14.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::any_scope_is_verbatim_object_handle_classes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::bareword_widget_path_is_a_handle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.6161074910050957,
+      "log": "test-15.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::bareword_widget_path_is_a_handle",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::by_scope_alias_within_one_unit_still_propagates",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31506384900421835,
+      "log": "test-16.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::by_scope_alias_within_one_unit_still_propagates",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::by_scope_cross_unit_call_edges_still_bind",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5659029560047202,
+      "log": "test-17.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::by_scope_cross_unit_call_edges_still_bind",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::by_scope_does_not_import_another_units_binding_through_an_alias",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4154836189991329,
+      "log": "test-18.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::by_scope_does_not_import_another_units_binding_through_an_alias",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::by_scope_instance_var_alias_reads_the_class_owner",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.26490614100475796,
+      "log": "test-19.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::by_scope_instance_var_alias_reads_the_class_owner",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::child_constructor_arguments_do_not_require_the_parent_assignment_handler",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.8162375329993665,
+      "log": "test-20.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::child_constructor_arguments_do_not_require_the_parent_assignment_handler",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::collection_and_global_cell_facts_are_exported",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2648198800015962,
+      "log": "test-21.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::collection_and_global_cell_facts_are_exported",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::collection_class_bridges_across_methods",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.214510527002858,
+      "log": "test-22.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::collection_class_bridges_across_methods",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::collection_of_objects_is_tracked",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2152078080107458,
+      "log": "test-23.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::collection_of_objects_is_tracked",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::colliding_method_reports_have_distinct_scoped_object_candidates",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.21489893800753634,
+      "log": "test-24.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::colliding_method_reports_have_distinct_scoped_object_candidates",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::constructor_param_typed_from_object_arg",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2647682319948217,
+      "log": "test-25.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::constructor_param_typed_from_object_arg",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::empty_seed_fast_path_is_behaviour_preserving",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.2680182150070323,
+      "log": "test-26.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::empty_seed_fast_path_is_behaviour_preserving",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.41544973000418395,
+      "log": "test-27.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::factory_return_metadata_keeps_supplied_availability_and_refuses_missing_or_foreign_input",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::generic_factory_return_candidates_flow_without_a_return_type_receipt",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.217629159000353,
+      "log": "test-28.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::generic_factory_return_candidates_flow_without_a_return_type_receipt",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::instance_var_from_constructor_param_bridges_methods",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.264751927999896,
+      "log": "test-29.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::instance_var_from_constructor_param_bridges_methods",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::interproc_param_flows_through_call_chain",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3650604259892134,
+      "log": "test-30.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::interproc_param_flows_through_call_chain",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::interproc_param_from_object_arg_is_a_handle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31579255299584474,
+      "log": "test-31.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::interproc_param_from_object_arg_is_a_handle",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::materialised_receiver_reads_do_not_enter_document_offset_queries",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.36549691899563186,
+      "log": "test-32.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::materialised_receiver_reads_do_not_enter_document_offset_queries",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::method_return_capture_types_the_handle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.3150887679948937,
+      "log": "test-33.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::method_return_capture_types_the_handle",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::method_return_edge_abstains_on_computed_member_and_literal_return",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3150058680039365,
+      "log": "test-34.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::method_return_edge_abstains_on_computed_member_and_literal_return",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::method_return_edge_does_not_import_another_units_receiver",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.46538352099014446,
+      "log": "test-35.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::method_return_edge_does_not_import_another_units_receiver",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::non_constructor_assignment_is_not_a_handle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.21489797200774774,
+      "log": "test-36.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::non_constructor_assignment_is_not_a_handle",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::normal_callable_return_types_do_not_require_a_tcloo_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.0677122299966868,
+      "log": "test-37.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::normal_callable_return_types_do_not_require_a_tcloo_class",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::normal_naming_factory_candidates_require_the_actual_loaded_handler",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.36812564599677,
+      "log": "test-38.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::normal_naming_factory_candidates_require_the_actual_loaded_handler",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5661326039989945,
+      "log": "test-39.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::normal_return_type_receipts_do_not_follow_a_reused_proc_name",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.7185888390085893,
+      "log": "test-40.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::normal_return_type_receipts_do_not_follow_a_reused_proc_name",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::opaque_constructor_cannot_prove_the_original_concrete_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.31534386800194625,
+      "log": "test-41.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::opaque_constructor_cannot_prove_the_original_concrete_class",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_attribution_alias_edge_binds_in_the_assigning_unit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4656228159874445,
+      "log": "test-42.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_attribution_alias_edge_binds_in_the_assigning_unit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_attribution_ctor_param_edge_binds_in_the_constructor",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2649934819928603,
+      "log": "test-43.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_attribution_ctor_param_edge_binds_in_the_constructor",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_attribution_instance_var_is_owned_by_the_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2648520690127043,
+      "log": "test-44.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_attribution_instance_var_is_owned_by_the_class",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_attribution_param_edge_binds_in_the_callee",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.31544128801033366,
+      "log": "test-45.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_attribution_param_edge_binds_in_the_callee",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_attribution_return_edge_binds_in_the_assigning_unit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.4657203929964453,
+      "log": "test-46.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_attribution_return_edge_binds_in_the_assigning_unit",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::owner_spans_are_sorted_and_resolve_the_innermost_scope",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.36526124698866624,
+      "log": "test-47.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::owner_spans_are_sorted_and_resolve_the_innermost_scope",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::physical_type_receipts_do_not_close_object_method_dispatch",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2654372120014159,
+      "log": "test-48.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::physical_type_receipts_do_not_close_object_method_dispatch",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::receiver_read_does_not_preserve_class_across_argument_mutation",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.36513761199603323,
+      "log": "test-49.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::receiver_read_does_not_preserve_class_across_argument_mutation",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::registry_factory_operator_form_binds_nothing",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.5689295629999833,
+      "log": "test-50.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::registry_factory_operator_form_binds_nothing",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::registry_factory_operator_form_binds_nothing_by_scope",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3652569149999181,
+      "log": "test-51.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::registry_factory_operator_form_binds_nothing_by_scope",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::registry_naming_factory_handles",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.4680629180074902,
+      "log": "test-52.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::registry_naming_factory_handles",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::replaced_class_command_does_not_seed_factory_provenance",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2645835829898715,
+      "log": "test-53.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::replaced_class_command_does_not_seed_factory_provenance",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::retained_procedure_factory_candidates_do_not_require_an_executable_unit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 1.8692632539896294,
+      "log": "test-54.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::retained_procedure_factory_candidates_do_not_require_an_executable_unit",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::same_cell_reclassification_does_not_prove_the_old_object_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3147236960066948,
+      "log": "test-55.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::same_cell_reclassification_does_not_prove_the_old_object_class",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::scalar_handle_from_constructor",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.21449607000977267,
+      "log": "test-56.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::scalar_handle_from_constructor",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::snit_named_constructor_has_nominal_name_without_a_physical_class",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9670513739984017,
+      "log": "test-57.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::snit_named_constructor_has_nominal_name_without_a_physical_class",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::source_positioned_receiver_proofs_do_not_reuse_an_older_object_value",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2735379229998216,
+      "log": "test-58.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::source_positioned_receiver_proofs_do_not_reuse_an_older_object_value",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::spicegentcl_configurable_device_shape_resolves",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.2645742400054587,
+      "log": "test-59.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::spicegentcl_configurable_device_shape_resolves",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::unprovided_widget_and_container_catalogues_do_not_donate_handles",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3149010229972191,
+      "log": "test-60.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::unprovided_widget_and_container_catalogues_do_not_donate_handles",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+        "object_types::tests::var_captured_widget_path_is_a_handle",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.5654614649974974,
+      "log": "test-61.log.gz",
+      "timed_out": false,
+      "test": "object_types::tests::var_captured_widget_path_is_a_handle",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T21:56:03.048754+00:00",
+  "changed_sources": {}
+}

@@ -397,7 +397,7 @@ pub fn object_handle_classes_full_walk(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
 ) -> HashMap<String, HashSet<String>> {
-    build_facts_gated(cu, registry, FactMode::AnyScopeOnly, false)
+    build_facts_gated(cu, registry, FactMode::AnyScopeOnly, false, None)
         .0
         .any_scope
 }
@@ -449,7 +449,7 @@ pub fn object_handle_facts_instrumented(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
 ) -> (ObjectHandleFacts, LatticeStats) {
-    build_facts_gated(cu, registry, FactMode::Full, true)
+    build_facts_gated(cu, registry, FactMode::Full, true, None)
 }
 
 /// The full owner-attributed object-handle fact set for `cu` — the carrier
@@ -463,6 +463,15 @@ pub fn object_handle_facts_instrumented(
 #[must_use]
 pub fn object_handle_facts(cu: &CompilationUnit, registry: &CommandRegistry) -> ObjectHandleFacts {
     build_facts(cu, registry, FactMode::Full).0
+}
+
+/// Actual source interpretation supplies advisory constructor metadata only.
+pub(crate) fn object_handle_facts_for_analysis(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    analysis: &crate::analyser::AnalysisResult,
+) -> ObjectHandleFacts {
+    build_facts_gated(cu, registry, FactMode::Full, true, Some(analysis)).0
 }
 
 /// How much of [`ObjectHandleFacts`] a build populates.
@@ -484,7 +493,7 @@ fn build_facts(
     registry: &CommandRegistry,
     mode: FactMode,
 ) -> (ObjectHandleFacts, LatticeStats) {
-    build_facts_gated(cu, registry, mode, true)
+    build_facts_gated(cu, registry, mode, true, None)
 }
 
 /// The one implementation behind both public entry points.
@@ -498,14 +507,16 @@ fn build_facts_gated(
     registry: &CommandRegistry,
     mode: FactMode,
     empty_seed_fast_path: bool,
+    source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> (ObjectHandleFacts, LatticeStats) {
     let owners = OwnerIndex::build(cu, mode);
     let context =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let mut sink = FactSink {
         facts: ObjectHandleFacts::default(),
         owners: &owners,
-        metadata_context: context.as_deref().map(Into::into),
+        metadata_context: context,
+        source_analysis,
         mode,
         saw_constructor_arg: false,
         stats: LatticeStats::default(),
@@ -540,7 +551,7 @@ fn build_facts_gated(
         }
     }
     sink.stats.seeds = sink.facts.any_scope.len();
-    let returns = returning_proc_candidates(cu, registry);
+    let returns = returning_proc_candidates(cu, registry, source_analysis);
     // Fast path.  The early-out inside `propagate_object_flow`
     // checks the *callee-side* maps (returns / proc params / ctor params),
     // which are non-empty for any file that merely defines a proc — so every
@@ -867,6 +878,7 @@ struct FactSink<'a> {
     facts: ObjectHandleFacts,
     owners: &'a OwnerIndex,
     metadata_context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    source_analysis: Option<&'a crate::analyser::AnalysisResult>,
     mode: FactMode,
     /// Whether the harvest saw an argument that could be a bracketed registry
     /// constructor — the one type-propagation edge that fires without any
@@ -1030,14 +1042,15 @@ fn returning_procs(cu: &CompilationUnit) -> HashMap<ProcedureId, String> {
 fn returning_proc_candidates<'a>(
     cu: &'a CompilationUnit,
     registry: &CommandRegistry,
+    source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> HashMap<ProcedureId, String> {
     let mut returns = returning_procs(cu);
     let Some(context) =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module)
     else {
         return returns;
     };
-    let metadata = Some(context.as_ref().into());
+    let metadata = Some(context);
     // A retained generic body can have original constructor evidence without
     // an executable FunctionUnit. This is a class candidate only.
     for (id, procedure) in &cu.ir_module.procedures {
@@ -1052,12 +1065,19 @@ fn returning_proc_candidates<'a>(
             .retained_source_tokens_for_statement(statement);
         let candidates = tokens
             .map(|tokens| {
-                crate::registry_invocation::advisory_return_values_in_context(&context, tokens)
+                crate::registry_invocation::advisory_return_values_with_metadata_context(
+                    registry, metadata, tokens,
+                )
             })
             .unwrap_or_default();
         for value in candidates {
-            if let Some(class) = constructor_class(&value.legacy_text(), registry, tokens, metadata)
-            {
+            if let Some(class) = constructor_class(
+                &value.legacy_text(),
+                registry,
+                tokens,
+                metadata,
+                source_analysis,
+            ) {
                 returns.insert(*id, class);
             }
         }
@@ -1148,7 +1168,14 @@ fn propagate_object_flow<'a>(
     // in convergence, while reads retain their own scope attribution.
     let scoped = (sink.mode == FactMode::Full).then_some(sink.owners);
     loop {
-        let bindings = scan_flow_edges(cu, registry, &sink.facts, scoped, &index);
+        let bindings = scan_flow_edges(
+            cu,
+            registry,
+            &sink.facts,
+            scoped,
+            &index,
+            sink.source_analysis,
+        );
         sink.stats.rounds += 1;
         let mut changed = false;
         for binding in bindings {
@@ -1256,10 +1283,10 @@ fn scan_flow_edges(
     facts: &ObjectHandleFacts,
     scoped: Option<&OwnerIndex>,
     index: &FlowIndex,
+    source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> Vec<Binding> {
-    let context =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
-    let metadata_context = context.as_deref().map(Into::into);
+    let metadata_context =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let ctor_params = &index.ctor_params;
     let resolve_ctor_class =
         |head: &str| -> Option<String> { ctor_params.contains_key(head).then(|| head.to_owned()) };
@@ -1284,6 +1311,7 @@ fn scan_flow_edges(
             owners,
             registry,
             metadata_context,
+            source_analysis,
             unit: frame,
             tokens: None,
         };
@@ -1321,6 +1349,7 @@ fn scan_flow_edges(
                     owners,
                     registry,
                     metadata_context,
+                    source_analysis,
                     unit,
                     tokens: script.retained_source_tokens_for_statement(statement),
                 };
@@ -1621,6 +1650,7 @@ struct ScanContext<'a> {
     owners: &'a OwnerIndex,
     registry: &'a CommandRegistry,
     metadata_context: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
+    source_analysis: Option<&'a crate::analyser::AnalysisResult>,
     unit: BodyFrameId,
     tokens: Option<&'a crate::ir::CommandTokens>,
 }
@@ -1748,8 +1778,13 @@ fn arg_classes(arg: &WordExpr, ctx: ScanContext) -> Option<EdgeClasses> {
     }
     let parent = ctx.tokens?;
     let tokens = sole_substitution_tokens(arg, parent, ctx.registry)?;
-    constructor_class_candidate(&tokens, ctx.registry, ctx.metadata_context)
-        .map(|class| EdgeClasses::unscoped(&class))
+    constructor_class_candidate(
+        &tokens,
+        ctx.registry,
+        ctx.metadata_context,
+        ctx.source_analysis,
+    )
+    .map(|class| EdgeClasses::unscoped(&class))
 }
 
 fn unique_original_value_word<'a>(
@@ -1843,9 +1878,13 @@ fn harvest_unit(
                         value.trim(),
                         tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     ) {
-                        if let Some(class) =
-                            constructor_class(value, registry, stmt.tokens(), sink.metadata_context)
-                        {
+                        if let Some(class) = constructor_class(
+                            value,
+                            registry,
+                            stmt.tokens(),
+                            sink.metadata_context,
+                            sink.source_analysis,
+                        ) {
                             sink.bind(frame, name, &class);
                         }
                         // The nested-constructor half of the fast-path gate:
@@ -1858,31 +1897,7 @@ fn harvest_unit(
                 // normal handler candidates retain their independent proof.
                 Statement::Call { args, .. } => {
                     if let Some(tokens) = stmt.tokens() {
-                        for assignment in
-                            source_assignment_candidates(registry, sink.metadata_context, tokens)
-                        {
-                            if let Some(class) =
-                                sole_substitution_tokens(&assignment.value, tokens, registry)
-                                    .and_then(|child| {
-                                        constructor_class_candidate(
-                                            &child,
-                                            registry,
-                                            sink.metadata_context,
-                                        )
-                                    })
-                            {
-                                sink.bind(frame, &assignment.name, &class);
-                            }
-                        }
-                        for factory in source_object_factory_candidates(
-                            registry,
-                            sink.metadata_context,
-                            tokens,
-                        ) {
-                            if let Some((name, class)) = factory.publication {
-                                sink.bind(frame, &name, class);
-                            }
-                        }
+                        harvest_source_command_candidates(tokens, frame, registry, sink);
                     }
                     // Both parameter edges read a call's arguments through
                     // `arg_classes`, whose `[Factory new]` branch needs no
@@ -1915,15 +1930,36 @@ fn harvest_script_factories(
     while let Some(script) = pending.pop() {
         for statement in &script.statements {
             if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
-                for factory in
-                    source_object_factory_candidates(registry, sink.metadata_context, tokens)
-                {
-                    if let Some((name, class)) = factory.publication {
-                        sink.bind(owner, &name, class);
-                    }
-                }
+                harvest_source_command_candidates(tokens, owner, registry, sink);
             }
             pending.extend(statement.child_scripts());
+        }
+    }
+}
+
+fn harvest_source_command_candidates(
+    tokens: &crate::ir::CommandTokens,
+    owner: Option<BodyFrameId>,
+    registry: &CommandRegistry,
+    sink: &mut FactSink,
+) {
+    for assignment in source_assignment_candidates(registry, sink.metadata_context, tokens) {
+        if let Some(class) =
+            sole_substitution_tokens(&assignment.value, tokens, registry).and_then(|child| {
+                constructor_class_candidate(
+                    &child,
+                    registry,
+                    sink.metadata_context,
+                    sink.source_analysis,
+                )
+            })
+        {
+            sink.bind(owner, &assignment.name, &class);
+        }
+    }
+    for factory in source_object_factory_candidates(registry, sink.metadata_context, tokens) {
+        if let Some((name, class)) = factory.publication {
+            sink.bind(owner, &name, class);
         }
     }
 }
@@ -1937,7 +1973,7 @@ fn source_assignment_candidates(
         return Vec::new();
     };
     if context.permits_logical_source_names() {
-        return crate::registry_invocation::advisory_value_assignments_with_metadata_context(
+        return crate::registry_invocation::original_advisory_value_assignments_with_metadata_context(
             registry,
             Some(context),
             tokens,
@@ -2002,6 +2038,7 @@ fn constructor_class(
     registry: &CommandRegistry,
     parent: Option<&crate::ir::CommandTokens>,
     context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> Option<String> {
     let parent = parent?;
     let mut result = None;
@@ -2011,7 +2048,7 @@ fn constructor_class(
         .filter(|word| word.legacy_text() == value)
     {
         let tokens = sole_substitution_tokens(word, parent, registry)?;
-        let class = constructor_class_candidate(&tokens, registry, context)?;
+        let class = constructor_class_candidate(&tokens, registry, context, source_analysis)?;
         if result.as_ref().is_some_and(|previous| previous != &class) {
             return None;
         }
@@ -2038,6 +2075,7 @@ fn constructor_class_candidate(
     tokens: &crate::ir::CommandTokens,
     registry: &CommandRegistry,
     context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> Option<String> {
     if let Some(class) = tokens
         .source_binding
@@ -2047,6 +2085,12 @@ fn constructor_class_candidate(
         return Some(class);
     }
     let context = context?;
+    if context.permits_logical_source_names()
+        && let Some(analysis) = source_analysis
+        && let Some(class) = original_logical_constructor_class(analysis, context, tokens)
+    {
+        return Some(class);
+    }
     if let Some(binding) = tokens.source_binding.as_ref() {
         let candidates = binding.class_factory_candidates(registry);
         if let Some(first) = candidates.first()
@@ -2080,6 +2124,34 @@ fn constructor_class_candidate(
             .map(|class| class.class_name.to_owned());
     }
     None
+}
+
+fn original_logical_constructor_class(
+    analysis: &crate::analyser::AnalysisResult,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<String> {
+    let input = context.source_analysis_input()?;
+    if !context.permits_logical_source_names() || analysis.resolved_input.as_ref() != Some(input) {
+        return None;
+    }
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let offset = tokens.words().first()?.source().span.start();
+    let original = crate::registry_invocation::original_native_compiler_words(
+        image,
+        tokens.words(),
+        offset,
+        input.lexer_config(),
+    )?;
+    let call = crate::registry_invocation::source_structure::source_constructor_call_at(
+        image.try_text().ok()?,
+        analysis,
+        offset,
+    )?;
+    (call.original_words() == original).then_some(())?;
+    call.logical_constructor_shape(analysis)?;
+    let class = call.class_declaration().logical_source_class(analysis)?;
+    Some(class.qualified_name.clone())
 }
 
 /// Could `word` be the bracketed registry-constructor call that makes
@@ -2160,6 +2232,101 @@ mod tests {
     }
 
     #[test]
+    fn retained_source_script_assignments_share_the_original_constructor_seed() {
+        let source = "oo::class create C {method m {} {}}\nproc build {} {set object [C new]; set inert {[C new]}}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            input,
+        );
+        let (id, procedure) = unit
+            .ir_module
+            .procedures
+            .iter()
+            .find(|(_, procedure)| procedure.name == "build")
+            .unwrap();
+        let owners = OwnerIndex::build(&unit, FactMode::Full);
+        let mut sink = FactSink {
+            facts: ObjectHandleFacts::default(),
+            owners: &owners,
+            metadata_context: crate::registry_invocation::InvocationMetadataContext::for_module(
+                registry,
+                &unit.ir_module,
+            ),
+            source_analysis: Some(&analysis),
+            mode: FactMode::Full,
+            saw_constructor_arg: false,
+            stats: LatticeStats::default(),
+        };
+        harvest_script_factories(
+            &procedure.body,
+            Some(BodyFrameId::Body(*id)),
+            registry,
+            &mut sink,
+        );
+        assert!(
+            sink.facts
+                .any_scope
+                .get("object")
+                .is_some_and(|classes| classes.contains("::C"))
+        );
+        assert!(!sink.facts.any_scope.contains_key("inert"));
+        assert!(sink.facts.proven_reads.is_empty());
+        assert!(sink.facts.physical_type_reads.is_empty());
+        assert!(sink.facts.normal_procedure_results.is_empty());
+    }
+
+    #[test]
+    fn logical_constructor_candidates_require_the_actual_source_input_and_vector() {
+        let source = "oo::class create C {method m {} {}}\nset object [C new]\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let context = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+            registry, input,
+        )
+        .unwrap();
+        let offset = source.find("C new").unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[offset..offset + "C new".len()],
+            u32::try_from(offset).unwrap(),
+            input.lexer_config(),
+        );
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &commands[0],
+        );
+        assert_eq!(
+            original_logical_constructor_class(&analysis, context, &tokens).as_deref(),
+            Some("::C")
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(original_logical_constructor_class(&missing, context, &tokens).is_none());
+        let mut changed = tokens.clone();
+        let WordExpr::Literal { text, .. } = &mut changed.word_exprs[1] else {
+            panic!("actual literal selector")
+        };
+        *text = "unrepresentedSelector".to_owned();
+        assert!(original_logical_constructor_class(&analysis, context, &changed).is_none());
+        let foreign = crate::analyser::Analyser::new()
+            .analyse("oo::class create D {}\nset object [D new]", "tcl");
+        assert!(original_logical_constructor_class(&foreign, context, &tokens).is_none());
+    }
+
+    #[test]
     fn advisory_argument_edges_keep_original_substitution_shapes() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let source = r#"list $object "${two words}" {$object} {[C new]} prefix$object $object(key) ${object(key)}"#;
@@ -2183,6 +2350,7 @@ mod tests {
             owners: OwnerIndex::shared_empty(),
             registry,
             metadata_context: None,
+            source_analysis: None,
             unit: BodyFrameId::Top(module.ir_module.procedure_ids.module_id()),
             tokens: Some(&tokens),
         };

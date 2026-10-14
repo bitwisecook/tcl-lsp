@@ -1,0 +1,10 @@
+empty EMPTY
+braced-sigil SIGIL
+braced-command BRACKET
+escaped ESCAPED
+literal-index ELEMENT
+empty-array-root ROOTLESS
+foreach-name LOOP
+catch-name BOOM
+expr-name 1
+dynamic-name-missing 1

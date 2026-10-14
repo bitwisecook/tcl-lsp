@@ -1,0 +1,4 @@
+/tmp/name-invokehidden-context-original-20261014/probe.tcl:6: Error: wrong # args: should be "interp"
+Traceback (most recent call last):
+  File "/tmp/name-invokehidden-context-original-20261014/probe.tcl", line 6
+    interp create kid

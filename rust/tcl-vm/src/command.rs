@@ -1346,19 +1346,21 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
     }
 }
 
-/// `interp invokehidden`'s leading option words (`hiddenOptions[]`,
-/// `tclInterp.c`), resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-g`
-/// and `-n` abbreviate, and the lone `-` is `ambiguous option "-"`. Only a word
-/// starting with `-` reaches the table, so an empty word is the command name.
-const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["-global", "-namespace", "--"]);
-
 /// Consume `interp invokehidden`'s leading options from `tail`, returning the
 /// index of the command word. Mirrors C's loop: a word not starting with `-`
 /// ends the scan, `-namespace` swallows the following word, and `--` ends it.
 /// `-namespace`/`-global` select the invocation namespace, which this engine
 /// does not model.
 pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, Completion<Value>> {
+    use tcl_syntax::naming::NativeHiddenInvocationOption;
+    let grammar = vm
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .and_then(|protocol| protocol.hidden_invocation_grammar().ok())
+        .ok_or_else(|| {
+            vm.refuse_host_command("native hidden-invocation grammar unavailable".into())
+        })?;
+    let options = tcl_cmd_core::prefix::OptionTable::abbreviating("option", grammar.names());
     let mut i = 0;
     while i < tail.len() {
         let word = match vm.native_name_operand_bytes_checked(&tail[i]) {
@@ -1368,8 +1370,14 @@ pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, 
         if word.first() != Some(&b'-') {
             break;
         }
-        match HIDDEN_OPTIONS.index_of_original(vm, &tail[i]) {
-            Ok(1) => {
+        let index = options
+            .index_of_original(vm, &tail[i])
+            .map_err(|error| completion_from_cmd_error(vm, error))?;
+        let option = grammar.option(index).ok_or_else(|| {
+            vm.refuse_host_command("native hidden-invocation option ordinal unavailable".into())
+        })?;
+        match option {
+            NativeHiddenInvocationOption::Namespace => {
                 // `-namespace ns` — the namespace word, when there is one.
                 i += 1;
                 if i == tail.len() {
@@ -1377,12 +1385,11 @@ pub(crate) fn skip_hidden_options(vm: &mut Vm, tail: &[Value]) -> Result<usize, 
                 }
                 i += 1;
             }
-            Ok(2) => {
+            NativeHiddenInvocationOption::End => {
                 i += 1;
                 break;
             }
-            Ok(_) => i += 1,
-            Err(e) => return Err(completion_from_cmd_error(vm, e)),
+            NativeHiddenInvocationOption::Global => i += 1,
         }
     }
     Ok(i)
@@ -4107,6 +4114,32 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 mod tests {
     use super::parse_params;
     use tcl_syntax::value::ValueOps;
+
+    #[test]
+    fn hidden_options_follow_original_release_selected_index_tables() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+                    .unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let words = ["-namespace", "chosen", "hiddenSet"]
+                .map(|word| super::Value::new_native_string_bytes(word.as_bytes()));
+            let selected = super::skip_hidden_options(&mut vm, &words);
+            if version == tcl_dialect::TclVersion::V8_4 {
+                let failure = selected.unwrap_err();
+                assert_eq!(failure.code, super::Code::Error);
+                assert_eq!(
+                    failure.result.string_bytes().as_ref(),
+                    b"bad option \"-namespace\": must be -global or --",
+                );
+            } else {
+                assert_eq!(selected.unwrap(), 2);
+            }
+            let words = ["--", "-namespace"]
+                .map(|word| super::Value::new_native_string_bytes(word.as_bytes()));
+            assert_eq!(super::skip_hidden_options(&mut vm, &words).unwrap(), 1);
+        }
+    }
 
     #[test]
     fn c84_primitive_failure_keeps_direct_code_and_eval_completion_supplies_none() {

@@ -3509,6 +3509,14 @@ impl<'a> LatticeDriver<'a> {
         self.lexer_config
     }
 
+    /// Original reference grammar needs a valid retained metadata mode and profile.
+    /// Withdrawn or availability-only source ownership cannot use a parser default.
+    pub(crate) fn source_reference_lexer_config(&self) -> Option<LexerConfig> {
+        self.metadata_context?;
+        self.context.profile?;
+        Some(self.lexer_config)
+    }
+
     pub(crate) fn original_expression_parent(
         &self,
         statement: &Statement,
@@ -3862,7 +3870,10 @@ impl<'a> LatticeDriver<'a> {
         }
         let rules = self.policy.word_rules;
         let elements = extract_foreach_elements(list, rules)
-            .or_else(|| resolve_foreach_list_via_lattice(list, uses, values, ssa, rules))
+            .or_else(|| {
+                let config = self.source_reference_lexer_config()?;
+                resolve_foreach_list_via_lattice(list, uses, values, ssa, rules, config)
+            })
             .or_else(|| {
                 // `foreach v [list a b c]` — fold the command substitution
                 // to a constant list string, then split into elements.
@@ -8847,6 +8858,7 @@ mod tests {
         assert!(!entry_driver.context.grammar.expand_syntax);
         let selected = entry_driver.with_cfg_metadata(&owner);
         assert_eq!(selected.lexer_config, config);
+        assert_eq!(selected.source_reference_lexer_config(), Some(config));
         assert!(!selected.context.grammar.expand_syntax);
         assert_eq!(
             selected
@@ -8859,16 +8871,43 @@ mod tests {
         let older_owner = Owner::for_source_input(Some(&older));
         let older_selected = driver(Some(&older)).with_cfg_metadata(&older_owner);
         assert_eq!(older_selected.lexer_config, config);
+        assert_eq!(older_selected.source_reference_lexer_config(), Some(config));
         assert!(older_selected.resolve("throw", &throw_arguments).is_none());
         let mismatched = driver(Some(&input)).with_cfg_metadata(&older_owner);
         assert!(mismatched.resolve("string", &string_arguments).is_none());
+        assert_eq!(mismatched.source_reference_lexer_config(), None);
         let unavailable_owner = Owner::Unavailable;
         let unavailable = driver(None).with_cfg_metadata(&unavailable_owner);
         assert!(!unavailable.typed_assignment);
+        assert_eq!(unavailable.source_reference_lexer_config(), None);
         assert!(unavailable.resolve("string", &string_arguments).is_none());
         let standalone_owner = Owner::Standalone;
         let standalone = driver(None).with_cfg_metadata(&standalone_owner);
         assert!(standalone.resolve("string", &string_arguments).is_some());
+        assert!(standalone.source_reference_lexer_config().is_some());
+        let availability_owner = Owner::Supplied(Arc::clone(&context));
+        assert_eq!(
+            driver(None)
+                .with_cfg_metadata(&availability_owner)
+                .source_reference_lexer_config(),
+            None
+        );
+        let unprofiled = CommandRegistry::default();
+        let absent = LatticeDriver::new(
+            TraceInputs {
+                source_metadata_input: None,
+                registry: &unprofiled,
+                traced_variables: &EMPTY_NAMES,
+                has_dynamic_variable_trace: false,
+                deferred_writes: &crate::ir::NO_DEFERRED_WRITES,
+                analysis_context: None,
+                existence: None,
+            },
+            None,
+            policy,
+            &HashSet::new(),
+        );
+        assert_eq!(absent.source_reference_lexer_config(), None);
     }
 
     thread_local! {

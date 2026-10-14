@@ -70,11 +70,12 @@ use tcl_core_types::DiagCode;
 use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
-use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{
     full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
 };
 use super::{Optimisation, PassContext};
+use tcl_syntax::naming::is_static_variable_source_word;
 
 /// Run the propagation pass across every function.
 ///
@@ -3123,9 +3124,12 @@ fn collect_var_refs(
 /// `None` if the text is not a simple var reference.
 fn simple_var_ref(text: &str) -> Option<&str> {
     if let Some(rest) = text.strip_prefix("${") {
-        return rest.strip_suffix('}').filter(|n| is_static_var_word(n));
+        return rest
+            .strip_suffix('}')
+            .filter(|n| is_static_variable_source_word(n));
     }
-    text.strip_prefix('$').filter(|n| is_static_var_word(n))
+    text.strip_prefix('$')
+        .filter(|n| is_static_variable_source_word(n))
 }
 
 /// Allow a literal to be inlined as a bare word if it is

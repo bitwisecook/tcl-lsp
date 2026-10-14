@@ -890,7 +890,7 @@ fn word_values(
     if !is_dynamic_word(word) {
         return WordValues::Literals(std::iter::once(word.to_owned()).collect());
     }
-    let Some(var) = whole_word_scalar_var_name(word) else {
+    let Some(var) = whole_word_scalar_var_name(word, ctx.module.lexer_config) else {
         return WordValues::Unknown;
     };
     // A namespace-qualified reference names a variable any body in the
@@ -969,7 +969,7 @@ fn parameter_values(
 /// two and would treat every ordinary braced body that mentions a variable
 /// as unresolvable.
 fn word_is_whole_substitution(word: &str, config: tcl_lexer::LexerConfig) -> bool {
-    is_pure_var_ref(word) || parse_command_substitution_with_config(word, config).is_some()
+    is_pure_var_ref(word, config) || parse_command_substitution_with_config(word, config).is_some()
 }
 
 /// Record one call site's literal-argument evidence into `out`, then recurse

@@ -1,0 +1,21 @@
+{
+  "started_utc": "2026-10-14T21:55:19.875201+00:00",
+  "label": "Actual original capsule and object producer controls",
+  "package": "tcl-compiler",
+  "target": null,
+  "source_paths": 34727,
+  "plan": {
+    "exact": [],
+    "filters": [
+      "body_analysis_capsule::tests::",
+      "object_types::tests::",
+      "object_types::logical_source_candidates::tests::",
+      "cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners"
+    ],
+    "scope": "Existing capsule identity/source/currentness and actual Logical object candidate controls, including added literal/strict map negatives; no changed old assertions."
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

@@ -83,6 +83,19 @@ literal value supplies the name. Literal `$` content and the empty name remain
 valid names. Dynamic or opaque values and changed/foreign source inputs decline.
 These are readonly source references, without execution or edit authority.
 
+`original_literal_argument_data_for_module` decodes literal argument data from
+its exact retained whole Module, Registry, original analysis attachment,
+complete original word vector and lexer configuration. The original syntax
+owner supplies the value; source sigils, empty names and literal element keys
+remain data. Dynamic words, changed owners and NUL values decline. This supplies
+no command selection, Native admission, cell identity or successful store.
+`LoweredOperation` carries its actual Script-issued original command tokens;
+Native assignment and update consumers retain their independent operation and
+observer guards. WASM direct-assignment plans retain and emit the decoded name
+alongside the value. `CellReference::from_name_data` and `name_data_place` partition
+already decoded names through the shared element grammar. Variable reads still
+require the original whole-reference grammar and their independent read proofs.
+
 For positively retained Logical aliases,
 `SourceCommandTarget::original_logical_prepended_name_inputs` supplies captured
 original words to source schemas and symbolic operations. The Compiler retains

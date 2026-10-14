@@ -45,9 +45,10 @@ use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Module, Script, Statement};
 use crate::naming::normalise_var_name;
 
-use super::helpers::literals::{is_safe_word, is_static_var_word};
+use super::helpers::literals::is_safe_word;
 use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
 use super::{Optimisation, PassContext};
+use tcl_syntax::naming::is_static_variable_source_word;
 
 /// Run the pattern-recognition pass.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
@@ -159,7 +160,7 @@ fn static_packing_set(stmt: &Statement) -> Option<(String, String, String)> {
         }
         _ => return None,
     };
-    if !is_static_var_word(name) || !is_safe_word(value) {
+    if !is_static_variable_source_word(name) || !is_safe_word(value) {
         return None;
     }
     Some((

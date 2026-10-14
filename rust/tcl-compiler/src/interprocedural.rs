@@ -4533,7 +4533,7 @@ fn return_value(
     var_value(
         fu,
         bn,
-        crate::value_shapes::whole_word_scalar_var_name(word)?,
+        crate::value_shapes::whole_word_scalar_var_name(word, config)?,
         result,
     )
 }

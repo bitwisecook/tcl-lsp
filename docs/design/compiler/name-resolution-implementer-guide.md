@@ -9929,6 +9929,14 @@ the name. Use the sigil-aware reference parser only for actual source variable
 references; read spans come from the original source and retained lexer
 configuration, including the complete braced wrapper.
 
+Use `is_whole_variable_reference` to classify one complete source reference
+with its actual `LexerConfig`. For a scalar read shape,
+`whole_scalar_variable_reference_name` also rejects separate and combined array
+references; legal empty, literal sigil and unmatched-parenthesis scalar names
+remain data. These shared syntax queries cannot select a cell or supply read
+contents, reaching versions or Native proof. Retain the caller's independent
+source and read ownership rather than recovering them from a printed name.
+
 Possible object results with an owning Module use
 `registry_invocation::retained_module_metadata_context(registry, module)`.
 That shared adapter applies `InvocationMetadataContext::for_module` before

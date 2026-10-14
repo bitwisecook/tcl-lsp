@@ -55,7 +55,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
-use crate::value_shapes::is_pure_var_ref;
+use crate::value_shapes::whole_word_scalar_var_name;
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
 /// pathological phi chains).
@@ -392,16 +392,14 @@ fn resolve_literal<S: std::hash::BuildHasher>(
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     uses: &HashMap<Symbol, Version>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let cleaned = strip_tcl_quotes(arg);
     if !cleaned.contains('$') && !cleaned.contains('[') {
         return Some(cleaned.to_owned());
     }
     let sccp = sccp_values?;
-    if !is_pure_var_ref(cleaned) {
-        return None;
-    }
-    let var_name = normalise_var_name(cleaned);
+    let var_name = whole_word_scalar_var_name(cleaned, config)?;
     if var_name.is_empty() {
         return None;
     }
@@ -840,8 +838,8 @@ fn input_arg_uri(
     _ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<String> {
-    let var_name = normalise_var_name(input_arg);
-    if !is_pure_var_ref(input_arg) || var_name.is_empty() {
+    let var_name = whole_word_scalar_var_name(input_arg, ctx.config)?;
+    if var_name.is_empty() {
         return None;
     }
     ctx.variable_origin(var_name)
@@ -983,7 +981,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     if operation != Some(Decomposition::Split) || args.len() < 2 {
         return None;
     }
-    let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ctx.ssa);
+    let sep = resolve_literal(&args[1], sccp_values, &ssa_stmt.uses, ctx.ssa, ctx.config);
     Some((words.first()?.clone(), sep))
 }
 
@@ -1013,6 +1011,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
         sccp_values,
         &ssa_stmt.uses,
         ctx.ssa,
+        ctx.config,
     );
     Some((label, pattern, words.get(input_at)?.clone()))
 }

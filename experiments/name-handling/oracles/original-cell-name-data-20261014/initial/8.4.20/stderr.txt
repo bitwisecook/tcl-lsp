@@ -1,0 +1,8 @@
+can't read "escapedName": no such variable
+    while executing
+"set escapedName"
+    invoked from within
+"list escaped [set escapedName]"
+    invoked from within
+"puts [list escaped [set escapedName]]"
+    (file "/tmp/name-original-cell-name-data-oracles-20261014/probe.tcl" line 8)

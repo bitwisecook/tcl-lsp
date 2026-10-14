@@ -1,0 +1,206 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Literal argument data from its actual retained whole source word.
+
+use crate::ir::{CommandTokens, Module};
+use tcl_registry::CommandRegistry;
+
+/// Read one unchanged literal argument under its original Module and grammar.
+/// This carries syntax data only, independently of target selection, Native
+/// entry, variable lookup, physical storage and Normal completion.
+pub(crate) fn original_literal_argument_data_for_module(
+    registry: &CommandRegistry,
+    module: &Module,
+    tokens: &CommandTokens,
+    argument: usize,
+) -> Option<String> {
+    let retained = module.retained_source_bindings.as_deref()?;
+    retained.positioned_for_module(module, registry)?;
+    retained
+        .owns_original_analysis_attachment(tokens)
+        .then_some(())?;
+    original_literal_argument_data(tokens, argument)
+}
+
+/// Literal data under the exact original whole source vector and grammar.
+/// This immutable syntax projection carries no current Module or execution proof.
+pub(crate) fn original_literal_argument_data(
+    tokens: &CommandTokens,
+    argument: usize,
+) -> Option<String> {
+    if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let site = binding.invocation_site()?;
+    let words = super::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    let word = words.get(argument.checked_add(1)?)?;
+    let value = String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+        word,
+    )?)
+    .ok()?;
+    (!value.contains('\0')).then_some(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn original_module(
+        source: &str,
+    ) -> (std::sync::Arc<tcl_registry::model::ContextRegistry>, Module) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input);
+        lowerer.lower(source);
+        (context, lowerer.finish_module(source))
+    }
+
+    fn tokens(module: &Module) -> &CommandTokens {
+        module
+            .top_level
+            .statements
+            .iter()
+            .find_map(|statement| {
+                module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)
+            })
+            .expect("retained complete original source vector")
+    }
+
+    #[test]
+    fn original_name_data_keeps_empty_sigils_and_literal_element_keys() {
+        for (source, expected) in [
+            ("set {} 1", Some("")),
+            ("set {$name} 1", Some("$name")),
+            ("set {[name]} 1", Some("[name]")),
+            (r"set \$name 1", Some("$name")),
+            (r"set a\x62 1", Some("ab")),
+            ("set {a($key)} 1", Some("a($key)")),
+            ("set {($key)} 1", Some("($key)")),
+            ("set $name 1", None),
+            ("set [name] 1", None),
+            ("set a($key) 1", None),
+            (r"set \x00 1", None),
+        ] {
+            let (context, module) = original_module(source);
+            let value = original_literal_argument_data_for_module(
+                context.commands(),
+                &module,
+                tokens(&module),
+                0,
+            );
+            assert_eq!(value.as_deref(), expected, "{source}");
+            assert!(module.source_entry.native_entry.is_none());
+        }
+    }
+
+    #[test]
+    fn original_name_data_refuses_foreign_or_changed_whole_source_owners() {
+        let (context, module) = original_module("set {a($key)} 1");
+        let original = tokens(&module);
+        assert_eq!(
+            original_literal_argument_data_for_module(context.commands(), &module, original, 0,)
+                .as_deref(),
+            Some("a($key)")
+        );
+        let mut missing = module.clone();
+        missing.retained_source_bindings = None;
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &missing, original, 0)
+                .is_none()
+        );
+        let mut changed = module.clone();
+        changed.source = tcl_lexer::SourceImage::document("set other 1");
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &changed, original, 0)
+                .is_none()
+        );
+        let mut grammar = module.clone();
+        grammar.lexer_config.strict_quoting = !grammar.lexer_config.strict_quoting;
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &grammar, original, 0)
+                .is_none()
+        );
+        let (_, foreign_module) = original_module("set {a($key)} 1");
+        assert!(
+            original_literal_argument_data_for_module(
+                context.commands(),
+                &module,
+                tokens(&foreign_module),
+                0
+            )
+            .is_none()
+        );
+        let foreign_registry = CommandRegistry::build_default();
+        assert!(
+            original_literal_argument_data_for_module(&foreign_registry, &module, original, 0)
+                .is_none()
+        );
+        let mut no_input = module.clone();
+        no_input.source_metadata_input = None;
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &no_input, original, 0)
+                .is_none()
+        );
+        let mut synthetic = original.clone();
+        synthetic.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedWrapper);
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &module, &synthetic, 0)
+                .is_none()
+        );
+        let mut detached = original.clone();
+        detached.source_binding = None;
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &module, &detached, 0)
+                .is_none()
+        );
+        let mut stale = original.clone();
+        stale.argv_texts[1] = "OTHER".to_owned();
+        assert!(
+            original_literal_argument_data_for_module(context.commands(), &module, &stale, 0)
+                .is_none()
+        );
+        assert!(
+            original_literal_argument_data_for_module(
+                context.commands(),
+                &module,
+                original,
+                usize::MAX
+            )
+            .is_none()
+        );
+    }
+}

@@ -217,7 +217,7 @@ where
             // Skip pure `$var` aliases and pure `[cmd …]` subs — these are
             // structural forms, not manual path concatenation.
             let trimmed = value.trim();
-            if is_pure_var_ref(trimmed) {
+            if is_pure_var_ref(trimmed, config) {
                 continue;
             }
             if parse_command_substitution_with_config(trimmed, config).is_some() {

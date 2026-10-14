@@ -1,0 +1,136 @@
+{
+  "started_scope": "Root granted lightweight six-provider read-only scratch probe lease during current semantic capture; no Cargo, provider or Main mutation. No tcltest used.",
+  "finished_utc": "2026-10-14T21:47:03.891556+00:00",
+  "source_sha256": "c88d2b322ac609782ab14d9fce5125d6dd6abcd83ea286b91ea5c6c9c019d7c7",
+  "source": "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl",
+  "results": [
+    {
+      "profile": "tcl8.4",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "executable_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl",
+      "matching_init_sha256_before": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "matching_init_sha256_after": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.002586158996564336,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.4.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.4.stderr",
+      "stderr_sha256": "a6118096e87f4078e8ff4dda6c1b18733f328caa91a68a25597f945e2285ee63",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl8.5",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "executable_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl",
+      "matching_init_sha256_before": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "matching_init_sha256_after": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.0030865640001138672,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.5.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.5.stderr",
+      "stderr_sha256": "a6118096e87f4078e8ff4dda6c1b18733f328caa91a68a25597f945e2285ee63",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl8.6",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "executable_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+      "matching_init_sha256_before": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "matching_init_sha256_after": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.004340804007370025,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.6.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl8.6.stderr",
+      "stderr_sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl9.0",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "executable_sha256_after": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl",
+      "matching_init_sha256_before": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "matching_init_sha256_after": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.00938310200581327,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.0.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.0.stderr",
+      "stderr_sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "tcl9.1",
+      "command": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "executable_sha256_after": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "matching_init": "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl",
+      "matching_init_sha256_before": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "matching_init_sha256_after": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.009148202996584587,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.1.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/tcl9.1.stderr",
+      "stderr_sha256": "a5832eb42f6aea45c77d0e186f693070e599d31372eae003f1c3fa1a2fbca3b4",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    },
+    {
+      "profile": "jim",
+      "command": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl"
+      ],
+      "executable_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "executable_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "matching_init": null,
+      "matching_init_sha256_before": null,
+      "matching_init_sha256_after": null,
+      "TCL_LIBRARY": null,
+      "TCLLIBPATH": "",
+      "elapsed_seconds": 0.004099190002307296,
+      "exit_code": 1,
+      "stdout": "/tmp/name-variable-reference-shapes-oracles-20261014/jim.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "/tmp/name-variable-reference-shapes-oracles-20261014/jim.stderr",
+      "stderr_sha256": "45d40eb6f43ca2572e57afab348e91e405f7f3c06c883fdd7965ccb3485ce4dc",
+      "init_query": "Original info library command result is retained verbatim; Jim may not support this C query."
+    }
+  ],
+  "all_exit_zero": false,
+  "claim": "Six-provider original variable-reference source observations, no Rust execution or Native admission acceptance; F5 pending."
+}

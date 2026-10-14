@@ -1,0 +1,4 @@
+PROVIDER 8.4.20
+DELETE 0 {}
+CALLBACKS {{1 {bad option "-namespace": must be -global or --}} {0 1} {0 {}}}
+FINAL_EXISTS 0

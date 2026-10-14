@@ -272,6 +272,9 @@ pub struct LoweredOperation {
     pub footprint: LoweredFootprint,
     /// Exact already-lowered source operation and operands.
     pub statement: Statement,
+    /// Whole original command words retained by the actual Script statement.
+    /// Missing source ownership cannot be reconstructed from the name field.
+    pub original_tokens: Option<std::sync::Arc<crate::ir::CommandTokens>>,
     /// Stable source-semantic node that originated the operation.
     pub node: NodeId,
     /// Full source site and provenance.
@@ -353,6 +356,19 @@ pub enum CellReference {
 }
 
 impl CellReference {
+    /// Project a completed variable-name datum without interpreting it as source.
+    /// Empty and sigil bytes remain name data; shared element partitioning keeps
+    /// an array root distinct from its element. No scope or storage is selected.
+    #[must_use]
+    pub fn from_name_data(name: &str) -> Self {
+        let (name, element) = tcl_syntax::naming::split_element_ref(name)
+            .map_or((name, false), |(root, _)| (root, true));
+        Self::Named {
+            name: name.to_owned(),
+            element,
+        }
+    }
+
     /// Project one retained variable-name word into the cell vocabulary.
     ///
     /// `braced` is the source token's brace-literal flag: a braced name word
@@ -1202,7 +1218,9 @@ fn validate_lowered_operation(
             completion: operation.completion,
         });
     }
-    if operation.footprint != lowered_operation_footprint(&operation.statement) {
+    if operation.footprint
+        != lowered_operation_footprint(&operation.statement, operation.original_tokens.as_deref())
+    {
         return Err(ExecutableIrValidationError::OperationFootprintMismatch {
             completion: operation.completion,
         });
@@ -2553,6 +2571,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
+                script.retained_source_tokens_for_statement(statement),
                 &node,
                 current,
                 control,
@@ -2580,6 +2599,7 @@ impl FunctionBuilder {
         registry: &CommandRegistry,
         context: Option<InvocationMetadataContext<'_>>,
         statement: &Statement,
+        original_tokens: Option<&crate::ir::CommandTokens>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
@@ -2607,8 +2627,9 @@ impl FunctionBuilder {
                 ExecutableInstruction::ExecuteLowered(LoweredOperation {
                     completion,
                     descriptor,
-                    footprint: lowered_operation_footprint(statement),
+                    footprint: lowered_operation_footprint(statement, original_tokens),
                     statement: statement.clone(),
+                    original_tokens: original_tokens.cloned().map(std::sync::Arc::new),
                     node: node.clone(),
                     source,
                 }),
@@ -3279,7 +3300,7 @@ impl FunctionBuilder {
                     completion,
                     payload_of: caught,
                     payload,
-                    cell: CellReference::from_name(variable, false),
+                    cell: CellReference::from_name_data(variable),
                     node: node.clone(),
                     source: source.clone(),
                 },
@@ -3473,7 +3494,7 @@ impl FunctionBuilder {
                         completion,
                         payload_of: caught,
                         payload,
-                        cell: CellReference::from_name(variable, false),
+                        cell: CellReference::from_name_data(variable),
                         node: node.clone(),
                         source: source.clone(),
                     },
@@ -3796,16 +3817,16 @@ pub(crate) fn try_handler_code_in(
 /// Project the exact cell and completion footprint of an already-lowered
 /// operation from the statement the registry descriptor authorised.
 ///
-/// This is deliberately computable from the statement alone: validation
-/// recomputes it and rejects a retained footprint that disagrees, so no
-/// consumer can be handed a footprint the IR does not itself prove.
+/// Validation recomputes this from the retained statement and its exact
+/// original source carrier. Missing name ownership keeps an unbounded target.
 #[allow(clippy::too_many_lines)]
-fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
+fn lowered_operation_footprint(
+    statement: &Statement,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+) -> LoweredFootprint {
     match statement {
-        Statement::AssignConst {
-            name, name_braced, ..
-        } => {
-            let write = CellReference::from_name(name, *name_braced);
+        Statement::AssignConst { name, .. } => {
+            let write = lowered_source_name_reference(statement, original_tokens, name);
             let exact = write.name().is_some();
             LoweredFootprint {
                 writes: vec![write],
@@ -3821,43 +3842,36 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
                 },
             }
         }
-        Statement::AssignValue {
-            name,
-            name_braced,
-            value,
-            ..
-        } => {
+        Statement::AssignValue { name, value, .. } => {
             let operand = operand_text_footprint(value);
             LoweredFootprint {
-                writes: vec![CellReference::from_name(name, *name_braced)],
+                writes: vec![lowered_source_name_reference(
+                    statement,
+                    original_tokens,
+                    name,
+                )],
                 reads: Vec::new(),
                 reads_unbounded: operand.reads_unbounded,
                 runs_commands: operand.runs_commands,
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::AssignExpr {
-            name,
-            name_braced,
-            expr,
-            ..
-        } => {
+        Statement::AssignExpr { name, expr, .. } => {
             let operand = expr_footprint(expr);
             LoweredFootprint {
-                writes: vec![CellReference::from_name(name, *name_braced)],
+                writes: vec![lowered_source_name_reference(
+                    statement,
+                    original_tokens,
+                    name,
+                )],
                 reads: operand.reads,
                 reads_unbounded: operand.reads_unbounded,
                 runs_commands: operand.runs_commands,
                 completion: vec![CompletionCode::Ok, CompletionCode::Error],
             }
         }
-        Statement::Incr {
-            name,
-            name_braced,
-            amount,
-            ..
-        } => {
-            let target = CellReference::from_name(name, *name_braced);
+        Statement::Incr { name, amount, .. } => {
+            let target = lowered_source_name_reference(statement, original_tokens, name);
             let operand = amount
                 .as_deref()
                 .map_or_else(OperandFootprint::exact, operand_text_footprint);
@@ -3921,6 +3935,26 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
     }
 }
 
+fn lowered_source_name_reference(
+    statement: &Statement,
+    original_tokens: Option<&crate::ir::CommandTokens>,
+    name: &str,
+) -> CellReference {
+    let original_name = || {
+        let tokens = original_tokens?;
+        (tokens.argv_texts.get(1).map(String::as_str) == Some(name)).then_some(())?;
+        let (command, _) = tokens
+            .source_binding
+            .as_ref()?
+            .original_recorded_command()?;
+        (command.span == statement.span()).then_some(())?;
+        crate::registry_invocation::original_literal_argument_data(tokens, 0)
+    };
+    original_name().map_or(CellReference::Computed, |name| {
+        CellReference::from_name_data(&name)
+    })
+}
+
 /// What evaluating one retained operand can read and run.
 struct OperandFootprint {
     reads: Vec<CellReference>,
@@ -3958,9 +3992,8 @@ fn operand_text_footprint(text: &str) -> OperandFootprint {
 /// The walk stops at an unparsed `Raw` node rather than re-lexing its text:
 /// a `Raw` node already makes the footprint unbounded, so enumerating the
 /// variables inside it would change nothing — and this projection is
-/// recomputed by validation from the statement alone
-/// ([`lowered_operation_footprint`]), which carries no document grammar to
-/// re-lex under.
+/// recomputed by validation from the retained expression without inventing
+/// a grammar for an unparsed node.
 fn expr_footprint(expr: &ExprNode) -> OperandFootprint {
     let unparsed = expr_has_raw(expr);
     let runs_commands = unparsed || !expr.command_texts().is_empty();
@@ -4597,6 +4630,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn completed_cell_names_keep_literal_sigils_empty_roots_and_elements() {
+        for (value, root, element) in [
+            ("", "", false),
+            ("$name", "$name", false),
+            ("[name]", "[name]", false),
+            ("a($key)", "a", true),
+            ("($key)", "", true),
+            ("()", "", true),
+            ("a(b)c", "a(b)c", false),
+        ] {
+            assert_eq!(
+                CellReference::from_name_data(value),
+                CellReference::Named {
+                    name: root.to_owned(),
+                    element,
+                }
+            );
+        }
+    }
+
     fn build(source: &str, id: usize) -> ExecutableFunction {
         let registry = CommandRegistry::build_default();
         let module = crate::lowering::lower_to_ir(source, &registry);
@@ -5062,6 +5116,42 @@ mod tests {
             "a command substitution in the operand is not bounded by a cell footprint"
         );
         assert!(!operation.footprint.is_bounded());
+    }
+
+    #[test]
+    fn source_footprints_use_original_name_data_and_refuse_detached_carriers() {
+        for (source, expected) in [
+            (r"set a\x62 1", "ab"),
+            ("set {$name} 1", "$name"),
+            ("set {} 1", ""),
+        ] {
+            let mut function = build(source, 223);
+            let operation = function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find_map(|instruction| match instruction {
+                    ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                    _ => None,
+                })
+                .expect("genuine original lowered source assignment");
+            assert_eq!(
+                operation.footprint.writes,
+                vec![CellReference::Named {
+                    name: expected.to_owned(),
+                    element: false
+                }]
+            );
+            let original = operation
+                .original_tokens
+                .take()
+                .expect("Script-issued original command");
+            let detached = lowered_operation_footprint(&operation.statement, None);
+            assert_eq!(detached.writes, vec![CellReference::Computed]);
+            assert!(!detached.is_bounded());
+            operation.original_tokens = Some(original);
+            assert!(function.validate().is_ok());
+        }
     }
 
     #[test]

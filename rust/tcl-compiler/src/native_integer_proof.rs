@@ -590,42 +590,44 @@ fn collect_caller_ranges(
         let caller_observability =
             analyse_var_observability_with_metadata_context(&caller.cfg, registry, Some(metadata));
         for (index, (param, argument)) in params.iter().zip(args.iter()).enumerate() {
-            let range =
-                if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument) {
-                    if unit.ir_module.has_dynamic_variable_trace
-                        || unit.ir_module.traced_variables.contains(name)
-                        || caller_observability.is_escaping_at(
-                            id.block,
-                            id.statement_index as usize,
-                            name,
-                        )
-                    {
-                        return Err(NativeIntegerDeclineReason::ObservableVariable);
-                    }
-                    let read = crate::common_aot_plan::direct_call_argument_read(unit, id, index)
-                        .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
-                    let symbol = read.symbol;
-                    let version = read
-                        .version
-                        .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
-                    let key = (symbol, version);
-                    if let Some(range) = range_from_sccp(caller.sccp.values.get(&key)) {
-                        range?
-                    } else {
-                        caller_intervals
-                            .get(&key)
-                            .copied()
-                            .filter(|range| bounded(*range))
-                            .ok_or(NativeIntegerDeclineReason::UnboundedOperand)?
-                    }
+            let range = if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(
+                argument,
+                unit.ir_module.lexer_config,
+            ) {
+                if unit.ir_module.has_dynamic_variable_trace
+                    || unit.ir_module.traced_variables.contains(name)
+                    || caller_observability.is_escaping_at(
+                        id.block,
+                        id.statement_index as usize,
+                        name,
+                    )
+                {
+                    return Err(NativeIntegerDeclineReason::ObservableVariable);
+                }
+                let read = crate::common_aot_plan::direct_call_argument_read(unit, id, index)
+                    .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
+                let symbol = read.symbol;
+                let version = read
+                    .version
+                    .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
+                let key = (symbol, version);
+                if let Some(range) = range_from_sccp(caller.sccp.values.get(&key)) {
+                    range?
                 } else {
-                    // Each call contributes its own captured bytes. A uniform
-                    // whole-callee seed is unnecessary for a range join and
-                    // cannot supply missing evaluation-time argument evidence.
-                    let value = crate::common_aot_plan::direct_call_argument_value(unit, id, index)
-                        .ok_or(NativeIntegerDeclineReason::DynamicCallerInput)?;
-                    crate::intervals::constant(parse_caller_integer(&value, numeric_policy)?)
-                };
+                    caller_intervals
+                        .get(&key)
+                        .copied()
+                        .filter(|range| bounded(*range))
+                        .ok_or(NativeIntegerDeclineReason::UnboundedOperand)?
+                }
+            } else {
+                // Each call contributes its own captured bytes. A uniform
+                // whole-callee seed is unnecessary for a range join and
+                // cannot supply missing evaluation-time argument evidence.
+                let value = crate::common_aot_plan::direct_call_argument_value(unit, id, index)
+                    .ok_or(NativeIntegerDeclineReason::DynamicCallerInput)?;
+                crate::intervals::constant(parse_caller_integer(&value, numeric_policy)?)
+            };
             ranges
                 .entry(param.clone())
                 .and_modify(|current| *current = join_intervals(*current, range))

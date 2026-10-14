@@ -61,7 +61,7 @@ use crate::common_aot_plan::{
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
-use crate::native_lowering::cells::{CellPlace, cell_place};
+use crate::native_lowering::cells::{CellPlace, name_data_place};
 use crate::native_lowering::{
     FunctionDecline, FunctionReport, LoweringInput, NativeBinding, NativeTierReport,
     ProcEntryDecline, lower_function,
@@ -264,7 +264,7 @@ struct ArgvImports {
 
 #[derive(Default)]
 struct FunctionFacts {
-    direct_assignments: HashMap<(u32, u32), String>,
+    direct_assignments: HashMap<(u32, u32), (String, String)>,
     /// Selected prebuilt-argv plans, keyed by leaf-statement span.
     leaf_invocations: HashMap<(u32, u32), WasmLeafInvokePlan>,
     /// Typed reasons a leaf statement stayed on the source-span eval fallback.
@@ -655,14 +655,14 @@ impl WasmEmitter {
             return false;
         };
         match statement {
-            Statement::AssignConst { span, name, .. }
-            | Statement::AssignValue { span, name, .. } => {
-                let Some(value) = self.facts.direct_assignments.get(&span_key(*span)).cloned()
+            Statement::AssignConst { span, .. } | Statement::AssignValue { span, .. } => {
+                let Some((name, value)) =
+                    self.facts.direct_assignments.get(&span_key(*span)).cloned()
                 else {
                     return false;
                 };
                 if self.mode == FunctionMode::DirectProc {
-                    let Some(slot) = self.local_slots.get(name).copied() else {
+                    let Some(slot) = self.local_slots.get(&name).copied() else {
                         return false;
                     };
                     self.push_i32(i64::from(slot));
@@ -671,7 +671,7 @@ impl WasmEmitter {
                     }
                     self.call(aot.local_set);
                 } else if self.mode == FunctionMode::Top {
-                    self.push_text_pair(name);
+                    self.push_text_pair(&name);
                     if !self.box_value(&value) {
                         return false;
                     }
@@ -1709,23 +1709,19 @@ fn function_facts(
             if let Statement::AssignConst {
                 span,
                 name,
-                name_braced,
                 ..
             } | Statement::AssignValue {
                 span,
                 name,
-                name_braced,
                 ..
             } = statement
-                && (*name_braced || !crate::naming::is_dynamic_word(name))
                 // `tcl_codegen_var_set` stores under the exact name, so an
                 // array-element target — as opposed to a scalar whose name
                 // merely contains parentheses — keeps the source-span
-                // fallback. `cell_place` owns that reading for every backend.
-                && matches!(
-                    cell_place(name, *name_braced),
-                    Some(CellPlace::Named { .. })
-                )
+                // fallback. Original word data supplies the name independently.
+                && let Some(original_name) = original_assignment_name(unit, module, registry, statement, name)
+                && name_data_place(&original_name)
+                    .is_some_and(|place| matches!(place, CellPlace::Named { .. }))
                 && assignment_operation_is_trusted(
                     unit,
                     context,
@@ -1737,7 +1733,9 @@ fn function_facts(
                 )
                 && let Some(value) = original_assignment_literal(unit, module, registry, statement)
             {
-                facts.direct_assignments.insert(span_key(*span), value);
+                facts
+                    .direct_assignments
+                    .insert(span_key(*span), (original_name, value));
             }
             // Generic prebuilt-argv invocation is the normal leaf-command path
             // and needs no binding proof: the runtime resolves the command head
@@ -1757,6 +1755,23 @@ fn function_facts(
         }
     }
     facts
+}
+
+fn original_assignment_name(
+    unit: &FunctionUnit,
+    module: &Module,
+    registry: &CommandRegistry,
+    statement: &Statement,
+    name: &str,
+) -> Option<String> {
+    let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &unit.cfg.command_binding_sites,
+        statement,
+    )?;
+    (tokens.argv_texts.get(1).map(String::as_str) == Some(name)).then_some(())?;
+    crate::registry_invocation::original_literal_argument_data_for_module(
+        registry, module, tokens, 0,
+    )
 }
 
 /// The unchanged value operand uses its original point grammar, including
@@ -3121,6 +3136,85 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn assignment_plans_retain_decoded_original_names_separately_from_spelling() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        for (source, expected) in [
+            (r"set a\x62 VALUE", "ab"),
+            ("set {$name} VALUE", "$name"),
+            ("set {} VALUE", ""),
+        ] {
+            let unit = retained_source_unit(
+                std::sync::Arc::clone(&context),
+                source,
+                tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+            );
+            let statement = unit
+                .top_level
+                .cfg
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find(|statement| {
+                    matches!(
+                        statement,
+                        Statement::AssignConst { .. } | Statement::AssignValue { .. }
+                    )
+                })
+                .expect("original lowered assignment");
+            let name = match statement {
+                Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => name,
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &unit.ir_module,
+                    context.commands(),
+                    statement,
+                    name
+                )
+                .as_deref(),
+                Some(expected)
+            );
+            let planned = assignment_facts(&unit.top_level, &unit, context.commands());
+            assert_eq!(
+                planned.direct_assignments.get(&span_key(statement.span())),
+                Some(&(expected.to_owned(), "VALUE".to_owned()))
+            );
+            let mut missing = unit.ir_module.clone();
+            missing.retained_source_bindings = None;
+            assert!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &missing,
+                    context.commands(),
+                    statement,
+                    name
+                )
+                .is_none()
+            );
+            let mut stale = statement.clone();
+            match &mut stale {
+                Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
+                    *name = "OTHER".to_owned()
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                original_assignment_name(
+                    &unit.top_level,
+                    &unit.ir_module,
+                    context.commands(),
+                    &stale,
+                    "OTHER"
+                )
+                .is_none()
+            );
+        }
     }
 
     #[test]

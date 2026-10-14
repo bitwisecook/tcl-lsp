@@ -49,10 +49,9 @@ use tcl_registry::{CommandRegistry, Traits};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
+use crate::value_shapes::{parse_command_substitution_with_config, whole_word_scalar_var_name};
 
 bitflags! {
     /// Properties of a rendered (post-backslash-subst) SSA value.
@@ -559,12 +558,15 @@ fn evaluate_value(
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
     ssa: &SsaFunction,
+    config: Option<tcl_lexer::LexerConfig>,
 ) -> RenderedValueProps {
+    let Some(config) = config else {
+        return unknown_top();
+    };
     let stripped = value.trim();
 
     // Pure variable reference → inherit from the source.
-    if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
+    if let Some(name) = whole_word_scalar_var_name(stripped, config) {
         if let Some(sym) = ssa.var_symbol(name)
             && let Some(&ver) = uses.get(&sym)
             && ver > 0
@@ -583,10 +585,7 @@ fn evaluate_value(
     // registry hints.  This is a minimal baseline, not the conservative
     // lattice top, which would report every may-flag for a
     // command-substitution value.
-    if let Some((cmd, args)) = parse_command_substitution_with_config(
-        stripped,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    ) {
+    if let Some((cmd, args)) = parse_command_substitution_with_config(stripped, config) {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let mut may = RenderedProperties::HAS_INTERPOLATION;
         if is_path_returning(registry, &cmd, &arg_refs) {
@@ -695,6 +694,7 @@ fn evaluate_def(
     props: &HashMap<ValueKey, RenderedValueProps>,
     registry: &CommandRegistry,
     ssa: &SsaFunction,
+    config: Option<tcl_lexer::LexerConfig>,
 ) -> RenderedValueProps {
     match stmt {
         Statement::AssignConst { value, .. } => evaluate_const(value),
@@ -703,7 +703,7 @@ fn evaluate_def(
             // have a known source; otherwise fall through to the
             // scanner. The `evaluate_value` helper already handles
             // both cases and the unescape-escalation logic.
-            evaluate_value(value, uses, props, registry, ssa)
+            evaluate_value(value, uses, props, registry, ssa, config)
         }
         Statement::AssignExpr { .. } | Statement::Incr { .. } => {
             // Numeric result: no path separators, no interpolation.
@@ -741,6 +741,20 @@ pub fn propagate_rendered_props(
     sccp: &SccpResult,
     registry: &CommandRegistry,
 ) -> HashMap<ValueKey, RenderedValueProps> {
+    let config = cfg
+        .metadata_context
+        .source_analysis_input()
+        .map(crate::analyser::ResolvedAnalysisInput::lexer_config)
+        .or_else(|| {
+            cfg.metadata_context
+                .is_standalone()
+                .then(|| {
+                    registry
+                        .profile()
+                        .map(|profile| tcl_lexer::LexerConfig::from_grammar(profile.grammar))
+                })
+                .flatten()
+        });
     let preds = cfg.predecessors();
     let order = cfg_order(cfg);
 
@@ -818,7 +832,8 @@ pub fn propagate_rendered_props(
                     continue;
                 }
                 for (&var, &ver) in &ssa_stmt.defs {
-                    let inferred = evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa);
+                    let inferred =
+                        evaluate_def(stmt, &ssa_stmt.uses, &props, registry, ssa, config);
                     set_props(&mut props, (var, ver), inferred, &mut changed);
                 }
             }
@@ -909,11 +924,25 @@ mod tests {
         let ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
         // `[list 1 2 3]` is opaque interpolation — only HAS_INTERPOLATION,
         // never the full may-mask.
-        let p = evaluate_value("[list 1 2 3]", &uses, &props, &registry, &ssa);
+        let p = evaluate_value(
+            "[list 1 2 3]",
+            &uses,
+            &props,
+            &registry,
+            &ssa,
+            Some(tcl_lexer::LexerConfig::default()),
+        );
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
         assert_eq!(p.must, RenderedProperties::NONE);
         // `[exec ls]` likewise.
-        let p = evaluate_value("[exec ls]", &uses, &props, &registry, &ssa);
+        let p = evaluate_value(
+            "[exec ls]",
+            &uses,
+            &props,
+            &registry,
+            &ssa,
+            Some(tcl_lexer::LexerConfig::default()),
+        );
         assert_eq!(p.may, RenderedProperties::HAS_INTERPOLATION);
     }
 

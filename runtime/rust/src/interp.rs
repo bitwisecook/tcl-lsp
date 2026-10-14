@@ -10241,12 +10241,8 @@ impl Interp {
             .ensure_command_owned_namespace(self.current_ns.get(), name)
     }
 
-    /// Resolve (creating if needed) a namespace by name, anchored at the
-    /// **global** namespace regardless of the current one — C's
-    /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
-    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`:
-    /// `-namespace bar` names `::bar` even when called from inside another
-    /// namespace (tclsh 9.0.4-pinned).
+    /// Create an internal test namespace from the global token.
+    #[cfg(test)]
     pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
         self.invalidate_command_environment();
         self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)

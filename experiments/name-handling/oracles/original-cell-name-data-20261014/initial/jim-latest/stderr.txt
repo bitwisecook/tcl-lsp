@@ -1,0 +1,4 @@
+/tmp/name-original-cell-name-data-oracles-20261014/probe.tcl:11: Error: can't set "($key)": variable isn't array
+Traceback (most recent call last):
+  File "/tmp/name-original-cell-name-data-oracles-20261014/probe.tcl", line 11
+    set {($key)} ROOTLESS

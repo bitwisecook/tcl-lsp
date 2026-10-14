@@ -1,0 +1,18 @@
+{
+  "started_utc": "2026-10-14T21:57:43.496946+00:00",
+  "label": "Actual unchanged Native capsule module ownership/currentness/refusal controls; non-overlapping pure analysis cases, no timing comparison",
+  "package": "tcl-compiler",
+  "target": null,
+  "source_paths": 34727,
+  "plan": {
+    "exact": [],
+    "filters": [
+      "body_analysis_capsule::native_source_lattice_tests::"
+    ],
+    "scope": "Actual Native capsule module omitted from183 filters; all unchanged original owner/currentness/refusal controls"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

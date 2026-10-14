@@ -113,6 +113,23 @@ pub(crate) fn whole_reference(spelling: &str, config: tcl_lexer::LexerConfig) ->
     }
 }
 
+/// Symbolic cell selected by a completed variable-name datum. It supplies no
+/// current frame, physical cell, successful store or observer closure.
+pub(crate) fn name_data_place(name: &str) -> Option<CellPlace> {
+    if name.contains('\0') {
+        return None;
+    }
+    Some(tcl_syntax::naming::split_element_ref(name).map_or_else(
+        || CellPlace::Named {
+            name: name.to_owned(),
+        },
+        |(root, key)| CellPlace::Element {
+            name: root.to_owned(),
+            key: key.to_owned(),
+        },
+    ))
+}
+
 /// The cell a statically spelled variable **name** denotes, or `None` when the
 /// name is computed at run time.
 ///
@@ -461,6 +478,32 @@ mod tests {
         );
         assert_eq!(cell_place("a($k)", false), None);
         assert_eq!(cell_place("", true), None);
+    }
+
+    #[test]
+    fn completed_name_places_preserve_data_without_variable_word_grammar() {
+        for value in ["", "$name", "[name]", "a(b)c"] {
+            assert_eq!(
+                name_data_place(value),
+                Some(CellPlace::Named {
+                    name: value.to_owned()
+                })
+            );
+        }
+        for (value, name, key) in [
+            ("a($key)", "a", "$key"),
+            ("($key)", "", "$key"),
+            ("()", "", ""),
+        ] {
+            assert_eq!(
+                name_data_place(value),
+                Some(CellPlace::Element {
+                    name: name.to_owned(),
+                    key: key.to_owned()
+                })
+            );
+        }
+        assert_eq!(name_data_place("nul\0name"), None);
     }
 
     #[test]

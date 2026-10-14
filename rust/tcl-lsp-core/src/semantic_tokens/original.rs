@@ -463,6 +463,87 @@ fn original_definition_member_words<'a>(
         .original_command_words_at(start)
 }
 
+/// A source member's receiver vocabulary is independent of its definition vocabulary.
+pub(super) fn receiver_grammar_for_body(
+    ctx: ScriptCtx<'_>,
+    command: &SegmentedCommand,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
+    body: tcl_lexer::Token,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    if !ctx.lexical {
+        return None;
+    }
+    let current =
+        crate::original_context::CurrentSourceContext::capture(ctx.full_source, ctx.analysis?)?;
+    if current.config() != ctx.config || current.context().context() != ctx.context {
+        return None;
+    }
+    if let Some(grammar) = ctx.oo_grammar
+        && definition_member_head(ctx, command)
+    {
+        let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(ctx.full_source),
+            ctx.config,
+            command,
+        );
+        if tokens.words().iter().any(|word| {
+            matches!(
+                word,
+                tcl_compiler::ir::WordExpr::Expand { .. }
+                    | tcl_compiler::ir::WordExpr::Opaque { .. }
+            )
+        }) {
+            return None;
+        }
+        let values = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                tcl_compiler::registry_invocation::effective_invocation_word(
+                    word,
+                    ctx.config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
+                )
+            })
+            .collect::<Vec<_>>();
+        let words = values
+            .iter()
+            .map(tcl_compiler::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect::<Vec<_>>();
+        let row = grammar.member_row(
+            0,
+            tcl_registry::InvocationArguments::structured(&words),
+            Some(ctx.context.authoring_query()),
+        )?;
+        let tcl_registry::definer::MemberEffect::Callable { role, .. } = row.effect else {
+            return None;
+        };
+        if row.receiver != tcl_registry::definer::MemberReceiver::Instance
+            || role == tcl_registry::definer::CallableRole::Procedure
+            || command
+                .argv
+                .get(row.body?.0)
+                .is_none_or(|token| token.span != body.span)
+        {
+            return None;
+        }
+        return Some(grammar);
+    }
+    let grammar = ctx.receiver_grammar?;
+    original?
+        .source_script_bodies(ctx.generation)
+        .into_iter()
+        .any(|selected| {
+            selected
+                .original_container()
+                .tokens()
+                .iter()
+                .any(|token| token.span == body.span)
+                && selected.inherits_immediate_caller_source_context(ctx.generation)
+        })
+        .then_some(grammar)
+}
+
 pub(super) fn definition_member_bodies(
     ctx: ScriptCtx<'_>,
     command: &SegmentedCommand,
@@ -1280,6 +1361,7 @@ pub(super) fn collect_lambda(
         super::collect_script(
             ScriptCtx {
                 oo_grammar: None,
+                receiver_grammar: None,
                 original_definition_parent: None,
                 original_definition_members: None,
                 enclosing_class: None,

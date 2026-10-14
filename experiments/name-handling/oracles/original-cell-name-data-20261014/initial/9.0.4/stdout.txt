@@ -1,0 +1,5 @@
+empty EMPTY
+braced-sigil SIGIL
+braced-command BRACKET
+escaped ESCAPED
+literal-index ELEMENT

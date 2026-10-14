@@ -1,0 +1,14 @@
+PROVIDER 8.4.20
+CHILD_NAMESPACE 1 {bad option "-namespace": must be -global or --}
+CHILD_NAMESPACE_READ 1 {too many nested evaluations (infinite loop?)}
+CHILD_ROOT_ABSENT 0 0
+LAST_GLOBAL 1 {bad option "-namespace": must be -global or --}
+GLOBAL_READ 1 {too many nested evaluations (infinite loop?)}
+LAST_NAMESPACE 1 {bad option "-namespace": must be -global or --}
+COLON_READ 1 {too many nested evaluations (infinite loop?)}
+EMPTY_NAMESPACE 1 {bad option "-namespace": must be -global or --}
+EMPTY_NAMESPACE_READ 1 {too many nested evaluations (infinite loop?)}
+ROOT_RESTORE 0 ::
+CURRENT_NAMESPACE 1 {bad option "-namespace": must be -global or --}
+CURRENT_ROOT_ABSENT 0 0
+CURRENT_OUTER_ABSENT 0 0

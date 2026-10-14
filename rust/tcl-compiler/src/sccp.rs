@@ -4707,8 +4707,9 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<LatticeValue> {
-    let key = simple_var_ref_key(text, uses, ssa)?;
+    let key = simple_var_ref_key(text, uses, ssa, config)?;
     Some(values.get(&key).cloned().unwrap_or(LatticeValue::Unknown))
 }
 
@@ -4718,20 +4719,9 @@ fn simple_var_ref_key<S: std::hash::BuildHasher>(
     text: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<ValueKey> {
-    let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        name
-    } else {
-        let name = text.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(text, config)?;
     let sym = ssa.var_symbol(name)?;
     let ver = *uses.get(&sym)?;
     Some((sym, ver))
@@ -4912,28 +4902,14 @@ pub fn resolve_foreach_list_via_lattice<S1, S2>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
     rules: tcl_syntax::word_rules::WordValueRules,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
     let stripped = list_text.trim();
-    let name = if let Some(name) = stripped
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-    {
-        name
-    } else {
-        let name = stripped.strip_prefix('$')?;
-        if name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
-        {
-            name
-        } else {
-            return None;
-        }
-    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config)?;
     let sym = ssa.var_symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
@@ -4988,8 +4964,11 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     }
     // Simple var reference: a copy shares its source's value, and the
     // source's folded type with it.
-    if let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa) {
-        let folded = simple_var_ref_key(value, uses, ssa).and_then(|key| driver.folded_of(key));
+    if let Some(config) = driver.source_reference_lexer_config()
+        && let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa, config)
+    {
+        let folded =
+            simple_var_ref_key(value, uses, ssa, config).and_then(|key| driver.folded_of(key));
         return (resolved, folded);
     }
     // Command substitution.
@@ -7227,6 +7206,56 @@ mod tests {
     }
 
     #[test]
+    fn lattice_reference_shapes_keep_actual_grammar_and_refuse_compound_or_array_names() {
+        let mut ssa = bare_ssa();
+        let mut uses = HashMap::new();
+        let mut values = HashMap::new();
+        for name in ["a", "a:b", "café", "", "scalar(open", "arr(key)", "a{b}c"] {
+            let symbol = ssa.intern_var(name);
+            uses.insert(symbol, 1);
+            values.insert(
+                (symbol, 1),
+                LatticeValue::Const(ConstValue::String("one two".into())),
+            );
+        }
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(profile);
+            let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+            for source in ["$a", "${}", "${scalar(open}"] {
+                assert!(
+                    resolve_simple_var_ref(source, &uses, &values, &ssa, config).is_some(),
+                    "{profile}: {source}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(source, &uses, &values, &ssa, rules, config),
+                    Some(vec!["one".into(), "two".into()]),
+                    "{profile}: {source}"
+                );
+            }
+            for source in ["$a:b", "${arr(key)}", "$arr(key)", "$a$b"] {
+                assert_eq!(
+                    resolve_simple_var_ref(source, &uses, &values, &ssa, config),
+                    None,
+                    "{profile}: {source}"
+                );
+                assert_eq!(
+                    resolve_foreach_list_via_lattice(source, &uses, &values, &ssa, rules, config),
+                    None,
+                    "{profile}: {source}"
+                );
+            }
+            assert_eq!(
+                resolve_simple_var_ref("$café", &uses, &values, &ssa, config).is_some(),
+                profile == "jim"
+            );
+            assert_eq!(
+                resolve_simple_var_ref("${a{b}c}", &uses, &values, &ssa, config).is_some(),
+                matches!(profile, "tcl9.0" | "tcl9.1")
+            );
+        }
+    }
+
+    #[test]
     fn resolve_simple_var_ref_accepts_bare_and_braced() {
         let mut ssa = bare_ssa();
         let x = ssa.intern_var("x");
@@ -7235,15 +7264,45 @@ mod tests {
         let mut values = HashMap::new();
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(7)));
         assert_eq!(
-            resolve_simple_var_ref("$x", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "$x",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
         assert_eq!(
-            resolve_simple_var_ref("${x}", &uses, &values, &ssa),
+            resolve_simple_var_ref(
+                "${x}",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
             Some(LatticeValue::Const(ConstValue::Int(7)))
         );
-        assert_eq!(resolve_simple_var_ref("$y", &uses, &values, &ssa), None);
-        assert_eq!(resolve_simple_var_ref("plain", &uses, &values, &ssa), None);
+        assert_eq!(
+            resolve_simple_var_ref(
+                "$y",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
+            None
+        );
+        assert_eq!(
+            resolve_simple_var_ref(
+                "plain",
+                &uses,
+                &values,
+                &ssa,
+                tcl_lexer::LexerConfig::default()
+            ),
+            None
+        );
     }
 
     // Foreach constset extraction.

@@ -7767,7 +7767,10 @@ impl Analyser {
                 let Some(word) = args.get(idx) else {
                     return UnknownBodyEvidence::ReturnsSomethingElse;
                 };
-                return if crate::value_shapes::whole_word_scalar_var_name(word) == Some(word_param)
+                return if crate::value_shapes::whole_word_scalar_var_name(
+                    word,
+                    self.file_lexer_config(),
+                ) == Some(word_param)
                 {
                     UnknownBodyEvidence::ReturnsWord
                 } else {

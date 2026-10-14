@@ -1,0 +1,6 @@
+missing close-brace
+    while executing
+"set {a{b} FIRST
+set {a{b}c} NESTED
+foreach {label script} [list isolated_colon {list $a:b} unicode {list $café} empty {list ${}} open_scalar {list ${..."
+    (file "/tmp/name-variable-reference-shapes-oracles-20261014/probe.tcl" line 8)

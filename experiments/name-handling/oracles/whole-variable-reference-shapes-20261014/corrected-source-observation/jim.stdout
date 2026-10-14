@@ -1,0 +1,7 @@
+isolated_colon 0 A:b
+unicode 0 UNICODE
+empty 0 EMPTY
+open_scalar 0 OPEN
+combined_element 0 ELEMENT
+nested_brace 0 {FIRSTc\}}
+separate_element 0 ELEMENT

@@ -529,12 +529,6 @@ fn interp_target_original(
 const CREATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-safe", b"--"]);
 
-/// `interp invokehidden`'s leading option words (`hiddenOptions[]`,
-/// `tclInterp.c`), resolved the same way: `-g`/`-n` abbreviate and the lone `-`
-/// is `ambiguous option "-"`. Only a word starting with `-` reaches the table.
-const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-global", b"-namespace", b"--"]);
-
 /// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
 /// host-touching commands; it does not re-alias `source`/`load`/`file`
@@ -1065,6 +1059,19 @@ fn invokehidden_in_original(
     usage: &[u8],
     arguments: &OriginalArguments,
 ) -> Code {
+    use tcl_syntax::naming::NativeHiddenInvocationOption;
+    let Some(grammar) = interp
+        .native_invocation_dialect()
+        .native_name_protocol()
+        .and_then(|protocol| protocol.hidden_invocation_grammar().ok())
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native hidden-invocation grammar",
+            )
+            .into(),
+        );
+    };
     let mut ns_name: Option<Vec<u8>> = None;
     let mut i = 0;
     while i < words.len() {
@@ -1076,16 +1083,30 @@ fn invokehidden_in_original(
             break;
         }
         let selected =
-            interp.native_static_option_index(words[i], HIDDEN_OPTIONS.names(), false, "option");
+            interp.native_static_option_index(words[i], grammar.byte_names(), false, "option");
         if let Err(error) = arguments.check() {
             return interp.report_cmd_error(error);
         }
-        match selected {
-            Ok(0) => {
+        let option = match selected {
+            Ok(index) => match grammar.option(index) {
+                Some(option) => option,
+                None => {
+                    return interp.report_cmd_error(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native hidden-invocation option ordinal",
+                        )
+                        .into(),
+                    );
+                }
+            },
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        match option {
+            NativeHiddenInvocationOption::Global => {
                 ns_name = Some(b"::".to_vec());
                 i += 1;
             }
-            Ok(1) => {
+            NativeHiddenInvocationOption::Namespace => {
                 i += 1;
                 if i == words.len() {
                     // C: "there must be more arguments" — stop scanning
@@ -1098,11 +1119,10 @@ fn invokehidden_in_original(
                 };
                 i += 1;
             }
-            Ok(_) => {
+            NativeHiddenInvocationOption::End => {
                 i += 1;
                 break;
             }
-            Err(m) => return interp.report_cmd_error(m),
         }
     }
     if i >= words.len() {
@@ -1132,11 +1152,16 @@ fn invokehidden_in_original(
             }
         };
         let saved_ns = c.current_ns();
-        if let Some(name) = &ns_name {
-            let target = c.ensure_global_namespace(name);
-            c.set_current_ns(target);
-        }
-        let code = c.invoke_hidden(&cmd, &hidden_argv);
+        let code = match ns_name.as_ref() {
+            Some(name) => match c.ensure_global_namespace_address(name) {
+                Ok(target) => {
+                    c.set_current_ns(target);
+                    c.invoke_hidden(&cmd, &hidden_argv)
+                }
+                Err(error) => c.report_cmd_error(error),
+            },
+            None => c.invoke_hidden(&cmd, &hidden_argv),
+        };
         let result = scope.currency().ensure_current_or_refuse().and_then(|()| {
             let original = obj::Owned::retain(c.get_obj_result());
             let bytes = c
@@ -2343,6 +2368,41 @@ mod tests {
     ///   interp create -s k         -> k
     ///   interp invokehidden i -x f -> bad option "-x": must be -global, -namespace, or --
     ///   interp invokehidden i - f  -> ambiguous option "-": must be -global, -namespace, or --
+    #[test]
+    fn hidden_options_refuse_namespace_on_the_original_c84_table() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(version.dialect_profile_name()),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(b"interp create kid"), Code::Ok);
+            assert_eq!(
+                interp.eval_str(b"kid eval {interp hide {} set hiddenSet}"),
+                Code::Ok
+            );
+            let code = interp.eval_str(b"kid invokehidden -namespace chosen hiddenSet item CHILD");
+            if version == tcl_dialect::TclVersion::V8_4 {
+                assert_eq!(code, Code::Error);
+                assert_eq!(
+                    interp.result_bytes(),
+                    b"bad option \"-namespace\": must be -global or --"
+                );
+            } else {
+                assert_eq!(code, Code::Ok);
+                assert_eq!(interp.result_bytes(), b"CHILD");
+                assert_eq!(
+                    interp.eval_str(b"kid invokehidden hiddenSet ::chosen::item"),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), b"CHILD");
+                assert_eq!(interp.eval_str(b"kid eval {info exists ::item}"), Code::Ok);
+                assert_eq!(interp.result_bytes(), b"0");
+            }
+        }
+    }
+
     #[test]
     fn interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj() {
         const CREATE_MUST: &str = "must be -safe or --";
