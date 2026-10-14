@@ -114,18 +114,23 @@ provider, replay or census hash is renewed; current-source inspection does not
 certify immutable execution or Native acceptance.
 
 Public owner rows require actual unrestricted public declarations. Accurate
-private source registration is under implementation with exact module/consumer
-routes, while the existing Runtime typed getter rule remains unchanged.
+private source registration remains on hold for receiver shadowing, enclosing
+generics, intermediate module visibility and macro handling. Exact module/consumer
+routes preserve the existing Runtime typed getter rule.
 Thirteen exact new mappings and 217 restricted/private-looking entries across
 69 surfaces are retained for AST review; trait and re-export cases are not
 resolved by lexical triage. Helpers cannot become public solely for the map.
 
 The read-only documentation mirror checks 3,259 Markdown files and 126,061
-local links. One F5 fragment and five unindexed design documents require
-cleanup. The linked-member document is a current contract; a byte-identical
-relocation/index patch avoids treating it as an unrecorded proof question.
+local links. The F5 fragment and five design index entries are corrected. The linked-member
+current contract is relocated byte-identically to the contracts directory.
 Original appliance/probe/legal text remains intact. Real Rust KCS, diagnostic
 tag and audience checks remain required.
 
-MCP selected-dialect migration is ready under the genuine requested context,
-with integration and exact consumer replay still pending.
+MCP selected-dialect migration, AI selected slot pairs and regex retirement,
+original realm restamping and immediate protected body consumers are integrated.
+Compiler40 seals 311 controls: 205 PASS/106 FAIL, authored-source drift 0;
+its 303 common Compiler33 controls gain seven without regressions. The actual
+native server build passes and 11 selected editor checks pass with zero source,
+output and binary drift. These bounded checks do not close remaining Core, DB,
+Runtime, private registration, proof or whole-surface gates.

@@ -94,9 +94,9 @@ The [41-callsite audit](../../../experiments/name-handling/results/final-consume
 ## Current implementation and audit priorities
 
 The [outstanding audit](outstanding-consumer-audit.md) and JSON current refresh
-record the bounded 05:28 UTC snapshot. Compiler40 is running without a final aggregate. Compiler33 diagnostic replay executed 304 controls:
-194 PASS and 110 FAIL, with zero authored-source drift. Of the 295 common
-Compiler31 controls, 19 improve and one regresses. Full Runtime09 executes
+record the bounded 05:43 UTC snapshot. Compiler40 seals 311 controls: 205 PASS
+and 106 FAIL, with zero authored-source drift. Its 303 common Compiler33 controls
+gain seven without regressions. Full Runtime09 executes
 79 controls: 78 PASS and one new C8.5 error-code FAIL; all original 77 pass, with
 zero source/compiled-input/artifact drift. Core34 diagnostic seals 64 controls:
 39 PASS and 25 FAIL, with zero authored-source drift. Its common original 30
@@ -148,13 +148,16 @@ merge-ready PR; durable documentation describes the current contracts.
 Current final-gate review keeps private helper registration separate from public
 API declaration checks. Source-only internal module/consumer routes must be
 registered accurately; helpers cannot be exposed solely to satisfy the map.
-The strict proof audit and documentation link/index inspection are running
-without evidence/provider/replay resealing or renewed Native acceptance.
+The strict proof audit fails 1,959 structural checks without evidence/provider/replay
+resealing or renewed Native acceptance. Documentation link/index cleanup is integrated;
+real KCS, diagnostic tag and audience checks remain required.
 
-MCP procedure/source inventory migration now retains the genuine selected
-dialect context; its reviewed packet and original requested-context controls
-require integration and replay. Accurate private owner/module/consumer
-registration is under implementation without changing API visibility. Strict
-proof audit currently fails 1,959 structural checks; no evidence/provider/replay
-resealing is applied. A separate durable link/index patch preserves existing
-contract and oracle text. Compiler40 remains running without renewed acceptance.
+MCP procedure/source inventory migration retains the genuine selected dialect
+context and is integrated. AI regex retirement, actual selected slot pairs,
+original realm restamping and immediate protected body consumers are integrated;
+their exact original controls remain required. The actual native server build
+passes and 11 selected editor checks pass, with zero source, output and binary
+drift in that bounded capture. Accurate private owner/module/consumer registration
+remains on hold for receiver shadowing, enclosing generics, intermediate module
+visibility and macro handling. Compiler40 is partial acceptance; Core, DB,
+Runtime and the full surface roster retain independent remaining gates.
