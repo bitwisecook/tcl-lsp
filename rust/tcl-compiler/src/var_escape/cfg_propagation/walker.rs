@@ -63,6 +63,9 @@ fn apply_original_substitution_scan(
         state.mark_pessimistic();
         return;
     };
+    if calls.unknown_residual {
+        state.mark_pessimistic();
+    }
     for call in calls {
         if !call.frameless {
             state.record_fallback();

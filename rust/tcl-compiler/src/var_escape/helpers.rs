@@ -199,11 +199,47 @@ pub(crate) struct OriginalSubstitutionInvocation {
     pub(crate) frameless: bool,
 }
 
+pub(crate) struct OriginalSubstitutionInventory {
+    calls: Vec<OriginalSubstitutionInvocation>,
+    pub(crate) unknown_residual: bool,
+}
+impl std::ops::Deref for OriginalSubstitutionInventory {
+    type Target = [OriginalSubstitutionInvocation];
+    fn deref(&self) -> &Self::Target {
+        &self.calls
+    }
+}
+impl IntoIterator for OriginalSubstitutionInventory {
+    type Item = OriginalSubstitutionInvocation;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.calls.into_iter()
+    }
+}
+
 pub(crate) fn original_substitution_invocations(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
-) -> Option<Vec<OriginalSubstitutionInvocation>> {
+) -> Option<OriginalSubstitutionInventory> {
     let binding = tokens.source_binding.as_ref()?;
+    if binding.has_original_authored_source_body_name_role_owner() {
+        let scope = binding.original_authored_source_body_scope_for_name_roles(tokens, registry)?;
+        let receipts =
+            crate::word_subst::checked_authored_source_substitution_words(tokens, registry, scope)?;
+        let calls = receipts
+            .iter()
+            .map(|receipt| OriginalSubstitutionInvocation {
+                invocation: crate::registry_invocation::original_authored_substitution_name_roles(
+                    receipt, registry,
+                ),
+                frameless: false,
+            })
+            .collect();
+        return Some(OriginalSubstitutionInventory {
+            calls,
+            unknown_residual: true,
+        });
+    }
     let readonly = binding.original_logical_source_input_for_name_roles(tokens, registry);
     let calls = if let Some(input) = readonly {
         crate::word_subst::checked_original_lifted_calls_with_logical_source_input(
@@ -251,7 +287,7 @@ pub(crate) fn original_substitution_invocations(
         };
         calls
     };
-    calls
+    let calls = calls
         .into_iter()
         .map(|call| {
             let child = call.tokens.as_ref()?;
@@ -267,7 +303,11 @@ pub(crate) fn original_substitution_invocations(
                 frameless,
             })
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    Some(OriginalSubstitutionInventory {
+        calls,
+        unknown_residual: false,
+    })
 }
 
 pub(crate) fn statement_needs_original_substitution_inventory(statement: &Statement) -> bool {
@@ -436,6 +476,61 @@ mod tests {
             .find_map(|statement| script.retained_source_tokens_for_statement(statement))
             .expect("actual original invocation")
             .clone()
+    }
+
+    #[test]
+    fn authored_substitution_expansions_cannot_relabel_original_name_words() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "proc p {} {puts [info {*}{exists {$expanded}}]; puts [info {*}$dynamic]}",
+            &registry,
+        );
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        for statement in &procedure.body.statements {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(statement)
+                .unwrap();
+            let calls = original_substitution_invocations(tokens, &registry).unwrap();
+            assert!(calls.unknown_residual);
+            assert_eq!(calls.len(), 1);
+            assert!(!calls[0].frameless);
+            assert!(calls[0].invocation.is_none());
+        }
+    }
+
+    #[test]
+    fn authored_body_scope_substitutions_keep_actual_expr_names_and_unknown_execution() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "proc p {} {puts [info exists {$lexical}]; if {[info exists {$expression}]} {puts yes}; puts {[info exists {$inert}]}}",
+            &registry,
+        );
+        let (_, procedure) = module.original_source_procedure_bodies().next().unwrap();
+        for (statement, expected) in [(0, Some("$lexical")), (1, Some("$expression")), (2, None)] {
+            let tokens = procedure
+                .body
+                .retained_source_tokens_for_statement(&procedure.body.statements[statement])
+                .unwrap();
+            let calls = original_substitution_invocations(tokens, &registry)
+                .expect("actual Authored source substitution owner");
+            assert!(calls.unknown_residual);
+            match expected {
+                Some(expected) => {
+                    assert_eq!(calls.len(), 1);
+                    assert!(!calls[0].frameless);
+                    let names = calls[0].invocation.as_ref().unwrap();
+                    assert_eq!(names.argument_literal(1).as_deref(), Some(expected));
+                    assert!(names.has_unknown_residual());
+                }
+                None => assert!(calls.is_empty()),
+            }
+            let mut changed = tokens.clone();
+            changed.argv_texts[1].push_str(" changed");
+            assert!(original_substitution_invocations(&changed, &registry).is_none());
+            let foreign = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+            assert!(original_substitution_invocations(tokens, foreign).is_none());
+        }
     }
 
     #[test]

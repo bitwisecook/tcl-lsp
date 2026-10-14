@@ -1,0 +1,2 @@
+9.1.0 /workspace/tcl-lsp/tmp/tcl9.1.0/library 2.6.0
+source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl

@@ -45,7 +45,7 @@ impl Interp {
         &mut self,
         original: *mut TclObj,
     ) -> Result<Option<NsId>, ValueError> {
-        self.native_namespace_object_lookup_with_checks(original, None, None)
+        self.native_namespace_object_lookup_with_checks(self.current_ns(), original, None, None)
     }
 
     pub(super) fn native_namespace_object_lookup_using<E>(
@@ -55,12 +55,36 @@ impl Interp {
         refuse: &impl Fn(ValueError) -> E,
     ) -> Result<Option<NsId>, E> {
         crate::list::with_native_conversion_check(check, refuse, |stage, retain| {
-            self.native_namespace_object_lookup_with_checks(original, Some(stage), Some(retain))
+            self.native_namespace_object_lookup_with_checks(
+                self.current_ns(),
+                original,
+                Some(stage),
+                Some(retain),
+            )
+        })
+    }
+
+    /// Select an existing original-object lookup in the actual caller namespace.
+    pub(crate) fn native_namespace_object_lookup_at_using<E>(
+        &mut self,
+        namespace: NsId,
+        original: *mut TclObj,
+        check: &(impl Fn() -> Result<(), E> + ?Sized),
+        refuse: &impl Fn(ValueError) -> E,
+    ) -> Result<Option<NsId>, E> {
+        crate::list::with_native_conversion_check(check, refuse, |stage, retain| {
+            self.native_namespace_object_lookup_with_checks(
+                namespace,
+                original,
+                Some(stage),
+                Some(retain),
+            )
         })
     }
 
     fn native_namespace_object_lookup_with_checks(
         &mut self,
+        current: NsId,
         original: *mut TclObj,
         stage: Option<&dyn Fn() -> Result<(), ValueError>>,
         retain: Option<&dyn Fn(ValueError) -> ValueError>,
@@ -85,7 +109,6 @@ impl Interp {
             check()?;
         }
 
-        let current = self.current_ns();
         let dialect = self.native_invocation_dialect();
         let Some(protocol) = dialect.native_namespace_name_protocol() else {
             if obj::native_namespace_name::cache(original).is_some() {

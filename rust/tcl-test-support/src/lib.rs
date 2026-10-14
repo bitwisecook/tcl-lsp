@@ -346,10 +346,11 @@ pub fn run_script_from_source_tree(
     script: &[u8],
 ) -> Result<ScriptOutcome, OracleError> {
     let interpreter = tclsh_from_source_tree(source_tree, version)?;
-    run_script_with_library(
+    run_script_with_libraries(
         &interpreter.path,
         script,
         Some(source_tree.root.join("unix").as_path()),
+        Some(&source_tree.library_dir()),
     )
 }
 
@@ -606,11 +607,25 @@ fn run_script_with_library(
     script: &[u8],
     library_dir: Option<&Path>,
 ) -> Result<ScriptOutcome, OracleError> {
+    run_script_with_libraries(tclsh, script, library_dir, None)
+}
+
+fn run_script_with_libraries(
+    tclsh: &Path,
+    script: &[u8],
+    library_dir: Option<&Path>,
+    script_library: Option<&Path>,
+) -> Result<ScriptOutcome, OracleError> {
     let mut command = Command::new(tclsh);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if let Some(script_library) = script_library {
+        command
+            .env("TCL_LIBRARY", script_library)
+            .env_remove("TCLLIBPATH");
+    }
     if let Some(library_dir) = library_dir {
         let mut paths = vec![library_dir.to_owned()];
         if let Some(existing) = std::env::var_os("LD_LIBRARY_PATH") {
@@ -837,6 +852,56 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use tcl_dialect::TclVersion;
+
+    #[test]
+    fn source_tree_execution_selects_matching_original_init_and_tcltest() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut checked = 0;
+        for version in TclVersion::ALL {
+            let Some(tree) =
+                locate_source_tree(&root, version, None).expect("original source selection")
+            else {
+                assert!(
+                    !(super::requires_release(version)
+                        || std::env::var_os("TCL_LSP_REQUIRE_ALL_TCL_ORACLES").is_some()),
+                    "required original source tree {version:?}"
+                );
+                continue;
+            };
+            if !tree.root.join("unix/tclsh").is_file() {
+                assert!(
+                    !(super::requires_release(version)
+                        || std::env::var_os("TCL_LSP_REQUIRE_ALL_TCL_ORACLES").is_some()),
+                    "required original interpreter {version:?}"
+                );
+                continue;
+            }
+            let actual = super::run_script_from_source_tree(&tree, version,
+                b"puts [info patchlevel]\nputs [info library]\npackage require tcltest\nputs [package ifneeded tcltest [package present tcltest]]\n").expect("original source execution").strict_text().expect("original metadata output");
+            let lines = actual.lines().collect::<Vec<_>>();
+            assert!(lines.len() >= 3, "nonempty original metadata rows");
+            assert_eq!(lines[0], tree.patchlevel);
+            assert_eq!(Path::new(lines[1]), tree.library_dir());
+            assert!(
+                lines[2..].join("\n").contains(
+                    &tree
+                        .library_dir()
+                        .join("tcltest/tcltest.tcl")
+                        .to_string_lossy()
+                        .to_string()
+                )
+            );
+            checked += 1;
+        }
+        if std::env::var_os(super::REQUIRE_TCLSH).is_some()
+            || std::env::var_os("TCL_LSP_REQUIRE_ALL_TCL_ORACLES").is_some()
+        {
+            assert!(
+                checked > 0,
+                "required original provider list must be nonempty"
+            );
+        }
+    }
 
     /// `TCL_LSP_REQUIRE_TCLSH` names the releases it requires, or every
     /// release when it names none; unset, it requires none.

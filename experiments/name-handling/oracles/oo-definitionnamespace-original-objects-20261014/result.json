@@ -1,0 +1,16 @@
+[
+  {
+    "release": "9.0.4",
+    "exit_code": 0,
+    "stdout": "outer ::outer::dest\nother ::other::dest\nprimary 1\nrawzero ::outer::dest\nreset {}\n",
+    "stderr": "namespace \"dest\u0000tail\" not found in \"::outer\"\n",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library"
+  },
+  {
+    "release": "9.1.0",
+    "exit_code": 0,
+    "stdout": "outer ::outer::dest\nother ::other::dest\nprimary 1\nrawzero ::outer::dest\nreset {}\n",
+    "stderr": "namespace \"dest\u0000tail\" not found in \"::outer\"\n",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+  }
+]

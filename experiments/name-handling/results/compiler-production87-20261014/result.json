@@ -1,0 +1,24 @@
+{
+  "started_utc": "2026-10-14T11:29:56.082260+00:00",
+  "build": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "-j",
+      "1",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "exit_code": 101,
+    "seconds": 260.8803116079944,
+    "log": "build.log",
+    "timed_out": false
+  },
+  "run": null,
+  "finished_utc": "2026-10-14T11:34:20.340387+00:00",
+  "changed_sources": {}
+}

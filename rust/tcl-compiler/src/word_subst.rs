@@ -60,6 +60,68 @@ use tcl_registry::model::DocumentCommandSurface;
 
 use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
 
+/// Original lexical values used by single-command source emitters.
+/// These retain raw escapes and grouping; they grant no command binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SingleCommandSourcePart {
+    pub text: String,
+    pub braced: bool,
+    pub expand: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SingleCommandSourcePurpose {
+    Script,
+    CommandSubstitution,
+}
+
+/// Project one complete command through the shared configured word owner.
+/// Missing geometry, malformed tails and multiple commands remain unavailable.
+pub(crate) fn single_command_source_parts(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+    purpose: SingleCommandSourcePurpose,
+) -> Option<Vec<SingleCommandSourcePart>> {
+    let image = tcl_lexer::SourceImage::document(text);
+    let end = u32::try_from(text.len()).ok()?;
+    let region = if purpose == SingleCommandSourcePurpose::CommandSubstitution
+        && text.starts_with('[')
+        && text.ends_with(']')
+    {
+        Span::new(1, end.checked_sub(1)?)
+    } else {
+        Span::new(0, end)
+    };
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        image,
+        region,
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    if plan.fatal_tail.is_some() || plan.commands.len() > 1 {
+        return None;
+    }
+    let Some(command) = plan.commands.first() else {
+        return Some(Vec::new());
+    };
+    command
+        .words
+        .iter()
+        .map(|word| {
+            let span = word.content_span().ok()?;
+            let text = std::str::from_utf8(word.image().bytes().get(span.as_range())?)
+                .ok()?
+                .to_owned();
+            Some(SingleCommandSourcePart {
+                text,
+                braced: word.group().kind == tcl_lexer::WordKind::Braced,
+                expand: word.group().expand,
+            })
+        })
+        .collect()
+}
+
 /// How deep a nest of `[cmd [cmd …]]` this walks before giving up. Tcl's own
 /// parser caps nesting far above anything hand-written; this only has to stop
 /// a generated pathological input from recursing without bound.
@@ -151,6 +213,160 @@ pub(crate) fn checked_original_argument_lifted_calls(
             .original_argument_metadata_for_input(child, input, registry)?;
     }
     Some(calls)
+}
+
+/// One authentic lexical/Expr substitution in an immutable Authored body scope.
+/// The private receipt supplies source candidates, without a point or handler.
+pub(crate) struct OriginalAuthoredSourceSubstitutionWords {
+    words: Vec<tcl_lexer::NativeWord>,
+    registry: tcl_registry::RegistrySnapshot,
+    dialect: Option<tcl_registry::InvocationDialect>,
+    realm: tcl_dialect::model::InvocationRealm,
+}
+
+impl OriginalAuthoredSourceSubstitutionWords {
+    pub(crate) fn original_words(&self) -> &[tcl_lexer::NativeWord] {
+        &self.words
+    }
+    pub(crate) fn with_source_schema<T>(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+    ) -> Option<T> {
+        (registry.snapshot().semantic_key() == self.registry.semantic_key()).then_some(())?;
+        if self.words.iter().any(|word| word.group().expand) {
+            return None;
+        }
+        let values = self
+            .words
+            .iter()
+            .map(tcl_syntax::word_rules::original_static_word_unicode_value)
+            .collect::<Vec<_>>();
+        let word = |at: usize| {
+            if self.words[at].group().expand {
+                return tcl_registry::InvocationWord::Expanded;
+            }
+            values[at]
+                .as_deref()
+                .map_or(tcl_registry::InvocationWord::Dynamic, |bytes| {
+                    crate::registry_invocation::source_structure::source_schema_word(
+                        tcl_registry::InvocationWord::KnownBytes(bytes),
+                    )
+                })
+        };
+        let arguments = (1..self.words.len()).map(word).collect::<Vec<_>>();
+        let mut words = tcl_registry::InvocationWords::structured(word(0), &arguments);
+        if let Some(dialect) = self.dialect {
+            words = words.with_dialect(dialect);
+        }
+        let selected =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                self.registry.registry(),
+                None,
+                words,
+                self.realm,
+            );
+        apply(&selected.resolved()?)
+    }
+}
+
+/// Bounded original lexical and selected Expr substitutions in the held source scope.
+/// Source execution uncertainty remains independent even for an empty inventory.
+pub(crate) fn checked_authored_source_substitution_words(
+    tokens: &CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    scope: &crate::registry_invocation::OriginalAuthoredSourceBodyScope,
+) -> Option<Vec<OriginalAuthoredSourceSubstitutionWords>> {
+    let binding = tokens.source_binding.as_ref()?;
+    (binding.original_authored_source_body_scope_for_name_roles(tokens, registry) == Some(scope))
+        .then_some(())?;
+    let original = scope.original_words(tokens, registry)?;
+    let image = original.first()?.image().clone();
+    let config = scope.config();
+    let mut pending = vec![(tokens.clone(), original, 0)];
+    let mut seen = std::collections::HashSet::new();
+    let mut discovered =
+        std::collections::HashMap::from([(pending[0].1[0].span().start(), pending[0].1.clone())]);
+    let mut result = Vec::new();
+    while let Some((parent, original, depth)) = pending.pop() {
+        if depth > MAX_SUBSTITUTION_DEPTH {
+            return None;
+        }
+        let offset = original.first()?.span().start();
+        if !seen.insert(offset) {
+            continue;
+        }
+        let mut collected = LiftedCallCollection::default();
+        collect_command_words(parent.words(), config, None, 0, &mut collected);
+        let has_braced_commands = parent
+            .words()
+            .iter()
+            .any(|word| matches!(word, WordExpr::BracedLiteral { text, .. } if text.contains('[')));
+        if has_braced_commands {
+            let receipt = OriginalAuthoredSourceSubstitutionWords {
+                words: original,
+                registry: scope.retained_registry_snapshot().clone(),
+                dialect: scope.original_word_dialect(),
+                realm: scope.source_realm(),
+            };
+            let (roles, traits) = receipt.with_source_schema(registry, |schema| {
+                let (roles, complete) = schema.authored_source_argument_roles();
+                complete.then(|| {
+                    (
+                        roles
+                            .into_iter()
+                            .map(|(ordinal, role)| {
+                                (schema.facts().argument_offset + usize::from(ordinal), role)
+                            })
+                            .collect::<Vec<_>>(),
+                        schema.semantics.traits,
+                    )
+                })
+            })?;
+            collect_original_braced_expression_calls_in_image(
+                &parent,
+                config,
+                &image,
+                &roles,
+                traits,
+                &mut collected,
+            )?;
+        }
+        if collected.incomplete {
+            return None;
+        }
+        for call in collected.calls {
+            let child = call.tokens?;
+            if child.source_binding.is_some()
+                || child.synthetic.is_some()
+                || !child.original_words_match_argv_text()
+            {
+                return None;
+            }
+            let offset = child.words().first()?.source().span.start();
+            let words = crate::registry_invocation::original_native_compiler_words(
+                &image,
+                child.words(),
+                offset,
+                config,
+            )?;
+            if let Some(previous) = discovered.get(&offset) {
+                if previous != &words {
+                    return None;
+                }
+            } else {
+                discovered.insert(offset, words.clone());
+                result.push(OriginalAuthoredSourceSubstitutionWords {
+                    words: words.clone(),
+                    registry: scope.retained_registry_snapshot().clone(),
+                    dialect: scope.original_word_dialect(),
+                    realm: scope.source_realm(),
+                });
+                pending.push((child, words, depth + 1));
+            }
+        }
+    }
+    Some(result)
 }
 
 #[derive(Clone, Copy)]
@@ -458,6 +674,24 @@ fn collect_original_braced_expression_calls(
     traits: tcl_registry::Traits,
     collected: &mut LiftedCallCollection,
 ) -> Option<()> {
+    collect_original_braced_expression_calls_in_image(
+        tokens,
+        config,
+        site.source.source_image(),
+        roles,
+        traits,
+        collected,
+    )
+}
+
+fn collect_original_braced_expression_calls_in_image(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    image: &tcl_lexer::SourceImage,
+    roles: &[(usize, tcl_registry::ArgRole)],
+    traits: tcl_registry::Traits,
+    collected: &mut LiftedCallCollection,
+) -> Option<()> {
     let has_braced_commands = tokens
         .words()
         .iter()
@@ -476,12 +710,7 @@ fn collect_original_braced_expression_calls(
         let base = source.span.start().checked_add(1)?;
         let end = usize::try_from(base).ok()?.checked_add(text.len())?;
         if source.provenance != Provenance::Source
-            || site
-                .source
-                .source_image()
-                .bytes()
-                .get(usize::try_from(base).ok()?..end)
-                != Some(text.as_bytes())
+            || image.bytes().get(usize::try_from(base).ok()?..end) != Some(text.as_bytes())
         {
             return None;
         }
@@ -1486,6 +1715,106 @@ mod tests {
         let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, segment);
         bindings.stamp_original_tokens(&mut tokens);
         tokens
+    }
+
+    #[test]
+    fn single_command_parts_keep_selected_grammar_and_original_word_geometry() {
+        let tcl = tcl_lexer::LexerConfig::default();
+        let jim = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::find("jimtcl").unwrap().grammar,
+        );
+        let tcl_parts = single_command_source_parts(
+            "[list a\u{b}b]",
+            tcl,
+            SingleCommandSourcePurpose::CommandSubstitution,
+        )
+        .unwrap();
+        let jim_parts = single_command_source_parts(
+            "[list a\u{b}b]",
+            jim,
+            SingleCommandSourcePurpose::CommandSubstitution,
+        )
+        .unwrap();
+        assert_eq!(
+            tcl_parts
+                .iter()
+                .map(|part| part.text.as_str())
+                .collect::<Vec<_>>(),
+            ["list", "a", "b"]
+        );
+        assert_eq!(
+            jim_parts
+                .iter()
+                .map(|part| part.text.as_str())
+                .collect::<Vec<_>>(),
+            ["list", "a\u{b}b"]
+        );
+        let parts = single_command_source_parts(
+            r#"[list {a [inert]} "prefix[set x {]}]suffix" {*}$args]"#,
+            tcl,
+            SingleCommandSourcePurpose::CommandSubstitution,
+        )
+        .unwrap();
+        assert_eq!(
+            parts,
+            vec![
+                SingleCommandSourcePart {
+                    text: "list".into(),
+                    braced: false,
+                    expand: false
+                },
+                SingleCommandSourcePart {
+                    text: "a [inert]".into(),
+                    braced: true,
+                    expand: false
+                },
+                SingleCommandSourcePart {
+                    text: "prefix[set x {]}]suffix".into(),
+                    braced: false,
+                    expand: false
+                },
+                SingleCommandSourcePart {
+                    text: "$args".into(),
+                    braced: false,
+                    expand: true
+                },
+            ]
+        );
+        assert!(
+            single_command_source_parts(
+                "[list {missing]",
+                tcl,
+                SingleCommandSourcePurpose::CommandSubstitution
+            )
+            .is_none()
+        );
+        assert!(
+            single_command_source_parts(
+                "[list a; list b]",
+                tcl,
+                SingleCommandSourcePurpose::CommandSubstitution
+            )
+            .is_none()
+        );
+        assert!(
+            single_command_source_parts(
+                r#"[list "a"b]"#,
+                tcl,
+                SingleCommandSourcePurpose::CommandSubstitution
+            )
+            .is_none()
+        );
+        let script =
+            single_command_source_parts("[set x]", tcl, SingleCommandSourcePurpose::Script)
+                .unwrap();
+        assert_eq!(script[0].text, "[set x]");
+        let substitution = single_command_source_parts(
+            "[set x]",
+            tcl,
+            SingleCommandSourcePurpose::CommandSubstitution,
+        )
+        .unwrap();
+        assert_eq!(substitution[0].text, "set");
     }
 
     #[test]

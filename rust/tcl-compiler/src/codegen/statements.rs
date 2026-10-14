@@ -22,7 +22,7 @@
 //! (assignments, calls, returns, barriers) with `startCommand`
 //! wrapping.
 
-use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts};
+use super::cmd_subst::{has_command_separator, is_pure_cmd_subst, parse_cmd_parts_with_config};
 use super::helpers::{SubstPart, parse_subst_template};
 use super::values::split_array_ref;
 use super::{CodegenCtx, Op, Operand};
@@ -1321,7 +1321,9 @@ impl CodegenCtx<'_> {
         ) {
             return false;
         }
-        let parts = parse_cmd_parts(value);
+        let Some(parts) = parse_cmd_parts_with_config(value, self.lexer_config()) else {
+            return false;
+        };
         let Some((head, _)) = parts.split_first() else {
             return false;
         };

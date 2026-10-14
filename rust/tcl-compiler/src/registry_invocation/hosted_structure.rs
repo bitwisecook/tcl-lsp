@@ -22,7 +22,7 @@ pub(crate) struct HostedStructuredInvocation {
     descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
     hook: tcl_registry::hooks::LoweringHookId,
     source_roles: Vec<(usize, tcl_registry::ArgRole)>,
-    case_bodies: Option<tcl_registry::CaseBodyOperands>,
+    case_bodies: Option<tcl_registry::case_bodies::CaseBodyOperands>,
 }
 
 pub(crate) fn original_hosted_structured_invocation(

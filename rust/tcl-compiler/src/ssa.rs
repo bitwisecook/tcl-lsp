@@ -577,6 +577,7 @@ pub struct SsaFunction {
     /// Shared reaching frame and cell bindings used by scalar and memory consumers.
     pub point_contexts: Option<PointResolveContexts>,
     read_references: HashMap<(BlockId, usize, SourceSite, String), SsaReadReference>,
+    source_read_references: HashMap<(BlockId, usize, SourceSite, String), SsaReadReference>,
     array_root_refresh_symbols: HashSet<Symbol>,
     array_root_refresh_versions: HashSet<(Symbol, Version)>,
 }
@@ -785,31 +786,15 @@ pub fn original_source_read_at_unit<'a>(
     let origin = positioned.source_origin()?;
     let mut selected: Option<OriginalSourceSsaRead<'a>> = None;
     for function in unit.all_body_function_units() {
-        if unit
-            .function_for_body(function.body_id)
-            .is_none_or(|current| !std::ptr::eq(current, function))
-            || function
-                .invocation_metadata_context_for_module(registry, module)
-                .is_none()
-            || function
-                .source_metadata_input()
-                .is_none_or(|held| held != input && held != &input.for_nested_source())
+        if !current_analysis_function(unit, function, registry) {
+            continue;
+        }
+        for ((block, index, source, spelling), reference) in function
+            .ssa
+            .read_references
+            .iter()
+            .chain(function.ssa.source_read_references.iter())
         {
-            continue;
-        }
-        if let Some(body) = function.body_id {
-            let Some(procedure) = unit.original_procedure_for_body(body) else {
-                continue;
-            };
-            if !retained.matches_original_procedure_summary(body, procedure)
-                || unit.original_procedure_cfg_for_body(body) != Some(&function.cfg)
-            {
-                continue;
-            }
-        } else if function.cfg != unit.cfg_module.top_level {
-            continue;
-        }
-        for ((block, index, source, spelling), reference) in &function.ssa.read_references {
             if source.provenance != crate::ir::Provenance::Source {
                 continue;
             }
@@ -853,16 +838,224 @@ pub fn original_source_read_at_unit<'a>(
             if !owner {
                 continue;
             }
+            let reference = function
+                .ssa
+                .read_references
+                .get(&(*block, *index, source.clone(), spelling.clone()))
+                .copied()
+                .unwrap_or(*reference);
             if selected.as_ref().is_some_and(|old| {
-                !std::ptr::eq(old.function, function) || old.reference != *reference
+                !std::ptr::eq(old.function, function) || old.reference != reference
             }) {
                 return None;
             }
             selected = Some(OriginalSourceSsaRead {
                 function,
                 span,
-                reference: *reference,
+                reference,
             });
+        }
+    }
+    selected
+}
+
+/// One exact source definition in the current compilation owner's analysis.
+/// Its SSA version supplies no physical cell, completed store or edit authority.
+pub struct OriginalAnalysisSsaDefinition<'a> {
+    function: &'a crate::compilation_unit::FunctionUnit,
+    span: tcl_lexer::Span,
+    symbol: Symbol,
+    version: Version,
+}
+impl<'a> OriginalAnalysisSsaDefinition<'a> {
+    /// Actual current function owning this definition.
+    #[must_use]
+    pub const fn function(&self) -> &'a crate::compilation_unit::FunctionUnit {
+        self.function
+    }
+    /// Exact original written variable operand extent.
+    #[must_use]
+    pub const fn span(&self) -> tcl_lexer::Span {
+        self.span
+    }
+    /// Symbol from this function's own source operation.
+    #[must_use]
+    pub const fn symbol(&self) -> Symbol {
+        self.symbol
+    }
+    /// Version at this represented definition, independently of subsequent writes.
+    #[must_use]
+    pub const fn version(&self) -> Version {
+        self.version
+    }
+}
+
+fn current_analysis_function(
+    unit: &crate::compilation_unit::CompilationUnit,
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &CommandRegistry,
+) -> bool {
+    let module = &unit.ir_module;
+    let Some(input) = module.source_metadata_input.as_ref() else {
+        return false;
+    };
+    let Some(retained) = module.retained_source_bindings.as_deref() else {
+        return false;
+    };
+    if module.source.try_text().ok() != Some(unit.source.as_str())
+        || retained.positioned_for_module(module, registry).is_none()
+        || unit
+            .function_for_body(function.body_id)
+            .is_none_or(|current| !std::ptr::eq(current, function))
+        || function
+            .invocation_metadata_context_for_module(registry, module)
+            .is_none()
+        || function
+            .source_metadata_input()
+            .is_none_or(|held| held != input && held != &input.for_nested_source())
+    {
+        return false;
+    }
+    match function.body_id {
+        Some(body) => unit
+            .original_procedure_for_body(body)
+            .is_some_and(|procedure| {
+                retained.matches_original_procedure_summary(body, procedure)
+                    && unit.original_procedure_cfg_for_body(body) == Some(&function.cfg)
+            }),
+        None => function.cfg == unit.cfg_module.top_level,
+    }
+}
+
+/// Select a represented source definition by its exact current written occurrence.
+/// Source body purposes remain separate from physical Native definition receipts.
+#[must_use]
+pub fn original_analysis_definition_at_unit<'a>(
+    unit: &'a crate::compilation_unit::CompilationUnit,
+    span: tcl_lexer::Span,
+    registry: &CommandRegistry,
+) -> Option<OriginalAnalysisSsaDefinition<'a>> {
+    let module = &unit.ir_module;
+    let input = module.source_metadata_input.as_ref()?;
+    let retained = module.retained_source_bindings.as_deref()?;
+    let positioned = retained.positioned_for_module(module, registry)?;
+    let origin = positioned.source_origin()?;
+    let mut selected: Option<OriginalAnalysisSsaDefinition<'a>> = None;
+    for function in unit.all_body_function_units() {
+        if !current_analysis_function(unit, function, registry) {
+            continue;
+        }
+        for (&block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let view = SsaSourceView::at_statement(&function.ssa, block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    continue;
+                };
+                let mut original = tokens.clone();
+                crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+                let Some(binding) = original.source_binding.as_ref() else {
+                    continue;
+                };
+                let mut definitions = Vec::new();
+                if binding.has_original_native_source_command() {
+                    let Some(body) = function.body_id else {
+                        continue;
+                    };
+                    for (&symbol, &version) in &statement.defs {
+                        if let Some(name) =
+                            view.original_source_definition_for_body(symbol, unit, body, registry)
+                        {
+                            definitions.push((name.span(), symbol, version));
+                        }
+                    }
+                } else if input.has_logical_source_name_context() {
+                    let words = if binding.has_original_logical_source_advice() {
+                        let Some(words) =
+                            binding.original_logical_source_words(&original, input, registry)
+                        else {
+                            continue;
+                        };
+                        if !matches!(words.source(), crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+                            if std::sync::Arc::ptr_eq(&advice.site().source, origin))
+                        {
+                            continue;
+                        }
+                        words
+                    } else {
+                        let Some(words) = crate::registry_invocation::source_structure::original_logical_registry_words_for_module(module, registry, &original) else { continue; };
+                        words
+                    };
+                    for (argument, role) in words.written_argument_roles() {
+                        if role != tcl_registry::ArgRole::VarWrite {
+                            continue;
+                        }
+                        let Some(word) = original.words().get(argument + 1) else {
+                            continue;
+                        };
+                        let operand = words
+                            .operands()
+                            .iter()
+                            .flatten()
+                            .find(|operand| operand.span() == word.source().span);
+                        let Some(name) = operand.and_then(|operand| operand.input()) else {
+                            continue;
+                        };
+                        let Ok(name) = std::str::from_utf8(name.bytes()) else {
+                            continue;
+                        };
+                        let Some(symbol) = view.symbol(name) else {
+                            continue;
+                        };
+                        let Some(&version) = statement.defs.get(&symbol) else {
+                            continue;
+                        };
+                        if statement.may_defs.contains(&symbol) {
+                            continue;
+                        }
+                        definitions.push((word.source().span, symbol, version));
+                    }
+                } else {
+                    let metadata =
+                        function.invocation_metadata_context_for_module(registry, module)?;
+                    for (&symbol, &version) in &statement.defs {
+                        if statement.may_defs.contains(&symbol) {
+                            continue;
+                        }
+                        if let Some(name) = view.original_definition_name_with_metadata_context(
+                            symbol,
+                            registry,
+                            Some(metadata),
+                        ) {
+                            let offset = function.base_offset;
+                            let start =
+                                u32::try_from(i64::from(name.span().start()).checked_add(offset)?)
+                                    .ok()?;
+                            let end =
+                                u32::try_from(i64::from(name.span().end()).checked_add(offset)?)
+                                    .ok()?;
+                            definitions.push((tcl_lexer::Span::new(start, end), symbol, version));
+                        }
+                    }
+                }
+                for (definition_span, symbol, version) in definitions {
+                    if definition_span != span {
+                        continue;
+                    }
+                    if selected.as_ref().is_some_and(|old| {
+                        !std::ptr::eq(old.function, function)
+                            || old.symbol != symbol
+                            || old.version != version
+                    }) {
+                        return None;
+                    }
+                    selected = Some(OriginalAnalysisSsaDefinition {
+                        function,
+                        span,
+                        symbol,
+                        version,
+                    });
+                }
+            }
         }
     }
     selected
@@ -2373,6 +2566,7 @@ impl SsaFunction {
             point_symbols: HashMap::new(),
             point_contexts: None,
             read_references: HashMap::new(),
+            source_read_references: HashMap::new(),
             array_root_refresh_symbols: HashSet::new(),
             array_root_refresh_versions: HashSet::new(),
             unseen_call_versions: HashSet::new(),
@@ -5970,6 +6164,86 @@ fn retained_read_references(
     references
 }
 
+fn retained_source_read_references(
+    points: &PointResolveContexts,
+    blocks: &HashMap<BlockId, SsaBlock>,
+    symbols: &HashMap<(BlockId, usize), HashMap<String, Symbol>>,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> HashMap<(BlockId, usize, SourceSite, String), SsaReadReference> {
+    let mut references = HashMap::new();
+    let mut scanner = VarReferenceScanner::with_config(
+        VarScanOptions {
+            include_var_read_roles: false,
+            recurse_cmd_substitutions: false,
+            include_reads_before_write: false,
+            element_qualified: true,
+        },
+        config,
+    );
+    for (&(block, index), tokens) in points.source_token_inventory() {
+        if tokens.synthetic.is_some() || !tokens.evaluates_words() {
+            continue;
+        }
+        let Some(names) = symbols.get(&(block, index)) else {
+            continue;
+        };
+        let Some(body) = blocks.get(&block) else {
+            continue;
+        };
+        let mut retain = |spelling: &str, source: &SourceSite| {
+            if source.provenance != crate::ir::Provenance::Source {
+                return;
+            }
+            let read_names = scanner.scan_lexical_word(spelling, registry);
+            let mut selected = read_names.iter();
+            let Some(name) = selected.next() else {
+                return;
+            };
+            if selected.next().is_some() {
+                return;
+            }
+            let Some(&symbol) = names.get(name) else {
+                return;
+            };
+            let represented = if index == usize::MAX {
+                body.exit_versions.contains_key(&symbol)
+            } else {
+                body.statements
+                    .get(index)
+                    .is_some_and(|statement| statement.uses.contains_key(&symbol))
+            };
+            if represented {
+                references.insert(
+                    (block, index, source.clone(), spelling.to_owned()),
+                    SsaReadReference {
+                        symbol,
+                        version: None,
+                    },
+                );
+            }
+        };
+        for word in tokens.words() {
+            match word {
+                WordExpr::Variable { spelling, source } => retain(spelling, source),
+                WordExpr::Template {
+                    parts,
+                    rejected: None,
+                    ..
+                } => {
+                    for part in parts {
+                        if let WordPart::Variable { spelling, source } = part {
+                            retain(spelling, source);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    references
+}
+
 fn retain_cached_input_references(
     points: &PointResolveContexts,
     references: &mut HashMap<(BlockId, usize, SourceSite, String), SsaReadReference>,
@@ -6400,6 +6674,68 @@ impl<'a> RenameWalk<'a> {
                         .or_insert_with(|| self.interner.intern(&bound));
                 } else {
                     self.unknown_source_names.insert(name);
+                }
+            }
+        }
+        if let Some(input) = self
+            .metadata
+            .and_then(|metadata| metadata.source_analysis_input())
+            && let Some(tokens) = self.points.source_tokens_at(point.0, point.1)
+            && let Some(binding) = tokens.source_binding.as_ref()
+        {
+            let words = if binding.has_original_logical_source_advice() {
+                binding
+                    .original_logical_source_input_for_name_roles(tokens, registry)
+                    .filter(|held| *held == input || &held.for_nested_source() == input)
+                    .and_then(|held| binding.original_logical_source_words(tokens, held, registry))
+            } else if binding.has_original_native_source_command() {
+                binding
+                    .original_native_source_input_for_name_roles(tokens, registry)
+                    .filter(|held| *held == input || &held.for_nested_source() == input)
+                    .and_then(|held| binding.original_native_source_words(tokens, held, registry))
+            } else {
+                None
+            };
+            if let Some(words) = words {
+                for (argument, role) in words.written_argument_roles() {
+                    if role != tcl_registry::ArgRole::VarWrite {
+                        continue;
+                    }
+                    let Some(word) = tokens.words().get(argument + 1) else {
+                        continue;
+                    };
+                    let Some(input) = words
+                        .operands()
+                        .iter()
+                        .flatten()
+                        .find(|operand| operand.span() == word.source().span)
+                        .and_then(|operand| operand.input())
+                    else {
+                        continue;
+                    };
+                    let Ok(name) = std::str::from_utf8(input.bytes()) else {
+                        continue;
+                    };
+                    if !defs_of_in_context(
+                        stmt,
+                        Some(SsaInvocationContext::supplied(registry, self.metadata)),
+                    )
+                    .iter()
+                    .any(|defined| defined == name)
+                    {
+                        continue;
+                    }
+                    let after = self.points.after_statement(point.0, point.1);
+                    if let Some(bound) = definition_source_name(stmt, name, after, registry) {
+                        let symbol = self.interner.intern(&bound);
+                        if source_symbols
+                            .insert(name.to_owned(), symbol)
+                            .is_some_and(|old| old != symbol)
+                        {
+                            source_symbols.remove(name);
+                            self.unknown_source_names.insert(name.to_owned());
+                        }
+                    }
                 }
             }
         }
@@ -7161,6 +7497,13 @@ fn build_ssa_inner(
         registry,
         &walk.value_clobbers,
     );
+    let source_read_references = retained_source_read_references(
+        &walk.points,
+        &ssa_blocks,
+        &walk.point_symbols,
+        registry,
+        config,
+    );
     let array_refresh = array_root_refresh_metadata(
         func.entry,
         &elems,
@@ -7202,6 +7545,7 @@ fn build_ssa_inner(
         point_symbols: walk.point_symbols,
         point_contexts: Some(walk.points),
         read_references,
+        source_read_references,
         array_root_refresh_symbols: array_refresh.symbols,
         array_root_refresh_versions: array_refresh.versions,
         unseen_call_versions,
@@ -8173,6 +8517,7 @@ mod tests {
             point_symbols: HashMap::new(),
             point_contexts: None,
             read_references: HashMap::new(),
+            source_read_references: HashMap::new(),
             array_root_refresh_symbols: HashSet::new(),
             array_root_refresh_versions: HashSet::new(),
             unseen_call_versions: HashSet::new(),
@@ -13011,5 +13356,130 @@ mod original_source_read_selector_tests {
             panic!("actual original procedure function");
         }
         assert!(original_source_read_at_unit(&missing, span, context.commands()).is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_analysis_definition_selector_tests {
+    use super::*;
+
+    fn unit(
+        source: &str,
+    ) -> (
+        crate::compilation_unit::CompilationUnit,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let entry =
+            crate::command_binding::SourceAnalysisEntry::for_logical_source(&input).unwrap();
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                config,
+                dialect: Some(profile),
+                defer_top_level: false,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (unit, context)
+    }
+
+    #[test]
+    fn original_analysis_definitions_preserve_occurrence_versions_and_current_body_owner() {
+        let source = "set value TOP\nproc p {} {set value 123; set value TEXT; return $value}\n";
+        let (unit, context) = unit(source);
+        let definitions = source
+            .match_indices("set value")
+            .map(|(offset, _)| {
+                let span = tcl_lexer::Span::new(offset as u32 + 4, offset as u32 + 9);
+                original_analysis_definition_at_unit(&unit, span, context.commands())
+                    .expect("exact genuine source definition")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(definitions.len(), 3);
+        assert!(std::ptr::eq(definitions[0].function(), &unit.top_level));
+        assert!(std::ptr::eq(
+            definitions[1].function(),
+            definitions[2].function()
+        ));
+        assert!(!std::ptr::eq(
+            definitions[0].function(),
+            definitions[1].function()
+        ));
+        assert_eq!(definitions[1].symbol(), definitions[2].symbol());
+        assert_ne!(definitions[1].version(), definitions[2].version());
+        let span = definitions[1].span();
+        assert!(
+            original_analysis_definition_at_unit(
+                &unit,
+                tcl_lexer::Span::new(span.start() + 1, span.end()),
+                context.commands()
+            )
+            .is_none()
+        );
+        let body = definitions[1].function().body_id.unwrap();
+        for formals in [false, true] {
+            let mut changed = unit.clone();
+            let procedure = changed
+                .ir_module
+                .procedures
+                .get_mut(&body)
+                .or_else(|| changed.ir_module.body_units.get_mut(&body))
+                .unwrap();
+            if formals {
+                procedure.params.push("added".into());
+            } else {
+                procedure.body_source = Some("return OTHER".into());
+            }
+            assert!(
+                original_analysis_definition_at_unit(&changed, span, context.commands()).is_none()
+            );
+        }
+        let mut missing = unit.clone();
+        missing
+            .procedures
+            .get_mut(&body)
+            .or_else(|| missing.body_units.get_mut(&body))
+            .unwrap()
+            .source_metadata_input = None;
+        assert!(original_analysis_definition_at_unit(&missing, span, context.commands()).is_none());
+        let mut stale = unit.clone();
+        stale.source.push(' ');
+        assert!(original_analysis_definition_at_unit(&stale, span, context.commands()).is_none());
+    }
+
+    #[test]
+    fn readonly_source_reads_withhold_unrepresented_contents_versions() {
+        let source = "proc p {} {set value TEXT; return $value}\n";
+        let (unit, context) = unit(source);
+        let offset = source.find("$value").unwrap() as u32;
+        let read = original_source_read_at_unit(
+            &unit,
+            tcl_lexer::Span::new(offset, offset + 6),
+            context.commands(),
+        )
+        .expect("genuine readonly source read occurrence");
+        assert!(read.function().body_id.is_some());
+        assert_eq!(read.version(), None);
+        assert!(
+            read.function()
+                .ssa
+                .source_read_references
+                .values()
+                .any(|reference| reference.symbol == read.symbol())
+        );
     }
 }

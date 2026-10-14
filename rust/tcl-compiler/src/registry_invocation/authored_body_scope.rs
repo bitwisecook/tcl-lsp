@@ -130,6 +130,16 @@ impl OriginalAuthoredSourceBodyScope {
         Some(Arc::from(plan.commands))
     }
 
+    pub(crate) fn original_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        self.dialect
+    }
+    pub(crate) fn source_realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.realm
+    }
+    pub(crate) fn retained_registry_snapshot(&self) -> &RegistrySnapshot {
+        &self.registry
+    }
+
     pub(crate) fn registry(&self) -> &CommandRegistry {
         self.registry.registry()
     }

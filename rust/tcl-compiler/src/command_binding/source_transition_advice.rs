@@ -1233,6 +1233,55 @@ impl AdviceGraph {
         blocked || cycle == Ok(true)
     }
 
+    /// An original Logical scope can retain a possible named catalogue after
+    /// unclosed effects. Its uncertainties remain attached to the source advice.
+    fn readonly_logical_source_candidate(
+        &self,
+        head: &SourceAdviceNameInput,
+        original: &[NativeWord],
+        scope: &Arc<super::source_declared_command::OriginalDeclaredLogicalBodyContext>,
+    ) -> Option<(
+        String,
+        Vec<SourceAdviceWord>,
+        Vec<Arc<OriginalSourceCommandTransition>>,
+    )> {
+        let AdviceNamingPolicy::Logical(input) = &self.policy else {
+            return None;
+        };
+        if self.uncertain_operations.is_empty()
+            || !scope.matches_input(input)
+            || !scope.owns_words(original)
+            || self.logical_namespace.as_ref() != Some(scope.namespace_recipe())
+            || original.first()?.group().expand
+            || head.logical_input().is_none()
+            || tcl_syntax::naming::is_qualified(head.bytes())
+            || self.blocks_registry_source(head)
+        {
+            return None;
+        }
+        let local = tcl_syntax::naming::authored_source_command_slot(
+            scope.namespace_recipe(),
+            head.bytes(),
+        )?;
+        let key = tcl_syntax::naming::authored_source_command_slot(
+            &ByteNamespacePath::root(),
+            head.bytes(),
+        )?;
+        let AdviceCell::Descriptor(command, lineage) = self.cells.get(&key)? else {
+            return None;
+        };
+        if !lineage.is_empty() {
+            return None;
+        }
+        match self.cells.get(&local) {
+            None | Some(AdviceCell::Deleted) => {}
+            Some(AdviceCell::Descriptor(local_command, local_lineage))
+                if local_command == command && local_lineage.is_empty() => {}
+            _ => return None,
+        }
+        Some((command.clone(), Vec::new(), Vec::new()))
+    }
+
     fn resolve(
         &self,
         input: &SourceAdviceNameInput,

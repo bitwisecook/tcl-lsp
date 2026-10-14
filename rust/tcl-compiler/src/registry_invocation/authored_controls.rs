@@ -287,13 +287,19 @@ mod tests {
                 .unwrap();
             assert!(original_authored_control_invocation(tokens, &registry).is_none());
         }
-        fn immediate(_: &[&str]) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+        fn immediate(
+            _: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
             vec![(1, tcl_registry::ScriptTiming::SameInvocation)]
         }
-        fn deferred(_: &[&str]) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+        fn deferred(
+            _: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
             vec![(1, tcl_registry::ScriptTiming::Deferred)]
         }
-        fn reference(_: &[&str]) -> Vec<(u8, tcl_registry::ScriptTiming)> {
+        fn reference(
+            _: tcl_registry::InvocationArguments<'_>,
+        ) -> Vec<(u8, tcl_registry::ScriptTiming)> {
             vec![(1, tcl_registry::ScriptTiming::ReferenceOnly)]
         }
         for (timing, expected) in [

@@ -555,8 +555,9 @@ impl LogicalBodyWalk<'_, '_> {
             .flatten();
         let operand_barrier =
             self.retain_deferred_operand_header(tape, graph, native, &head, (scope, depth))?;
-        let Some((selected, mut arguments, lineage)) =
-            original_selection.or_else(|| graph.resolve(&head))
+        let Some((selected, mut arguments, lineage)) = original_selection
+            .or_else(|| graph.resolve(&head))
+            .or_else(|| graph.readonly_logical_source_candidate(&head, native, scope))
         else {
             graph.widen(native);
             return Some(());
@@ -1286,5 +1287,65 @@ mod tests {
         let mut missing = analyse_source(source);
         missing.resolved_input = None;
         assert!(words_at(source, &missing, "list puts").is_none());
+    }
+    #[test]
+    fn uncertain_logical_parent_keeps_possible_body_syntax_without_caller_or_handler_closure() {
+        let source = "namespace eval N {proc p {} {uplevel 1 {puts $relative}; uplevel 1 {puts $::Target::x}}}";
+        let analysis = analyse_source(source);
+        let words = words_at(source, &analysis, "uplevel 1 {puts $::Target::x}").unwrap();
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            panic!("original conditional source advice")
+        };
+        assert!(!advice.uncertain_operations().is_empty());
+        assert_eq!(
+            advice.logical_source_input(),
+            analysis.resolved_input.as_ref()
+        );
+        let scope = advice.logical_source_scope().unwrap();
+        assert!(scope.owns_words(advice.original_words()));
+        assert_eq!(
+            words.roles(),
+            Some([(1, tcl_registry::ArgRole::Body)].as_slice())
+        );
+        let context = analysis.resolved_input.as_ref().unwrap().context_registry();
+        let bodies = words.source_script_bodies(&context);
+        assert_eq!(bodies.len(), 1);
+        assert_eq!(
+            &source[bodies[0].content_span().as_range()],
+            "puts $::Target::x"
+        );
+        assert!(
+            words_at(source, &analysis, "puts $::Target::x").is_none(),
+            "unknown caller never obtains a child lookup namespace"
+        );
+        let altered = format!("{source} ");
+        assert!(words_at(&altered, &analysis, "uplevel 1 {puts $::Target::x}").is_none());
+        for source in [
+            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {proc p {} {uplevel 1 {}; routed 1 {puts $::Target::x}}}",
+            "namespace eval N {}; rename ::if ::N::routed; namespace eval N {namespace export routed}; namespace eval Use {namespace import ::N::routed; proc p {} {uplevel 1 {}; routed 1 {puts $::Target::x}}}",
+        ] {
+            let analysis = analyse_source(source);
+            let selected = words_at(source, &analysis, "routed 1 {puts $::Target::x}").unwrap();
+            assert_eq!(selected.command(), "if");
+            let OriginalRegistrySource::SourceTransitions(advice) = selected.source() else {
+                panic!("authentic selected moved/imported descriptor")
+            };
+            assert!(!advice.lineage().is_empty());
+        }
+        for source in [
+            "namespace eval N {proc p {} {uplevel 1 {}; proc uplevel args {}; uplevel 1 {puts $::Target::x}}}",
+            "namespace eval N {proc p {} {uplevel 1 {}; unregistered 1 {puts $::Target::x}}}",
+            "namespace eval N {proc p {} {uplevel 1 {}; $head 1 {puts $::Target::x}}}",
+        ] {
+            let analysis = analyse_source(source);
+            let fragment = if source.contains("unregistered 1") {
+                "unregistered 1 {puts $::Target::x}"
+            } else if source.contains("$head 1") {
+                "$head 1 {puts $::Target::x}"
+            } else {
+                "uplevel 1 {puts $::Target::x}"
+            };
+            assert!(words_at(source, &analysis, fragment).is_none(), "{source}");
+        }
     }
 }

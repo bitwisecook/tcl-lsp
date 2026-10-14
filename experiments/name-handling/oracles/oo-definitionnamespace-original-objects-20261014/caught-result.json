@@ -1,0 +1,26 @@
+[
+  {
+    "release": "9.0.4",
+    "exit_code": 0,
+    "stdout": "outer ::outer::dest\nother ::other::dest\nprimary 1\nrawzero-error 1 6e616d657370616365202264657374007461696c22206e6f7420666f756e6420696e20223a3a6f7574657222 {TCL LOOKUP NAMESPACE dest\u0000tail}\nrawzero ::outer::dest\nreset {}\n",
+    "stderr": "",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "hashes": {
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "b791c92bc6fb4d49e7f65fcc54bdc0f5459cabf80f884720dc3a661693d6dd29",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67"
+    }
+  },
+  {
+    "release": "9.1.0",
+    "exit_code": 0,
+    "stdout": "outer ::outer::dest\nother ::other::dest\nprimary 1\nrawzero-error 1 6e616d657370616365202264657374007461696c22206e6f7420666f756e6420696e20223a3a6f7574657222 {TCL LOOKUP NAMESPACE dest\u0000tail}\nrawzero ::outer::dest\nreset {}\n",
+    "stderr": "",
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+    "hashes": {
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "673f3a3c6186b8e03747bb48c109acf99048160ec024cf1c258f60aecd24cbb1",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/library/tcltest/tcltest.tcl": "0113aee4c0edbd2d6f0235693d24dc896a7ad30f8eb30f255ef24a1d2982d311"
+    }
+  }
+]

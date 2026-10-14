@@ -4462,7 +4462,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     pub fn authored_source_case_clause_projection(
         &self,
         source_values: tcl_syntax::word_rules::WordValueRules,
-    ) -> Option<crate::CaseBodyOperands> {
+    ) -> Option<crate::case_bodies::CaseBodyOperands> {
         if self.semantics.argument_offset != 0 {
             return None;
         }

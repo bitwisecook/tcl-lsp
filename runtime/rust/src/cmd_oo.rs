@@ -3208,7 +3208,10 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let stored = if ns_arg.is_empty() {
             None
         } else {
-            match interp.oo_outer_namespace_name(&ns_arg) {
+            let original = oo_checked!(interp, originals.original(argv.len() - 1));
+            let selected = oo_checked!(interp, interp.oo_outer_namespace_name(original, originals));
+            oo_checked!(interp, target_owner.check(interp));
+            match selected {
                 Some(qn) => Some(qn),
                 None => {
                     let mut m = b"namespace \"".to_vec();
@@ -10289,6 +10292,45 @@ mod tests {
                 Code::Error,
             );
         });
+    }
+
+    #[test]
+    fn definitionnamespace_uses_original_namespace_object_in_each_outer_context() {
+        for version in [tcl_dialect::TclVersion::V9_0, tcl_dialect::TclVersion::V9_1] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                ok(i, b"namespace eval ::dest {}; namespace eval ::outer {namespace eval dest {}; oo::class create C}; namespace eval ::other {namespace eval dest {}; oo::class create C}; set name dest");
+                ok(
+                    i,
+                    b"namespace eval ::outer {oo::define C definitionnamespace $::name}",
+                );
+                assert_eq!(
+                    ok(i, b"info class definitionnamespace ::outer::C"),
+                    b"::outer::dest"
+                );
+                ok(i, b"set name");
+                assert!(matches!(
+                    obj::native_object_snapshot(i.result_obj()).unwrap().cache,
+                    tcl_syntax::native_object::NativeObjectCacheSnapshot::NamespaceName {
+                        resolved: true,
+                        ..
+                    }
+                ));
+                ok(
+                    i,
+                    b"namespace eval ::other {oo::define C definitionnamespace $::name}",
+                );
+                assert_eq!(
+                    ok(i, b"info class definitionnamespace ::other::C"),
+                    b"::other::dest"
+                );
+                ok(
+                    i,
+                    b"namespace eval ::outer {oo::define C definitionnamespace {}}",
+                );
+                assert_eq!(ok(i, b"info class definitionnamespace ::outer::C"), b"");
+            });
+        }
     }
 
     #[test]

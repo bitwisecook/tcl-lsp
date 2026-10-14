@@ -1,0 +1,20 @@
+{
+  "release": "8.5.19",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/tcltest-shared-frame/probe.tcl"
+  ],
+  "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+  "TCLLIBPATH": null,
+  "metadata_exit": 0,
+  "process_exit": 0,
+  "observed_library_matches": true,
+  "observed_loader_matches": true,
+  "same_original_stdout": true,
+  "hashes": {
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+    "/workspace/tcl-lsp/experiments/name-handling/tcltest-shared-frame/probe.tcl": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef"
+  }
+}

@@ -151,6 +151,39 @@ pub(crate) fn original_source_name_roles(
     })
 }
 
+pub(crate) fn original_authored_substitution_name_roles(
+    receipt: &crate::word_subst::OriginalAuthoredSourceSubstitutionWords,
+    registry: &CommandRegistry,
+) -> Option<SourceNameRoleInventory> {
+    receipt.with_source_schema(registry, |schema| {
+        let facts = Box::new(schema.facts());
+        let (roles, roles_complete) = schema.authored_source_argument_roles();
+        let roles = roles
+            .into_iter()
+            .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
+            .collect();
+        let words = receipt.original_words();
+        let values = words
+            .iter()
+            .skip(1)
+            .map(|word| {
+                String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                    word,
+                )?)
+                .ok()
+            })
+            .collect();
+        Some(SourceNameRoleInventory {
+            facts,
+            values,
+            roles,
+            roles_complete,
+            config: words.first()?.config(),
+            unknown_residual: true,
+        })
+    })
+}
+
 fn from_authored_body_scope(
     scope: &super::OriginalAuthoredSourceBodyScope,
     tokens: &CommandTokens,

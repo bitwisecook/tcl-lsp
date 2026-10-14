@@ -1,0 +1,5 @@
+outer ::outer::dest
+other ::other::dest
+primary 1
+rawzero ::outer::dest
+reset {}

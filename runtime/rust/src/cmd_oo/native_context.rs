@@ -392,11 +392,21 @@ pub(super) fn definition_worker(
 }
 
 impl Interp {
-    pub(super) fn oo_outer_namespace_name(&self, name: &[u8]) -> Option<Vec<u8>> {
+    pub(super) fn oo_outer_namespace_name(
+        &mut self,
+        original: *mut TclObj,
+        originals: &OriginalArguments,
+    ) -> Result<Option<Vec<u8>>, tcl_cmd_core::CmdError> {
+        originals.check_for(self)?;
         let namespace = self.oo_outer_namespace();
-        let namespaces = self.namespaces();
-        let selected = namespaces.find_namespace(namespace, name)?;
-        Some(namespaces.qualified_name(selected))
+        let selected = self.native_namespace_object_lookup_at_using(
+            namespace,
+            original,
+            &|| originals.check(),
+            &|error| originals.retain_refusal(error.into()),
+        )?;
+        originals.check_for(self)?;
+        Ok(selected.map(|selected| self.namespaces().qualified_name(selected)))
     }
 
     pub(super) fn oo_outer_namespace(&self) -> NsId {

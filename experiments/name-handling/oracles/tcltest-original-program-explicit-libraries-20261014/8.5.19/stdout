@@ -1,0 +1,21 @@
+direct {1 0}
+captured-alias {1 0}
+
+
+==== stopped setup-error FAILED
+==== Contents of test case:
+set ::bodyEntered 1; list $unreached
+---- Test setup failed:
+stop
+---- errorInfo(setup): stop
+    while executing
+"error stop"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $setup"
+---- errorCode(setup): NONE
+==== stopped FAILED
+
+stopped-setup {0 1}
+opaque-result 0
+counts 4 3 1

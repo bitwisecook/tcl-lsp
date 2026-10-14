@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T11:26:24Z on `work`. The original47 actionable rows
+Current bounded snapshot: 2026-10-14T11:42:07Z on `work`. The original47 actionable rows
 and330 lexical candidates remain preserved; package membership and search
 absence do not certify semantic completion.
 
@@ -121,8 +121,9 @@ Current Runtime audit rows26 and29 already use shared owners: rename destination
 selection consumes the captured C protocol projection or original Jim input/key,
 and namespace import consumes shared import_metadata_in with actual command
 generation and optional direct ensemble token. Reporting FQNs supply no identity.
-OO definitionnamespace remains a concrete original object-namespace lookup
-migration; fixed authored ::oo::Helpers support is a separate path. These source
+OO definitionnamespace now consumes the original object-namespace lookup
+owner after source review; runtime replay remains required. Fixed authored
+::oo::Helpers support is a separate path. These source
 audit dispositions do not renew runtime execution acceptance.
 
 Core84 builds and seals71 controls at48 PASS/23 FAIL, zero source drift and no
@@ -139,7 +140,37 @@ those same facts. Native procedure issuance now precedes generic body catalogue
 retention only when the authentic issuer succeeds, preserving exact parent
 receipt checks. Live source dispatcher/loop stack factoring keeps all original
 ordering, effects, caps and depth budgets. These reviewed changes await actual
-producer and original budget controls. Authored substitution migration is held
-for expansion-to-original-ordinal correspondence. MCP85 records an original
+producer and original budget controls. Authored substitution migration includes actual expansion refusal before
+original ordinal correspondence; execution remains pending. MCP85 records an original
 provider init metadata mismatch before building or semantic capture; actual
 runner metadata correction is pending replay and supplies no MCP acceptance.
+
+Current source includes the reviewed Authored lexical/selected Expr substitution
+inventory, with terminal original expansion refusal before ordinal projection,
+unknown residual even when empty and no frameless child. OO definitionnamespace
+now uses the actual checked original argv object and outer definition context
+through the shared namespace-cache owner. Readonly SSA occurrences retain exact
+source geometry and actual symbols but no represented contents Version; analysis
+definitions separately retain actual VarWrite Symbol/Version under the complete
+current Module/function/CFG owner. The enum TYPE registration gate checks real
+accessible field types, independently of call/receiver routes. No private API
+is exposed to satisfy registration.
+
+Logical source catalogue candidates after prior uncertainty require the actual
+held scope/input/vector/namespace and static unqualified head. Known local
+Descriptor must match the immutable root command with empty lineage; existing
+moved/imported resolution retains authentic lineage. Unknown effects and caller
+namespace refusal remain attached. Oracle source-tree execution explicitly pins
+its matching original TCL_LIBRARY and removes external TCLLIBPATH. Configured
+codegen word projection now uses the shared lexical owner with distinct Script
+and CommandSubstitution purposes, declining incomplete geometry to runtime EVAL.
+These implementation changes require their original/new actual captures.
+
+Compiler87 seals build101 with zero semantic controls and zero source drift at
+three new test-only script-timing resolver signatures. The genuine
+InvocationArguments API correction preserves assertions. Compiler88 controls
+are planned but have no execution result in this snapshot. The latest completed
+results remain Compiler82:194 PASS/46 nonpassing across240, focused83:6 PASS/6 FAIL
+across12, Core84:48 PASS/23 FAIL across71. All original Core68 are retained and
+new minifier/linked controls pass. Native/certificate/source SSA producers,
+original #2286 timeout/import failure, depth budgets and DB reuse remain open.

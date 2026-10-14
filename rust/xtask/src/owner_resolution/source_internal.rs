@@ -364,6 +364,43 @@ impl CrateModules {
         Some(target.clone())
     }
 
+    fn enum_field_type_reference(&self, row: &Row, file: &syn::File) -> bool {
+        let mut candidates = file.items.iter().filter_map(|item| match item {
+            syn::Item::Enum(item) if item.ident == row.consumer_entry.as_str() => Some(item),
+            _ => None,
+        });
+        let Some(item) = candidates.next() else {
+            return false;
+        };
+        if candidates.next().is_some()
+            || !super::type_attrs_are_plain(&item.attrs)
+            || !supported_generics(&item.generics)
+            || item.variants.iter().any(|variant| {
+                !source_attrs_preserve_routes(&variant.attrs)
+                    || variant.discriminant.is_some()
+                    || variant
+                        .fields
+                        .iter()
+                        .any(|field| !source_attrs_preserve_routes(&field.attrs))
+            })
+        {
+            return false;
+        }
+        let mut references = EnumFieldTypeReferences {
+            modules: self,
+            module: &row.consumer_module,
+            target: format!("{}::{}", row.module, row.entry),
+            matched: false,
+            invalid: false,
+        };
+        for variant in &item.variants {
+            for field in &variant.fields {
+                references.visit_type(&field.ty);
+            }
+        }
+        references.matched && !references.invalid
+    }
+
     fn check_row(&self, row: &Row) -> bool {
         if !matches!(row.route.as_str(), "static" | "type" | "self")
             && ![
@@ -423,6 +460,12 @@ impl CrateModules {
                 .any(|parameter| !matches!(parameter, syn::GenericParam::Lifetime(_)))
         }) {
             return false;
+        }
+        if row.route == "type" && consumer.signature.is_none() {
+            if owner.signature.is_some() || owner.owner_type.is_some() {
+                return false;
+            }
+            return self.enum_field_type_reference(row, &consumer_module.file);
         }
         let Some(signature) = consumer.signature else {
             return false;
@@ -766,6 +809,43 @@ fn pattern_bindings(pattern: &syn::Pat) -> Option<BTreeSet<String>> {
 struct TypedReference {
     identity: String,
     origin: String,
+}
+
+struct EnumFieldTypeReferences<'a> {
+    modules: &'a CrateModules,
+    module: &'a str,
+    target: String,
+    matched: bool,
+    invalid: bool,
+}
+
+impl<'ast> Visit<'ast> for EnumFieldTypeReferences<'_> {
+    fn visit_type_macro(&mut self, _ty: &'ast syn::TypeMacro) {
+        self.invalid = true;
+    }
+
+    fn visit_type(&mut self, ty: &'ast syn::Type) {
+        if matches!(ty, syn::Type::Verbatim(_)) {
+            self.invalid = true;
+            return;
+        }
+        visit::visit_type(self, ty);
+    }
+
+    fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
+        if ty.qself.is_some() {
+            self.invalid = true;
+            return;
+        }
+        if self.modules.resolve(self.module, &ty.path, 0).as_ref() == Some(&self.target) {
+            if !supported_path_arguments(&ty.path) {
+                self.invalid = true;
+                return;
+            }
+            self.matched = true;
+        }
+        visit::visit_type_path(self, ty);
+    }
 }
 
 struct ConsumerReferences<'a> {
@@ -1269,6 +1349,57 @@ mod tests {
             route: route.into(),
         };
         (modules, row)
+    }
+
+    #[test]
+    fn source_enum_type_rows_require_actual_accessible_field_occurrences() {
+        for caller in [
+            "enum Selected { Owned(Box<super::owner::Ledger>) }",
+            "use super::owner::Ledger as Current; enum Selected { Owned { current: std::sync::Arc<Current> } }",
+            "enum Selected<'a> { Owned(&'a super::owner::Ledger) }",
+        ] {
+            let (modules, mut row) = fixture("pub(super) struct Ledger;", caller, "Ledger", "type");
+            row.consumer_entry = "Selected".into();
+            assert!(modules.check_row(&row), "{caller}");
+        }
+        for caller in [
+            "enum Selected { Empty }",
+            "struct Selected { value: super::owner::Ledger }",
+            "enum Selected<Ledger> { Owned(Ledger) }",
+            "enum Selected<const N: usize> { Owned(super::owner::Ledger) }",
+            "#[cfg(any())] enum Selected { Owned(super::owner::Ledger) }",
+            "#[custom] enum Selected { Owned(super::owner::Ledger) }",
+            "enum Selected { #[cfg(any())] Owned(super::owner::Ledger) }",
+            "enum Selected { Owned(#[cfg(any())] super::owner::Ledger) }",
+            "enum Selected { Owned(#[custom] super::owner::Ledger) }",
+            "type Alias = super::owner::Ledger; enum Selected { Owned(Alias) }",
+            "enum Selected { Owned(super::owner::Ledger<u8>) }",
+            "enum Selected { Owned(<super::owner::Ledger as Unknown>::Output) }",
+            "enum Selected { Owned(super::owner::Ledger), Unknown(select_type!()) }",
+            "enum Selected { Empty = 1, Owned(super::owner::Ledger) }",
+            "enum Selected { Owned(super::owner::Ledger) } enum Selected { Owned(super::owner::Ledger) }",
+        ] {
+            let (modules, mut row) = fixture("pub(super) struct Ledger;", caller, "Ledger", "type");
+            row.consumer_entry = "Selected".into();
+            assert!(!modules.check_row(&row), "{caller}");
+        }
+        let (modules, mut row) = fixture(
+            "struct Ledger;",
+            "enum Selected { Owned(super::owner::Ledger) }",
+            "Ledger",
+            "type",
+        );
+        row.consumer_entry = "Selected".into();
+        row.visibility = "private".into();
+        assert!(!modules.check_row(&row));
+        let (modules, mut row) = fixture(
+            "pub(super) struct Ledger;",
+            "enum Selected { Owned(super::owner::Ledger) }",
+            "Ledger",
+            "static",
+        );
+        row.consumer_entry = "Selected".into();
+        assert!(!modules.check_row(&row));
     }
 
     #[test]

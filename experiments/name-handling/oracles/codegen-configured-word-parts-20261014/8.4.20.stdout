@@ -1,0 +1,5 @@
+vertical {a b}
+nested 1 {extra characters after close-brace}
+actual
+materialized-script 0 {}
+welded-quote 1 {extra characters after close-quote}

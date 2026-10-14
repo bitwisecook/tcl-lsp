@@ -1,0 +1,5 @@
+vertical {{ab}}
+nested 0 {{a [inert]} prefix\]suffix one two}
+actual
+materialized-script 0 {}
+welded-quote 0 ab

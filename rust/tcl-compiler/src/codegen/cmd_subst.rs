@@ -145,181 +145,8 @@ pub fn has_command_separator(text: &str) -> bool {
     false
 }
 
-/// Split `[cmd arg1 ...]` into `(text, was_braced)` tuples.
-///
-/// `was_braced` is `true` when the original argument was wrapped
-/// in `{…}` (braces are stripped from the returned text). This
-/// lets the caller decide whether to re-wrap the value in braces.
-// Sequential character-walk parser; the brace / quote / bracket / escape
-/// Whether `byte` separates two words inside a `[…]` substitution body.
-///
-/// The one place this private splitter states the rule, delegating to the
-/// dialect owner rather than spelling out a byte set. It is pinned to
-/// [`WordSeparators::Tcl`] because that is what every caller is: each one is a
-/// [`CodegenCtx`] method compiling a document whose grammar the context
-/// already carries, and no dialect on the Tcl ladder moves this axis — only
-/// `JimTcl` does, by making `\v` a word character.
-///
-/// That is what makes this *ready* rather than *aware*: threading the
-/// document's axis is changing this constant to a parameter and passing
-/// `self`'s, not rewriting the scan. Kept a constant until a Jim-dialect
-/// caller exists, so the change lands with a test that can tell the
-/// difference.
-const fn is_word_sep(byte: u8) -> bool {
-    tcl_dialect::WordSeparators::Tcl.is_separator(byte)
-}
-
-/// Skip past a balanced `[...]` substitution starting at *i*.
-/// Returns the new cursor position past the matching `]`.
-fn skip_cmd_subst(bytes: &[u8], n: usize, mut i: usize) -> usize {
-    let mut depth: i32 = 0;
-    while i < n {
-        if bytes[i] == b'[' {
-            depth += 1;
-        } else if bytes[i] == b']' {
-            depth -= 1;
-            if depth == 0 {
-                i += 1;
-                break;
-            }
-        }
-        i += 1;
-    }
-    i
-}
-
-/// Parse one quoted-string `"..."` part starting at *i* (which
-/// points at the opening `"`).  Returns `(part_text, new_i)`.
-fn parse_quoted_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
-    i += 1;
-    let start = i;
-    while i < n && bytes[i] != b'"' {
-        if bytes[i] == b'\\' {
-            i += 1;
-        }
-        i += 1;
-    }
-    let part = text[start..i].to_owned();
-    if i < n {
-        i += 1; // skip closing "
-    }
-    (part, i)
-}
-
-/// Parse one braced `{...}` part starting at *i*.
-fn parse_braced_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
-    let mut depth: i32 = 1;
-    i += 1;
-    let start = i;
-    while i < n && depth > 0 {
-        if bytes[i] == b'\\' {
-            i += 2;
-            continue;
-        }
-        if bytes[i] == b'{' {
-            depth += 1;
-        } else if bytes[i] == b'}' {
-            depth -= 1;
-        }
-        if depth > 0 {
-            i += 1;
-        }
-    }
-    let part = text[start..i].to_owned();
-    if i < n {
-        i += 1; // skip closing }
-    }
-    (part, i)
-}
-
-/// Parse one bare word or `[cmd]`-substitution-rooted word starting
-/// at *i*.  Bare-word handling reads non-whitespace bytes;
-/// `[cmd]` mid-word is consumed as an opaque substitution.
-fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (String, usize) {
-    let start = i;
-    while i < n && !is_word_sep(bytes[i]) {
-        if bytes[i] == b'[' {
-            i = skip_cmd_subst(bytes, n, i);
-        } else if bytes[i] == b'\\' {
-            // A backslash escapes the next character, and an escaped blank is
-            // *word content*, not a separator: `a\ b` is one word whose value
-            // is `a b`. Splitting on it hands `string length` two arguments,
-            // so `[string length a\ b]` raises `wrong # args` where both
-            // oracles answer 3.
-            //
-            // `\<newline>` is the one exception — that really is a word
-            // separator ([`skip_word_seps`] owns it) — so the word ends before
-            // it and the caller consumes it.
-            if matches!(bytes.get(i + 1), Some(b'\n' | b'\r')) {
-                break;
-            }
-            i += 1;
-            // Over the whole escaped character, which may be multi-byte.
-            i += text[i..].chars().next().map_or(0, char::len_utf8);
-        } else {
-            i += 1;
-        }
-    }
-    (text[start..i].to_owned(), i)
-}
-
-/// Advance past inter-word separators inside a single command: horizontal
-/// whitespace (` `/`\t`) and a `\<newline>` line continuation (backslash, then
-/// `\n` or `\r\n`/`\r`, then any leading horizontal whitespace of the next
-/// line). A continuation is a word separator in Tcl — without skipping it the
-/// tokeniser mis-split a multi-line command's words (e.g. `string range $x \`
-/// <newline> `$i $j`), dropping an argument and raising a spurious
-/// "wrong # args" (tcltest's `SubstArguments` → info / lrepeat / lseq, and
-/// every test file using the `{-body … -result …}` dict form).
-fn skip_word_seps(bytes: &[u8], n: usize, mut i: usize) -> usize {
-    loop {
-        if i < n && is_word_sep(bytes[i]) {
-            i += 1;
-        } else if i + 1 < n && bytes[i] == b'\\' && (bytes[i + 1] == b'\n' || bytes[i + 1] == b'\r')
-        {
-            i += 2;
-            if i < n && bytes[i - 1] == b'\r' && bytes[i] == b'\n' {
-                i += 1; // `\r\n`
-            }
-        } else {
-            break;
-        }
-    }
-    i
-}
-
-/// Whether `body` is a body the *single-command* inline emitters
-/// ([`CodegenCtx::emit_catch_body`], [`CodegenCtx::emit_try_handler_body`])
-/// can compile.
-///
-/// Those emitters split the body into *words* with [`parse_cmd_parts`] and emit
-/// one command from them, so the body must be one command and nothing else.
-/// Two questions, because neither answers the whole thing:
-///
-/// * [`has_command_separator`] — is there a `;` or newline the *word splitter*
-///   would swallow into a word? A segment count does not catch this: both
-///   `{error boom;}` and `{# note<newline>error boom}` hold one command, while
-///   the splitter reads `boom;` as an argument and `#` as a command name.
-///   This is the same question, and the same owner, that
-///   [`CodegenCtx::emit_inline_cmd_subst`] already asks before deferring a
-///   multi-command substitution to `EVAL_STK`.
-/// * the segmenter — is there exactly one command at all? A body that is only
-///   a comment has no separator and no command, and must not reach an emitter
-///   that would take its `#` for a command name.
-///
-/// A `{*}` body is rejected outright: [`parse_cmd_parts`] has no expansion
-/// form, so it reads the prefix as a braced word and the emitters pass a
-/// literal `*` plus the unexpanded list (`catch {cfg {*}$a}` called
-/// `cfg * {-verbose b}`). The value-position dispatcher reaches for
-/// [`parse_cmd_parts_expand`] here; these emitters have no such path, so they
-/// decline instead.
-///
-/// An empty body is inlinable: the emitters push the empty result for it.
-///
-/// The caller must also have established that the body is a **braced** word.
-/// This reads the text the compiler can see, and an unbraced body
-/// (`catch $script`) merely *names* a script whose commands are not known
-/// until run time.
+/// Whether a braced script is eligible for a single-command inline emitter.
+/// Expansion, separators and incomplete command geometry use runtime evaluation.
 #[must_use]
 pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> bool {
     if body.trim().is_empty() {
@@ -332,120 +159,88 @@ pub fn is_single_command_body(body: &str, config: tcl_lexer::LexerConfig) -> boo
     matches!(segments.as_slice(), [only] if !only.is_partial)
 }
 
-/// Parse a command-substitution body into `(text, braced)` parts.
-/// `braced=true` means the text was a `{...}` literal — the caller
-/// should not interpolate it.  Strips the outer `[...]` if present.
+/// Default Tcl lexical projection for standalone callers.
 #[must_use]
 pub fn parse_cmd_parts(text: &str) -> Vec<(String, bool)> {
-    let text = text.trim();
-    let text = if text.starts_with('[') && text.ends_with(']') {
-        text[1..text.len() - 1].trim()
-    } else {
-        text
-    };
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut parts = Vec::new();
-    let mut i = 0;
-
-    while i < n {
-        i = skip_word_seps(bytes, n, i);
-        if i >= n {
-            break;
-        }
-        match bytes[i] {
-            b'"' => {
-                let (part, new_i) = parse_quoted_part(text, bytes, n, i);
-                parts.push((part, false));
-                i = new_i;
-            }
-            b'{' => {
-                let (part, new_i) = parse_braced_part(text, bytes, n, i);
-                parts.push((part, true));
-                i = new_i;
-            }
-            b'[' => {
-                let start = i;
-                i = skip_cmd_subst(bytes, n, i);
-                // Continue past trailing non-ws (e.g. ``[ns current]::foo``).
-                while i < n && !is_word_sep(bytes[i]) {
-                    if bytes[i] == b'[' {
-                        i = skip_cmd_subst(bytes, n, i);
-                    } else {
-                        i += 1;
-                    }
-                }
-                parts.push((text[start..i].to_owned(), false));
-            }
-            _ => {
-                let (part, new_i) = parse_bareword_part(text, bytes, n, i);
-                parts.push((part, false));
-                i = new_i;
-            }
-        }
-    }
-    parts
+    parse_cmd_parts_with_config(text, tcl_lexer::LexerConfig::default()).unwrap_or_default()
 }
 
-/// Like [`parse_cmd_parts`] but also flags `{*}`-expansion words. Each tuple is
-/// `(text, braced, expand)`: `expand` is true when the word carried a leading
-/// `{*}` prefix (stripped from `text`). A `{*}` *not* immediately followed by
-/// word content (`{*}` then a space / end) is a literal braced `*`, not an
-/// expansion — matching Tcl's `{*}` rule.
+pub(super) fn parse_cmd_parts_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(String, bool)>> {
+    let parts = crate::word_subst::single_command_source_parts(
+        text,
+        config,
+        crate::word_subst::SingleCommandSourcePurpose::CommandSubstitution,
+    )?;
+    if parts.iter().any(|part| part.expand) {
+        return None;
+    }
+    Some(
+        parts
+            .into_iter()
+            .map(|part| (part.text, part.braced))
+            .collect(),
+    )
+}
+
+pub(super) fn parse_script_parts_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(String, bool)>> {
+    let parts = crate::word_subst::single_command_source_parts(
+        text,
+        config,
+        crate::word_subst::SingleCommandSourcePurpose::Script,
+    )?;
+    if parts.iter().any(|part| part.expand) {
+        return None;
+    }
+    Some(
+        parts
+            .into_iter()
+            .map(|part| (part.text, part.braced))
+            .collect(),
+    )
+}
+
+pub(super) fn parse_script_parts_expand_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(String, bool, bool)>> {
+    Some(
+        crate::word_subst::single_command_source_parts(
+            text,
+            config,
+            crate::word_subst::SingleCommandSourcePurpose::Script,
+        )?
+        .into_iter()
+        .map(|part| (part.text, part.braced, part.expand))
+        .collect(),
+    )
+}
+
+/// Default Tcl lexical projection preserving expansion markers.
 #[must_use]
 pub fn parse_cmd_parts_expand(text: &str) -> Vec<(String, bool, bool)> {
-    let text = text.trim();
-    let text = if text.starts_with('[') && text.ends_with(']') {
-        text[1..text.len() - 1].trim()
-    } else {
-        text
-    };
-    let bytes = text.as_bytes();
-    let n = bytes.len();
-    let mut parts = Vec::new();
-    let mut i = 0;
+    parse_cmd_parts_expand_with_config(text, tcl_lexer::LexerConfig::default()).unwrap_or_default()
+}
 
-    while i < n {
-        i = skip_word_seps(bytes, n, i);
-        if i >= n {
-            break;
-        }
-        // `{*}` immediately followed by non-whitespace word content → expansion.
-        let mut expand = false;
-        if i + 3 < n && &bytes[i..i + 3] == b"{*}" && !is_word_sep(bytes[i + 3]) {
-            expand = true;
-            i += 3;
-        }
-        let (part, braced, new_i) = match bytes[i] {
-            b'"' => {
-                let (p, ni) = parse_quoted_part(text, bytes, n, i);
-                (p, false, ni)
-            }
-            b'{' => {
-                let (p, ni) = parse_braced_part(text, bytes, n, i);
-                (p, true, ni)
-            }
-            b'[' => {
-                let start = i;
-                let mut j = skip_cmd_subst(bytes, n, i);
-                while j < n && !is_word_sep(bytes[j]) {
-                    if bytes[j] == b'[' {
-                        j = skip_cmd_subst(bytes, n, j);
-                    } else {
-                        j += 1;
-                    }
-                }
-                (text[start..j].to_owned(), false, j)
-            }
-            _ => {
-                let (p, ni) = parse_bareword_part(text, bytes, n, i);
-                (p, false, ni)
-            }
-        };
-        parts.push((part, braced, expand));
-        i = new_i;
-    }
-    parts
+pub(super) fn parse_cmd_parts_expand_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(String, bool, bool)>> {
+    Some(
+        crate::word_subst::single_command_source_parts(
+            text,
+            config,
+            crate::word_subst::SingleCommandSourcePurpose::CommandSubstitution,
+        )?
+        .into_iter()
+        .map(|part| (part.text, part.braced, part.expand))
+        .collect(),
+    )
 }
 
 /// Evaluate an argument source word after proving it eligible for a direct
@@ -565,11 +360,13 @@ impl CodegenCtx<'_> {
             // `InlineCodegenHookId::Expr`) compiles to pure stack ops
             // with no command boundary, so tclsh emits no startCommand
             // for it.
-            let inner_parts = parse_cmd_parts(arg);
+            let inner_parts = parse_cmd_parts_with_config(arg, self.lexer_config());
             let needs_sc = self.is_proc
-                && !inner_parts.is_empty()
-                && self.inline_cmd_subst_hook(&inner_parts[0].0, &inner_parts[1..])
-                    != Some(InlineCodegenHookId::Expr);
+                && inner_parts.as_ref().is_some_and(|parts| {
+                    !parts.is_empty()
+                        && self.inline_cmd_subst_hook(&parts[0].0, &parts[1..])
+                            != Some(InlineCodegenHookId::Expr)
+                });
             if needs_sc {
                 let sc_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -895,7 +692,9 @@ impl CodegenCtx<'_> {
         if self.plain_command_dispatch || !(value.starts_with("[list ") && value.ends_with(']')) {
             return false;
         }
-        let parts = parse_cmd_parts(value);
+        let Some(parts) = parse_cmd_parts_with_config(value, self.lexer_config()) else {
+            return false;
+        };
         if parts.first().map(|(n, _)| n.as_str()) != Some("list") {
             return false;
         }
@@ -1494,14 +1293,20 @@ impl CodegenCtx<'_> {
             return;
         }
         if self.recognises_expand_syntax() && text.contains("{*}") {
-            let parts = parse_cmd_parts_expand(text);
+            let Some(parts) = parse_cmd_parts_expand_with_config(text, self.lexer_config()) else {
+                self.emit_source_script_eval(text);
+                return;
+            };
             if parts.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&parts);
                 return;
             }
         }
 
-        let mut parts = parse_cmd_parts(text);
+        let Some(mut parts) = parse_cmd_parts_with_config(text, self.lexer_config()) else {
+            self.emit_source_script_eval(text);
+            return;
+        };
         if parts.is_empty() {
             self.push_lit("");
             return;
@@ -1514,6 +1319,19 @@ impl CodegenCtx<'_> {
         let args = &parts[1..];
 
         self.emit_inline_cmd_subst_parts(text, tokens, cmd, args);
+    }
+
+    pub(super) fn emit_source_script_eval(&mut self, text: &str) {
+        let inner = text
+            .strip_prefix('[')
+            .and_then(|text| text.strip_suffix(']'))
+            .unwrap_or(text);
+        self.emit_script_eval(inner);
+    }
+
+    pub(super) fn emit_script_eval(&mut self, text: &str) {
+        self.push_lit_exact(text);
+        self.emit(Op::EVAL_STK, vec![]);
     }
 
     fn emit_inline_cmd_subst_parts(

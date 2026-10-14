@@ -31,7 +31,7 @@ use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 
-use super::cmd_subst::{parse_cmd_parts, parse_cmd_parts_expand};
+use super::cmd_subst::{parse_script_parts_expand_with_config, parse_script_parts_with_config};
 use super::values::is_qualified;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
@@ -1205,22 +1205,25 @@ impl CodegenCtx<'_> {
     /// `::`-qualified spellings (`catch {::error x}`) on the generic
     /// path, exactly as the retired raw-word `match` did.
     pub fn emit_catch_body(&mut self, body: &str) {
-        // The catch word has already resolved to a script value, but that
-        // script still has its own Tcl parse/evaluation phase. Preserve TIP
-        // 157 argument expansion in that phase through the same parser and
-        // emitter used by ordinary command substitutions. Re-reading it with
-        // `parse_cmd_parts` would split adjacent `{*}$args` into the literal
-        // `*` and `$args`, changing the callee's argv (notably Tcltest's
-        // `catch {Configure {*}$args}`).
+        // The resolved script keeps its own configured argument-expansion phase.
         if self.recognises_expand_syntax() && body.contains("{*}") {
-            let expanded = parse_cmd_parts_expand(body);
+            let Some(expanded) = parse_script_parts_expand_with_config(body, self.lexer_config())
+            else {
+                self.emit_script_eval(body);
+                self.seen_generic_invoke = true;
+                return;
+            };
             if expanded.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&expanded);
                 self.seen_generic_invoke = true;
                 return;
             }
         }
-        let body_parts = parse_cmd_parts(body);
+        let Some(body_parts) = parse_script_parts_with_config(body, self.lexer_config()) else {
+            self.emit_script_eval(body);
+            self.seen_generic_invoke = true;
+            return;
+        };
         if body_parts.is_empty() {
             self.push_lit("");
             return;
@@ -1652,7 +1655,11 @@ impl CodegenCtx<'_> {
 
     /// Compile one command of a try/on handler body.
     fn emit_try_handler_command(&mut self, body_text: &str) {
-        let parts = parse_cmd_parts(body_text);
+        let Some(parts) = parse_script_parts_with_config(body_text, self.lexer_config()) else {
+            self.emit_script_eval(body_text);
+            self.seen_generic_invoke = true;
+            return;
+        };
         if parts.is_empty() {
             self.push_lit("");
             return;
