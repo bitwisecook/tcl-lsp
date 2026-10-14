@@ -367,12 +367,11 @@ mod tests {
                 .profile()
                 .expect("fixture context retains its selected Tcl profile"),
         );
-        unit.ir_module
-            .top_level
+        let script = &unit.ir_module.top_level;
+        script
             .statements
             .iter()
-            .filter_map(Statement::tokens)
-            .find(|tokens| tokens.synthetic.is_none())
+            .find_map(|statement| script.retained_source_tokens_for_statement(statement))
             .expect("actual original invocation")
             .clone()
     }

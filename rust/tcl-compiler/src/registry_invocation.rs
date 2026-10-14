@@ -89,6 +89,10 @@ mod vendor_source_barriers;
 pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
 pub use vendor_source_barriers::VendorSourceCatalogueBarriers;
 
+mod hosted_structure;
+pub(crate) use hosted_structure::{
+    SourceStructuredInvocation, original_hosted_structured_invocation,
+};
 mod logical_frame;
 pub(crate) use logical_frame::{
     OriginalLogicalFrameInvocation, original_logical_body_geometry_for_module,
@@ -1237,20 +1241,21 @@ pub fn admitted_native_compiler_invocation(
 pub(crate) enum SelectedLoweringBindingIdentity<'a> {
     Native(&'a AdmittedNativeCompilerInvocation),
     Logical(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+    HostedSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
 }
 
 impl<'a> SelectedLoweringBindingIdentity<'a> {
     pub(crate) fn descriptor_key(self) -> tcl_registry::CanonicalCommandDescriptorKey<'a> {
         match self {
             Self::Native(invocation) => invocation.descriptor_key(),
-            Self::Logical(key) => key,
+            Self::Logical(key) | Self::HostedSchema(key) => key,
         }
     }
 
     pub(crate) fn binding_identity(self) -> &'a str {
         let name = match self {
             Self::Native(invocation) => invocation.canonical_registration_name(),
-            Self::Logical(key) => key.label(),
+            Self::Logical(key) | Self::HostedSchema(key) => key.label(),
         };
         tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
     }

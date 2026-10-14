@@ -128,9 +128,13 @@ pub fn handle_introspection(
     state: &mut EscapeState,
 ) {
     let facts = &invocation.facts;
-    if facts
+    if (facts
         .traits
-        .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
+        .contains(tcl_registry::prelude::Traits::INTROSPECTS_BY_NAME)
+        && facts.arity_accepts_frozen_arguments() != Some(true))
+        || facts
+            .traits
+            .contains(tcl_registry::prelude::Traits::CURRENT_FRAME_INTROSPECTION)
         || matches!(
             &facts.subcommand,
             OwnedSubcommandResolution::Indeterminate { .. }

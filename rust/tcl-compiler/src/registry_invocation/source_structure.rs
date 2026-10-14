@@ -2309,13 +2309,12 @@ pub(crate) fn original_immediate_body_commands_for_module(
             let mut child =
                 crate::ir::CommandTokens::from_segmented(&map, input.lexer_config(), &segments[0]);
             realm.stamp_original_tokens(&mut child);
-            let binding = child.source_binding.as_ref()?;
-            original_logical_registry_words_for_module(module, registry, &child)?;
-            let site = binding.invocation_site()?;
+            let selected = original_logical_registry_words_for_module(module, registry, &child)?;
+            let offset = selected.head_source()?.word()?.span().start();
             let actual = super::original_native_compiler_words(
                 &module.source,
                 child.words(),
-                site.offset,
+                offset,
                 input.lexer_config(),
             )?;
             if actual != original.words {

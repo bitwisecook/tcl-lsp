@@ -2701,13 +2701,27 @@ impl<'r> Lowerer<'r> {
     fn logical_structured_invocation(
         &self,
         tokens: &CommandTokens,
-    ) -> Option<crate::registry_invocation::LogicalStructuredInvocation> {
+    ) -> Option<crate::registry_invocation::SourceStructuredInvocation> {
+        let metadata = self.invocation_metadata_context()?;
+        if metadata
+            .source_analysis_input()
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+        {
+            return crate::registry_invocation::original_hosted_structured_invocation(
+                self.registry,
+                metadata,
+                tokens,
+            );
+        }
         crate::registry_invocation::logical_structured_invocation_with_metadata_context(
             self.registry,
             self.invocation_metadata_context()?,
             tokens,
             self.source_bindings.as_deref(),
         )
+        .map(|selected| {
+            crate::registry_invocation::SourceStructuredInvocation::Logical(Box::new(selected))
+        })
     }
 
     /// Build a `CommandTokens` snapshot from a segmented command, decomposing
@@ -2741,6 +2755,12 @@ impl<'r> Lowerer<'r> {
                     self.config,
                     std::sync::Arc::clone(context),
                 )
+                .map(|owner| {
+                    owner.retain_source_structure_input(
+                        self.invocation_metadata_context()
+                            .and_then(|metadata| metadata.source_analysis_input()),
+                    )
+                })
             })
             .map(std::sync::Arc::new);
         tokens
@@ -2978,9 +2998,7 @@ impl<'r> Lowerer<'r> {
             let logical = logical.as_ref()?.as_ref()?;
             StructuredHookSelection {
                 hook: logical.lowering_hook()?,
-                requirement: crate::registry_invocation::SelectedLoweringBindingIdentity::Logical(
-                    logical.descriptor_key(),
-                ),
+                requirement: logical.lowering_identity(),
                 error_context: logical.error_context(),
             }
         };
@@ -3764,9 +3782,7 @@ impl<'r> Lowerer<'r> {
         let requirement = if let Some(admitted) = &admitted {
             crate::registry_invocation::SelectedLoweringBindingIdentity::Native(admitted.as_ref()?)
         } else {
-            crate::registry_invocation::SelectedLoweringBindingIdentity::Logical(
-                logical.as_ref()?.as_ref()?.descriptor_key(),
-            )
+            logical.as_ref()?.as_ref()?.lowering_identity()
         };
         let mut lowered = if self.target.is_bytecode() {
             crate::lowering_hooks::try_lower_admitted_hook_with_binding(

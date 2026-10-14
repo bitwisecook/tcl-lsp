@@ -196,11 +196,11 @@ pub(crate) fn try_lower_hook_with_binding(
     Some(finish_hook_statement(statement, binding))
 }
 
-/// Lower logical structure from its retained original-invocation receipt.
+/// Lower source structure from its retained original grammar owner.
 /// This path supplies analysis IR and grants no native opcode admission.
 pub(crate) fn try_lower_logical_hook_with_binding(
     cmd: &LoweringCommand<'_>,
-    selected: &crate::registry_invocation::LogicalStructuredInvocation,
+    selected: &crate::registry_invocation::SourceStructuredInvocation,
     aliases: &CommandAliasMap,
     registry: &CommandRegistry,
     context: Option<&tcl_registry::model::ResolvedContext>,

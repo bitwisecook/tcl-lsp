@@ -9,17 +9,19 @@ use std::sync::Arc;
 use tcl_lexer::{LexerConfig, SourceImage};
 use tcl_registry::{CommandRegistry, model::ContextRegistry};
 
-/// Actual lowering source/context retained only for conditional taint advice.
+/// Actual lowering source/context for conditional hosted advice.
 /// No constructor accepts a profile label or reconstructed native name.
 #[derive(Debug, Clone)]
 pub struct HostedSourceTaintContext {
     image: SourceImage,
     config: LexerConfig,
     context: Arc<ContextRegistry>,
+    source_structure_input: Option<crate::analyser::ResolvedAnalysisInput>,
 }
 impl PartialEq for HostedSourceTaintContext {
     fn eq(&self, other: &Self) -> bool {
-        self.image == other.image
+        self.source_structure_input == other.source_structure_input
+            && self.image == other.image
             && self.config == other.config
             && self.context.context() == other.context.context()
             && self.context.commands().snapshot().semantic_key()
@@ -29,6 +31,7 @@ impl PartialEq for HostedSourceTaintContext {
 impl Eq for HostedSourceTaintContext {}
 impl Hash for HostedSourceTaintContext {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.source_structure_input.hash(state);
         self.image.hash(state);
         self.config.hash(state);
         // Structural equality remains authoritative; equivalent version
@@ -78,13 +81,34 @@ impl HostedSourceTaintContext {
             image,
             config,
             context,
+            source_structure_input: None,
         })
     }
-    fn invocation(
+    /// Source grammar additionally retains the complete input that issued it.
+    pub(crate) fn retain_source_structure_input(
+        mut self,
+        input: Option<&crate::analyser::ResolvedAnalysisInput>,
+    ) -> Self {
+        self.source_structure_input = input
+            .filter(|input| {
+                input.has_hosted_source_name_context()
+                    && input.lexer_config() == self.config
+                    && Arc::ptr_eq(&input.context_registry(), &self.context)
+                    && input.vendor_source_policy().is_none_or(|policy| {
+                        tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(
+                            &self.context.context().environment.id,
+                        ).and_then(tcl_syntax::naming::VendorSourceNamePolicy::authored) == Some(policy)
+                    })
+            })
+            .cloned();
+        self
+    }
+
+    fn original_catalogue_metadata(
         &self,
         registry: &CommandRegistry,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<HostedSourceTaintInvocation> {
+    ) -> Option<super::OriginalConditionalVendorRegistryMetadata> {
         trace_hosted_source(tokens, "issuer-enter");
         if tokens.synthetic.is_some()
             || self.context.commands().snapshot().semantic_key()
@@ -131,6 +155,16 @@ impl HostedSourceTaintContext {
             trace_hosted_source(tokens, "metadata-owner-mismatch");
             return None;
         }
+        Some(metadata)
+    }
+
+    fn invocation(
+        &self,
+        registry: &CommandRegistry,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<HostedSourceTaintInvocation> {
+        let metadata = self.original_catalogue_metadata(registry, tokens)?;
+        let original = metadata.shape().original_words();
         let shape = metadata.shape().clone();
         if original.iter().any(|word| word.group().expand) {
             return None;
@@ -154,6 +188,24 @@ pub(crate) struct HostedSourceTaintInvocation {
     pub(crate) metadata: super::OriginalConditionalVendorRegistryMetadata,
     pub(crate) effective: super::EffectiveCommandWords,
 }
+pub(crate) fn original_hosted_source_registry_metadata(
+    registry: &CommandRegistry,
+    context: super::InvocationMetadataContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<super::OriginalConditionalVendorRegistryMetadata> {
+    let input = context.source_analysis_input()?;
+    input.has_hosted_source_name_context().then_some(())?;
+    let owner = tokens.hosted_taint_context.as_ref()?;
+    if owner.source_structure_input.as_ref() != Some(input)
+        || owner.context.context() != input.borrowed_context_registry().context()
+        || owner.config != input.lexer_config()
+        || !context.matches_registry(registry)
+    {
+        return None;
+    }
+    owner.original_catalogue_metadata(registry, tokens)
+}
+
 pub(crate) fn hosted_source_taint_invocation(
     registry: &CommandRegistry,
     tokens: &crate::ir::CommandTokens,
