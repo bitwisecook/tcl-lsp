@@ -119,6 +119,7 @@ under every grammar and only a few disagree.
 | `1_000` digit separators | — bareword | — bareword | ✓ |
 | `0755` leading zero | **octal → 493** | **octal → 493** | **decimal → 755** |
 | `08` leading zero | — invalid octal | — invalid octal | ✓ 8 |
+| `1e400`, `1e-400`, `4.9e-324` (outside the double range) | `string is double` is `0` | ✓ the rounded value | ✓ the rounded value |
 
 The leading-zero row is the dangerous one: the same text is a *valid number
 with a different value*, so nothing errors — the answer is just wrong. C settles
@@ -128,6 +129,17 @@ numbers with leading zero as octal") and defines it from 9.0. `changes.md` for
 9.0 records: "`0NNN` format is no longer octal interpretation. Use `0oNNN`."
 
 Consequences that are *not* obvious, and are pinned by tests:
+
+* **A range error is a release fact, not a parse failure.** 8.4 reads a double
+  with C `strtod` and treats `ERANGE` as "not a number": `1e400`, `1e-400` and
+  every subnormal (`4.9e-324`, `1e-310`) are `0` for `string is double` and
+  raise `ARITH OVERFLOW` / `UNDERFLOW` in `expr`; `DBL_MAX`, `DBL_MIN` and a
+  zero mantissa (`0e999`) are fine. `JimTcl` refuses them in `string is
+  double` too (not in `expr`). From 8.5 `TclParseNumber` returns `Inf` / `0.0` /
+  the subnormal. The numeral parser reports the fact (`Parsed::out_of_range`),
+  `NumberSyntax::string_is_double_rejects_range_error` is the release switch,
+  and the const-folder declines such a literal wherever the target does not
+  widen.
 
 * **A level word inherits it.** `upvar`/`uplevel` read their level through
   `Tcl_GetIntFromObj`, so `uplevel 010` goes **8 frames up on 8.6 and 10 on

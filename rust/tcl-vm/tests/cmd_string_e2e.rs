@@ -653,6 +653,59 @@ fn string_is_tcl9_classes() {
     res_eq("string is wideinteger 99999999999999999999999", "0");
 }
 
+/// #2435: a decimal spelling outside the double range is a double from 8.5 and
+/// not on 8.4, whose `strtod` reports `ERANGE` (overflow, underflow and
+/// subnormals alike; the boundary doubles and a zero mantissa are fine). Rows
+/// measured on tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0; each release's
+/// VM must answer its own, through the compiled `string is` as well as the
+/// command.
+#[test]
+fn string_is_double_range_errors_follow_the_runtime_release() {
+    use tcl_dialect::TclVersion;
+    for (version, range_error) in [
+        (TclVersion::V8_4, "0"),
+        (TclVersion::V8_5, "1"),
+        (TclVersion::V8_6, "1"),
+        (TclVersion::V9_0, "1"),
+        (TclVersion::V9_1, "1"),
+    ] {
+        for value in ["1e400", "-1e400", "1e-400", "4.9e-324", "1e-310", "1.8e308"] {
+            for script in [
+                format!("string is double {value}"),
+                format!("string is double -strict {value}"),
+                format!("set v {value}; string is double $v"),
+            ] {
+                assert_eq!(
+                    run_for_version(&script, version).1,
+                    range_error,
+                    "`{script}` under {version:?}"
+                );
+            }
+        }
+        for value in [
+            "1.7976931348623157e308",
+            "2.2250738585072014e-308",
+            "0e999",
+            "0.0e-400",
+            "Inf",
+        ] {
+            assert_eq!(
+                run_for_version(&format!("string is double {value}"), version).1,
+                "1",
+                "`string is double {value}` under {version:?}"
+            );
+        }
+    }
+    assert_eq!(
+        run_for_version(
+            "string is double -failindex fi 1e400; set fi",
+            TclVersion::V8_4
+        )
+        .1,
+        "-1"
+    );
+}
+
 /// `string is class -strict ?-failindex var? str` — the `-strict` flag (empty
 /// string becomes a non-member), `-failindex` (records the first failing char),
 /// option abbreviation/order, and the class-name/option errors.

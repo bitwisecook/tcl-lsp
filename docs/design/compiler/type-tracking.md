@@ -194,6 +194,12 @@ denormals round-trip, `isqrt` is exact at the f64-rounding edge, and an
 inexact bignum→double contamination declines rather than bet on rounding
 parity.
 
+A caller with no bignum rung (`mathfunc::Num`, the const-folder's math-call
+shape, over the uninhabited `NoBig`) only ever **declines**: a result that
+would promote (`abs(-9223372036854775808)` is `2^63`) is `None` / `Abstain`,
+never a panic. `BigIntOps::HAS_BIGNUM_RUNG` and `promote_i64` are the seam —
+construct a bignum from a plain `i64` through `promote_i64`, not `from_i64`.
+
 ### Arrays as per-constant-key scalars
 
 A Tcl array is a collection of *variables*, not a value; the oracle corpus

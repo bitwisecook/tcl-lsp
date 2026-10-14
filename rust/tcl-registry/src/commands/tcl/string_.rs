@@ -42,7 +42,7 @@ const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
     min_abbrev: None,
     effect: None,
 }];
-use tcl_syntax::number::{Number, NumberSyntax, Numbers};
+use tcl_syntax::number::{self, Number, NumberSyntax, Numbers};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "string option arg ?arg ...?",
@@ -543,7 +543,7 @@ pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<Stri
         "wideinteger" => return is_wide_class(s, version),
         "entier" => return is_entier_class(s, version),
         "dict" => return is_dict_class(s),
-        "double" => return string_is_double(s),
+        "double" => return string_is_double(s, version),
         _ => return None, // unknown class
     };
     Some(if member { "1" } else { "0" }.to_owned())
@@ -799,7 +799,13 @@ fn is_dict_class(s: &str) -> Option<String> {
 ///   hex-float (`0x1.8p3`) flips 8.4 (`1`) ↔ 8.5+ (`0`);
 /// * a `(` — the `nan(payload)` form, which Tcl accepts but Rust rejects;
 /// * a non-ASCII value (so the `.trim()` whitespace set matches Tcl's).
-fn string_is_double(s: &str) -> Option<String> {
+///
+/// A decimal spelling outside the double range (`1e400`, `1e-400`, a
+/// subnormal) is a release question the number owner answers
+/// ([`NumberSyntax::string_is_double_rejects_range_error`]): `0` on 8.4, `1`
+/// from 8.5, and a bail when `version` names no core release (Jim refuses it
+/// too, but has no `TclVersion`).
+fn string_is_double(s: &str, version: Option<TclVersion>) -> Option<String> {
     if !s.is_ascii() {
         return None;
     }
@@ -813,8 +819,17 @@ fn string_is_double(s: &str) -> Option<String> {
         return None;
     }
     // For every remaining ASCII form, Rust's `f64` parser and Tcl's
-    // `string is double` agree across 8.4 → 9.0.
-    Some(if t.parse::<f64>().is_ok() { "1" } else { "0" }.to_owned())
+    // `string is double` agree across 8.4 → 9.0 — except a spelling outside
+    // the double range, which 8.4 and Jim refuse and 8.5 onward accept.
+    if t.parse::<f64>().is_err() {
+        return Some("0".to_owned());
+    }
+    if !number::is_out_of_range_double(t, NumberSyntax::Tcl90) {
+        return Some("1".to_owned());
+    }
+    let numbers = version.map_or(Numbers::Unknown, |v| Numbers::Target(v.number_syntax()));
+    let rejected = numbers.resolve(NumberSyntax::string_is_double_rejects_range_error)?;
+    Some(if rejected { "0" } else { "1" }.to_owned())
 }
 
 /// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
@@ -2018,6 +2033,56 @@ mod tests {
             "nan payload: Tcl accepts, Rust rejects"
         );
         assert_eq!(is_dbl("caf\u{e9}"), None, "non-ASCII bails");
+    }
+
+    /// A spelling outside the double range is a double from 8.5 and not on
+    /// 8.4; with no core release (Jim, or none named) the fold abstains. The
+    /// boundary doubles and zero mantissas fold the same everywhere. Rows
+    /// measured on tclsh 8.4.20 to 9.1.0 and jimsh 0.84 (#2435).
+    #[test]
+    fn string_is_double_range_errors_follow_the_release() {
+        let is_dbl = |v: &str, version| fold_is(&["double", v], version);
+        for v in [
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "1.8e308",
+            "4.9e-324",
+            "1e-320",
+            "2.2250738585072009e-308",
+        ] {
+            assert_eq!(
+                is_dbl(v, Some(TclVersion::V8_4)).as_deref(),
+                Some("0"),
+                "{v}"
+            );
+            assert_eq!(is_dbl(v, None), None, "{v}");
+            for version in [
+                TclVersion::V8_5,
+                TclVersion::V8_6,
+                TclVersion::V9_0,
+                TclVersion::V9_1,
+            ] {
+                assert_eq!(is_dbl(v, Some(version)).as_deref(), Some("1"), "{v}");
+            }
+        }
+        for v in [
+            "1.7976931348623157e308",
+            "2.2250738585072014e-308",
+            "0e999",
+            "0.0e-400",
+            "Inf",
+            "NaN",
+            "1e5",
+        ] {
+            for version in [None, Some(TclVersion::V8_4), Some(TclVersion::V9_0)] {
+                assert_eq!(is_dbl(v, version).as_deref(), Some("1"), "{v}");
+            }
+        }
+        assert_eq!(
+            fold_is(&["double", "-strict", "1e400"], Some(TclVersion::V8_4)).as_deref(),
+            Some("0")
+        );
     }
 
     #[test]
