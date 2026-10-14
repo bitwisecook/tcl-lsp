@@ -1,0 +1,29 @@
+[
+  {
+    "original_log": "test-15.log.gz",
+    "original_container_sha256": "51a118e14a1b46fe06acc0407a447c5f272ca82f15d9de04187422a373d39ca6",
+    "raw_sha256": "e623175e6aeea591c600a37ced762301b2688742640fae333bcb3f690d447f16",
+    "raw_bytes": 1535181097,
+    "retained_log": "test-15.log.gz.xz",
+    "retained_sha256": "596dc64e231e9fea081da518fcbf120736c9debd8b7d023dbb350afbaddac772",
+    "test": "analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data"
+  },
+  {
+    "original_log": "test-17.log.gz",
+    "original_container_sha256": "3522f33eb49a3ce5f49fb25e95dce42dc857d6e7d5e402b21de60849dcc6864b",
+    "raw_sha256": "dafd10e84348bfb2e4da4869bbe556d5c6449540ce9ada77be32444b31a6f262",
+    "raw_bytes": 1536005245,
+    "retained_log": "test-17.log.gz.xz",
+    "retained_sha256": "484c19ee870d59e77ec77ab2bdaa9c61fb71e7004ada67978ecdb3d6bcfaab4c",
+    "test": "analyser::per_item::tests::multi_method_class_byte_identical"
+  },
+  {
+    "original_log": "test-18.log.gz",
+    "original_container_sha256": "8bcba57246b88e7bfc1c0fc18f88bed4b0cce2f909bf71b51d4c60f27319e35a",
+    "raw_sha256": "48d5a7698710e368eeeb847d4df4792f7a583a895b2f83eefc1efb180c580199",
+    "raw_bytes": 885182725,
+    "retained_log": "test-18.log.gz.xz",
+    "retained_sha256": "bdb291758ffa2f34c2fb6b201580870b3034106c4dd9a83770e880863c874203",
+    "test": "analyser::per_item::tests::oo_class_with_method"
+  }
+]
