@@ -30,6 +30,10 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
+use std::borrow::Cow;
+
+use tcl_cmd_core::error::CmdError;
+use tcl_cmd_core::path::{self, PathReading};
 use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
@@ -184,51 +188,60 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"attributes" => file_attributes(interp, argv),
         b"channels" => file_channels(interp, argv),
         b"copy" => file_copy(interp, argv),
-        // The pure `/`-based path text ops are the shared `tcl_cmd_core::path` core.
-        b"dirname" => str_result(
-            interp,
-            &tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
-        ),
-        b"tail" => str_result(
-            interp,
-            tcl_cmd_core::path::tail(&arg(2).unwrap_or_default()),
-        ),
-        b"rootname" => str_result(
-            interp,
-            tcl_cmd_core::path::rootname(&arg(2).unwrap_or_default()),
-        ),
-        b"extension" => str_result(
-            interp,
-            tcl_cmd_core::path::extension(&arg(2).unwrap_or_default()),
-        ),
+        // The `/`-based path text ops are the shared `tcl_cmd_core::path` core,
+        // read as the emulated release reads a leading `//` and a `~`.
+        b"dirname" | b"tail" => {
+            let name = arg(2).unwrap_or_default();
+            let release = interp.runtime_version();
+            let host = interp.host();
+            let part = path::part_name(&name, release, host.env(), host.filesystem()).map(|part| {
+                let reading = PathReading::of_release(release);
+                if sub.as_slice() == b"dirname" {
+                    path::dirname(&part, reading).into_owned()
+                } else {
+                    path::tail(&part, reading).into_owned()
+                }
+            });
+            path_result(interp, part)
+        }
+        b"rootname" => str_result(interp, path::rootname(&arg(2).unwrap_or_default())),
+        b"extension" => str_result(interp, path::extension(&arg(2).unwrap_or_default())),
         b"home" => file_home(interp, argv),
         b"join" => {
             let parts: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
-            str_result(interp, &tcl_cmd_core::path::join(&parts))
+            str_result(interp, &path::join(&parts, reading(interp)))
         }
         b"link" => file_link(interp, argv),
         b"lstat" => file_stat(interp, argv, true),
         b"split" => {
             let name = arg(2).unwrap_or_default();
-            let objs: Vec<*mut TclObj> = tcl_cmd_core::path::split(&name)
-                .into_iter()
-                .map(new_string)
+            let objs: Vec<*mut TclObj> = path::split(&name, reading(interp))
+                .iter()
+                .map(|element| new_string(element))
                 .collect();
             interp.set_result(list::new_list_obj(&objs));
             Code::Ok
         }
         b"normalize" => {
-            let cwd = interp
-                .host()
-                .env()
-                .cwd()
-                .unwrap_or_else(|_| String::from("/"));
-            let norm = normalize(&arg(2).unwrap_or_default(), cwd.as_bytes());
-            str_result(interp, &norm)
+            let release = interp.runtime_version();
+            let host = interp.host();
+            let normal = path::normalize(
+                &arg(2).unwrap_or_default(),
+                release,
+                host.env(),
+                host.filesystem(),
+            );
+            path_result(interp, normal)
         }
         b"owned" => file_owned(interp, argv),
         b"separator" => str_result(interp, b"/"),
-        b"nativename" => str_result(interp, &arg(2).unwrap_or_default()),
+        b"nativename" => {
+            let name = arg(2).unwrap_or_default();
+            let release = interp.runtime_version();
+            let host = interp.host();
+            let native = path::translate(&name, release, host.env()).map(Cow::into_owned);
+            path_result(interp, native)
+        }
         b"exists" => {
             let e = fs_exists(interp, &arg(2).unwrap_or_default());
             bool_result(interp, e)
@@ -259,15 +272,8 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"rename" => file_rename(interp, argv),
         // `file pathtype name` — pure-syntax classification.
         b"pathtype" => {
-            let p = arg(2).unwrap_or_default();
-            str_result(
-                interp,
-                if p.first() == Some(&b'/') {
-                    b"absolute"
-                } else {
-                    b"relative"
-                },
-            )
+            let kind = path::path_type(&arg(2).unwrap_or_default(), reading(interp));
+            str_result(interp, kind.name().as_bytes())
         }
         b"delete" => file_delete(interp, argv),
         b"mkdir" => {
@@ -439,6 +445,32 @@ fn bool_result(interp: &mut Interp, b: bool) -> Code {
     Code::Ok
 }
 
+/// How the emulated release reads a leading `//` and a `~` in a path.
+fn reading(interp: &Interp) -> PathReading {
+    PathReading::of_release(interp.runtime_version())
+}
+
+/// Where `file copy` and `file rename` put `source` in the directory
+/// `target`: `target` joined with the source's tail as `file tail` reads it.
+fn into_directory(interp: &Interp, target: &[u8], source: &[u8]) -> Result<Vec<u8>, CmdError> {
+    let release = interp.runtime_version();
+    let reading = PathReading::of_release(release);
+    let host = interp.host();
+    let part = path::part_name(source, release, host.env(), host.filesystem())?;
+    Ok(path::join(&[target, &path::tail(&part, reading)], reading))
+}
+
+/// A path the shared core built, or the error it raised.
+fn path_result(interp: &mut Interp, path: Result<Vec<u8>, CmdError>) -> Code {
+    match path {
+        Ok(path) => str_result(interp, &path),
+        Err(error) => match error.into_parts() {
+            (message, Some(code)) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
+            (message, None) => interp.set_error(message.as_bytes()),
+        },
+    }
+}
+
 fn one_path(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8]) -> Option<Vec<u8>> {
     if argv.len() != 3 {
         interp.wrong_args(usage);
@@ -504,7 +536,8 @@ fn file_attributes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return host_fs_error(interp, b"could not read", &path, &e.reason()),
     };
     if argv.len() == 3 {
-        let tail = tcl_cmd_core::path::tail(&path);
+        // The entry's own name: a `~` in it names no home.
+        let tail = path::tail(&path, PathReading::Tcl9).into_owned();
         let entries = [
             (b"-group".as_slice(), meta.gid.to_string().into_bytes()),
             (b"-owner".as_slice(), meta.uid.to_string().into_bytes()),
@@ -606,7 +639,10 @@ fn file_copy(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &source_obj in sources {
         let source = obj_bytes(source_obj);
         let destination = if target_is_dir {
-            tcl_cmd_core::path::join(&[target.as_slice(), tcl_cmd_core::path::tail(&source)])
+            match into_directory(interp, &target, &source) {
+                Ok(destination) => destination,
+                Err(error) => return path_result(interp, Err(error)),
+            }
         } else {
             target.clone()
         };
@@ -621,15 +657,13 @@ fn file_copy(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn file_home(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return interp.wrong_args(b"file home ?username?");
+        return interp.wrong_args(b"file home ?user?");
     }
-    if argv.len() == 3 && !obj_bytes(argv[2]).is_empty() {
-        return interp.set_error(b"could not determine home directory");
-    }
-    match interp.host().env().get("HOME") {
-        Some(home) => str_result(interp, home.as_bytes()),
-        None => interp.set_error(b"could not determine home directory"),
-    }
+    let user = argv.get(2).map(|&a| obj_bytes(a)).unwrap_or_default();
+    let release = interp.runtime_version();
+    let host = interp.host();
+    let home = path::home_directory(host.env(), &user, release);
+    path_result(interp, home)
 }
 
 fn file_link(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -717,7 +751,10 @@ fn file_rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for &source_obj in sources {
         let source = obj_bytes(source_obj);
         let destination = if target_is_dir {
-            tcl_cmd_core::path::join(&[target.as_slice(), tcl_cmd_core::path::tail(&source)])
+            match into_directory(interp, &target, &source) {
+                Ok(destination) => destination,
+                Err(error) => return path_result(interp, Err(error)),
+            }
         } else {
             target.clone()
         };
@@ -929,25 +966,13 @@ fn temporary_path(
 }
 
 fn file_tildeexpand(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let Some(path) = one_path(interp, argv, b"file tildeexpand name") else {
+    let Some(name) = one_path(interp, argv, b"file tildeexpand path") else {
         return Code::Error;
     };
-    if !path.starts_with(b"~") {
-        return str_result(interp, &path);
-    }
-    let Some(home) = interp.host().env().get("HOME") else {
-        return interp.set_error(b"could not determine home directory");
-    };
-    if path == b"~" {
-        return str_result(interp, home.as_bytes());
-    }
-    if path.starts_with(b"~/") {
-        return str_result(
-            interp,
-            format!("{}{}", home, &as_str(&path)[1..]).as_bytes(),
-        );
-    }
-    interp.set_error(b"could not determine home directory")
+    let release = interp.runtime_version();
+    let host = interp.host();
+    let expanded = path::tilde_expand(&name, release, host.env()).map(Cow::into_owned);
+    path_result(interp, expanded)
 }
 
 fn file_volumes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -960,48 +985,6 @@ fn file_volumes(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let root = new_string(b"/");
     interp.set_result(list::new_list_obj(&[root]));
     Code::Ok
-}
-
-/// Trim trailing `/` but keep a lone root `/`.
-fn trim_trailing(p: &[u8]) -> &[u8] {
-    let mut end = p.len();
-    while end > 1 && p[end - 1] == b'/' {
-        end -= 1;
-    }
-    &p[..end]
-}
-
-/// Lexical normalize: make absolute (against `cwd`) and resolve `.`/`..` without
-/// requiring the path to exist. `cwd` is the host's working directory (`pwd`).
-fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
-    let mut abs: Vec<u8> = if p.starts_with(b"/") {
-        p.to_vec()
-    } else {
-        let mut base = cwd.to_vec();
-        base.push(b'/');
-        base.extend_from_slice(p);
-        base
-    };
-    abs = trim_trailing(&abs).to_vec();
-    let mut stack: Vec<&[u8]> = Vec::new();
-    for seg in abs.split(|&c| c == b'/') {
-        match seg {
-            b"" | b"." => {}
-            b".." => {
-                stack.pop();
-            }
-            s => stack.push(s),
-        }
-    }
-    let mut out = Vec::new();
-    for s in stack {
-        out.push(b'/');
-        out.extend_from_slice(s);
-    }
-    if out.is_empty() {
-        out.push(b'/');
-    }
-    out
 }
 
 // pwd / cd
@@ -1120,7 +1103,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Patterns: each remaining arg, or (with -join) all joined into one.
     let pats: Vec<Vec<u8>> = argv[i..].iter().map(|&a| obj_bytes(a)).collect();
     let patterns: Vec<Vec<u8>> = if join_mode {
-        vec![tcl_cmd_core::path::join(&pats)]
+        vec![path::join(&pats, reading(interp))]
     } else {
         pats
     };
@@ -1283,6 +1266,88 @@ mod tests {
     use super::file_permissions;
     use crate::interp::{Code, Interp};
     use tcl_dialect::TclVersion;
+
+    /// `file` on names the releases read apart, as tclsh 8.4.20, 8.5.19,
+    /// 8.6.18 and 9.0.4 (9.1.0 as 9.0.4) answer: a leading `//` (#2420), a
+    /// `~` (#2421), the zipfs volume and 8.5's as-given `join`. An error
+    /// reads `ERR: message`.
+    const RELEASE_PATHS: &[(&str, [&str; 4])] = &[
+        ("split //a", ["/ a", "/ a", "/ a", "//a"]),
+        ("dirname //a", ["/", "/", "/", "//a"]),
+        ("tail //a", ["a", "a", "a", ""]),
+        ("join //h b", ["/h/b", "/h/b", "/h/b", "//h/b"]),
+        ("join a //b", ["/b", "//b", "/b", "//b"]),
+        ("split a/~b", ["a ./~b", "a ./~b", "a ./~b", "a ~b"]),
+        ("join a ~b", ["~b", "~b", "~b", "a/~b"]),
+        ("tail a/~b", ["./~b", "./~b", "./~b", "~b"]),
+        ("dirname ~b/c", ["~b", "~b", "~b", "~b"]),
+        (
+            "pathtype ~b",
+            ["absolute", "absolute", "absolute", "relative"],
+        ),
+        ("join /./~b", ["/~b", "/./~b", "/./~b", "/./~b"]),
+        (
+            "split //zipfs:/x/y",
+            [
+                "/ zipfs: x y",
+                "/ zipfs: x y",
+                "/ zipfs: x y",
+                "//zipfs:/ x y",
+            ],
+        ),
+        (
+            "pathtype //zipfsxy",
+            ["absolute", "absolute", "absolute", "volumerelative"],
+        ),
+        (
+            "nativename //zipfsxy",
+            ["/zipfsxy", "//zipfsxy", "/zipfsxy", "//zipfs:y"],
+        ),
+        (
+            "normalize /./no_such_dir_x",
+            [
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+                "//no_such_dir_x",
+                "//no_such_dir_x",
+            ],
+        ),
+        (
+            "normalize //no_such_dir_x/b/..",
+            [
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+                "/no_such_dir_x",
+                "//no_such_dir_x",
+            ],
+        ),
+        (
+            "dirname ~no_such_user_x",
+            [
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                "ERR: user \"no_such_user_x\" doesn't exist",
+                ".",
+            ],
+        ),
+    ];
+
+    #[test]
+    fn path_names_read_as_the_emulated_release_reads_them() {
+        for (column, release) in TclVersion::ALL.into_iter().enumerate() {
+            let column = column.min(3);
+            let mut i = Interp::new();
+            i.set_runtime_version(release);
+            for &(call, answers) in RELEASE_PATHS {
+                let script = format!("file {call}");
+                let got = match i.eval_str(script.as_bytes()) {
+                    Code::Ok => String::from_utf8_lossy(&i.result_bytes()).into_owned(),
+                    _ => format!("ERR: {}", String::from_utf8_lossy(&i.result_bytes())),
+                };
+                assert_eq!(got, answers[column], "{release:?} {script}");
+            }
+        }
+    }
 
     fn ok(i: &mut Interp, src: &[u8]) -> Vec<u8> {
         assert_eq!(

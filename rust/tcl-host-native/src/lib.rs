@@ -263,6 +263,25 @@ impl Env for NativeEnv {
             .ok()
             .map(|p| p.to_string_lossy().into_owned())
     }
+
+    /// The system user database's `pw_dir` for `user` (`getpwnam_r`).
+    fn user_home(&self, user: &str) -> Option<String> {
+        user_home(user)
+    }
+}
+
+#[cfg(unix)]
+fn user_home(user: &str) -> Option<String> {
+    if user.is_empty() {
+        return None;
+    }
+    let entry = nix::unistd::User::from_name(user).ok()??;
+    Some(entry.dir.to_string_lossy().into_owned())
+}
+
+#[cfg(not(unix))]
+fn user_home(_user: &str) -> Option<String> {
+    None
 }
 
 struct NativeFs;
@@ -524,6 +543,18 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_user_home_comes_from_the_system_user_database() {
+        let home = NativeEnv::default()
+            .user_home("root")
+            .expect("root has a home");
+        assert!(home.starts_with('/'), "{home}");
+        assert_eq!(NativeEnv::default().user_home("no_such_user_x"), None);
+        assert_eq!(NativeEnv::default().user_home(""), None);
+        assert_eq!(NativeEnv::default().user_home("a\0b"), None);
+    }
 
     #[test]
     fn system_encoding_follows_tcl_unix_locale_defaults() {
