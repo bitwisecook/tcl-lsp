@@ -1,6 +1,6 @@
 # Outstanding name lookup consumer audit
 
-Current bounded snapshot: 2026-10-14T08:12:18Z on `work`. The machine inventory retains
+Current bounded snapshot: 2026-10-14T08:41:02Z on `work`. The machine inventory retains
 47 actionable rows, the inherited 330 lexical candidates and original issue
 and source observations. Package membership and search absence do not certify
 semantic completion. [Consumer priorities](consumer-inventory.md#current-implementation-and-audit-priorities)
@@ -65,6 +65,16 @@ custom getter controls keep the original pool independently available; their
 authored override now retains the actual selected surface/lifecycle/traits and
 asserts exact selected pointer provenance before refusal. The missing structured
 condition producer remains open.
+The Hosted structured source wrapper is integrated with complete retained analysis
+input and exact original policy/context checks. It supplies guarded If/Switch
+source grammar independently of runtime invocation and Native entry. Current
+contracts, guarded arity, original retained fixture and body geometry corrections
+are integrated; Diagnostic59 stops at a test-only context-helper type mismatch, zero semantic
+controls and source drift zero. The actual helper correction and unused wrapper
+API retirement are integrated. Diagnostic60 is running five source-producer
+controls; temporary instrumentation is excluded from production checkpoints and
+removed after seal. No new semantic result is claimed.
+
 Appliance questions remain unanswered; software and C/Jim observations do not
 establish Native F5 dispatch or execution.
 
@@ -126,7 +136,10 @@ The link/index mirror checks 3,259 Markdown files and 126,064 local links with
 zero broken links or unindexed design/KCS entries; actual Rust KCS, diagnostic
 tag and audience checks remain required. Original qualified Hosted-name
 refusals and O124 source-edit applicability remain explicit. The separate Native-name source-only declaration body producer is integrated
-after independent source review and awaits original consumer replay. Native MAY
+with independent read-flow and frame-free source recipes. The frame-free recipe
+retains the actual original transition tape, body/schema, ParamList topology, byte
+slot and dialect namespace geometry; physical frame gates remain unchanged.
+All original Native card controls await current consumer replay. Native MAY
 dependencies and typed var-escape original-substitution consumers are integrated;
 their exact actual static/type API routes and current agent guide are registered.
 Dynamic heads retain all known dependency IDs; open alternatives supply no
@@ -134,6 +147,16 @@ return value, argument binder or selected call. Original-source scanner refusal
 remains pessimistic and Normal frameless ownership stays independent. Its original
 header/read-flow owner cannot borrow Logical or Hosted cards or supply an
 installed allocation, publication, callable body or entered frame.
+
+Native FunctionLattice-only correspondence is independently reviewed with full
+current source entry, actual dependencies and injective relocation. Integration,
+negative-control replay and whole BodyAnalysisCapsule transport remain pending.
+The taint replay-report v2 source review resolves full current Module ownership
+and synthetic-span provenance: complete source entry and actual retained Module
+owner must match; residual spans require complete original/synthetic bounds or a
+genuine registration anchor, with no borrowed original snapshot on unmapped
+synthetic bytes. New controls and the downstream reader union remain pending.
+These source reviews establish no cache or whole-report acceptance.
 
 The 52 workspace members, 11 excluded packages and inherited 330 lexical LSP
 rows still require complete surface reconciliation. Original experiments,

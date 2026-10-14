@@ -31,7 +31,7 @@ Root owns integration, Git and the single heavy Cargo lease. Compiler finishes o
 
 ## Cadence
 
-Tracking checkpoint08:28 UTC on14 October2026; next08:43 UTC. Hourly report09:13 UTC. Development commits/pushes are authorised while red. All required gates must pass before PR. No PR is ready.
+Tracking checkpoint08:43 UTC on14 October2026; next08:58 UTC. Hourly report09:13 UTC. Development commits/pushes are authorised while red. All required gates must pass before PR. No PR is ready.
 
 ## Oracles and F5
 
@@ -43,4 +43,4 @@ Use [existing F5 answers](../../../experiments/name-handling/f5/answers/README.m
 
 Finish every consumer and its meaningful oracle-based controls. The current strict proof audit reports1959 structural errors; semantically correct records and narrowly reseal only genuinely executed closures. Review all authored/generated documentation and comments for current how/why, minimal comments and clear code. Remove process/history narratives, stale claims and completed TODOs; keep experiments and legal attribution. Fix link/index drift. Remove this temporary directory/references and the work-specific AGENTS push exception. Regenerate/format and pass required rust-check/prep-pr gates before creating a merge-ready PR. No merge is authorised.
 
-Current checkpoint target08:28 UTC: Hosted structured source owner now retains complete original input and context-policy concordance with bounded If/Switch source grammar and separate Native/Normal/bytecode refusal. Current conditional body geometry and generic introspection arity consumers use shared owners; supplied fixture tokens use genuine Script retention. Compiler59 diagnostic capture runs2 original protected-body positives; temporary trace code is excluded from the development commit and will be removed after sealing. Latest semantic Compiler58 remains388/542PASS, source subset drift0, original337 gain9/no regression. Dictionary/Hosted/protected-body/current Native source producer and cache controls remain acceptance obligations. Next tracking08:43 UTC; hourly09:13 UTC.
+Current checkpoint target08:43 UTC: Native frame-free source declaration/body/schema/formal tape recipe is integrated separately from the unchanged ReadFlow/physical-frame route; current card guards and original3 controls remain mandatory. Hosted59 test helper type is corrected and unused wrapper methods retired; stronger refusal tests retained. Diagnostic60 runs5 original Native/protected-body controls with source frozen; temporary source-facade trace code is excluded from this checkpoint and must be removed after sealing. Latest semantic58 remains388/542PASS/source subset drift0, all337 previous controls gain9/no regression. Independent namespace stack transport and taint report/display source reviews are complete or ongoing; integration/execution pending. Source child/MAY/cache/body propagation remains unfinished. Next tracking08:58 UTC; hourly09:13 UTC.

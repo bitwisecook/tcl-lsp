@@ -149,6 +149,11 @@ fn matches_declaration(
         && record.metadata().source_name.as_ref() == Some(record.name())
 }
 impl OriginalSourceProcedurePublications {
+    pub(super) fn original_declarations(
+        &self,
+    ) -> &[Arc<super::source_procedure::OriginalSourceProcedureBody>] {
+        &self.declarations
+    }
     /// Surviving direct procedure cells, independent of aliases and runtime state.
     #[must_use]
     pub fn publications(&self) -> &[OriginalSourceProcedurePublication] {

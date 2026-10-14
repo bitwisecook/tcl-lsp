@@ -19,7 +19,6 @@ pub(crate) struct HostedStructuredInvocation {
     input: crate::analyser::ResolvedAnalysisInput,
     descriptor: tcl_registry::CanonicalCommandDescriptorKey<'static>,
     hook: tcl_registry::hooks::LoweringHookId,
-    traits: tcl_registry::Traits,
 }
 
 pub(crate) fn original_hosted_structured_invocation(
@@ -43,7 +42,7 @@ pub(crate) fn original_hosted_structured_invocation(
         tokens,
         metadata,
     )?;
-    let (descriptor, hook, traits) =
+    let (descriptor, hook) =
         words.with_source_schema(input.borrowed_context_registry(), |schema| {
             let hook = schema.facts().lowering_hook?;
             if !matches!(
@@ -62,7 +61,7 @@ pub(crate) fn original_hosted_structured_invocation(
                     return None;
                 }
             }
-            Some((schema.descriptor_key(), hook, schema.semantics.traits))
+            Some((schema.descriptor_key(), hook))
         })??;
     Some(SourceStructuredInvocation::Hosted(Box::new(
         HostedStructuredInvocation {
@@ -70,7 +69,6 @@ pub(crate) fn original_hosted_structured_invocation(
             input: input.clone(),
             descriptor,
             hook,
-            traits,
         },
     )))
 }
@@ -132,47 +130,6 @@ impl SourceStructuredInvocation {
         match self {
             Self::Logical(selected) => selected.written_roles(),
             Self::Hosted(selected) => selected.words.written_argument_roles(),
-        }
-    }
-    pub(crate) fn argument_literal(&self, argument: usize) -> Option<String> {
-        match self {
-            Self::Logical(selected) => selected.argument_literal(argument),
-            Self::Hosted(selected) => {
-                std::str::from_utf8(selected.words.arguments().get(argument)?.literal_bytes()?)
-                    .ok()
-                    .map(str::to_owned)
-            }
-        }
-    }
-    pub(crate) fn loop_bindings_conditional(&self) -> bool {
-        match self {
-            Self::Logical(selected) => selected.loop_bindings_conditional(),
-            Self::Hosted(_) => true,
-        }
-    }
-    pub(crate) fn traits(&self) -> tcl_registry::Traits {
-        match self {
-            Self::Logical(selected) => selected.traits(),
-            Self::Hosted(selected) => selected.traits,
-        }
-    }
-    pub(crate) fn body_scope<'a>(
-        &self,
-        registry: &CommandRegistry,
-        context: impl Into<InvocationMetadataContext<'a>>,
-    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
-        match self {
-            Self::Logical(selected) => selected.body_scope(registry, context),
-            Self::Hosted(_) => None,
-        }
-    }
-    pub(crate) fn conditional_completion_route(
-        &self,
-        registry: &CommandRegistry,
-    ) -> tcl_registry::completion_route::InvocationCompletionRoute {
-        match self {
-            Self::Logical(selected) => selected.conditional_completion_route(registry),
-            Self::Hosted(_) => tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
         }
     }
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
@@ -263,9 +220,11 @@ mod tests {
                 selected.lowering_identity(),
                 crate::registry_invocation::SelectedLoweringBindingIdentity::HostedSchema(_)
             ));
-            assert_eq!(
-                selected.conditional_completion_route(registry),
-                tcl_registry::completion_route::InvocationCompletionRoute::Unknown
+            assert!(
+                crate::registry_invocation::original_structured_invocation_with_metadata_context(
+                    registry, metadata, tokens
+                )
+                .is_none()
             );
             assert!(
                 crate::registry_invocation::admitted_native_compiler_invocation(
@@ -453,7 +412,7 @@ mod tests {
 
     fn input_context(
         registry: &tcl_registry::CommandRegistry,
-    ) -> tcl_registry::model::SemanticContext {
+    ) -> &'static tcl_registry::model::ContextRegistry {
         tcl_registry::model::ingress::static_context_for_profile(registry.profile().unwrap())
     }
 

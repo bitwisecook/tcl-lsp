@@ -10547,10 +10547,13 @@ Encoding names remain original bytes through literal-zero C-string extent and ca
 
 Use `Module::original_source_procedure_bodies` for conditional procedure-effect
 summaries. It enumerates ordinary procedures with the same Module issuer.
-OriginalDeclaration units additionally require their genuine declaration site,
-allocation, source image and body kind. Complete retained Module correspondence
-independently checks current signatures before a summary owner accepts the
-Module. Lambdas and installed-only units keep separate purposes.
+Allocation-backed OriginalDeclaration units require their genuine declaration
+site, allocation, source image and body kind. Separate Native-name, Logical and
+Hosted source cards validate their actual current body row and complete Module
+inputs through their own card owner. Every row belongs to the same Module issuer;
+source cards supply no implementation allocation or publication. Complete
+retained Module correspondence independently checks current signatures before
+a summary owner accepts the Module. Lambdas and installed-only units keep separate purposes.
 `Module::original_source_procedure_for_target` selects exactly one such body
 through the target’s authentic implementation allocation and original image.
 Global, caller-frame and parameter summaries retain that issued ID; a report

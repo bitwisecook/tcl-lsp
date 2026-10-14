@@ -265,49 +265,102 @@ impl SourceCommandBindings {
         bodies
     }
 }
-/// Original Native-name procedure syntax and its conditional read-flow owner.
-/// This card supplies neither an implementation allocation nor an entered body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OriginalNativeProcedureRecipe {
+    ReadFlow {
+        declaration: super::declaration_preview::DeclaredProcedureBody,
+        read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
+    },
+    Source(std::sync::Arc<super::source_transition_advice::OriginalNativeSourceDeclaration>),
+}
+
+/// Original Native-name procedure syntax under its authentic source body owner.
+/// A read-flow recipe and a frame-free source recipe remain separate purposes;
+/// neither supplies an implementation allocation or an entered body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalNativeProcedureBody {
-    declaration: super::declaration_preview::DeclaredProcedureBody,
-    read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
+    recipe: OriginalNativeProcedureRecipe,
     input: crate::analyser::ResolvedAnalysisInput,
     lowered_body: Option<std::sync::Arc<crate::ir::Script>>,
     module_entry: Option<super::SourceAnalysisEntry>,
 }
-
 impl OriginalNativeProcedureBody {
     pub(crate) fn site(&self) -> &super::CommandAllocationSite {
-        self.declaration.declaration_site()
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { declaration, .. } => {
+                declaration.declaration_site()
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.site(),
+        }
     }
     pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
-        &self.read_flow.header.namespace
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                &read_flow.header.namespace
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.namespace(),
+        }
     }
     pub(crate) fn source_slot(&self) -> &tcl_core_types::ByteCommandSlot {
-        &self.read_flow.header.source_slot
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                &read_flow.header.source_slot
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.slot(),
+        }
     }
     pub(crate) fn original_name_input(
         &self,
     ) -> &crate::signature_scan::scope::SignatureSourceNameInput {
-        &self.read_flow.header.name_input
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                &read_flow.header.name_input
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.name_input(),
+        }
     }
     pub(crate) fn name(&self) -> Option<&str> {
-        std::str::from_utf8(self.read_flow.header.name_input.bytes()).ok()
+        std::str::from_utf8(self.original_name_input().bytes()).ok()
     }
     pub(crate) fn reporting_label(&self) -> Option<String> {
-        self.declaration.command_label()
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { declaration, .. } => {
+                declaration.command_label()
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.label(),
+        }
     }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
-        &self.read_flow.header.parameters
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                &read_flow.header.parameters
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.parameters(),
+        }
     }
     pub(crate) fn parameters_text(&self) -> Option<&str> {
-        self.read_flow.read.parameters_text()
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                read_flow.read.parameters_text()
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.parameters_text(),
+        }
     }
     pub(crate) fn body_span(&self) -> Option<tcl_lexer::Span> {
-        self.read_flow.read.original_body_span()
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                read_flow.read.original_body_span()
+            }
+            OriginalNativeProcedureRecipe::Source(source) => Some(source.body_span()),
+        }
     }
     pub(crate) fn body_text(&self) -> Option<&str> {
-        self.read_flow.read.original_body_text()
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
+                read_flow.read.original_body_text()
+            }
+            OriginalNativeProcedureRecipe::Source(source) => source.body_text(),
+        }
     }
     pub(crate) fn retain_lowered_body(
         mut self,
@@ -324,30 +377,41 @@ impl OriginalNativeProcedureBody {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &tcl_registry::CommandRegistry,
     ) -> bool {
-        &self.input == input
-            && !input.has_logical_source_name_context()
-            && !input.has_hosted_source_name_context()
-            && tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+        if &self.input != input
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
                 .native_name_protocol()
-                .is_some()
-            && input
+                .is_none()
+            || input
                 .borrowed_context_registry()
                 .commands()
                 .snapshot()
                 .semantic_key()
-                == registry.snapshot().semantic_key()
-            && self.site().source.source_image() == image
-            && self.read_flow.read.original_image() == image
-            && self.read_flow.header.declaration == *self.site()
-            && self.read_flow.header.namespace == self.declaration.namespace
-            && self.read_flow.header.parameters == self.declaration.parameters
-            && self.read_flow.header.original_parameters == self.declaration.original_parameters
-            && self.read_flow.header.frame == self.declaration.frame
-            && self.declaration.source.origin == self.site().source
-            && self.body_span().is_some_and(|span| {
-                self.read_flow.read.owns_original_read(span)
-                    && image.bytes().get(span.as_range()).is_some()
-            })
+                != registry.snapshot().semantic_key()
+            || self.site().source.source_image() != image
+        {
+            return false;
+        }
+        match &self.recipe {
+            OriginalNativeProcedureRecipe::Source(source) => source.matches_source(image, input),
+            OriginalNativeProcedureRecipe::ReadFlow {
+                declaration,
+                read_flow,
+            } => {
+                read_flow.read.original_image() == image
+                    && read_flow.header.declaration == *self.site()
+                    && read_flow.header.namespace == declaration.namespace
+                    && read_flow.header.parameters == declaration.parameters
+                    && read_flow.header.original_parameters == declaration.original_parameters
+                    && read_flow.header.frame == declaration.frame
+                    && declaration.source.origin == self.site().source
+                    && self.body_span().is_some_and(|span| {
+                        read_flow.read.owns_original_read(span)
+                            && image.bytes().get(span.as_range()).is_some()
+                    })
+            }
+        }
     }
     pub(crate) fn matches_procedure(
         &self,
@@ -373,9 +437,17 @@ impl OriginalNativeProcedureBody {
             && procedure.publication.is_none()
             && procedure.declaration_site.as_ref() == Some(self.site())
             && self.name() == Some(procedure.name.as_str())
-            && self
-                .read_flow
-                .owns_original_procedure(procedure, &module.source)
+            && procedure.span.start() == self.site().offset
+            && self.body_span().is_some_and(|span| {
+                procedure.body_offset == span.start() && procedure.span.end() == span.end()
+            })
+            && procedure.body_source.as_deref() == self.body_text()
+            && self.parameters_text() == Some(procedure.params_raw.as_str())
+            && procedure
+                .params
+                .iter()
+                .map(String::as_str)
+                .eq(self.parameters().iter().map(|p| p.name.as_str()))
             && procedure.body.namespace_context.as_deref() == Some(self.namespace())
             && procedure.body.executed_source.is_none()
             && procedure.body.native_compilation_failure.is_none()
@@ -430,8 +502,10 @@ impl SourceCommandBindings {
                 let read_flow =
                     self.original_procedure_read_flow_entry(&tokens, registry, input)?;
                 let card = OriginalNativeProcedureBody {
-                    declaration,
-                    read_flow,
+                    recipe: OriginalNativeProcedureRecipe::ReadFlow {
+                        declaration,
+                        read_flow,
+                    },
                     input: input.clone(),
                     lowered_body: None,
                     module_entry: None,
@@ -444,6 +518,27 @@ impl SourceCommandBindings {
                 .then(|| std::sync::Arc::new(card))
             })
             .collect::<Vec<_>>();
+        if let Some(declarations) = self.original_native_source_declarations(input) {
+            for declaration in declarations {
+                if cards.iter().any(|card| card.site() == declaration.site()) {
+                    continue;
+                }
+                let card = OriginalNativeProcedureBody {
+                    recipe: OriginalNativeProcedureRecipe::Source(declaration),
+                    input: input.clone(),
+                    lowered_body: None,
+                    module_entry: None,
+                };
+                if card.matches_source(origin.source_image(), input, registry)
+                    && card.name().is_some()
+                    && card.reporting_label().is_some()
+                    && card.parameters_text().is_some()
+                    && card.body_text().is_some()
+                {
+                    cards.push(std::sync::Arc::new(card));
+                }
+            }
+        }
         cards.sort_by(|a, b| a.site().cmp(b.site()));
         cards
     }
