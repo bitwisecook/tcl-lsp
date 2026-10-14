@@ -115,13 +115,13 @@ impl std::io::Write for Capture {
     }
 }
 
-/// Run `src` in the VM at `version`, returning its trimmed `puts` output — the
-/// same shape the tclsh leg produces, so the two are directly comparable.
 /// Both sides read the script and write `puts` as UTF-8 whatever the host
 /// locale: under `C`/`POSIX` the system encoding is `iso8859-1`, which makes
-/// tclsh count a multi-byte character's bytes.
+/// tclsh count a multi-byte character's bytes (#2271).
 const UTF8_CHANNELS: &str = "fconfigure stdin -encoding utf-8\nfconfigure stdout -encoding utf-8\n";
 
+/// Run `src` in the VM at `version`, returning its trimmed `puts` output — the
+/// same shape the tclsh leg produces, so the two are directly comparable.
 fn vm_output(src: &str, version: TclVersion) -> String {
     let src = format!("{UTF8_CHANNELS}{src}");
     let asm = compile_exact_profile(&src, profile_of(version))
