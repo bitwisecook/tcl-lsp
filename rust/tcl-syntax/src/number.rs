@@ -445,7 +445,11 @@ fn shortest_nearest_scientific(f: f64) -> String {
         mantissa.bytes().filter(u8::is_ascii_digit).count()
     });
     let nearest = format!("{f:.*e}", significant.saturating_sub(1));
-    if nearest != shortest && nearest.parse::<f64>().is_ok_and(|n| n == f) {
+    if nearest != shortest
+        && nearest
+            .parse::<f64>()
+            .is_ok_and(|n| n.to_bits() == f.to_bits())
+    {
         nearest
     } else {
         shortest
