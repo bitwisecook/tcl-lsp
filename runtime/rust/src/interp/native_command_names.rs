@@ -307,9 +307,16 @@ impl Interp {
         if !recipe.is_jim084() {
             return Ok(None);
         }
+        let scope =
+            super::native_operation_currency::NativeOperationScope::enter(self).map_err(|_| {
+                ValueError::CommandProtocolUnavailable("original Jim byte API allocator")
+            })?;
         let created = obj::Owned::fresh(obj::new_string_bytes(tcl_core_types::c_string_extent(
             bytes,
         )));
+        scope.currency().ensure_current_or_refuse().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original Jim byte API constructor currency")
+        })?;
         crate::native_source::bind_context(created.as_ptr(), &self.native_jim_object_context()?)?;
         match purpose {
             // Qualification always consumes the actual namespace holder. A

@@ -434,7 +434,7 @@ struct NativeCommandNode {
     placement: Option<(NsId, Vec<u8>)>,
     namespace: NsId,
     deletion_started: bool,
-    jim_command_name: Option<crate::obj::NativeObjectLifetime>,
+    jim_command_name: Option<crate::obj::JimCommandNameObservation>,
 }
 
 /// The original creation entry, retained across re-entrant delete callbacks.
@@ -637,7 +637,7 @@ impl Namespaces {
             ))?
             .as_ptr();
         crate::obj::check_native_liveness(original)?;
-        let observation = crate::obj::NativeObjectLifetime::retain(original);
+        let observation = crate::obj::JimCommandNameObservation::capture(original)?;
         self.native_command_nodes
             .get_mut(&generation)
             .expect("checked current command slot")
@@ -682,12 +682,12 @@ impl Namespaces {
             .collect()
     }
 
-    /// Borrow the last cold lookup's key, including an allocation whose native
-    /// owner has retired. A reached value reader must check native liveness.
+    /// Cold lookup observes one allocator/header slot. Selected readers check
+    /// its current resident; exact key owners keep their own allocation birth.
     pub(crate) fn original_jim_command_name_observation(
         &self,
         generation: u64,
-    ) -> Option<&crate::obj::NativeObjectLifetime> {
+    ) -> Option<&crate::obj::JimCommandNameObservation> {
         self.native_command_nodes
             .get(&generation)?
             .jim_command_name

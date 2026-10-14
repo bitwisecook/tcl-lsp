@@ -1,0 +1,139 @@
+{
+  "scope": "Exact unchanged original VM35 selectors, retained original20 automatic error cases, native child constructor4, local cleanup3, original source filename/LINE2 and shared Jim counted hash1. Supported Jimsh declarations enter through genuine original public source evaluation; Core-only absence remains separately checked. No full VM/static-extension/pool conformance claim.",
+  "patch_sha256": "4f1b3b70d96b291975afefe1e5f3e9e9ac0978afba2bd25423b994921cf02d3b",
+  "lib_original_count": 17,
+  "lib_new_count": 18,
+  "lib_total": 35,
+  "integration_total": 9,
+  "total_exact_selectors": 45,
+  "original_automatic_error_case_count": 20,
+  "original_automatic_error_case_file_sha256": "1f633c88e8117ebdd1786846ee8a3bb536b347ef35cdacc1d2bd9d4cba72e279",
+  "builds": {
+    "lib": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "--no-run"
+      ],
+      "selectors": [
+        "interp::native_jim_lookup::tests::original_command_replacement_uses_native_node_liveness_without_epoch_drift",
+        "interp::native_jim_lookup::tests::original_deleted_active_command_survives_only_its_actual_invocation_lease",
+        "interp::native_jim_lookup::tests::original_variable_cache_owns_no_cell_and_unset_changes_only_native_lookup_id",
+        "interp::native_jim_lookup::tests::global_original_uses_separate_stripped_key_and_foreign_caches_refuse",
+        "interp::native_jim_lookup::tests::detached_previous_retirement_releases_the_actual_chain_outside_world_borrows",
+        "interp::native_jim_lookup::tests::detached_previous_retirement_preserves_its_real_active_invocation_owner",
+        "interp::native_jim_lookup::tests::detached_previous_retirement_uses_its_original_world_when_another_vm_is_current",
+        "interp::jim_local::tests::local_frames_and_nested_upcalls_match_original_native_lineage",
+        "interp::jim_local::tests::original_jim_local_cleanup_restores_its_captured_previous_after_the_first_host_cause",
+        "interp::jim_local::tests::original_jim_local_cleanup_refuses_recreate_delete_aba_and_retires_the_detached_previous",
+        "interp::jim_local::tests::original_jim_local_cleanup_permits_an_independent_child_table_mutation",
+        "interp::jim_local::tests::original_jim_local_cleanup_refuses_an_exhausted_table_stamp",
+        "interp::jim_local::tests::original_jim_local_frame_receipt_completes_cleanup_after_pre_entry_host_refusal",
+        "interp::jim_local::tests::original_jim_local_frame_receipt_keeps_a_recreated_binding_unreached_after_refusal",
+        "interp::jim_table_key_tests::original_jim_table_key_public_results_match_replacement_rename_and_namespace_sources",
+        "interp::native_result_tests::jim_original_vector_captures_error_arguments_before_releasing_argv",
+        "interp::native_result_tests::jim_successful_vector_releases_all_temporary_argument_owners",
+        "interp::native_jim_lookup::tests::original_publication_header_survives_replacement_without_lookup_references",
+        "interp::native_jim_lookup::tests::original_key_retirement_is_not_reversed_by_a_same_named_publication",
+        "interp::native_jim_lookup::tests::host_registration_keys_are_issued_at_actual_jim_selection",
+        "interp::native_jim_lookup::tests::selected_jim_host_publication_retains_its_original_rooted_cstring",
+        "interp::native_jim_lookup::tests::a_previous_c_namespace_slot_is_not_promoted_to_a_jim_flat_key",
+        "interp::native_jim_lookup::tests::unavailable_host_publication_is_distinct_from_a_legal_empty_key",
+        "interp::native_jim_lookup::tests::selected_error_frames_ignore_an_unselected_retired_key",
+        "interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes",
+        "interp::jim_local::tests::local_unlink_and_restore_preserve_the_original_key_header_and_reference_count",
+        "interp::native_child_constructor_tests::child_core_publication_uses_its_retained_constructor_inputs_and_engine",
+        "interp::native_child_constructor_tests::jim_child_extension_library_has_its_own_original_command_key",
+        "interp::native_child_constructor_tests::child_constructor_refuses_a_foreign_engine_before_allocating_a_slot",
+        "interp::native_child_constructor_tests::distribution_child_keeps_its_independent_bootstrap_purpose",
+        "interp::jim_local::tests::deleted_local_cleanup_uses_retirement_without_reaching_a_replacement",
+        "interp::jim_local::tests::a_missing_slot_without_its_actual_retirement_receipt_refuses_cleanup",
+        "interp::jim_local::current_cleanup_tests::available_local_cleanup_selects_the_actual_recreated_entry",
+        "native_jim_script::original_source_location_tests::evaluation_location_borrows_the_original_filename_and_actual_line",
+        "native_jim_script::original_source_location_tests::missing_script_retains_actual_location_and_subst_has_no_script_layout"
+      ],
+      "cargo_target_name": "tcl_vm"
+    },
+    "native_compilation_conformance": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "native_compilation_conformance",
+        "--no-run"
+      ],
+      "selectors": [
+        "automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations",
+        "jim_alias_retains_root_slot_and_caller_lookup_and_frame",
+        "jim_rooted_alias_publication_matches_original_native_source_and_values",
+        "alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api",
+        "child_alias_publication_matches_original_supported_provider_apis",
+        "namespace_usage_and_alias_objv_dispatch_match_actual_native_contexts",
+        "missing_alias_targets_preserve_native_handler_selection_and_resolution"
+      ],
+      "cargo_target_name": "native_compilation_conformance"
+    },
+    "cross_interp_alias_e2e": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "cross_interp_alias_e2e",
+        "--no-run"
+      ],
+      "selectors": [
+        "jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported",
+        "jim_child_handle_aliases_keep_original_parent_lookup_and_retirement"
+      ],
+      "cargo_target_name": "cross_interp_alias_e2e"
+    },
+    "syntax_lib": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "tcl-syntax",
+        "--lib",
+        "--no-run"
+      ],
+      "cargo_target_name": "tcl_syntax",
+      "selectors": [
+        "naming::native::jim_command_hash_comparison_tests::original_jim_hash_comparison_retains_counted_zero_bytes_and_root_geometry"
+      ]
+    }
+  },
+  "new_selectors": [
+    "interp::native_jim_lookup::tests::original_publication_header_survives_replacement_without_lookup_references",
+    "interp::native_jim_lookup::tests::original_key_retirement_is_not_reversed_by_a_same_named_publication",
+    "interp::native_jim_lookup::tests::host_registration_keys_are_issued_at_actual_jim_selection",
+    "interp::native_jim_lookup::tests::selected_jim_host_publication_retains_its_original_rooted_cstring",
+    "interp::native_jim_lookup::tests::a_previous_c_namespace_slot_is_not_promoted_to_a_jim_flat_key",
+    "interp::native_jim_lookup::tests::unavailable_host_publication_is_distinct_from_a_legal_empty_key",
+    "interp::native_jim_lookup::tests::selected_error_frames_ignore_an_unselected_retired_key",
+    "interp::native_jim_lookup::tests::automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes",
+    "interp::jim_local::tests::local_unlink_and_restore_preserve_the_original_key_header_and_reference_count"
+  ],
+  "capture_requirements": [
+    "Use actual Cargo-emitted binary per target; record binary/provider/link library/source-closure hashes before and after.",
+    "Snapshot rust/runtime/top-level data/scripts/specs/Cargo/experiments plus actual literal includes and .d dependencies; freeze full closure until result sealed.",
+    "Require exact nonempty --list match and exactly one actual test per selector; preserve watchdog failures/raw output.",
+    "Require the actual supplied original C5 and latest Jim providers with per-version original init/tcltest library when Tcltest is used; no foreign/global library default.",
+    "Original 20 automatic error programs and all old assertion/source text remain unchanged; new rename/unselected cases compare exact retained original bytes.",
+    "No skip/unavailable/timeout/count mismatch may be reported as pass."
+  ],
+  "original_selectors_count": 35,
+  "syntax_total": 1,
+  "related_patch_sha256": [
+    "b2e5142f59a0d5dc40150bd92641bd999a5c4e2269157b4ff394bcec309eb8e1",
+    "206c7b746dddb8780d31f877bd8124d98d17a0f7abbfd1ac2db656d34767f7cd",
+    "092b33aecb502a292d6568a5e163da606a8e844ab42bbeb1baec275cc09d9035",
+    "80592388ba19c4424d2eb41d666a1cef307dd88b83572e39a7e8314d92657bee"
+  ]
+}

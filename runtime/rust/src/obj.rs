@@ -45,6 +45,11 @@
 //! `memory-management.md` MM-B.6) lands with the eval loop; the C-API
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
+mod jim_object_pool;
+pub(crate) use jim_object_pool::{
+    JimAllocationScope, JimCommandNameObservation, JimPool,
+    validate_allocator as validate_jim_allocator,
+};
 mod native_jim_lookup;
 pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
 pub(crate) use native_jim_lookup::{
@@ -631,6 +636,8 @@ struct ObjectAllocation {
 struct ObjectAuxiliary {
     lifetime_pins: Cell<usize>,
     incarnation: RefCell<tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation>,
+    jim_allocation: RefCell<Option<jim_object_pool::JimAllocation>>,
+    jim_pool: RefCell<Option<std::rc::Weak<JimPool>>>,
     live: Cell<bool>,
     retiring: Cell<bool>,
     primary_epoch: Cell<Option<u64>>,
@@ -997,7 +1004,7 @@ fn obj_layout() -> Layout {
 }
 
 /// Allocate a zeroed `TclObj` header at refCount 0 with no string rep.
-fn obj_alloc() -> *mut TclObj {
+fn allocate_object_memory() -> *mut TclObj {
     // SAFETY: `obj_layout()` is non-zero-sized and well-formed; we initialise
     // every field before returning, and the pointer is freed exactly once by
     // `free_obj`.
@@ -1019,6 +1026,8 @@ fn obj_alloc() -> *mut TclObj {
                 incarnation: RefCell::new(
                     tcl_runtime_api::native_object_incarnation::NativeObjectIncarnation::fresh(),
                 ),
+                jim_allocation: RefCell::new(None),
+                jim_pool: RefCell::new(None),
                 live: Cell::new(true),
                 retiring: Cell::new(false),
                 primary_epoch: Cell::new(Some(0)),
@@ -1026,9 +1035,43 @@ fn obj_alloc() -> *mut TclObj {
                 scalar_context: RefCell::new(None),
             },
         );
-        counters::obj_alloced();
         p
     }
+}
+
+fn obj_alloc() -> *mut TclObj {
+    let pointer = match jim_object_pool::allocate() {
+        Ok(Some((allocation, pool))) => {
+            let pointer = jim_object_pool::pointer(&allocation);
+            let state = auxiliary(pointer);
+            *state.incarnation.borrow_mut() = allocation.incarnation().clone();
+            state.live.set(true);
+            state.retiring.set(false);
+            state.primary_epoch.set(
+                state
+                    .primary_epoch
+                    .get()
+                    .and_then(|epoch| epoch.checked_add(1)),
+            );
+            *state.jim_allocation.borrow_mut() = Some(allocation);
+            *state.jim_pool.borrow_mut() = Some(pool);
+            // SAFETY: a free pool slot has retired all former Native resources.
+            unsafe {
+                (*pointer).ref_count = 0;
+                (*pointer).bytes = core::ptr::null_mut();
+                (*pointer).length = 0;
+                (*pointer).type_ptr = core::ptr::null();
+                (*pointer).internal_rep = 0;
+            }
+            pointer
+        }
+        Ok(None) => allocate_object_memory(),
+        Err(()) => return core::ptr::null_mut(),
+    };
+    if !pointer.is_null() {
+        counters::obj_alloced();
+    }
+    pointer
 }
 
 /// Free a `TclObj` and its owned string buffer (if any). `TclFreeObj`: what
@@ -1070,6 +1113,20 @@ pub unsafe fn free_obj(obj: *mut TclObj) {
     drop(retired_scalar_context);
     counters::obj_freed();
     state.retiring.set(false);
+    let allocation = state.jim_allocation.borrow_mut().take();
+    let pool = state
+        .jim_pool
+        .borrow_mut()
+        .take()
+        .and_then(|pool| pool.upgrade());
+    if let Some(allocation) = allocation {
+        if let Some(pool) = pool {
+            let _ = pool.release(allocation);
+        } else {
+            drop(allocation);
+        }
+        return;
+    }
     if state.lifetime_pins.get() == 0 {
         // SAFETY: no remaining native or lifetime owner can use this allocation.
         unsafe { deallocate_object(obj) };

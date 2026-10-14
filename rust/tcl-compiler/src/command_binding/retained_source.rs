@@ -267,9 +267,29 @@ impl RetainedSourceModuleBindings {
             || !tokens.original_words_match_argv_text()
             || binding.lookup_state.is_some()
             || binding.has_original_native_source_command()
-            || binding.has_original_logical_source_advice()
         {
             return false;
+        }
+        if binding.has_original_logical_source_advice() {
+            let Some(card) = module.original_logical_declaration_body_units.get(&body) else {
+                return false;
+            };
+            if !card.matches_procedure(module, procedure) {
+                return false;
+            }
+            let Some(words) = binding.original_logical_source_words(tokens, input, registry) else {
+                return false;
+            };
+            let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+                return false;
+            };
+            let Some(scope) = advice.logical_source_scope() else {
+                return false;
+            };
+            return Arc::ptr_eq(&advice.site().source, &card.site().source)
+                && std::ptr::eq(scope.scope_body(), card.scope().scope_body())
+                && scope.matches_input(input)
+                && scope.owns_words(advice.original_words());
         }
         let Some(metadata) = binding.original_declaration_metadata_for_source(tokens, registry)
         else {

@@ -208,6 +208,7 @@ pub(crate) struct NativeOperationScope {
     interpreter: Interp,
     currency: Rc<NativeOperationCurrency>,
     entry: Rc<NativeOperationEntry>,
+    _allocation: crate::obj::JimAllocationScope,
 }
 
 /// Mandatory cleanup attaches the saved original entry only for its actual
@@ -216,6 +217,7 @@ pub(crate) struct NativeSavedCleanupScope {
     interpreter: Interp,
     original: SavedNativeOperationCurrency,
     entry: Rc<NativeOperationEntry>,
+    _allocation: crate::obj::JimAllocationScope,
 }
 
 impl NativeSavedCleanupScope {
@@ -228,6 +230,29 @@ impl NativeOperationScope {
     pub(crate) fn enter(interpreter: &Interp) -> Result<Self, NativeExecutionError> {
         let currency = Rc::new(NativeOperationCurrency::issue(interpreter)?);
         currency.ensure_current_or_refuse()?;
+        let pool = if interpreter
+            .native_invocation_dialect()
+            .native_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            Some(
+                interpreter
+                    .native_jim_object_context()
+                    .map_err(|error| {
+                        NativeExecutionError::ValueAccessRefusal(
+                            error.native_access_refusal().expect("actual Jim context"),
+                        )
+                    })?
+                    .allocation_pool(),
+            )
+        } else {
+            None
+        };
+        let observed = Rc::clone(&currency);
+        let allocation = crate::obj::JimAllocationScope::enter(
+            pool,
+            Rc::new(move || observed.ensure_current().is_ok()),
+        );
         let entry = Rc::new(NativeOperationEntry::Current(currency.clone()));
         interpreter
             .entered_native_operations
@@ -237,6 +262,7 @@ impl NativeOperationScope {
             interpreter: interpreter.clone(),
             currency,
             entry,
+            _allocation: allocation,
         })
     }
 
@@ -248,7 +274,27 @@ impl NativeOperationScope {
         interpreter: &Interp,
     ) -> Result<NativeSavedCleanupScope, NativeExecutionError> {
         saved.ensure_target(interpreter)?;
-        let _ = saved.check(interpreter);
+        let current = saved.check(interpreter);
+        let pool = if current.is_ok()
+            && interpreter
+                .native_invocation_dialect()
+                .native_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+        {
+            interpreter
+                .jim_object_context
+                .borrow()
+                .as_ref()
+                .map(|context| context.allocation_pool())
+        } else {
+            None
+        };
+        let saved_allocation = saved.clone();
+        let target = interpreter.clone();
+        let allocation = crate::obj::JimAllocationScope::enter(
+            pool,
+            Rc::new(move || saved_allocation.check(&target).is_ok()),
+        );
         let entry = Rc::new(match &saved.original {
             Ok(currency) => NativeOperationEntry::Current(Rc::new(currency.clone())),
             Err(first) => NativeOperationEntry::RefusedCleanup(first.clone()),
@@ -261,6 +307,7 @@ impl NativeOperationScope {
             interpreter: interpreter.clone(),
             original: saved.clone(),
             entry,
+            _allocation: allocation,
         })
     }
 
@@ -730,13 +777,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(obj::bytes_of(actual), b"reached");
-        assert!(crate::vars::get(
-            &interpreter.frames.borrow(),
-            &interpreter.namespaces.borrow(),
-            interpreter.current_ns.get(),
-            b"after"
-        )
-        .is_none());
+        assert!(
+            crate::vars::get(
+                &interpreter.frames.borrow(),
+                &interpreter.namespaces.borrow(),
+                interpreter.current_ns.get(),
+                b"after"
+            )
+            .is_none()
+        );
         drop(entry);
         assert!(interpreter.entered_native_operations.borrow().is_empty());
     }
@@ -770,9 +819,11 @@ mod tests {
         let prior = interpreter.get_obj_result();
         crate::codegen_abi::tcl_runtime_set_current_interp(&mut interpreter);
         let entry = NativeOperationScope::enter(&interpreter).unwrap();
-        assert!(interpreter
-            .native_object_string_bytes(value.as_ptr())
-            .is_err());
+        assert!(
+            interpreter
+                .native_object_string_bytes(value.as_ptr())
+                .is_err()
+        );
         assert_eq!(interpreter.native_execution_refusal(), Some(stale()));
         assert_eq!(obj::bytes_of(value.as_ptr()), b"reached\0bytes");
         assert_eq!(
@@ -781,12 +832,14 @@ mod tests {
         );
         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, references);
         assert_eq!(interpreter.get_obj_result(), prior);
-        assert!(crate::state_traits::capture_completion_checked(
-            &mut interpreter,
-            entry.currency(),
-            Code::Ok
-        )
-        .is_err());
+        assert!(
+            crate::state_traits::capture_completion_checked(
+                &mut interpreter,
+                entry.currency(),
+                Code::Ok
+            )
+            .is_err()
+        );
         assert_eq!(interpreter.get_obj_result(), prior);
         drop(entry);
         crate::codegen_abi::tcl_runtime_set_current_interp(core::ptr::null_mut());
@@ -933,10 +986,12 @@ mod tests {
             assert!(selected);
             assert_ne!(interpreter.native_operation_context_epoch(), before);
             assert_eq!(entry.currency().ensure_current_or_refuse(), Err(stale()));
-            assert!(interpreter
-                .native_invocation_dialect()
-                .native_scalar_getter_protocol()
-                .is_none());
+            assert!(
+                interpreter
+                    .native_invocation_dialect()
+                    .native_scalar_getter_protocol()
+                    .is_none()
+            );
             drop(entry);
         }
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original pinned Jim name objects, active command leases and weak VarVal caches.
 
-use super::{native_arguments::OriginalArguments, Code, Command, Interp};
+use super::{Code, Command, Interp, native_arguments::OriginalArguments};
 use crate::{
     frame::JimVariableRead,
     namespace::NsId,
@@ -687,9 +687,11 @@ mod tests {
             ] {
                 let original = name(spelling);
                 let pointer = unsafe { (*original.as_ptr()).bytes };
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
+                assert!(
+                    interp
+                        .read_original_named_variable(original.as_ptr())
+                        .is_err()
+                );
                 assert!(obj::obj_type_ptr(original.as_ptr()).is_null());
                 interp
                     .store_original_named_variable(original.as_ptr(), value.as_ptr())
@@ -727,9 +729,11 @@ mod tests {
                 assert_eq!(unsafe { (*original.as_ptr()).bytes }, pointer);
                 assert!(interp.var_unset(spelling));
                 assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
+                assert!(
+                    interp
+                        .read_original_named_variable(original.as_ptr())
+                        .is_err()
+                );
                 assert_eq!(
                     obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame),
                     Some(cache.0)
@@ -756,9 +760,11 @@ mod tests {
             .unwrap();
         let first = obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame).unwrap();
         interp.frames.borrow_mut().push(GLOBAL);
-        assert!(interp
-            .read_original_named_variable(original.as_ptr())
-            .is_err());
+        assert!(
+            interp
+                .read_original_named_variable(original.as_ptr())
+                .is_err()
+        );
         assert_eq!(
             obj::with_jim_variable_cache(original.as_ptr(), |cache| cache.frame),
             Some(first)
@@ -877,19 +883,21 @@ mod tests {
             .original_jim_command_name_observation(generation)
             .unwrap()
             .clone();
+        let exact = obj::NativeObjectLifetime::retain(observation.as_ptr());
         assert_eq!(
             interp.rename_command(b"p", b"q"),
             crate::namespace::RenameOutcome::Renamed
         );
-        assert!(obj::check_native_liveness(observation.as_ptr()).is_err());
+        assert!(exact.checked_ptr().is_err());
         interp.bind_command_replacement(GLOBAL, b"p", Command::Builtin(worker));
         let replacement = interp
             .namespaces
             .borrow()
             .original_jim_command_key(GLOBAL, b"p")
             .unwrap();
-        assert_ne!(observation.as_ptr(), replacement);
-        assert!(obj::check_native_liveness(observation.as_ptr()).is_err());
+        assert_eq!(observation.current_ptr().unwrap(), replacement);
+        assert_eq!(obj::bytes_of(replacement), b"p");
+        assert!(exact.checked_ptr().is_err());
         let original_name = interp
             .namespaces
             .borrow()
@@ -976,10 +984,12 @@ mod tests {
             interp.namespaces.borrow().jim_procedure_epoch(),
             replacement.0
         );
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             obj::with_jim_command_cache(original.as_ptr(), |cache| (cache.epoch, cache.token)),
             Some(replacement)
@@ -1001,10 +1011,12 @@ mod tests {
             .borrow_mut()
             .retain_jim_namespace(name(b""), std::rc::Rc::from(&b""[..]));
         assert_ne!(namespace, GLOBAL);
-        assert!(interp
-            .resolve_original_command_at(namespace, original.as_ptr())
-            .unwrap()
-            .is_some());
+        assert!(
+            interp
+                .resolve_original_command_at(namespace, original.as_ptr())
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(obj::internal_rep(original.as_ptr()), primary);
     }
 
@@ -1016,10 +1028,12 @@ mod tests {
             Some(before)
         );
         let fresh = name(b"active");
-        assert!(interp
-            .resolve_original_command(fresh.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(fresh.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         Code::Ok
     }
     #[test]
@@ -1037,10 +1051,12 @@ mod tests {
             Code::Ok
         );
         assert_eq!(interp.namespaces.borrow().jim_procedure_epoch(), epoch);
-        assert!(interp
-            .resolve_original_command(original.as_ptr())
-            .unwrap()
-            .is_none());
+        assert!(
+            interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             obj::with_jim_command_cache(original.as_ptr(), |cache| cache.epoch),
             Some(epoch)
@@ -1058,9 +1074,11 @@ mod tests {
             .store_original_named_variable(variable.as_ptr(), value.as_ptr())
             .unwrap();
         let primary = obj::internal_rep(variable.as_ptr());
-        assert!(second
-            .read_original_named_variable(variable.as_ptr())
-            .is_err());
+        assert!(
+            second
+                .read_original_named_variable(variable.as_ptr())
+                .is_err()
+        );
         assert_eq!(obj::internal_rep(variable.as_ptr()), primary);
         assert!(second.host_refusal_pending());
         let command = name(b"set");

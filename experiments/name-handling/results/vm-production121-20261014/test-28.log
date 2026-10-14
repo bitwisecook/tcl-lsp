@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::native_child_constructor_tests::jim_child_extension_library_has_its_own_original_command_key ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1255 filtered out; finished in 0.18s
+

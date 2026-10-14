@@ -225,6 +225,33 @@ fn definition_source_name(
     }
 }
 
+/// The existing definition producer owns its operand-binding phase. Source
+/// name correspondence cannot resolve that definition again after its effects.
+fn original_structural_definition_key_at(
+    statement: &Statement,
+    block: BlockId,
+    index: usize,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> Option<VariableCellKey> {
+    if !matches!(
+        statement,
+        Statement::AssignConst { .. }
+            | Statement::AssignValue { .. }
+            | Statement::AssignExpr { .. }
+            | Statement::Incr { .. }
+    ) {
+        return None;
+    }
+    let places = crate::place_bridge::def_places_at(statement, block, index, points, registry);
+    let mut keys = places
+        .iter()
+        .map(crate::var_resolve::canonical_binding_value_key);
+    let key = keys.next()??;
+    keys.all(|other| other.as_ref() == Some(&key))
+        .then_some(key)
+}
+
 fn bound_defs(
     statement: &Statement,
     block: BlockId,
@@ -7175,10 +7202,11 @@ impl<'a> RenameWalk<'a> {
                     .is_some()
             };
             if original_name
-                && let Some(bound) = definition_source_name(
+                && let Some(bound) = original_structural_definition_key_at(
                     stmt,
-                    name,
-                    self.points.after_statement(point.0, point.1),
+                    point.0,
+                    point.1,
+                    &self.points,
                     registry,
                 )
             {
@@ -14132,6 +14160,55 @@ mod original_analysis_definition_selector_tests {
                 &tokens[0],
                 context.commands()
             ));
+        }
+    }
+
+    #[test]
+    fn logical_card_body_tokens_refuse_a_different_current_declaration() {
+        let source = "proc p {} {set value TEXT; return $value}\nproc q {} {set value TEXT; return $value}\n";
+        let (unit, context) = unit(source);
+        let retained = unit.ir_module.retained_source_bindings.as_deref().unwrap();
+        let mut bodies = unit
+            .ir_module
+            .original_source_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        bodies.sort_unstable();
+        let [first, second] = bodies.as_slice() else {
+            panic!("two real current declarations");
+        };
+        for (actual, other) in [(*first, *second), (*second, *first)] {
+            let function = unit.function_for_body(Some(actual)).unwrap();
+            for tokens in function
+                .ssa
+                .point_contexts
+                .as_ref()
+                .unwrap()
+                .source_token_inventory()
+                .values()
+            {
+                let mut original = tokens.clone();
+                crate::lattice_rebase::rebase_command_tokens(&mut original, function.base_offset);
+                assert!(
+                    original
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .has_original_logical_source_advice()
+                );
+                assert!(retained.owns_original_body_tokens(
+                    &unit.ir_module,
+                    actual,
+                    &original,
+                    context.commands()
+                ));
+                assert!(!retained.owns_original_body_tokens(
+                    &unit.ir_module,
+                    other,
+                    &original,
+                    context.commands()
+                ));
+            }
         }
     }
 

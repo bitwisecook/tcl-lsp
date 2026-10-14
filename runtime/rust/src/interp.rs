@@ -1950,6 +1950,7 @@ impl Interp {
             .map_or(DEFAULT_RUNTIME_VERSION, |(profile, _, _)| {
                 profile.vm_runtime_version
             });
+        let _constructor_allocation = obj::JimAllocationScope::enter(None, Rc::new(|| true));
         let result = obj::new_obj();
         let system_encoding = host.system_encoding();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
@@ -2116,6 +2117,14 @@ impl Interp {
         // fresh interp installs its own rather than inheriting whatever is
         // there (`set_runtime_version` re-installs when an embedder repins).
         install_ambient_release(version);
+        let _root_operation = match native_operation_currency::NativeOperationScope::enter(&interp)
+        {
+            Ok(scope) => scope,
+            Err(first) => {
+                interp.refuse_native_execution(first);
+                return interp;
+            }
+        };
         if let Err(first) = interp.configure_native_error_stack_checked() {
             interp.refuse_native_execution(first);
             return interp;
@@ -12450,7 +12459,11 @@ impl Interp {
         &self,
         script_failure: Option<&JimScriptLocation<obj::Owned>>,
     ) -> Result<Option<Vec<JimErrorFrame<obj::Owned>>>, tcl_runtime_api::NativeExecutionError> {
-        let empty = obj::Owned::fresh(new_string(b""));
+        let empty = self
+            .native_jim_object_context()
+            .map_err(|error| self.clone().refuse_completion_value_access(error))?
+            .empty_object()
+            .clone();
         let level = self.jim_procedure_level.get();
         if level == 0 {
             if let Some(script) = script_failure {
@@ -12498,9 +12511,10 @@ impl Interp {
                 let observation = world
                     .original_jim_command_name_observation(command)
                     .expect("selected original command-name observation");
-                obj::check_native_liveness(observation.as_ptr())
+                let original = observation
+                    .current_ptr()
                     .map_err(|error| self.clone().refuse_completion_value_access(error))?;
-                obj::Owned::retain(observation.as_ptr())
+                obj::Owned::retain(original)
             } else {
                 empty.clone()
             };

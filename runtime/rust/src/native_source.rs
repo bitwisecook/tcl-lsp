@@ -17,6 +17,7 @@ use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
 pub(crate) struct NativeJimObjectContext {
     numeric_host: RefCell<Option<Rc<dyn tcl_platform::Host>>>,
     live: std::cell::Cell<bool>,
+    pool: Rc<obj::JimPool>,
     objects: [RefCell<Option<Owned>>; 10],
 }
 
@@ -29,10 +30,13 @@ impl NativeJimObjectContext {
                 "Jim original source context",
             ));
         }
+        let pool = Rc::new(obj::JimPool::new(true));
+        let allocation = obj::JimAllocationScope::enter(Some(Rc::clone(&pool)), Rc::new(|| true));
         let empty = Owned::fresh(obj::new_string_bytes(b""));
         let context = Rc::new(Self {
             numeric_host: RefCell::new(None),
             live: std::cell::Cell::new(true),
+            pool,
             objects: [
                 Some(empty.clone()),
                 Some(Owned::fresh(obj::new_wide_int_obj(1))),
@@ -54,7 +58,12 @@ impl NativeJimObjectContext {
             };
             bind_context(value.as_ptr(), &context)?;
         }
+        drop(allocation);
         Ok(context)
+    }
+
+    pub(crate) fn allocation_pool(&self) -> Rc<obj::JimPool> {
+        Rc::clone(&self.pool)
     }
 
     pub(crate) fn select_numeric_host(&self, host: Rc<dyn tcl_platform::Host>) {
@@ -167,6 +176,7 @@ impl NativeJimObjectContext {
     }
     pub(crate) fn retire(&self) {
         self.live.set(false);
+        self.pool.retire();
         let host = self.numeric_host.borrow_mut().take();
         drop(host);
     }
@@ -213,6 +223,7 @@ pub(crate) fn bind_context(
     value: *mut TclObj,
     context: &Rc<NativeJimObjectContext>,
 ) -> Result<(), ValueError> {
+    obj::validate_jim_allocator(value, &context.pool)?;
     OBJECT_CONTEXTS.with(|contexts| {
         let selected = Rc::downgrade(context);
         let mut retained = contexts.borrow_mut();

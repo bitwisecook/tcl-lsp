@@ -1,0 +1,13 @@
+{
+  "checked_utc": "2026-10-14T17:42:36.977508+00:00",
+  "command": [
+    "git",
+    "ls-remote",
+    "https://github.com/msteveb/jimtcl.git",
+    "HEAD"
+  ],
+  "exit_code": 0,
+  "stdout": "5bac7c99ad65864c87da513e22e2f01703fa4e03\tHEAD\n",
+  "matches_selected_pinned_revision": true,
+  "scope": "Read-only upstream equality; original provider tree/executable unchanged."
+}

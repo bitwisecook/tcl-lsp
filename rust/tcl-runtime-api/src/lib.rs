@@ -45,6 +45,8 @@ pub use tcl_core_types::{
 /// Original native script bytes with explicit source-channel semantics.
 pub use tcl_lexer::{SourceChannel, SourceImage};
 
+/// Actual Jim LIFO header reuse with separate exact and neutral observations.
+pub mod jim_object_pool;
 /// Independent supported-backend C ABI issuance for native hash owners.
 pub mod native_c_string_abi;
 pub mod native_hash_abi;

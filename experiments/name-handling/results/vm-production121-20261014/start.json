@@ -1,0 +1,12 @@
+{
+  "started_utc": "2026-10-14T17:40:52.710067+00:00",
+  "runner_sha256": "4d7432e933693ed7f078af9de418e1c10e6fba9c9db644d9131811e28fc4bbab",
+  "source_count": 133440,
+  "plan_sha256": "a4882c44c4e1ec582266c424c778b910cd251cbc13cda8aa23fa3b98dc42ec7a",
+  "patch_sha256": "4f1b3b70d96b291975afefe1e5f3e9e9ac0978afba2bd25423b994921cf02d3b",
+  "original_automatic_error_case_count": 20,
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "closure": "Rust/runtime/data/scripts/specs/experiments/Cargo, literal include files, original C5/Jim source/interpreters/libraries, linked libraries and registry sources"
+}

@@ -1,0 +1,17 @@
+
+running 1 test
+test automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations ... 
+thread 'automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations' (407127) panicked at rust/tcl-vm/tests/native_compilation_conformance.rs:1668:9:
+assertion `left == right` failed: parse-procedure
+  left: "{fail stdin 1 {} {} stdin 1 fail}"
+ right: "{{} stdin 1 fail {} stdin 1 fail}"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 50 filtered out; finished in 2.65s
+

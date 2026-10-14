@@ -1,0 +1,6 @@
+
+running 1 test
+test jim_child_handle_aliases_keep_original_parent_lookup_and_retirement ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.36s
+
