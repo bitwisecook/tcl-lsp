@@ -20,7 +20,7 @@
 # Adding a retirement is one row in RETIRED_ASSET_NAMES.
 #
 # Waiver: put `retired-asset-ok:` on the line to allow a deliberate mention,
-# such as a changelog entry that has to name what the asset used to be called.
+# such as an explicit compatibility fixture retaining that asset spelling.
 
 set -euo pipefail
 

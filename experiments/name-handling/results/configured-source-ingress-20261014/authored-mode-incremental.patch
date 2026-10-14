@@ -1,0 +1,38 @@
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -1576,7 +1576,14 @@
+         {
+             let input =
+                 crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, self.config);
+-            self.retain_resolved_analysis_input(input);
++            if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
++                self.retain_resolved_analysis_input(input);
++            } else {
++                // This driver already selected its authored simulation independently.
++                // Complete source ownership does not replace its entry contract.
++                self.metadata_input = Some(input);
++                self.metadata_origin = LoweringMetadataOrigin::Supplied;
++            }
+         }
+         self.module.top_level_namespace_context = None;
+         self.module_source_bindings = None;
+@@ -8516,9 +8523,17 @@
+             module.source_entry.metadata_context.source_analysis_input(),
+             Some(input)
+         );
++        assert!(module.source_entry.logical_source_input.is_none());
+         assert_eq!(
+-            module.source_entry.logical_source_input.as_ref(),
+-            Some(input)
++            module
++                .source_entry
++                .options()
++                .execution_name_policy()
++                .unwrap()
++                .native_recipe()
++                .unwrap()
++                .authority(),
++            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+         );
+         assert!(module.source_entry.native_entry.is_none());
+         assert!(

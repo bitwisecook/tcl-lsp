@@ -1,0 +1,63 @@
+--- a/rust/tcl-lsp-core/src/source_decode.rs
++++ b/rust/tcl-lsp-core/src/source_decode.rs
+@@ -105,8 +105,7 @@
+     /// buffer split mid-character.
+     Truncated,
+     /// A codepoint encoded in more bytes than the minimum (`\xc0\xaf` for
+-    /// `/`). Historically a filter-evasion technique: the security check sees
+-    /// one thing, the decoder another.
++    /// `/`). Byte filters and decoded character checks can disagree.
+     Overlong,
+     /// A UTF-16 surrogate half (`U+D800`-`U+DFFF`) encoded directly — CESU-8 /
+     /// WTF-8. Produced by naive UTF-16 → UTF-8 conversion; not valid UTF-8.
+--- a/rust/tcl-spec-studio/src/store.rs
++++ b/rust/tcl-spec-studio/src/store.rs
+@@ -1082,8 +1082,7 @@
+ 
+         let written = draft.get("name").and_then(Value::as_str).unwrap_or(name);
+         let after = self.declared_properties(written);
+-        // A loss is a property that vanished, or one that used to be a real
+-        // declaration and is now only a `-native` placeholder.
++        // An absent property or replacement native placeholder loses its declaration.
+         let dropped = before
+             .iter()
+             .filter(|(word, was_placeholder)| {
+--- a/scripts/dev/test-retired-asset-names.sh
++++ b/scripts/dev/test-retired-asset-names.sh
+@@ -20,7 +20,7 @@
+ # Adding a retirement is one row in RETIRED_ASSET_NAMES.
+ #
+ # Waiver: put `retired-asset-ok:` on the line to allow a deliberate mention,
+-# such as a changelog entry that has to name what the asset used to be called.
++# such as an explicit compatibility fixture retaining that asset spelling.
+ 
+ set -euo pipefail
+ 
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -298,9 +298,9 @@
+ | Plausible candidates from a familiar pattern | Offer ranked completion or an explicit candidate list with supporting evidence. Do not present a candidate as a definite reference or use it to authorise mutation or optimisation. |
+ | Unknown or ambiguous | Preserve the reason and any bounded candidate set. Demur on definite target selection, unsafe edits and unsupported diagnostic conclusions. |
+ 
+-This is a consumer contract, not a claim that every current result type already
+-records these distinctions. Extend existing analysis/binding/provenance facts
+-to carry them; do not introduce a second resolver per provider.
++Each shared projection retains its own uncertainty and permitted use.
++Bounded reporting views cannot manufacture a missing identity, execution or edit
++receipt; consumers select the existing purpose-specific owner.
+ 
+ Recognise common idioms through the existing semantic owners:
+ 
+@@ -453,8 +453,10 @@
+ from retained real-oracle observations for the supported release/context.
+ C Tcl, Jim and F5 can differ; expectations carry that axis explicitly.
+ Upstream C Tcl `tcltest` cases and Jim's equivalent suite are valid evidence
+-when executed on the identified real reference interpreter. Retain suite/case
+-provenance, dependencies, constraints and actual execution results; skipped
++when executed on the identified real reference interpreter. A `tcltest` run
++uses that version's original `tcltest.tcl` and `init.tcl`, with its matching
++library dependencies; a runtime's vendored copy cannot replace those inputs.
++Retain suite/case provenance, dependencies, constraints and actual execution results; skipped
+ cases supply no oracle answer. Harness execution on our runtimes validates
+ consumers against reference evidence.
+ The experiment protocol and executable observations are retained under

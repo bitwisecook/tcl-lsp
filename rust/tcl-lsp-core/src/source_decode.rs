@@ -105,8 +105,7 @@ pub enum Utf8Fault {
     /// buffer split mid-character.
     Truncated,
     /// A codepoint encoded in more bytes than the minimum (`\xc0\xaf` for
-    /// `/`). Historically a filter-evasion technique: the security check sees
-    /// one thing, the decoder another.
+    /// `/`). Byte filters and decoded character checks can disagree.
     Overlong,
     /// A UTF-16 surrogate half (`U+D800`-`U+DFFF`) encoded directly — CESU-8 /
     /// WTF-8. Produced by naive UTF-16 → UTF-8 conversion; not valid UTF-8.

@@ -1,0 +1,23 @@
+{
+  "base_head": "e8826c7ef1d9db877fb35a1a527a1932f530a691",
+  "files": [
+    {
+      "path": "docs/design/compiler/architecture.md",
+      "before_sha256": "9683c955269d67d327013c82700d6009de485617c75605f187456ead6eb83285",
+      "after_sha256": "0f4601555d777954ab067dd13e2f145373d5346cb74043d1cc4952f71a9a026c",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "docs/design/compiler/example-walkthroughs.md",
+      "before_sha256": "a73a50d59c423da75b34d9d7df597dd76b20d03b336f49717e5b3a74a76746a3",
+      "after_sha256": "a168e8174ab08b4fbfba6491f5215276fd3216c37884e57f6d1da6b802d175b6",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "c49f496668f10376af4abfc9d3873cfd901a9edaf1b708b1cf3221f301ece929",
+      "after_sha256": "f01427ee4662cbba3d2f07d199386e1a6900f6ef87ceb3c8482a0efeece17b67",
+      "Rust_meaningful_tokens_unchanged": true
+    }
+  ]
+}

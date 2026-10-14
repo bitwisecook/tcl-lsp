@@ -1,0 +1,17 @@
+
+running 1 test
+test definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table ... 
+thread 'definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table' (194604) panicked at rust/tcl-lsp-core/src/definition.rs:8993:9:
+assertion `left == right` failed
+  left: []
+ right: [0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    definition::logical_variable_scope_owner_tests::logical_root_namespace_eval_keeps_the_same_root_declaration_table
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3021 filtered out; finished in 0.41s
+

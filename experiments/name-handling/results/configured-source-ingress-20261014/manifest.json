@@ -1,0 +1,12 @@
+{
+  "paths": [
+    "rust/tcl-compiler/src/lowering/mod.rs"
+  ],
+  "sha256": "0af989d4fdc0897e809fe2e76629087c0c0b105685e6c86fdec089ad80d29c63",
+  "apply_check": {
+    "exit": 0,
+    "stderr": ""
+  },
+  "validation": "rustfmt only; original source17 controls still failing; no executed acceptance",
+  "scope": "Configured authoring with actual profile/context/config installs one complete Logical/hosted input through existing source-entry admission. Explicit supplied/native/runtime entries and unavailable input remain independent."
+}

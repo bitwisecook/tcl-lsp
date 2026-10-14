@@ -1416,6 +1416,11 @@ impl<'r> Lowerer<'r> {
         mut self,
         input: crate::analyser::ResolvedAnalysisInput,
     ) -> Self {
+        self.retain_resolved_analysis_input(input);
+        self
+    }
+
+    fn retain_resolved_analysis_input(&mut self, input: crate::analyser::ResolvedAnalysisInput) {
         self.dialect = self.dialect.or(Some(input.unit_profile()));
         let source_entry = (self.source_entry_origin == SourceEntryOrigin::Authoring).then(|| {
             crate::command_binding::SourceAnalysisEntry::for_supplied_source(
@@ -1431,7 +1436,6 @@ impl<'r> Lowerer<'r> {
         if let Some(entry) = source_entry {
             self.set_source_analysis_options(entry.options());
         }
-        self
     }
 
     /// Install a memoised per-procedure body-lowering callback (see
@@ -1561,6 +1565,26 @@ impl<'r> Lowerer<'r> {
     }
 
     fn start_module(&mut self) {
+        if self.source_entry_origin == SourceEntryOrigin::Authoring
+            && self.metadata_origin == LoweringMetadataOrigin::Standalone
+            && self.metadata_input.is_none()
+            && self.logical_source_input.is_none()
+            && self.vendor_source_input.is_none()
+            && self.native_entry.is_none()
+            && let Some(profile) = self.dialect.or_else(|| self.registry.profile())
+            && let Some(context) = self.dialect_context.clone()
+        {
+            let input =
+                crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, self.config);
+            if input.has_logical_source_name_context() || input.has_hosted_source_name_context() {
+                self.retain_resolved_analysis_input(input);
+            } else {
+                // This driver already selected its authored simulation independently.
+                // Complete source ownership does not replace its entry contract.
+                self.metadata_input = Some(input);
+                self.metadata_origin = LoweringMetadataOrigin::Supplied;
+            }
+        }
         self.module.top_level_namespace_context = None;
         self.module_source_bindings = None;
         self.module.lexer_config = self.config;
@@ -1570,16 +1594,7 @@ impl<'r> Lowerer<'r> {
             .metadata_input
             .clone()
             .or_else(|| self.logical_source_input.clone())
-            .or_else(|| self.vendor_source_input.clone())
-            .or_else(|| {
-                let profile = self.module.dialect_profile?;
-                Some(crate::analyser::ResolvedAnalysisInput::new(
-                    profile,
-                    profile,
-                    self.dialect_context.as_ref()?.clone(),
-                    self.config,
-                ))
-            });
+            .or_else(|| self.vendor_source_input.clone());
         self.module.dialect = self
             .module
             .dialect_profile
@@ -5412,14 +5427,8 @@ impl<'r> Lowerer<'r> {
         true
     }
 
-    /// Lift the method-frame member bodies inside one definer block to
-    /// per-method [`MethodDef`] entries keyed by `{class_qname}::{name}`
-    /// (nameless members use synthetic names — `<constructor>`,
-    /// `<destructor>`, `<typeconstructor>`).  Member recognition and
-    /// argument layout come from the definer's registry grammar
-    /// ([`DefinerCall::grammar`]), so `oo::objdefine`, snit, and itcl bodies
-    /// produce method units exactly as `oo::class create` / `oo::define` do —
-    /// no member keyword is matched for layout.
+    /// Retain each member's actual body ID, typed kind and declaring source owner.
+    /// The selected [`DefinerCall::grammar`] supplies recognition and operand layout.
     ///
     /// `texts` is the definer command's full per-word text array;
     /// `body_content_offset` is the absolute source offset of the first
@@ -8494,6 +8503,47 @@ mod tests {
     // namespace, not the lexical namespace of the `proc` call.
 
     #[test]
+    fn configured_source_ingress_retains_one_input_for_entry_and_module() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let source = "proc f {p} {return $p}";
+        let module = lower_to_ir_with_dialect(source, registry, config, Some(profile));
+        let input = module
+            .source_metadata_input
+            .as_ref()
+            .expect("actual configured source input");
+        assert_eq!(
+            module.source_entry.metadata_context.source_analysis_input(),
+            Some(input)
+        );
+        assert!(module.source_entry.logical_source_input.is_none());
+        assert_eq!(
+            module
+                .source_entry
+                .options()
+                .execution_name_policy()
+                .unwrap()
+                .native_recipe()
+                .unwrap()
+                .authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(
+            module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .matches_module(&module, registry)
+        );
+        let procedures = module.procedures.iter().collect::<Vec<_>>();
+        assert_eq!(procedures.len(), 1);
+        assert!(module.procedure_ids.owns(*procedures[0].0));
+        assert_eq!(procedures[0].1.qualified_name, "::f");
+    }
+
+    #[test]
     fn original_name_operand_publishes_a_body_without_borrowing_the_head_lookup() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let profile = registry.profile().unwrap();
@@ -8526,18 +8576,39 @@ mod tests {
             binding.original_command_lookup(tokens, &input).is_none(),
             "an operand cannot replace the original command-head owner"
         );
-        let scope = binding
-            .original_operand_naming_scope(&input)
-            .expect("actual operand naming scope");
+        assert!(module.source_entry.native_entry.is_none());
+        assert_eq!(
+            procedure.declaration_site.as_ref(),
+            binding.invocation_site()
+        );
+        let head = binding
+            .original_written_name_input(tokens, 0)
+            .expect("actual original declaration head");
+        assert_eq!(head.bytes(), b"proc");
+        assert_eq!(input.bytes(), b"f");
+        assert_ne!(
+            head.original_word_key().unwrap().original_word(),
+            input.original_word_key().unwrap().original_word()
+        );
         let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input
         else {
             panic!("original literal name word");
         };
         assert_eq!(
-            procedure.publication.as_ref(),
-            crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(&scope, key)
-                .as_ref()
+            key.policy().authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
         );
+        if let Some(scope) = binding.original_operand_naming_scope(&input) {
+            assert_eq!(
+                procedure.publication.as_ref(),
+                crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+                    &scope, key
+                )
+                .as_ref()
+            );
+        } else {
+            assert!(procedure.publication.is_none());
+        }
     }
 
     #[test]

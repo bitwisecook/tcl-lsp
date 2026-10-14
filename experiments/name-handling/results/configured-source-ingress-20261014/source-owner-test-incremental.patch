@@ -1,0 +1,48 @@
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -8567,18 +8567,39 @@
+             binding.original_command_lookup(tokens, &input).is_none(),
+             "an operand cannot replace the original command-head owner"
+         );
+-        let scope = binding
+-            .original_operand_naming_scope(&input)
+-            .expect("actual operand naming scope");
++        assert!(module.source_entry.native_entry.is_none());
++        assert_eq!(
++            procedure.declaration_site.as_ref(),
++            binding.invocation_site()
++        );
++        let head = binding
++            .original_written_name_input(tokens, 0)
++            .expect("actual original declaration head");
++        assert_eq!(head.bytes(), b"proc");
++        assert_eq!(input.bytes(), b"f");
++        assert_ne!(
++            head.original_word_key().unwrap().original_word(),
++            input.original_word_key().unwrap().original_word()
++        );
+         let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input
+         else {
+             panic!("original literal name word");
+         };
+         assert_eq!(
+-            procedure.publication.as_ref(),
+-            crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(&scope, key)
++            key.policy().authority(),
++            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
++        );
++        if let Some(scope) = binding.original_operand_naming_scope(&input) {
++            assert_eq!(
++                procedure.publication.as_ref(),
++                crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
++                    &scope, key
++                )
+                 .as_ref()
+-        );
++            );
++        } else {
++            assert!(procedure.publication.is_none());
++        }
+     }
+ 
+     #[test]

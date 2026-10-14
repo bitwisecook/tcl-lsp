@@ -290,18 +290,20 @@ pub struct Procedure {
 }
 
 pub struct Module {
-    pub source: String,                          // the text spans index into
+    pub source: SourceImage,                     // original source image/channel
     pub top_level: Script,                       // statements outside any proc
-    pub procedures: HashMap<String, Procedure>,  // qualified name → proc
-    pub methods: HashMap<String, MethodDef>,     // "class::method" → TclOO method
-    pub body_units: HashMap<String, Procedure>,  // apply / namespace eval bodies
-    pub lambda_body_units: BTreeSet<String>,
+    pub procedures: ProcedureInventory,          // retained body IDs → declarations
+    pub methods: MethodInventory,                // retained body IDs → members
+    pub body_units: ProcedureInventory,           // anonymous / namespace source bodies
+    pub lambda_body_units: BTreeSet<ProcedureId>,
     pub redefined_procedures: HashSet<String>,
-    pub redefined_methods: HashMap<String, Vec<MethodDef>>,
+    pub redefined_methods: HashMap<ProcedureId, Vec<ProcedureId>>,
     // …plus the namespace / trace / TclOO evidence maps
 }
 ```
 
+- Original allocations issue `ProcedureId` values; display labels cannot select
+  implementations or recover namespace/frame ownership.
 - Every IR statement carries a `Span`; `Statement::span()` returns it for any
   variant, whichever it is.
 - `Statement::Barrier` marks commands (`eval`, `uplevel`, `upvar`) whose side
@@ -388,7 +390,7 @@ pub struct Function {
 
 pub struct CfgModule {
     pub top_level: Function,
-    pub procedures: HashMap<String, Function>,   // keyed by qualified name
+    pub procedures: HashMap<ProcedureId, Function>, // exact originating bodies
 }
 ```
 
@@ -577,7 +579,7 @@ pub struct FunctionAsm {
 pub struct ModuleAsm {
     pub top_level: FunctionAsm,        // entered as a script
     pub top_level_body: FunctionAsm,   // the same source, emitted as a proc body
-    pub procedures: HashMap<String, FunctionAsm>,   // keyed by qualified name
+    pub procedures: HashMap<ProcedureId, FunctionAsm>, // exact originating bodies
 }
 ```
 
@@ -619,9 +621,9 @@ pub struct CompilationUnit {
     pub ir_module: ir::Module,
     pub cfg_module: CfgModule,
     pub top_level: FunctionUnit,
-    pub procedures: HashMap<String, FunctionUnit>,
-    pub methods: HashMap<String, FunctionUnit>,     // per TclOO method
-    pub body_units: HashMap<String, FunctionUnit>,  // apply / namespace eval bodies
+    pub procedures: HashMap<ProcedureId, FunctionUnit>,
+    pub methods: HashMap<ProcedureId, FunctionUnit>,     // retained member bodies
+    pub body_units: HashMap<ProcedureId, FunctionUnit>,  // original source bodies
     pub interproc: Option<InterproceduralAnalysis>, // …/interprocedural.rs
     pub connection_scope: Option<ConnectionScope>,  // …/connection_scope.rs
     pub caller_scope: UnitCallerScope,

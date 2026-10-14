@@ -298,9 +298,9 @@ Keep the evidence and its permitted use explicit:
 | Plausible candidates from a familiar pattern | Offer ranked completion or an explicit candidate list with supporting evidence. Do not present a candidate as a definite reference or use it to authorise mutation or optimisation. |
 | Unknown or ambiguous | Preserve the reason and any bounded candidate set. Demur on definite target selection, unsafe edits and unsupported diagnostic conclusions. |
 
-This is a consumer contract, not a claim that every current result type already
-records these distinctions. Extend existing analysis/binding/provenance facts
-to carry them; do not introduce a second resolver per provider.
+Each shared projection retains its own uncertainty and permitted use.
+Bounded reporting views cannot manufacture a missing identity, execution or edit
+receipt; consumers select the existing purpose-specific owner.
 
 Recognise common idioms through the existing semantic owners:
 
@@ -453,8 +453,10 @@ the release manifest in `tcl-dialect`. Consumer tests must derive expectations
 from retained real-oracle observations for the supported release/context.
 C Tcl, Jim and F5 can differ; expectations carry that axis explicitly.
 Upstream C Tcl `tcltest` cases and Jim's equivalent suite are valid evidence
-when executed on the identified real reference interpreter. Retain suite/case
-provenance, dependencies, constraints and actual execution results; skipped
+when executed on the identified real reference interpreter. A `tcltest` run
+uses that version's original `tcltest.tcl` and `init.tcl`, with its matching
+library dependencies; a runtime's vendored copy cannot replace those inputs.
+Retain suite/case provenance, dependencies, constraints and actual execution results; skipped
 cases supply no oracle answer. Harness execution on our runtimes validates
 consumers against reference evidence.
 The experiment protocol and executable observations are retained under

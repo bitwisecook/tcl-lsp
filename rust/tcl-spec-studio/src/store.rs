@@ -1082,8 +1082,7 @@ impl PackStore {
 
         let written = draft.get("name").and_then(Value::as_str).unwrap_or(name);
         let after = self.declared_properties(written);
-        // A loss is a property that vanished, or one that used to be a real
-        // declaration and is now only a `-native` placeholder.
+        // An absent property or replacement native placeholder loses its declaration.
         let dropped = before
             .iter()
             .filter(|(word, was_placeholder)| {

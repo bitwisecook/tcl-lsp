@@ -14,6 +14,11 @@ pub(crate) enum OriginalWordSourcePurpose {
     ArgumentEvaluation,
 }
 
+enum OriginalRecordedNamePurpose {
+    Native,
+    Logical(crate::signature_scan::original_name::OriginalSourceNamePurpose),
+}
+
 impl OriginalWordSourcePurpose {
     pub(crate) fn accepts(self, tokens: &crate::ir::CommandTokens) -> bool {
         match self {
@@ -1256,6 +1261,15 @@ impl super::SourceInvocationBinding {
             .source
             .original_lexical_command(words, site.offset, config)?;
         let word = original.native_words().get(written)?;
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+        match self.original_recorded_name_purpose(words, config)? {
+            OriginalRecordedNamePurpose::Logical(purpose) => {
+                return purpose
+                    .key(word, rules)
+                    .map(SignatureSourceNameInput::OriginalWord);
+            }
+            OriginalRecordedNamePurpose::Native => {}
+        }
         let policy = self
             .variable_context
             .execution_name_policy?
@@ -1278,6 +1292,64 @@ impl super::SourceInvocationBinding {
                 SignatureSourceNameValue::from_original_produced_value(value),
             )
         })
+    }
+
+    fn original_recorded_name_purpose(
+        &self,
+        words: &[crate::ir::WordExpr],
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<OriginalRecordedNamePurpose> {
+        let candidate = if let Some(point) = &self.lookup_state {
+            point
+                .state
+                .baseline
+                .metadata_context
+                .source_analysis_input()
+        } else {
+            self.declaration_layout_observations
+                .as_deref()
+                .and_then(super::declaration_layout::original_declaration_layouts)
+                .and_then(|mut rows| rows.next())
+                .and_then(|row| {
+                    row.snapshot
+                        .state
+                        .baseline
+                        .metadata_context
+                        .source_analysis_input()
+                })
+        };
+        let Some(candidate) = candidate.filter(|input| input.has_logical_source_name_context())
+        else {
+            return Some(OriginalRecordedNamePurpose::Native);
+        };
+        let (_, mut tokens) = self.original_recorded_command()?;
+        tokens.source_binding = Some(self.clone());
+        (tokens.words() == words && self.original_lexer_config_for_tokens(&tokens)? == config)
+            .then_some(())?;
+        let registry = candidate.borrowed_context_registry().commands();
+        let metadata = self
+            .original_source_metadata_for_advice(&tokens, registry)
+            .ok()??;
+        let input = metadata.source_analysis_input()?;
+        input.has_logical_source_name_context().then_some(())?;
+        match self.original_invocation_source_purpose(&tokens, metadata, registry)? {
+            super::OriginalInvocationSourcePurpose::Logical => {}
+            super::OriginalInvocationSourcePurpose::Execution
+            | super::OriginalInvocationSourcePurpose::Standalone
+            | super::OriginalInvocationSourcePurpose::AuthoredSimulation => {
+                return Some(OriginalRecordedNamePurpose::Native);
+            }
+        }
+        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+            .authored_name_policy()?;
+        (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+            == Some(policy))
+        .then_some(())?;
+        Some(OriginalRecordedNamePurpose::Logical(
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                input, None, policy,
+            ),
+        ))
     }
 
     /// Original head producer with the same full-vector correspondence as an
@@ -1636,6 +1708,24 @@ mod graph_tests {
                 .original_written_word_at_span_in_source(&image, span, changed)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn logical_recorded_name_operands_use_the_checked_source_purpose() {
+        let source = "proc f {value} {return $value}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let realm = analysis.retained_command_realm().unwrap();
+        let binding = realm.invocation_at_source("", 0);
+        let (_, tokens) = binding.original_recorded_command().unwrap();
+        let input = binding.original_written_name_input(&tokens, 1).unwrap();
+        assert_eq!(input.bytes(), b"f");
+        assert_eq!(
+            input.policy().authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "other".to_owned();
+        assert!(binding.original_written_name_input(&changed, 1).is_none());
     }
 
     #[test]

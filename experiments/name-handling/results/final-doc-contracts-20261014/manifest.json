@@ -1,0 +1,29 @@
+{
+  "base_head": "e8826c7ef1d9db877fb35a1a527a1932f530a691",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/source_decode.rs",
+      "before_sha256": "d13b6dffc45f2fe5b1ac23dc078cc99cd83b974d5379e6a87391d0cb8ea9b669",
+      "after_sha256": "7167c837ec3840e37af234bffafa122fd67e3c26371fe6b330d9ad5dc4714cb7",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "rust/tcl-spec-studio/src/store.rs",
+      "before_sha256": "785a48a27c4ffd8efbab2f7268348d339ba0fb2d64bff8fcc56e9b061302581e",
+      "after_sha256": "a5993f1407f03ddf59e8e4241705a0cd857565434b2ab2eb3b36d1b2d621fdbb",
+      "Rust_meaningful_tokens_unchanged": true
+    },
+    {
+      "path": "scripts/dev/test-retired-asset-names.sh",
+      "before_sha256": "9d2c93d950b3e170a7f188a544ef2fe7de2061e1506b332fbc9419bd8dcd9516",
+      "after_sha256": "13f66633a4bc023bb5a45383b23ad2d3f5595b8b4271026f3c12da58cc5eab4f",
+      "Rust_meaningful_tokens_unchanged": false
+    },
+    {
+      "path": "docs/design/contracts/name-handling.md",
+      "before_sha256": "62a72b66c211066154aca462b47f215e28f7f46aa556b0f4fec206d80d6db5f0",
+      "after_sha256": "ffb66c2d6d8d178d98c1c4b127a5878caecf7cc940fd7f367ebab1a7ed0c0908",
+      "Rust_meaningful_tokens_unchanged": false
+    }
+  ]
+}

@@ -9,6 +9,8 @@ bounded observations, not current module-size guarantees or conformance evidence
 
 Original document SHA-256: `e4150bdc9836b13a94fdd62dcef8a0ff152fa8fda2983df6b337dfc423df1667`.
 Archive source: repository document at the current patch's recorded preimage.
+Relative file links are rebased for this directory.
+[Exact original excerpt bytes](original-measurement-excerpts.txt) retain the recorded text.
 
 ## Original build and linkage observations
  Does `runtime/rust` build for `wasm32-unknown-unknown`?
@@ -34,7 +36,7 @@ so explicitly — "Its job is to make `runtime/rust` build and link for
 `wasm32-unknown-unknown`"), and it does. The `tcl-host-native` dependency
 (the one piece that pulls in `std::fs`/`std::process` unconditionally) is
 target-gated in
-[`runtime/rust/Cargo.toml`](../../../runtime/rust/Cargo.toml) to
+[`runtime/rust/Cargo.toml`](../../runtime/rust/Cargo.toml) to
 `cfg(not(target_arch = "wasm32"))`, so it never reaches either wasm target.
 What blocks a *useful* browser deployment is not the build — it is that
 almost every capability `BrowserHost` reports is a stub. See §2.
@@ -62,7 +64,7 @@ is absent.
 
 The sizes below are measurements of one build, rather than guarantees
 for every revision or toolchain. The build uses `runtime/rust` as
-[`wasm_real_link.rs`](../../../rust/tcl-compiler/tests/wasm_real_link.rs)
+[`wasm_real_link.rs`](../../rust/tcl-compiler/tests/wasm_real_link.rs)
 does (same crate, same `--global-base=2097152` linker flag for the WASI
 build), with the `wasm_stdlib` feature on and the numeric tower linked
 (`TCL_TOMMATH_DIR=tmp/tcl9.0.4/libtommath`, `WASI_SDK_PATH=/opt/wasi-sdk`;

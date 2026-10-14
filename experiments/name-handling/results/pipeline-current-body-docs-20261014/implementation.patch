@@ -1,0 +1,122 @@
+--- a/docs/design/compiler/architecture.md
++++ b/docs/design/compiler/architecture.md
+@@ -251,26 +251,26 @@
+ 
+     subgraph ir::Module
+         direction TB
+-        SO["source: String"]
++        SO["source: SourceImage"]
+         TL["top_level: ir::Script"]
+-        PD["procedures: Map&lt;String, Procedure&gt;"]
+-        ME["methods: Map&lt;String, MethodDef&gt;"]
+-        BU["body_units: Map&lt;String, Procedure&gt;"]
++        PD["procedures: ProcedureInventory"]
++        ME["methods: MethodInventory"]
++        BU["body_units: ProcedureInventory"]
+     end
+ 
+     MOD --- ir::Module
+ ```
+ 
+-`ir::Module` keeps three separate body maps rather than one.  `procedures`
+-holds real named `proc`s — the only map codegen emits.  `methods` holds
+-`TclOO` method bodies keyed `class::method`.  `body_units` holds *synthetic*
+-frames that run a script argument but are not callable procedures (`apply`
+-lambdas, `namespace eval` bodies) under synthetic qualified names such as
+-`::apply#0`; they exist purely so CFG → SSA → SCCP → taint reaches inside the
+-body, and at runtime each still executes through its own
+-`Statement::Barrier`, so bytecode is unaffected by whether one was recorded.
+-`lambda_body_units` names the subset of `body_units` that are closed lambda
+-frames, which is the only subset read-before-set (`W210`) runs over.
++`ir::Module` retains named procedures, method declarations and anonymous or
++selected-namespace source bodies in separate inventories. Each inventory uses
++an actual Module-issued `ProcedureId`, preserving repeated labels. `MethodKind`
++and `ProcedureBodyKind` retain body purpose independently of presentation.
++
++CFGs, compilation units, summaries and bytecode join those IDs while retaining
++their original source and lookup owners. `lambda_body_units` records exact body
++IDs for the supported lambda subset. Analysis inventories supply no callable
++installation, entered activation or Native compiler admission. See
++[shared body ownership](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
+ 
+ #### IR node hierarchy
+ 
+--- a/docs/design/compiler/example-walkthroughs.md
++++ b/docs/design/compiler/example-walkthroughs.md
+@@ -290,18 +290,20 @@
+ }
+ 
+ pub struct Module {
+-    pub source: String,                          // the text spans index into
++    pub source: SourceImage,                     // original source image/channel
+     pub top_level: Script,                       // statements outside any proc
+-    pub procedures: HashMap<String, Procedure>,  // qualified name → proc
+-    pub methods: HashMap<String, MethodDef>,     // "class::method" → TclOO method
+-    pub body_units: HashMap<String, Procedure>,  // apply / namespace eval bodies
+-    pub lambda_body_units: BTreeSet<String>,
++    pub procedures: ProcedureInventory,          // retained body IDs → declarations
++    pub methods: MethodInventory,                // retained body IDs → members
++    pub body_units: ProcedureInventory,           // anonymous / namespace source bodies
++    pub lambda_body_units: BTreeSet<ProcedureId>,
+     pub redefined_procedures: HashSet<String>,
+-    pub redefined_methods: HashMap<String, Vec<MethodDef>>,
++    pub redefined_methods: HashMap<ProcedureId, Vec<ProcedureId>>,
+     // …plus the namespace / trace / TclOO evidence maps
+ }
+ ```
+ 
++- Original allocations issue `ProcedureId` values; display labels cannot select
++  implementations or recover namespace/frame ownership.
+ - Every IR statement carries a `Span`; `Statement::span()` returns it for any
+   variant, whichever it is.
+ - `Statement::Barrier` marks commands (`eval`, `uplevel`, `upvar`) whose side
+@@ -388,7 +390,7 @@
+ 
+ pub struct CfgModule {
+     pub top_level: Function,
+-    pub procedures: HashMap<String, Function>,   // keyed by qualified name
++    pub procedures: HashMap<ProcedureId, Function>, // exact originating bodies
+ }
+ ```
+ 
+@@ -577,7 +579,7 @@
+ pub struct ModuleAsm {
+     pub top_level: FunctionAsm,        // entered as a script
+     pub top_level_body: FunctionAsm,   // the same source, emitted as a proc body
+-    pub procedures: HashMap<String, FunctionAsm>,   // keyed by qualified name
++    pub procedures: HashMap<ProcedureId, FunctionAsm>, // exact originating bodies
+ }
+ ```
+ 
+@@ -619,9 +621,9 @@
+     pub ir_module: ir::Module,
+     pub cfg_module: CfgModule,
+     pub top_level: FunctionUnit,
+-    pub procedures: HashMap<String, FunctionUnit>,
+-    pub methods: HashMap<String, FunctionUnit>,     // per TclOO method
+-    pub body_units: HashMap<String, FunctionUnit>,  // apply / namespace eval bodies
++    pub procedures: HashMap<ProcedureId, FunctionUnit>,
++    pub methods: HashMap<ProcedureId, FunctionUnit>,     // retained member bodies
++    pub body_units: HashMap<ProcedureId, FunctionUnit>,  // original source bodies
+     pub interproc: Option<InterproceduralAnalysis>, // …/interprocedural.rs
+     pub connection_scope: Option<ConnectionScope>,  // …/connection_scope.rs
+     pub caller_scope: UnitCallerScope,
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -5412,14 +5412,8 @@
+         true
+     }
+ 
+-    /// Lift the method-frame member bodies inside one definer block to
+-    /// per-method [`MethodDef`] entries keyed by `{class_qname}::{name}`
+-    /// (nameless members use synthetic names — `<constructor>`,
+-    /// `<destructor>`, `<typeconstructor>`).  Member recognition and
+-    /// argument layout come from the definer's registry grammar
+-    /// ([`DefinerCall::grammar`]), so `oo::objdefine`, snit, and itcl bodies
+-    /// produce method units exactly as `oo::class create` / `oo::define` do —
+-    /// no member keyword is matched for layout.
++    /// Retain each member's actual body ID, typed kind and declaring source owner.
++    /// The selected [`DefinerCall::grammar`] supplies recognition and operand layout.
+     ///
+     /// `texts` is the definer command's full per-word text array;
+     /// `body_content_offset` is the absolute source offset of the first

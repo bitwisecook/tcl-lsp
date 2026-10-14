@@ -1,0 +1,15 @@
+{
+  "original_document_sha256": "e4150bdc9836b13a94fdd62dcef8a0ff152fa8fda2983df6b337dfc423df1667",
+  "original_document_read_from": "73766b2d5:docs/design/compiler/wasm-target-surfaces.md",
+  "files": [
+    {
+      "path": "experiments/wasm-target-surfaces/recorded-build-measurements.md",
+      "before_sha256": "e54877963e8aee808f01d66673da5b6fdb0113815e40a3add48c79eeadae6600",
+      "after_sha256": "02e8321a972892e8011e07c3b136aa5baef8150be9ba9235d9150e3c203f9d9d"
+    },
+    {
+      "path": "experiments/wasm-target-surfaces/original-measurement-excerpts.txt",
+      "new_original_excerpt_sha256": "93d7fddb3dda369249946992fcb3475ef3addc690072d1fabf2a7c3e5f1d5adc"
+    }
+  ]
+}

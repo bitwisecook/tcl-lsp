@@ -251,26 +251,26 @@ flowchart LR
 
     subgraph ir::Module
         direction TB
-        SO["source: String"]
+        SO["source: SourceImage"]
         TL["top_level: ir::Script"]
-        PD["procedures: Map&lt;String, Procedure&gt;"]
-        ME["methods: Map&lt;String, MethodDef&gt;"]
-        BU["body_units: Map&lt;String, Procedure&gt;"]
+        PD["procedures: ProcedureInventory"]
+        ME["methods: MethodInventory"]
+        BU["body_units: ProcedureInventory"]
     end
 
     MOD --- ir::Module
 ```
 
-`ir::Module` keeps three separate body maps rather than one.  `procedures`
-holds real named `proc`s — the only map codegen emits.  `methods` holds
-`TclOO` method bodies keyed `class::method`.  `body_units` holds *synthetic*
-frames that run a script argument but are not callable procedures (`apply`
-lambdas, `namespace eval` bodies) under synthetic qualified names such as
-`::apply#0`; they exist purely so CFG → SSA → SCCP → taint reaches inside the
-body, and at runtime each still executes through its own
-`Statement::Barrier`, so bytecode is unaffected by whether one was recorded.
-`lambda_body_units` names the subset of `body_units` that are closed lambda
-frames, which is the only subset read-before-set (`W210`) runs over.
+`ir::Module` retains named procedures, method declarations and anonymous or
+selected-namespace source bodies in separate inventories. Each inventory uses
+an actual Module-issued `ProcedureId`, preserving repeated labels. `MethodKind`
+and `ProcedureBodyKind` retain body purpose independently of presentation.
+
+CFGs, compilation units, summaries and bytecode join those IDs while retaining
+their original source and lookup owners. `lambda_body_units` records exact body
+IDs for the supported lambda subset. Analysis inventories supply no callable
+installation, entered activation or Native compiler admission. See
+[shared body ownership](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
 
 #### IR node hierarchy
 
