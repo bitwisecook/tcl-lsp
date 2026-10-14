@@ -1,0 +1,110 @@
+{
+  "started_utc": "2026-10-14T22:55:34.233553+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+    "sha256": "4fdccadd5a543a10b6e21b0215443d14a840d941f5288479941edf8204dd1fbd",
+    "bytes": 203212568
+  },
+  "selected_tests": [
+    "tests::function_lattice_memoises_param_constant_procs",
+    "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+    "tests::function_lattice_reused_on_body_shift"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::function_lattice_memoises_param_constant_procs",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 1.223292743001366,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_memoises_param_constant_procs",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.41497841400268953,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+        "tests::function_lattice_reused_on_body_shift",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "seconds": 0.9198662499984493,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "tests::function_lattice_reused_on_body_shift",
+      "summaries": [
+        [
+          "FAILED",
+          "0",
+          "1"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ],
+    [
+      "FAILED",
+      "0",
+      "1"
+    ]
+  ],
+  "finished_utc": "2026-10-14T22:55:39.331613+00:00",
+  "changed_sources": {}
+}

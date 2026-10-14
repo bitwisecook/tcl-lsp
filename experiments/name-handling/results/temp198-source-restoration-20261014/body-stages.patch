@@ -1,0 +1,112 @@
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -1031,6 +1031,10 @@
+     fn phase(&mut self, index: usize) {
+         if let Some(checkpoint) = self.checkpoint.as_mut() {
+             self.micros[index] += checkpoint.elapsed().as_micros();
++            eprintln!(
++                "COMPILER_FUNCTION_PHASE index={index} elapsed_us={}",
++                self.micros.iter().sum::<u128>()
++            );
+             *checkpoint = std::time::Instant::now();
+         }
+     }
+@@ -3679,6 +3683,8 @@
+         phase_trace.phase("procedure-lattices");
+         let mut procedures = built.procedures;
+         let transfers = module_procedures.into_summaries();
++        #[cfg(any(test, debug_assertions))]
++        phase_trace.phase("transfer-summaries");
+         let body_unit_context = BodyUnitContext {
+             registry,
+             known_class_set: &known_class_set,
+@@ -3687,6 +3693,8 @@
+             config: options.config,
+         };
+         let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
++        #[cfg(any(test, debug_assertions))]
++        phase_trace.phase("method-lattices");
+         let source_body_cfgs = ir_module
+             .body_units
+             .iter()
+@@ -3697,6 +3705,8 @@
+                     .map(|cfg| (*id, cfg.clone()))
+             })
+             .collect();
++        #[cfg(any(test, debug_assertions))]
++        phase_trace.phase("source-body-cfg-clones");
+         let body_units = Self::build_body_units(
+             &ir_module,
+             &extra_callers,
+@@ -3903,13 +3913,26 @@
+         ir_module
+             .body_units
+             .iter()
+-            .map(|(id, proc)| {
++            .enumerate()
++            .map(|(ordinal, (id, proc))| {
++                #[cfg(any(test, debug_assertions))]
++                let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some().then(std::time::Instant::now);
++                #[cfg(any(test, debug_assertions))]
++                let phase = |stage: &str| {
++                    if let Some(started) = started {
++                        eprintln!("COMPILER_BODY_LATTICE_PHASE ordinal={ordinal} stage={stage} elapsed_us={}", started.elapsed().as_micros());
++                    }
++                };
++                #[cfg(any(test, debug_assertions))]
++                phase("initial");
+                 let qname = &proc.qualified_name;
+                 let cfg = extra_callers
+                     .iter()
+                     .find_map(|caller| caller.body_analysis_cfg(*id))
+                     .expect("call-site scan prepares every body-unit CFG")
+                     .clone();
++                #[cfg(any(test, debug_assertions))]
++                phase("cfg-cloned");
+                 // Same body-byte complexity guard as procs/methods: a huge
+                 // generated lambda body contributes trivial lattices instead of
+                 // a deep (and slow) analysis.
+@@ -3971,6 +3994,8 @@
+                         .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+                 };
+                 entry_context.namespace_cells.closed = false;
++                #[cfg(any(test, debug_assertions))]
++                phase("entry-context");
+                 let memoised = (body_bytes <= crate::ssa::DEEP_ANALYSIS_BODY_BYTES
+                     && original_declaration_body)
+                     .then(|| {
+@@ -4025,6 +4050,8 @@
+                         (unit.cfg == cfg && !unit.sccp.reads_module).then_some(unit)
+                     })
+                     .flatten();
++                #[cfg(any(test, debug_assertions))]
++                phase("memo-candidate");
+                 let mut fu = memoised
+                     .unwrap_or_else(|| {
+                         if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
+@@ -4060,17 +4087,23 @@
+                                 },
+                             )
+                         }
+-                    })
+-                    .with_retained_semantic_analysis(
++                    });
++                #[cfg(any(test, debug_assertions))]
++                phase("lattice-built");
++                fu = fu.with_retained_semantic_analysis(
+                         registry,
+                         Some(&proc.body),
+                         crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+                     );
++                #[cfg(any(test, debug_assertions))]
++                phase("semantic-attached");
+                 fu.original_hosted_procedure_body = ir_module
+                     .original_hosted_declaration_body_units
+                     .get(id)
+                     .filter(|card| card.matches_procedure(ir_module, proc, registry))
+                     .cloned();
++                #[cfg(any(test, debug_assertions))]
++                phase("complete");
+                 (*id, fu.with_body_id(*id))
+             })
+             .collect()

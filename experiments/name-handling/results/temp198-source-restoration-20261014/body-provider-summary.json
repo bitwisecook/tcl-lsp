@@ -1,0 +1,1720 @@
+{
+  "receipt": "/tmp/name-tcltest-temp199-20261014/result.json",
+  "receipt_valid": true,
+  "source_changes": [],
+  "host_elapsed_seconds": 66.57412228100293,
+  "timed_out": false,
+  "profiles": [
+    {
+      "profile": "tcl8.4",
+      "provider_clocks": [
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "initial",
+            "elapsed_us": "47",
+            "thread_us": "32"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=initial elapsed_us=47 thread_us=32"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "analyser-created",
+            "elapsed_us": "537",
+            "thread_us": "536"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analyser-created elapsed_us=537 thread_us=536"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "input-prepared",
+            "elapsed_us": "60613",
+            "thread_us": "60611"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=input-prepared elapsed_us=60613 thread_us=60611"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "entry-selected",
+            "elapsed_us": "61274",
+            "thread_us": "61274"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=entry-selected elapsed_us=61274 thread_us=61274"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "configured",
+            "elapsed_us": "61289",
+            "thread_us": "61289"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=configured elapsed_us=61289 thread_us=61289"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "analysis-returned",
+            "elapsed_us": "9358309",
+            "thread_us": "9358309"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analysis-returned elapsed_us=9358309 thread_us=9358309"
+        },
+        {
+          "profile": "tcl8.4",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.4",
+            "bytes": "1380",
+            "stage": "analyser-dropped",
+            "elapsed_us": "9358993",
+            "thread_us": "9358993"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.4 bytes=1380 stage=analyser-dropped elapsed_us=9358993 thread_us=9358993"
+        }
+      ],
+      "unit_boundaries": [
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "0",
+          "stage": "initial",
+          "us": "6"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "lower-and-cfg",
+          "us": "3350925"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-context",
+          "us": "3351074"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "unit-scope",
+          "us": "3560956"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-facts",
+          "us": "3589097"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-transfers",
+          "us": "3626147"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "top-level-lattice",
+          "us": "4092451"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-lattices",
+          "us": "4203596"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "transfer-summaries",
+          "us": "4203628"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-lattices",
+          "us": "4203636"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "source-body-cfg-clones",
+          "us": "4204700"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-and-body-lattices",
+          "us": "4312124"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "connection-scope",
+          "us": "4312140"
+        }
+      ],
+      "body_boundaries": {
+        "0": [
+          {
+            "ordinal": "0",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "0",
+            "stage": "cfg-cloned",
+            "elapsed_us": "248"
+          },
+          {
+            "ordinal": "0",
+            "stage": "entry-context",
+            "elapsed_us": "306"
+          },
+          {
+            "ordinal": "0",
+            "stage": "memo-candidate",
+            "elapsed_us": "315"
+          },
+          {
+            "ordinal": "0",
+            "stage": "lattice-built",
+            "elapsed_us": "27714"
+          },
+          {
+            "ordinal": "0",
+            "stage": "semantic-attached",
+            "elapsed_us": "27985"
+          },
+          {
+            "ordinal": "0",
+            "stage": "complete",
+            "elapsed_us": "28002"
+          }
+        ],
+        "1": [
+          {
+            "ordinal": "1",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "1",
+            "stage": "cfg-cloned",
+            "elapsed_us": "238"
+          },
+          {
+            "ordinal": "1",
+            "stage": "entry-context",
+            "elapsed_us": "297"
+          },
+          {
+            "ordinal": "1",
+            "stage": "memo-candidate",
+            "elapsed_us": "305"
+          },
+          {
+            "ordinal": "1",
+            "stage": "lattice-built",
+            "elapsed_us": "27703"
+          },
+          {
+            "ordinal": "1",
+            "stage": "semantic-attached",
+            "elapsed_us": "27973"
+          },
+          {
+            "ordinal": "1",
+            "stage": "complete",
+            "elapsed_us": "27990"
+          }
+        ],
+        "2": [
+          {
+            "ordinal": "2",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "2",
+            "stage": "cfg-cloned",
+            "elapsed_us": "248"
+          },
+          {
+            "ordinal": "2",
+            "stage": "entry-context",
+            "elapsed_us": "299"
+          },
+          {
+            "ordinal": "2",
+            "stage": "memo-candidate",
+            "elapsed_us": "308"
+          },
+          {
+            "ordinal": "2",
+            "stage": "lattice-built",
+            "elapsed_us": "26380"
+          },
+          {
+            "ordinal": "2",
+            "stage": "semantic-attached",
+            "elapsed_us": "26900"
+          },
+          {
+            "ordinal": "2",
+            "stage": "complete",
+            "elapsed_us": "26919"
+          }
+        ],
+        "3": [
+          {
+            "ordinal": "3",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "3",
+            "stage": "cfg-cloned",
+            "elapsed_us": "221"
+          },
+          {
+            "ordinal": "3",
+            "stage": "entry-context",
+            "elapsed_us": "282"
+          },
+          {
+            "ordinal": "3",
+            "stage": "memo-candidate",
+            "elapsed_us": "291"
+          },
+          {
+            "ordinal": "3",
+            "stage": "lattice-built",
+            "elapsed_us": "24097"
+          },
+          {
+            "ordinal": "3",
+            "stage": "semantic-attached",
+            "elapsed_us": "24366"
+          },
+          {
+            "ordinal": "3",
+            "stage": "complete",
+            "elapsed_us": "24383"
+          }
+        ]
+      },
+      "last_function": {
+        "profile": "tcl8.4",
+        "prefix": "COMPILER_FUNCTION_PHASE",
+        "fields": {
+          "index": "9",
+          "elapsed_us": "23644"
+        },
+        "line": "COMPILER_FUNCTION_PHASE index=9 elapsed_us=23644",
+        "completed_function_stage": "taint"
+      }
+    },
+    {
+      "profile": "tcl8.5",
+      "provider_clocks": [
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "initial",
+            "elapsed_us": "1",
+            "thread_us": "9361011"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=initial elapsed_us=1 thread_us=9361011"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "analyser-created",
+            "elapsed_us": "320",
+            "thread_us": "9361330"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analyser-created elapsed_us=320 thread_us=9361330"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "input-prepared",
+            "elapsed_us": "51816",
+            "thread_us": "9412823"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=input-prepared elapsed_us=51816 thread_us=9412823"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "entry-selected",
+            "elapsed_us": "52193",
+            "thread_us": "9413203"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=entry-selected elapsed_us=52193 thread_us=9413203"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "configured",
+            "elapsed_us": "52225",
+            "thread_us": "9413234"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=configured elapsed_us=52225 thread_us=9413234"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "analysis-returned",
+            "elapsed_us": "10905345",
+            "thread_us": "20266354"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analysis-returned elapsed_us=10905345 thread_us=20266354"
+        },
+        {
+          "profile": "tcl8.5",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.5",
+            "bytes": "1380",
+            "stage": "analyser-dropped",
+            "elapsed_us": "10906240",
+            "thread_us": "20267249"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.5 bytes=1380 stage=analyser-dropped elapsed_us=10906240 thread_us=20267249"
+        }
+      ],
+      "unit_boundaries": [
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "0",
+          "stage": "initial",
+          "us": "3"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "lower-and-cfg",
+          "us": "3856456"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-context",
+          "us": "3856535"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "unit-scope",
+          "us": "4114315"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-facts",
+          "us": "4143789"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-transfers",
+          "us": "4179450"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "top-level-lattice",
+          "us": "4777320"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-lattices",
+          "us": "4895320"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "transfer-summaries",
+          "us": "4895358"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-lattices",
+          "us": "4895369"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "source-body-cfg-clones",
+          "us": "4896579"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-and-body-lattices",
+          "us": "5016986"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "connection-scope",
+          "us": "5016998"
+        }
+      ],
+      "body_boundaries": {
+        "0": [
+          {
+            "ordinal": "0",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "0",
+            "stage": "cfg-cloned",
+            "elapsed_us": "301"
+          },
+          {
+            "ordinal": "0",
+            "stage": "entry-context",
+            "elapsed_us": "398"
+          },
+          {
+            "ordinal": "0",
+            "stage": "memo-candidate",
+            "elapsed_us": "407"
+          },
+          {
+            "ordinal": "0",
+            "stage": "lattice-built",
+            "elapsed_us": "32039"
+          },
+          {
+            "ordinal": "0",
+            "stage": "semantic-attached",
+            "elapsed_us": "32371"
+          },
+          {
+            "ordinal": "0",
+            "stage": "complete",
+            "elapsed_us": "32385"
+          }
+        ],
+        "1": [
+          {
+            "ordinal": "1",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "1",
+            "stage": "cfg-cloned",
+            "elapsed_us": "275"
+          },
+          {
+            "ordinal": "1",
+            "stage": "entry-context",
+            "elapsed_us": "349"
+          },
+          {
+            "ordinal": "1",
+            "stage": "memo-candidate",
+            "elapsed_us": "357"
+          },
+          {
+            "ordinal": "1",
+            "stage": "lattice-built",
+            "elapsed_us": "32494"
+          },
+          {
+            "ordinal": "1",
+            "stage": "semantic-attached",
+            "elapsed_us": "32788"
+          },
+          {
+            "ordinal": "1",
+            "stage": "complete",
+            "elapsed_us": "32805"
+          }
+        ],
+        "2": [
+          {
+            "ordinal": "2",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "2",
+            "stage": "cfg-cloned",
+            "elapsed_us": "263"
+          },
+          {
+            "ordinal": "2",
+            "stage": "entry-context",
+            "elapsed_us": "356"
+          },
+          {
+            "ordinal": "2",
+            "stage": "memo-candidate",
+            "elapsed_us": "371"
+          },
+          {
+            "ordinal": "2",
+            "stage": "lattice-built",
+            "elapsed_us": "28195"
+          },
+          {
+            "ordinal": "2",
+            "stage": "semantic-attached",
+            "elapsed_us": "28684"
+          },
+          {
+            "ordinal": "2",
+            "stage": "complete",
+            "elapsed_us": "28710"
+          }
+        ],
+        "3": [
+          {
+            "ordinal": "3",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "3",
+            "stage": "cfg-cloned",
+            "elapsed_us": "211"
+          },
+          {
+            "ordinal": "3",
+            "stage": "entry-context",
+            "elapsed_us": "294"
+          },
+          {
+            "ordinal": "3",
+            "stage": "memo-candidate",
+            "elapsed_us": "309"
+          },
+          {
+            "ordinal": "3",
+            "stage": "lattice-built",
+            "elapsed_us": "26022"
+          },
+          {
+            "ordinal": "3",
+            "stage": "semantic-attached",
+            "elapsed_us": "26309"
+          },
+          {
+            "ordinal": "3",
+            "stage": "complete",
+            "elapsed_us": "26328"
+          }
+        ]
+      },
+      "last_function": {
+        "profile": "tcl8.5",
+        "prefix": "COMPILER_FUNCTION_PHASE",
+        "fields": {
+          "index": "9",
+          "elapsed_us": "25490"
+        },
+        "line": "COMPILER_FUNCTION_PHASE index=9 elapsed_us=25490",
+        "completed_function_stage": "taint"
+      }
+    },
+    {
+      "profile": "tcl8.6",
+      "provider_clocks": [
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "initial",
+            "elapsed_us": "1",
+            "thread_us": "20269472"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=initial elapsed_us=1 thread_us=20269472"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "analyser-created",
+            "elapsed_us": "182",
+            "thread_us": "20269653"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analyser-created elapsed_us=182 thread_us=20269653"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "input-prepared",
+            "elapsed_us": "58611",
+            "thread_us": "20328081"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=input-prepared elapsed_us=58611 thread_us=20328081"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "entry-selected",
+            "elapsed_us": "59236",
+            "thread_us": "20328707"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=entry-selected elapsed_us=59236 thread_us=20328707"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "configured",
+            "elapsed_us": "59266",
+            "thread_us": "20328738"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=configured elapsed_us=59266 thread_us=20328738"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "analysis-returned",
+            "elapsed_us": "13693036",
+            "thread_us": "33962507"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analysis-returned elapsed_us=13693036 thread_us=33962507"
+        },
+        {
+          "profile": "tcl8.6",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl8.6",
+            "bytes": "1380",
+            "stage": "analyser-dropped",
+            "elapsed_us": "13693936",
+            "thread_us": "33963407"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl8.6 bytes=1380 stage=analyser-dropped elapsed_us=13693936 thread_us=33963407"
+        }
+      ],
+      "unit_boundaries": [
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "0",
+          "stage": "initial",
+          "us": "3"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "lower-and-cfg",
+          "us": "5263953"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-context",
+          "us": "5264033"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "unit-scope",
+          "us": "5526400"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-facts",
+          "us": "5557963"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-transfers",
+          "us": "5596795"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "top-level-lattice",
+          "us": "6240984"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-lattices",
+          "us": "6370877"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "transfer-summaries",
+          "us": "6370910"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-lattices",
+          "us": "6370919"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "source-body-cfg-clones",
+          "us": "6371838"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-and-body-lattices",
+          "us": "6498953"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "connection-scope",
+          "us": "6498966"
+        }
+      ],
+      "body_boundaries": {
+        "0": [
+          {
+            "ordinal": "0",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "0",
+            "stage": "cfg-cloned",
+            "elapsed_us": "197"
+          },
+          {
+            "ordinal": "0",
+            "stage": "entry-context",
+            "elapsed_us": "258"
+          },
+          {
+            "ordinal": "0",
+            "stage": "memo-candidate",
+            "elapsed_us": "289"
+          },
+          {
+            "ordinal": "0",
+            "stage": "lattice-built",
+            "elapsed_us": "33465"
+          },
+          {
+            "ordinal": "0",
+            "stage": "semantic-attached",
+            "elapsed_us": "33741"
+          },
+          {
+            "ordinal": "0",
+            "stage": "complete",
+            "elapsed_us": "33758"
+          }
+        ],
+        "1": [
+          {
+            "ordinal": "1",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "1",
+            "stage": "cfg-cloned",
+            "elapsed_us": "263"
+          },
+          {
+            "ordinal": "1",
+            "stage": "entry-context",
+            "elapsed_us": "315"
+          },
+          {
+            "ordinal": "1",
+            "stage": "memo-candidate",
+            "elapsed_us": "324"
+          },
+          {
+            "ordinal": "1",
+            "stage": "lattice-built",
+            "elapsed_us": "36648"
+          },
+          {
+            "ordinal": "1",
+            "stage": "semantic-attached",
+            "elapsed_us": "36926"
+          },
+          {
+            "ordinal": "1",
+            "stage": "complete",
+            "elapsed_us": "36942"
+          }
+        ],
+        "2": [
+          {
+            "ordinal": "2",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "2",
+            "stage": "cfg-cloned",
+            "elapsed_us": "265"
+          },
+          {
+            "ordinal": "2",
+            "stage": "entry-context",
+            "elapsed_us": "317"
+          },
+          {
+            "ordinal": "2",
+            "stage": "memo-candidate",
+            "elapsed_us": "326"
+          },
+          {
+            "ordinal": "2",
+            "stage": "lattice-built",
+            "elapsed_us": "29320"
+          },
+          {
+            "ordinal": "2",
+            "stage": "semantic-attached",
+            "elapsed_us": "29819"
+          },
+          {
+            "ordinal": "2",
+            "stage": "complete",
+            "elapsed_us": "29839"
+          }
+        ],
+        "3": [
+          {
+            "ordinal": "3",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "3",
+            "stage": "cfg-cloned",
+            "elapsed_us": "208"
+          },
+          {
+            "ordinal": "3",
+            "stage": "entry-context",
+            "elapsed_us": "257"
+          },
+          {
+            "ordinal": "3",
+            "stage": "memo-candidate",
+            "elapsed_us": "267"
+          },
+          {
+            "ordinal": "3",
+            "stage": "lattice-built",
+            "elapsed_us": "26202"
+          },
+          {
+            "ordinal": "3",
+            "stage": "semantic-attached",
+            "elapsed_us": "26463"
+          },
+          {
+            "ordinal": "3",
+            "stage": "complete",
+            "elapsed_us": "26479"
+          }
+        ]
+      },
+      "last_function": {
+        "profile": "tcl8.6",
+        "prefix": "COMPILER_FUNCTION_PHASE",
+        "fields": {
+          "index": "9",
+          "elapsed_us": "25773"
+        },
+        "line": "COMPILER_FUNCTION_PHASE index=9 elapsed_us=25773",
+        "completed_function_stage": "taint"
+      }
+    },
+    {
+      "profile": "tcl9.0",
+      "provider_clocks": [
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "initial",
+            "elapsed_us": "1",
+            "thread_us": "33965176"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=initial elapsed_us=1 thread_us=33965176"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "analyser-created",
+            "elapsed_us": "468",
+            "thread_us": "33965644"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analyser-created elapsed_us=468 thread_us=33965644"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "input-prepared",
+            "elapsed_us": "55312",
+            "thread_us": "34020485"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=input-prepared elapsed_us=55312 thread_us=34020485"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "entry-selected",
+            "elapsed_us": "55726",
+            "thread_us": "34020902"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=entry-selected elapsed_us=55726 thread_us=34020902"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "configured",
+            "elapsed_us": "55743",
+            "thread_us": "34020919"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=configured elapsed_us=55743 thread_us=34020919"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "analysis-returned",
+            "elapsed_us": "14436739",
+            "thread_us": "48401915"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analysis-returned elapsed_us=14436739 thread_us=48401915"
+        },
+        {
+          "profile": "tcl9.0",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.0",
+            "bytes": "1380",
+            "stage": "analyser-dropped",
+            "elapsed_us": "14437641",
+            "thread_us": "48402817"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.0 bytes=1380 stage=analyser-dropped elapsed_us=14437641 thread_us=48402817"
+        }
+      ],
+      "unit_boundaries": [
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "0",
+          "stage": "initial",
+          "us": "3"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "lower-and-cfg",
+          "us": "5429401"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-context",
+          "us": "5429506"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "unit-scope",
+          "us": "5736139"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-facts",
+          "us": "5773170"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-transfers",
+          "us": "5817376"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "top-level-lattice",
+          "us": "6627519"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-lattices",
+          "us": "6772518"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "transfer-summaries",
+          "us": "6772562"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-lattices",
+          "us": "6772566"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "source-body-cfg-clones",
+          "us": "6773585"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-and-body-lattices",
+          "us": "6906952"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "connection-scope",
+          "us": "6906971"
+        }
+      ],
+      "body_boundaries": {
+        "0": [
+          {
+            "ordinal": "0",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "0",
+            "stage": "cfg-cloned",
+            "elapsed_us": "301"
+          },
+          {
+            "ordinal": "0",
+            "stage": "entry-context",
+            "elapsed_us": "397"
+          },
+          {
+            "ordinal": "0",
+            "stage": "memo-candidate",
+            "elapsed_us": "411"
+          },
+          {
+            "ordinal": "0",
+            "stage": "lattice-built",
+            "elapsed_us": "35688"
+          },
+          {
+            "ordinal": "0",
+            "stage": "semantic-attached",
+            "elapsed_us": "36009"
+          },
+          {
+            "ordinal": "0",
+            "stage": "complete",
+            "elapsed_us": "36026"
+          }
+        ],
+        "1": [
+          {
+            "ordinal": "1",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "1",
+            "stage": "cfg-cloned",
+            "elapsed_us": "412"
+          },
+          {
+            "ordinal": "1",
+            "stage": "entry-context",
+            "elapsed_us": "472"
+          },
+          {
+            "ordinal": "1",
+            "stage": "memo-candidate",
+            "elapsed_us": "481"
+          },
+          {
+            "ordinal": "1",
+            "stage": "lattice-built",
+            "elapsed_us": "35013"
+          },
+          {
+            "ordinal": "1",
+            "stage": "semantic-attached",
+            "elapsed_us": "35330"
+          },
+          {
+            "ordinal": "1",
+            "stage": "complete",
+            "elapsed_us": "35351"
+          }
+        ],
+        "2": [
+          {
+            "ordinal": "2",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "2",
+            "stage": "cfg-cloned",
+            "elapsed_us": "372"
+          },
+          {
+            "ordinal": "2",
+            "stage": "entry-context",
+            "elapsed_us": "441"
+          },
+          {
+            "ordinal": "2",
+            "stage": "memo-candidate",
+            "elapsed_us": "454"
+          },
+          {
+            "ordinal": "2",
+            "stage": "lattice-built",
+            "elapsed_us": "32695"
+          },
+          {
+            "ordinal": "2",
+            "stage": "semantic-attached",
+            "elapsed_us": "33228"
+          },
+          {
+            "ordinal": "2",
+            "stage": "complete",
+            "elapsed_us": "33255"
+          }
+        ],
+        "3": [
+          {
+            "ordinal": "3",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "3",
+            "stage": "cfg-cloned",
+            "elapsed_us": "215"
+          },
+          {
+            "ordinal": "3",
+            "stage": "entry-context",
+            "elapsed_us": "287"
+          },
+          {
+            "ordinal": "3",
+            "stage": "memo-candidate",
+            "elapsed_us": "301"
+          },
+          {
+            "ordinal": "3",
+            "stage": "lattice-built",
+            "elapsed_us": "28272"
+          },
+          {
+            "ordinal": "3",
+            "stage": "semantic-attached",
+            "elapsed_us": "28594"
+          },
+          {
+            "ordinal": "3",
+            "stage": "complete",
+            "elapsed_us": "28613"
+          }
+        ]
+      },
+      "last_function": {
+        "profile": "tcl9.0",
+        "prefix": "COMPILER_FUNCTION_PHASE",
+        "fields": {
+          "index": "9",
+          "elapsed_us": "27749"
+        },
+        "line": "COMPILER_FUNCTION_PHASE index=9 elapsed_us=27749",
+        "completed_function_stage": "taint"
+      }
+    },
+    {
+      "profile": "tcl9.1",
+      "provider_clocks": [
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "initial",
+            "elapsed_us": "1",
+            "thread_us": "48405062"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=initial elapsed_us=1 thread_us=48405062"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "analyser-created",
+            "elapsed_us": "429",
+            "thread_us": "48405490"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=analyser-created elapsed_us=429 thread_us=48405490"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "input-prepared",
+            "elapsed_us": "54129",
+            "thread_us": "48459187"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=input-prepared elapsed_us=54129 thread_us=48459187"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "entry-selected",
+            "elapsed_us": "54546",
+            "thread_us": "48459606"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=entry-selected elapsed_us=54546 thread_us=48459606"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "configured",
+            "elapsed_us": "54564",
+            "thread_us": "48459625"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=configured elapsed_us=54564 thread_us=48459625"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "analysis-returned",
+            "elapsed_us": "18047065",
+            "thread_us": "66452126"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=analysis-returned elapsed_us=18047065 thread_us=66452126"
+        },
+        {
+          "profile": "tcl9.1",
+          "prefix": "PROVIDER_FIXTURE_PHASE",
+          "fields": {
+            "profile": "tcl9.1",
+            "bytes": "1380",
+            "stage": "analyser-dropped",
+            "elapsed_us": "18048025",
+            "thread_us": "66453086"
+          },
+          "line": "PROVIDER_FIXTURE_PHASE profile=tcl9.1 bytes=1380 stage=analyser-dropped elapsed_us=18048025 thread_us=66453086"
+        }
+      ],
+      "unit_boundaries": [
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "0",
+          "stage": "initial",
+          "us": "3"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "lower-and-cfg",
+          "us": "7599285"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-context",
+          "us": "7599388"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "unit-scope",
+          "us": "7874772"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "module-facts",
+          "us": "7908144"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-transfers",
+          "us": "7947883"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "top-level-lattice",
+          "us": "8653924"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "procedure-lattices",
+          "us": "8845413"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "transfer-summaries",
+          "us": "8845463"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-lattices",
+          "us": "8845491"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "source-body-cfg-clones",
+          "us": "8846744"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "method-and-body-lattices",
+          "us": "9034937"
+        },
+        {
+          "pipeline": "unit",
+          "bytes": "1380",
+          "procedures": "4",
+          "stage": "connection-scope",
+          "us": "9034947"
+        }
+      ],
+      "body_boundaries": {
+        "0": [
+          {
+            "ordinal": "0",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "0",
+            "stage": "cfg-cloned",
+            "elapsed_us": "211"
+          },
+          {
+            "ordinal": "0",
+            "stage": "entry-context",
+            "elapsed_us": "277"
+          },
+          {
+            "ordinal": "0",
+            "stage": "memo-candidate",
+            "elapsed_us": "294"
+          },
+          {
+            "ordinal": "0",
+            "stage": "lattice-built",
+            "elapsed_us": "41103"
+          },
+          {
+            "ordinal": "0",
+            "stage": "semantic-attached",
+            "elapsed_us": "41411"
+          },
+          {
+            "ordinal": "0",
+            "stage": "complete",
+            "elapsed_us": "41415"
+          }
+        ],
+        "1": [
+          {
+            "ordinal": "1",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "1",
+            "stage": "cfg-cloned",
+            "elapsed_us": "265"
+          },
+          {
+            "ordinal": "1",
+            "stage": "entry-context",
+            "elapsed_us": "310"
+          },
+          {
+            "ordinal": "1",
+            "stage": "memo-candidate",
+            "elapsed_us": "312"
+          },
+          {
+            "ordinal": "1",
+            "stage": "lattice-built",
+            "elapsed_us": "43912"
+          },
+          {
+            "ordinal": "1",
+            "stage": "semantic-attached",
+            "elapsed_us": "44274"
+          },
+          {
+            "ordinal": "1",
+            "stage": "complete",
+            "elapsed_us": "44294"
+          }
+        ],
+        "2": [
+          {
+            "ordinal": "2",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "2",
+            "stage": "cfg-cloned",
+            "elapsed_us": "285"
+          },
+          {
+            "ordinal": "2",
+            "stage": "entry-context",
+            "elapsed_us": "359"
+          },
+          {
+            "ordinal": "2",
+            "stage": "memo-candidate",
+            "elapsed_us": "367"
+          },
+          {
+            "ordinal": "2",
+            "stage": "lattice-built",
+            "elapsed_us": "68035"
+          },
+          {
+            "ordinal": "2",
+            "stage": "semantic-attached",
+            "elapsed_us": "68663"
+          },
+          {
+            "ordinal": "2",
+            "stage": "complete",
+            "elapsed_us": "68677"
+          }
+        ],
+        "3": [
+          {
+            "ordinal": "3",
+            "stage": "initial",
+            "elapsed_us": "0"
+          },
+          {
+            "ordinal": "3",
+            "stage": "cfg-cloned",
+            "elapsed_us": "327"
+          },
+          {
+            "ordinal": "3",
+            "stage": "entry-context",
+            "elapsed_us": "404"
+          },
+          {
+            "ordinal": "3",
+            "stage": "memo-candidate",
+            "elapsed_us": "413"
+          },
+          {
+            "ordinal": "3",
+            "stage": "lattice-built",
+            "elapsed_us": "33385"
+          },
+          {
+            "ordinal": "3",
+            "stage": "semantic-attached",
+            "elapsed_us": "33643"
+          },
+          {
+            "ordinal": "3",
+            "stage": "complete",
+            "elapsed_us": "33661"
+          }
+        ]
+      },
+      "last_function": {
+        "profile": "tcl9.1",
+        "prefix": "COMPILER_FUNCTION_PHASE",
+        "fields": {
+          "index": "9",
+          "elapsed_us": "32808"
+        },
+        "line": "COMPILER_FUNCTION_PHASE index=9 elapsed_us=32808",
+        "completed_function_stage": "taint"
+      }
+    }
+  ],
+  "scope": "Instrumented successful original assertion only. All bodies complete; no unfinished last stage remains. Earlier178 stall not reproduced and no sole production root cause or ordinary restored acceptance established."
+}

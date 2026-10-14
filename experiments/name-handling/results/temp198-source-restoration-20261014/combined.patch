@@ -1,0 +1,641 @@
+--- a/rust/tcl-compiler/src/body_analysis_capsule.rs
++++ b/rust/tcl-compiler/src/body_analysis_capsule.rs
+@@ -202,6 +202,22 @@
+     fn eq(&self, other: &Self) -> bool {
+         match (&self.neutral, &other.neutral) {
+             (Some(left), Some(right)) => {
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!(
++                        "CAPSULE_EQUALITY declaration={} body={} function={} summary={} instances={} global_writes={} analytical={} module_facts={} original_semantic={} function_semantic={}",
++                        left.declaration == right.declaration,
++                        left.body == right.body,
++                        left.function == right.function,
++                        left.summary == right.summary,
++                        left.instance_classes == right.instance_classes,
++                        left.tainted_global_writes == right.tainted_global_writes,
++                        left.analytical == right.analytical,
++                        left.module_facts == right.module_facts,
++                        left.original_semantic_facts == right.original_semantic_facts,
++                        left.function.semantic_facts == right.function.semantic_facts,
++                    );
++                }
+                 left.declaration == right.declaration
+                     && left.body == right.body
+                     && ((self.body == other.body && Arc::ptr_eq(&self.unit, &other.unit))
+@@ -676,41 +692,91 @@
+     /// Restore a cached offset-zero lattice to this request's actual source and cells.
+     #[must_use]
+     pub fn rebind_cached(&self, original: &Self, cached: &FunctionUnit) -> Option<FunctionUnit> {
+-        let current = self.certificate.as_ref()?;
+-        let previous = original.certificate.as_ref()?;
+-        if current != previous
+-            || !current.issuer.owns(current.body)
+-            || !previous.issuer.owns(previous.body)
+-            || !current
+-                .retained_source
+-                .matches_original_procedure_summary(current.body, &current.procedure)
+-            || !previous
+-                .retained_source
+-                .matches_original_procedure_summary(previous.body, &previous.procedure)
+-            || cached.name != previous.procedure.qualified_name
++        macro_rules! stage {
++            ($label:literal, $value:expr) => {{
++                let value = $value;
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!("CURRENT_MEMO stage={} present={}", $label, value.is_some());
++                }
++                value?
++            }};
++        }
++        macro_rules! guard {
++            ($label:literal, $value:expr) => {{
++                let value = $value;
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!("CURRENT_MEMO stage={} passed={value}", $label);
++                }
++                value
++            }};
++        }
++        let current = stage!("current_certificate", self.certificate.as_ref());
++        let previous = stage!("previous_certificate", original.certificate.as_ref());
++        if !guard!("certificate_equal", current == previous)
++            || !guard!("current_issuer", current.issuer.owns(current.body))
++            || !guard!("previous_issuer", previous.issuer.owns(previous.body))
++            || !guard!(
++                "current_original_summary",
++                current
++                    .retained_source
++                    .matches_original_procedure_summary(current.body, &current.procedure)
++            )
++            || !guard!(
++                "previous_original_summary",
++                previous
++                    .retained_source
++                    .matches_original_procedure_summary(previous.body, &previous.procedure)
++            )
++            || !guard!(
++                "cached_name",
++                cached.name == previous.procedure.qualified_name
++            )
+         {
+             return None;
+         }
+         if previous.declaration.native_source_slot.is_some()
+-            && cached.body_id != Some(previous.body)
++            && !guard!("cached_body_id", cached.body_id == Some(previous.body))
+         {
+             return None;
+         }
+-        let normalized = cached.relocated_variable_proofs(&previous.correspondence.relocation)?;
++        let normalized = stage!(
++            "previous_variable_relocation",
++            cached.relocated_variable_proofs(&previous.correspondence.relocation)
++        );
+         let previous_proofs =
+             crate::command_binding::BodySourceProofs::from_body(&previous.correspondence.body);
+         let normalized = if previous.declaration.native_source_slot.is_some() {
+-            normalized.restored_readonly_source_proofs(&previous_proofs)?
++            stage!(
++                "previous_readonly_restore",
++                normalized.restored_readonly_source_proofs(&previous_proofs)
++            )
+         } else {
+-            normalized.restored_source_proofs(&previous_proofs)?
++            stage!(
++                "previous_reached_restore",
++                normalized.restored_source_proofs(&previous_proofs)
++            )
+         };
+-        let rebound =
+-            normalized.relocated_variable_proofs(&current.correspondence.relocation.inverse()?)?;
++        let inverse = stage!(
++            "current_inverse",
++            current.correspondence.relocation.inverse()
++        );
++        let rebound = stage!(
++            "current_variable_relocation",
++            normalized.relocated_variable_proofs(&inverse)
++        );
+         let current_proofs = crate::command_binding::BodySourceProofs::from_body(&self.body);
+         let mut rebound = if current.declaration.native_source_slot.is_some() {
+-            rebound.restored_readonly_source_proofs(&current_proofs)?
++            stage!(
++                "current_readonly_restore",
++                rebound.restored_readonly_source_proofs(&current_proofs)
++            )
+         } else {
+-            rebound.restored_source_proofs(&current_proofs)?
++            stage!(
++                "current_reached_restore",
++                rebound.restored_source_proofs(&current_proofs)
++            )
+         };
+         if current.declaration.native_source_slot.is_some() {
+             rebound.body_id = Some(current.body);
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -1188,16 +1188,39 @@
+         if !self.sccp.required_math_invocations.is_empty()
+             || !self.sccp.required_expression_preparations.is_empty()
+         {
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                eprintln!(
++                    "CURRENT_MEMO stage=source_restore_prerequisites math={} expressions={}",
++                    self.sccp.required_math_invocations.len(),
++                    self.sccp.required_expression_preparations.len()
++                );
++            }
+             return None;
+         }
+         let mut unit = self.clone();
+         unit.invalidate_semantic_values();
+-        if !proofs.restore_cfg(&mut unit.cfg) || !unit.ssa.restore_source_tokens(&proofs.tokens) {
++        let cfg_restored = proofs.restore_cfg(&mut unit.cfg);
++        let ssa_restored = cfg_restored && unit.ssa.restore_source_tokens(&proofs.tokens);
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++            eprintln!(
++                "CURRENT_MEMO stage=reached_source_restore cfg={cfg_restored} ssa={ssa_restored}"
++            );
++        }
++        if !ssa_restored {
+             return None;
+         }
+         for block in unit.ssa.blocks.values_mut() {
+             for statement in &mut block.statements {
+                 if !proofs.restore_statement(&mut statement.statement) {
++                    #[cfg(debug_assertions)]
++                    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                        eprintln!(
++                            "CURRENT_MEMO stage=reached_ssa_statement_restore passed=false offset={}",
++                            statement.statement.span().start()
++                        );
++                    }
+                     return None;
+                 }
+             }
+@@ -1213,18 +1236,39 @@
+         if !self.sccp.required_math_invocations.is_empty()
+             || !self.sccp.required_expression_preparations.is_empty()
+         {
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                eprintln!(
++                    "CURRENT_MEMO stage=source_restore_prerequisites math={} expressions={}",
++                    self.sccp.required_math_invocations.len(),
++                    self.sccp.required_expression_preparations.len()
++                );
++            }
+             return None;
+         }
+         let mut unit = self.clone();
+         unit.invalidate_semantic_values();
+-        if !proofs.restore_readonly_cfg(&mut unit.cfg)
+-            || !unit.ssa.restore_source_tokens(&proofs.tokens)
+-        {
++        let cfg_restored = proofs.restore_readonly_cfg(&mut unit.cfg);
++        let ssa_restored = cfg_restored && unit.ssa.restore_source_tokens(&proofs.tokens);
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++            eprintln!(
++                "CURRENT_MEMO stage=readonly_source_restore cfg={cfg_restored} ssa={ssa_restored}"
++            );
++        }
++        if !ssa_restored {
+             return None;
+         }
+         for block in unit.ssa.blocks.values_mut() {
+             for statement in &mut block.statements {
+                 if !proofs.restore_readonly_statement(&mut statement.statement) {
++                    #[cfg(debug_assertions)]
++                    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                        eprintln!(
++                            "CURRENT_MEMO stage=readonly_ssa_statement_restore passed=false offset={}",
++                            statement.statement.span().start()
++                        );
++                    }
+                     return None;
+                 }
+             }
+@@ -4550,6 +4594,23 @@
+             &mut positioned,
+             i64::from(procedure.span.start()),
+         );
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++            eprintln!(
++                "CURRENT_MEMO stage=positioned_candidate_cfg all={} blocks={} source={} statement_sources={} terminator_sources={} namespace={} binding_sites={} boundaries={} conditions={} metadata={} loops={}",
++                positioned.cfg == current.cfg,
++                positioned.cfg.blocks == current.cfg.blocks,
++                positioned.cfg.executed_source == current.cfg.executed_source,
++                positioned.cfg.statement_sources == current.cfg.statement_sources,
++                positioned.cfg.terminator_sources == current.cfg.terminator_sources,
++                positioned.cfg.namespace_context == current.cfg.namespace_context,
++                positioned.cfg.command_binding_sites == current.cfg.command_binding_sites,
++                positioned.cfg.command_boundary_sites == current.cfg.command_boundary_sites,
++                positioned.cfg.condition_binding_sites == current.cfg.condition_binding_sites,
++                positioned.cfg.metadata_context == current.cfg.metadata_context,
++                positioned.cfg.loop_nodes == current.cfg.loop_nodes,
++            );
++        }
+         positioned.cfg == current.cfg
+     }
+ 
+--- a/rust/tcl-compiler/src/object_types.rs
++++ b/rust/tcl-compiler/src/object_types.rs
+@@ -538,6 +538,23 @@
+         saw_constructor_arg: false,
+         stats: LatticeStats::default(),
+     };
++    #[cfg(any(test, debug_assertions))]
++    if std::env::var_os("TCL_LSP_TRACE_OBJECT_SOURCE_CANDIDATES").is_some() {
++        eprintln!(
++            "OBJECT_SOURCE_INVENTORY top_ir={} cfg_blocks={} cfg_statements={} active_procedures={} body_units={} source_procedures={}",
++            cu.ir_module.top_level.statements.len(),
++            cu.top_level.cfg.blocks.len(),
++            cu.top_level
++                .cfg
++                .blocks
++                .values()
++                .map(|block| block.statements.len())
++                .sum::<usize>(),
++            cu.ir_module.procedures.len(),
++            cu.ir_module.body_units.len(),
++            cu.ir_module.original_source_procedure_bodies().count()
++        );
++    }
+     let units = std::iter::once(&cu.top_level)
+         .chain(cu.procedures.values())
+         .chain(cu.methods.values());
+@@ -1889,6 +1906,21 @@
+     // is `myG`, not a `set` target the SSA lattice can carry).
+     for block in fu.cfg.blocks.values() {
+         for stmt in &block.statements {
++            #[cfg(any(test, debug_assertions))]
++            if std::env::var_os("TCL_LSP_TRACE_OBJECT_SOURCE_CANDIDATES").is_some() {
++                let kind = match stmt {
++                    Statement::AssignValue { .. } => "AssignValue",
++                    Statement::Call { .. } => "Call",
++                    Statement::AssignConst { .. } => "AssignConst",
++                    _ => "Other",
++                };
++                eprintln!(
++                    "OBJECT_SOURCE_HARVEST kind={} tokens={} source_analysis={}",
++                    kind,
++                    stmt.tokens().is_some(),
++                    sink.source_analysis.is_some()
++                );
++            }
+             match stmt {
+                 Statement::AssignValue { name, value, .. } => {
+                     if let Some((_head, args)) = parse_command_substitution_with_config(
+@@ -1986,6 +2018,20 @@
+     context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+     tokens: &crate::ir::CommandTokens,
+ ) -> Vec<crate::registry_invocation::AdvisoryValueAssignment> {
++    #[cfg(any(test, debug_assertions))]
++    if std::env::var_os("TCL_LSP_TRACE_OBJECT_SOURCE_CANDIDATES").is_some() {
++        eprintln!(
++            "OBJECT_SOURCE_PRODUCER offset={} words={} metadata={} logical={} binding={}",
++            tokens
++                .words()
++                .first()
++                .map_or(0, |word| word.source().span.start()),
++            tokens.words().len(),
++            context.is_some(),
++            context.is_some_and(|context| context.permits_logical_source_names()),
++            tokens.source_binding.is_some()
++        );
++    }
+     let Some(context) = context else {
+         return Vec::new();
+     };
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -804,7 +804,31 @@
+     context: InvocationMetadataContext<'_>,
+     tokens: &CommandTokens,
+ ) -> Option<tcl_registry::completion_route::InvocationCompletionRoute> {
+-    let input = context.source_analysis_input()?;
++    macro_rules! stage {
++        ($label:literal, $value:expr) => {{
++            let value = $value;
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                eprintln!(
++                    "CURRENT_COMPLETION stage={} present={}",
++                    $label,
++                    value.is_some()
++                );
++            }
++            value?
++        }};
++    }
++    let input = stage!("input", context.source_analysis_input());
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++        eprintln!(
++            "CURRENT_COMPLETION stage=purpose logical={} hosted={} registry={} synthetic={}",
++            input.has_logical_source_name_context(),
++            input.has_hosted_source_name_context(),
++            context.matches_registry(registry),
++            tokens.synthetic.is_some()
++        );
++    }
+     if input.has_logical_source_name_context()
+         || input.has_hosted_source_name_context()
+         || !context.matches_registry(registry)
+@@ -812,15 +836,32 @@
+     {
+         return None;
+     }
+-    let binding = tokens.source_binding.as_ref()?;
+-    let context = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+-    let config = binding.original_lexer_config_for_tokens(tokens)?;
++    let binding = stage!("binding", tokens.source_binding.as_ref());
++    let context = stage!(
++        "original_metadata",
++        binding.original_invocation_metadata_for_input(tokens, input, registry)
++    );
++    let config = stage!(
++        "original_config",
++        binding.original_lexer_config_for_tokens(tokens)
++    );
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++        eprintln!(
++            "CURRENT_COMPLETION stage=source_owner native={} config={}",
++            binding.has_original_native_source_command(),
++            config.normalized() == input.lexer_config().normalized()
++        );
++    }
+     if config.normalized() != input.lexer_config().normalized() {
+         return None;
+     }
+     if binding.has_original_native_source_command() {
+-        let words = binding.original_native_source_words(tokens, input, registry)?;
+-        let dialect = words.dialect()?;
++        let words = stage!(
++            "native_words",
++            binding.original_native_source_words(tokens, input, registry)
++        );
++        let dialect = stage!("native_dialect", words.dialect());
+         let arguments = words
+             .arguments()
+             .iter()
+@@ -839,13 +880,28 @@
+             )
+         })?;
+     }
+-    let advice = binding
+-        .declaration_operand_layout_advice(tokens)
+-        .or_else(|| binding.original_compilation_lookup_advice(tokens))?;
++    let advice = stage!(
++        "layout",
++        binding
++            .declaration_operand_layout_advice(tokens)
++            .or_else(|| binding.original_compilation_lookup_advice(tokens))
++    );
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++        eprintln!(
++            "CURRENT_COMPLETION stage=layout_coverage closed={} opaque={} unclosed={}",
++            advice.closed_lookup(),
++            advice.has_opaque_handler_alternatives(),
++            advice.has_unclosed_source_coverage()
++        );
++    }
+     if advice.has_unclosed_source_coverage() {
+         return None;
+     }
+-    let selected = resolve_original_source_layout(registry, Some(context), tokens, &advice)?;
++    let selected = stage!(
++        "selected_layout",
++        resolve_original_source_layout(registry, Some(context), tokens, &advice)
++    );
+     selected.dialect?;
+     if selected.facts.arity_accepts_frozen_arguments() != Some(true)
+         || selected
+@@ -5139,6 +5195,23 @@
+     pub effective: EffectiveCommandWords,
+ }
+ 
++#[cfg(any(test, debug_assertions))]
++fn trace_object_source_probe(tokens: &CommandTokens, stage: &'static str, available: bool) {
++    if std::env::var_os("TCL_LSP_TRACE_OBJECT_SOURCE_CANDIDATES").is_some() {
++        let offset = tokens
++            .words()
++            .first()
++            .map_or(0, |word| word.source().span.start());
++        eprintln!(
++            "OBJECT_SOURCE_PROBE offset={} words={} stage={} available={}",
++            offset,
++            tokens.words().len(),
++            stage,
++            available
++        );
++    }
++}
++
+ impl RegistryInvocationShape {
+     fn from_facts(facts: &InvocationFacts, effective: EffectiveCommandWords) -> Self {
+         Self {
+@@ -5163,29 +5236,55 @@
+         tokens: &CommandTokens,
+         apply: impl FnOnce(&tcl_registry::ResolvedInvocation<'_, '_>) -> Option<T>,
+     ) -> Option<T> {
++        #[cfg(any(test, debug_assertions))]
++        let trace = |stage, available| trace_object_source_probe(tokens, stage, available);
++        #[cfg(not(any(test, debug_assertions)))]
++        let trace = |_stage: &'static str, _available: bool| {};
++        trace("schema.binding", tokens.source_binding.is_some());
+         let binding = tokens.source_binding.as_ref()?;
+         let point = binding
+             .original_source_metadata_for_advice(tokens, registry)
+-            .ok()??;
++            .ok()
++            .flatten();
++        trace("schema.original_point", point.is_some());
++        let point = point?;
++        trace(
++            "schema.supplied_input",
++            context.source_analysis_input().is_some(),
++        );
+         context.source_analysis_input()?;
++        trace(
++            "schema.point_input",
++            point.source_analysis_input().is_some(),
++        );
+         point.source_analysis_input()?;
+-        if !context.matches_registry(registry)
+-            || point.context() != context.context()
+-            || point.source_analysis_input() != context.source_analysis_input()
+-        {
+-            return None;
+-        }
++        let currency = context.matches_registry(registry)
++            && point.context() == context.context()
++            && point.source_analysis_input() == context.source_analysis_input();
++        trace("schema.currency", currency);
++        currency.then_some(())?;
+         let assistance = original_registry_invocation_assistance_with_metadata_context(
+             registry,
+             Some(point),
+             tokens,
+-        )?;
+-        assistance.unanimous_command_words()?;
++        );
++        trace("schema.assistance", assistance.is_some());
++        let assistance = assistance?;
++        trace("schema.unknown_residual", assistance.unknown_residual);
++        trace("schema.may_be_absent", assistance.may_be_absent);
++        let unanimous = assistance.unanimous_command_words();
++        trace("schema.unanimous", unanimous.is_some());
++        unanimous?;
++        trace("schema.contains", assistance.candidates.contains(self));
+         if !assistance.candidates.contains(self) {
+             return None;
+         }
+-        let original = binding.original_conditional_operand_layout_advice(tokens, registry)?;
+-        let config = binding.original_lexer_config_for_tokens(tokens)?;
++        let original = binding.original_conditional_operand_layout_advice(tokens, registry);
++        trace("schema.original_layout", original.is_some());
++        let original = original?;
++        let config = binding.original_lexer_config_for_tokens(tokens);
++        trace("schema.original_config", config.is_some());
++        let config = config?;
+         let dialect = tcl_registry::InvocationDialect {
+             lexer_grammar: config.grammar_over(original.dialect().lexer_grammar),
+             word_values: WordValueRules::from_config(&config),
+@@ -5460,6 +5559,12 @@
+     context: Option<InvocationMetadataContext<'_>>,
+     tokens: &CommandTokens,
+ ) -> Vec<AdvisoryValueAssignment> {
++    #[cfg(any(test, debug_assertions))]
++    trace_object_source_probe(
++        tokens,
++        "assignment.logical_metadata",
++        context.is_some_and(|context| context.permits_logical_source_names()),
++    );
+     let Some(context) = context.filter(|context| context.permits_logical_source_names()) else {
+         return Vec::new();
+     };
+@@ -5470,6 +5575,21 @@
+     ) else {
+         return Vec::new();
+     };
++    #[cfg(any(test, debug_assertions))]
++    {
++        trace_object_source_probe(tokens, "assignment.assistance", true);
++        trace_object_source_probe(
++            tokens,
++            "assignment.has_candidates",
++            !assistance.candidates.is_empty(),
++        );
++        trace_object_source_probe(
++            tokens,
++            "assignment.unknown_residual",
++            assistance.unknown_residual,
++        );
++        trace_object_source_probe(tokens, "assignment.may_be_absent", assistance.may_be_absent);
++    }
+     assistance
+         .candidates
+         .into_iter()
+--- a/rust/tcl-compiler/src/variable_bindings.rs
++++ b/rust/tcl-compiler/src/variable_bindings.rs
+@@ -472,9 +472,28 @@
+         let mut replacements = BTreeMap::new();
+         for (&point, tokens) in &self.source_tokens {
+             let Some(offset) = tokens.argv.first().map(|span| span.start()) else {
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!(
++                        "CURRENT_MEMO stage=ssa_restore_missing_head point_index={} words={} synthetic={}",
++                        point.1,
++                        tokens.words().len(),
++                        tokens.synthetic.is_some()
++                    );
++                }
+                 return false;
+             };
+             let Some(original) = originals.get(&offset) else {
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!(
++                        "CURRENT_MEMO stage=ssa_restore_missing_site offset={offset} originals={} min={:?} max={:?} point_index={}",
++                        originals.len(),
++                        originals.keys().next(),
++                        originals.keys().next_back(),
++                        point.1,
++                    );
++                }
+                 return false;
+             };
+             let mut restored = tokens.clone();
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -2886,6 +2886,19 @@
+     } else {
+         FunctionUnit::build_for_lattice(key.qname(db), cfg, key.params(db), inputs)
+     };
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++        let certified = key.body(db).certified_native_source_body_id();
++        eprintln!(
++            "CURRENT_MEMO stage=lattice_built certified={} original={} unit_id={} certified_matches={} original_matches={}",
++            certified.is_some(),
++            key.entry(db).original_declaration_body.is_some(),
++            unit.body_id.is_some(),
++            certified.is_some() && unit.body_id == certified,
++            key.entry(db).original_declaration_body.is_some()
++                && unit.body_id == key.entry(db).original_declaration_body,
++        );
++    }
+     Arc::new(unit.with_retained_semantic_analysis(
+         registry,
+         Some(key.body(db).body()),
+@@ -3160,7 +3173,20 @@
+                     &registry_snapshot,
+                     epoch,
+                 );
+-                if let Some(unit) = inputs.rebind_cached(key.body(db), &function_lattice(db, key)) {
++                let cached = function_lattice(db, key);
++                let rebound = inputs.rebind_cached(key.body(db), &cached);
++                #[cfg(debug_assertions)]
++                if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                    eprintln!(
++                        "CURRENT_MEMO stage=analytical_rebind current_certified={} cached_certified={} cached_id={} cached_id_matches={} rebound={}",
++                        inputs.certified_native_source_body_id().is_some(),
++                        key.body(db).certified_native_source_body_id().is_some(),
++                        cached.body_id.is_some(),
++                        cached.body_id == key.body(db).certified_native_source_body_id(),
++                        rebound.is_some(),
++                    );
++                }
++                if let Some(unit) = rebound {
+                     lattice_keys.insert(req.body_id, key);
+                     returned_candidates.insert(req.body_id, unit.clone());
+                     return unit;
+@@ -3231,7 +3257,16 @@
+     // than its cached donor. Rejected callbacks cannot seed downstream memos.
+     lattice_keys.retain(|id, _| {
+         returned_candidates.get(id).is_some_and(|candidate| {
+-            cu.accepts_original_procedure_lattice(*id, candidate, registry)
++            let accepted = cu.accepts_original_procedure_lattice(*id, candidate, registry);
++            #[cfg(debug_assertions)]
++            if std::env::var_os("TCL_LSP_TRACE_CURRENT_MEMO_STAGES").is_some() {
++                eprintln!(
++                    "CURRENT_MEMO stage=returned_candidate id_matches={} reads_module={} accepted={accepted}",
++                    candidate.body_id == Some(*id),
++                    candidate.sccp.reads_module,
++                );
++            }
++            accepted
+         })
+     });
+     drop(returned_candidates);

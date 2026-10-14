@@ -1,0 +1,10 @@
+amount {incr n $delta} 0 8 8
+amount {incr n {$delta}} 1 5 {expected integer expression but got "$delta"}
+amount {incr n "$delta"} 0 8 8
+amount {incr n 0\x33} 0 8 8
+amount {incr n {0\x33}} 1 5 {expected integer expression but got "0\x33"}
+literal-sigil-read 9
+empty-scalar-read 11
+escaped-value ab
+braced-value {a\x62}
+literal-sigil-value {cash$name}

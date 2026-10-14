@@ -1,0 +1,1 @@
+float-amount 1 5 {expected integer expression but got "1.5"}

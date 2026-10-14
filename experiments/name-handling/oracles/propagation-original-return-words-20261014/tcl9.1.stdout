@@ -1,0 +1,3 @@
+literal_word 0 {$x}
+compound_word 0 42:b
+array_word 1 {can't read "arr(k)": variable isn't array}

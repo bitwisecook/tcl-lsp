@@ -1,0 +1,68 @@
+{
+  "started": {
+    "utc": "2026-10-14T22:41:22.763266+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "xtask",
+      "-p",
+      "tcl-syntax",
+      "-p",
+      "bpf-tcl-ir",
+      "-p",
+      "tcl-vm",
+      "--lib",
+      "--bin",
+      "xtask"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "Production affected-consumer preflight after all temporary diagnostic source restoration and reviewed current shared reference, semantic-token, conditional completion and hidden-invocation consumer migrations. Seven test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T22:48:02.180724+00:00",
+  "exit_code": 0,
+  "seconds": 399.4172200210014,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/xtask-21137d634222e84e",
+      "sha256": "dcc2f35517370c3b7598aa5ac9fed4e5cfbfc8d5f98bd01379884e178f253545"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-122438889183ae03",
+      "sha256": "a7fcd9a1d03f738d9434012f81e145c458039c54923161bf97330ce9a57e371a"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-44965e0f89e3ea5a",
+      "sha256": "3ee9c1629f92431955152cef451b41ccb049f4c7e15c46758400c29a8353d86c"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_vm-145075525995b859",
+      "sha256": "6a58f2d88922720ea3d908d48deaa56de17d031a684a1e7b37d360f67ecb6d05"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+      "sha256": "e6486b8a2bfed9ccec8944bcc3b8afd4faccc2ac576ab5a7d25b76017da37b07"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_core-ade0a379569a162e",
+      "sha256": "f5fbc1f8f9fe56e06f065da7f65d8f154bc13256406ec8b724abd39c152e71b1"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/bpf_tcl_ir-626787c886b85da4",
+      "sha256": "a1f693dbd04e04e8d23a0b678a1eed718277ad59cebb159338b22392b89b809d"
+    }
+  ]
+}

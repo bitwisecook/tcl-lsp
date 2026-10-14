@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-14T22:55:34.321923+00:00",
+  "label": "TEMP200 primitive first-refusal instrumentation only; original assertions, exact source owners and all guards unchanged; no ordinary semantic acceptance.",
+  "package": "tcl-compiler",
+  "target": null,
+  "source_paths": 34730,
+  "plan": {
+    "exact": [
+      "body_analysis_capsule::native_source_lattice_tests::native_source_capsules_retain_current_owners_under_certified_unrelated_edits",
+      "body_analysis_capsule::native_source_lattice_tests::native_source_lattice_correspondence_rebinds_actual_ids_after_an_unrelated_edit",
+      "body_analysis_capsule::native_source_lattice_tests::readonly_source_restoration_preserves_absence_of_execution_and_refuses_missing_carriers",
+      "body_analysis_capsule::tests::logical_source_correspondence_reuses_an_unchanged_body_after_an_unrelated_edit",
+      "object_types::tests::logical_constructor_candidates_require_the_actual_source_input_and_vector",
+      "object_types::tests::logical_object_class_unions_require_current_analysis_and_module_inputs",
+      "object_types::logical_source_candidates::tests::logical_receiver_candidates_keep_original_scope_and_unknown_contents"
+    ],
+    "filters": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

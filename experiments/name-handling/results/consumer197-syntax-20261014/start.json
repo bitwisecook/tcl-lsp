@@ -1,0 +1,20 @@
+{
+  "started_utc": "2026-10-14T22:48:18.616358+00:00",
+  "label": "Production196 shared name input/report purposes and original configured reference shapes; authored source subset only.",
+  "package": "tcl-syntax",
+  "target": null,
+  "source_paths": 34730,
+  "plan": {
+    "exact": [
+      "naming::tests::literal_reference_names_keep_combined_lookup_data_separate_from_indexes",
+      "naming::tests::whole_reference_shapes_follow_original_provider_grammar",
+      "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent",
+      "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object"
+    ],
+    "filters": []
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

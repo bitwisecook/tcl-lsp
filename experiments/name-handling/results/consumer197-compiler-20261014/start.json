@@ -1,0 +1,29 @@
+{
+  "started_utc": "2026-10-14T22:48:08.201523+00:00",
+  "label": "Production196 focused expression/loop/original-reference consumers plus all old ConstSubst tests; original assertions retained; authored source subset only.",
+  "package": "tcl-compiler",
+  "target": null,
+  "source_paths": 34730,
+  "plan": {
+    "exact": [
+      "executable_ir::tests::expression_footprints_keep_original_reference_form_and_index_reads",
+      "executable_ir::tests::expression_footprints_refuse_missing_or_changed_whole_source_syntax",
+      "registry_invocation::source_name_roles::tests::loop_names_follow_decoded_word_then_the_selected_list_role",
+      "registry_invocation::source_name_roles::tests::file_line_receiver_role_keeps_one_complete_name",
+      "executable_ir::tests::cursor_loop_names_use_original_list_values_and_refuse_changed_receivers",
+      "executable_ir::tests::file_line_analysis_cannot_be_emitted_as_a_list_cursor",
+      "value_transfer::tests::source_word_reads_keep_literal_colons_and_selected_unicode_grammar",
+      "value_transfer::tests::a_simple_reference_is_one_reference_only",
+      "value_transfer::tests::a_raw_operand_is_a_variable_only_when_every_rule_agrees",
+      "sccp::tests::an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence",
+      "sccp::tests::an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled"
+    ],
+    "filters": [
+      "const_subst::tests::"
+    ]
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)\n",
+  "runner_sha256": "484b813ef91201deed03f728181ee10915a612e7d95470bfc7c9669270a73a47",
+  "source_channel": "production frozen; no temporary diagnostics"
+}

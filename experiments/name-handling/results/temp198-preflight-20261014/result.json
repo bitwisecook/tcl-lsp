@@ -1,0 +1,36 @@
+{
+  "started": {
+    "utc": "2026-10-14T22:48:59.877173+00:00",
+    "argv": [
+      "cargo",
+      "test",
+      "--offline",
+      "--no-run",
+      "--message-format=json",
+      "-j1",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-db",
+      "--lib"
+    ],
+    "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+    "scope": "TEMP198 diagnostic-only preflight after all temporary diagnostic source restoration and reviewed current shared reference, semantic-token, conditional completion and hidden-invocation consumer migrations. Two TEMP test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+  },
+  "finished_utc": "2026-10-14T22:54:18.571601+00:00",
+  "exit_code": 0,
+  "seconds": 318.69427170000563,
+  "executed_tests": 0,
+  "changed_sources": {},
+  "errors": [],
+  "test_artifacts": [
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_compiler-768c0f233b0220d8",
+      "sha256": "db8b794bf754c90530c5fa072b0e83263671090259ca78bd5fbdd36385ccd362"
+    },
+    {
+      "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_lsp_db-4c8acaf8cd640a62",
+      "sha256": "4fdccadd5a543a10b6e21b0215443d14a840d941f5288479941edf8204dd1fbd"
+    }
+  ]
+}

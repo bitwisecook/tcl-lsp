@@ -1,0 +1,63 @@
+--- a/rust/tcl-compiler/src/provider_fixtures.rs
++++ b/rust/tcl-compiler/src/provider_fixtures.rs
+@@ -149,24 +149,57 @@
+     })
+ }
+ 
++#[cfg(test)]
++std::thread_local! {
++    static PROVIDER_PHASE_ORIGIN: std::cell::RefCell<Option<std::time::Instant>> =
++        const { std::cell::RefCell::new(None) };
++}
++
+ /// Analyse under one explicit selected package environment.
+ pub(crate) fn analyse(
+     source: &str,
+     dialect: &str,
+     providers: &[Provider],
+ ) -> crate::analyser::types::AnalysisResult {
++    let started =
++        std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").map(|_| std::time::Instant::now());
++    let trace = |stage: &str| {
++        if let Some(started) = started {
++            let thread_us = PROVIDER_PHASE_ORIGIN.with(|origin| {
++                origin
++                    .borrow_mut()
++                    .get_or_insert(started)
++                    .elapsed()
++                    .as_micros()
++            });
++            eprintln!(
++                "PROVIDER_FIXTURE_PHASE profile={dialect} bytes={} stage={stage} elapsed_us={} thread_us={thread_us}",
++                source.len(),
++                started.elapsed().as_micros()
++            );
++        }
++    };
++    trace("initial");
+     let mut analyser = crate::analyser::Analyser::new();
++    trace("analyser-created");
+     let input = analyser
+         .prepare_analysis_input(dialect)
+         .expect("available provider fixture environment");
++    trace("input-prepared");
+     let context = input.context_registry();
+     let mut selected = (*entry(context.commands(), providers)).clone();
+     selected.metadata_context =
+         crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(&input));
+-    analyser
++    trace("entry-selected");
++    let mut analyser = analyser
+         .with_resolved_input(input)
+-        .with_source_analysis_entry(Arc::new(selected))
+-        .analyse(source, dialect)
++        .with_source_analysis_entry(Arc::new(selected));
++    trace("configured");
++    let result = analyser.analyse(source, dialect);
++    trace("analysis-returned");
++    drop(analyser);
++    trace("analyser-dropped");
++    result
+ }
+ 
+ #[cfg(test)]

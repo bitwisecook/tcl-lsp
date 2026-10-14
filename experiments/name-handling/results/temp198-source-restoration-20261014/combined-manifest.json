@@ -1,0 +1,43 @@
+{
+  "temporary_diagnostic_only": true,
+  "production_base": "Current Main196 exact byte snapshots; no Main changes",
+  "patch_sha256": "5d650dab0ec13bc49d2acdf8ce20504ec851cc70ebc4b93263600870b249c2b7",
+  "files": {
+    "rust/tcl-compiler/src/body_analysis_capsule.rs": {
+      "before_sha256": "7bf32a44336606a023abc8d2659f89c345e5bb39fdaa8808e92ac7c51cb13837",
+      "after_sha256": "936e5bbd81a9d74bf4bb6c3f8f930e01d7dbf34bbdd7a100c025382b8296574e"
+    },
+    "rust/tcl-compiler/src/compilation_unit.rs": {
+      "before_sha256": "9c6b9d18525c2b91be133200af0f257224bcf201c715d81d87096feba30e6543",
+      "after_sha256": "f0d7baa58f379326e87b35683ec4a5ac22ea1cc2895c222faaf174e68faf329a"
+    },
+    "rust/tcl-compiler/src/object_types.rs": {
+      "before_sha256": "79eac4d40cbaa9832b3096fabc3e81b751878ccf78f80d8915443c4c455e48b1",
+      "after_sha256": "924f4c5e73f76ae62b9ebc6ebea4c2ac4c8a76e80c493e3481cd9ce756840c4e"
+    },
+    "rust/tcl-compiler/src/registry_invocation.rs": {
+      "before_sha256": "6fca88a67863f425611692277d7b3078ba421ae53cd64183144a79bfd05ca6f7",
+      "after_sha256": "d7ccb62cf585d1cc9d11657588881527d36945c2723b8204e8cb097cc5b250c8"
+    },
+    "rust/tcl-compiler/src/variable_bindings.rs": {
+      "before_sha256": "f62dfd54decb52ac2ef598260c3eec6fab4718157b8ca06a9ec8528b199520c0",
+      "after_sha256": "5cf2c2af01c4d8390ea11ff149a794c2669b898d02e8dbac3249c5ffb915d1f2"
+    },
+    "rust/tcl-lsp-db/src/lib.rs": {
+      "before_sha256": "ca410c58bf3fd493dfd2e00f59900548398ed383a9f1cb726e4f0f1cdbb3f69f",
+      "after_sha256": "6bb0c405151dfafe591c811677f855670ba4692c8f246e415f63efb4e51bd880"
+    }
+  },
+  "origins": [
+    "/tmp/name-db-combined-first-refusal-diagnostic-20261014/implementation.patch",
+    "/tmp/name-db-completion-first-refusal-diagnostic-20261014/implementation.patch",
+    "/tmp/name-object-source-temp-probe195-20261014/implementation.patch"
+  ],
+  "flags": [
+    "TCL_LSP_TRACE_CURRENT_MEMO_STAGES",
+    "TCL_LSP_TRACE_OBJECT_SOURCE_CANDIDATES"
+  ],
+  "scope": "Combined DB rebind/capsule/SSA/CFG first-refusal; Native source conditional completion; actual LSP source inventory and assignment/schema primitive flags. No Debug/source text/assertion/input/budget changes. Production return semantics and short-circuit guard order retained.",
+  "validation": "Six-file scratch rustfmt parse passed; patch applied with fuzz=0; exact current Main before bytes checked; no Main/Cargo/Git",
+  "separate_compiler_body_probe": "Root28cf expected disjoint compilation_unit.rs hunks; not included. Root must restore these six before files byte-exact after TEMP replay."
+}

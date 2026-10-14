@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-14T22:48:59.877173+00:00",
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "--no-run",
+    "--message-format=json",
+    "-j1",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-db",
+    "--lib"
+  ],
+  "target": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014",
+  "scope": "TEMP198 diagnostic-only preflight after all temporary diagnostic source restoration and reviewed current shared reference, semantic-token, conditional completion and hidden-invocation consumer migrations. Two TEMP test artifacts only, zero tests executed here. Authored source subset only, not full Native/provider closure."
+}

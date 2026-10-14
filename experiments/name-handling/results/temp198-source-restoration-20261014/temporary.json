@@ -1,0 +1,9 @@
+{
+  "rust/tcl-compiler/src/body_analysis_capsule.rs": "936e5bbd81a9d74bf4bb6c3f8f930e01d7dbf34bbdd7a100c025382b8296574e",
+  "rust/tcl-lsp-db/src/lib.rs": "6bb0c405151dfafe591c811677f855670ba4692c8f246e415f63efb4e51bd880",
+  "rust/tcl-compiler/src/compilation_unit.rs": "f10ed9d27c10c63d03b0c327851e8c7c2c36f3345ae7236aec9566fbda8be4a2",
+  "rust/tcl-compiler/src/provider_fixtures.rs": "c4384e1a5df7eb100c86db5f770f8ff92cfb7cdad0788e01f5514902a5409c93",
+  "rust/tcl-compiler/src/variable_bindings.rs": "5cf2c2af01c4d8390ea11ff149a794c2669b898d02e8dbac3249c5ffb915d1f2",
+  "rust/tcl-compiler/src/registry_invocation.rs": "d7ccb62cf585d1cc9d11657588881527d36945c2723b8204e8cb097cc5b250c8",
+  "rust/tcl-compiler/src/object_types.rs": "924f4c5e73f76ae62b9ebc6ebea4c2ac4c8a76e80c493e3481cd9ce756840c4e"
+}

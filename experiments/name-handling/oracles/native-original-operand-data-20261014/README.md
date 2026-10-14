@@ -1,0 +1,5 @@
+# Original increment and assignment operands
+
+C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and latest Jim execute the same ten probes. Bare and quoted `$delta` increment n from5 to8. Braced `{$delta}` raises an integer error and leaves n5. Escaped `0\x33` evaluates as03 and increments to8; braced `{0\x33}` raises an integer error and leaves n5. Exact braced scalar references retain literal dollar and empty names. Escaped assignment data becomesab while braced data preserves its backslash and sigils.
+
+The original C error says "expected integer"; Jim says "expected integer expression". These actual provider-specific results remain in stdout rather than being normalised. result.json retains exact commands, statuses, executable before/after SHA256 and matching original C init.tcl; those init files are retained. A separate retained float probe confirms1.5 is an integer error and leaves n5 in all six providers. No tcltest was used. The capture script is retained; no F5 or compiler implementation acceptance is claimed.

@@ -1,0 +1,140 @@
+{
+  "started_utc": "2026-10-14T22:48:18.616358+00:00",
+  "build": null,
+  "run": null,
+  "binary": {
+    "path": "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+    "sha256": "e6486b8a2bfed9ccec8944bcc3b8afd4faccc2ac576ab5a7d25b76017da37b07",
+    "bytes": 12174480
+  },
+  "selected_tests": [
+    "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent",
+    "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object",
+    "naming::tests::literal_reference_names_keep_combined_lookup_data_separate_from_indexes",
+    "naming::tests::whole_reference_shapes_follow_original_provider_grammar"
+  ],
+  "missing_exact": [],
+  "empty_filters": [],
+  "runs": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.0038700820005033165,
+      "log": "test-01.log.gz",
+      "timed_out": false,
+      "test": "naming::native::namespace_creation_conflict_keeps_original_spelling_and_selected_extent",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.001624668002477847,
+      "log": "test-02.log.gz",
+      "timed_out": false,
+      "test": "naming::native::tests::jim_lambda_namespace_keeps_the_counted_original_context_object",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::tests::literal_reference_names_keep_combined_lookup_data_separate_from_indexes",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.004433659996720962,
+      "log": "test-03.log.gz",
+      "timed_out": false,
+      "test": "naming::tests::literal_reference_names_keep_combined_lookup_data_separate_from_indexes",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/target/name-runtime-stock-capture-20261014/debug/deps/tcl_syntax-3b6065212b112601",
+        "naming::tests::whole_reference_shapes_follow_original_provider_grammar",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "seconds": 0.003907127000275068,
+      "log": "test-04.log.gz",
+      "timed_out": false,
+      "test": "naming::tests::whole_reference_shapes_follow_original_provider_grammar",
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0"
+        ]
+      ],
+      "running_counts": [
+        "1"
+      ]
+    }
+  ],
+  "summaries": [
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ],
+    [
+      "ok",
+      "1",
+      "0"
+    ]
+  ],
+  "finished_utc": "2026-10-14T22:48:20.888682+00:00",
+  "changed_sources": {}
+}
