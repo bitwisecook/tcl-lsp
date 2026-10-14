@@ -53,6 +53,8 @@ pub use source_procedure_publications::{
     OriginalSourceProcedurePublications,
 };
 
+pub use logical_body::OriginalLogicalProcedureBody;
+
 use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -629,6 +631,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     >,
     configured_classes: BTreeMap<u32, Option<OriginalSourceConfiguredClassReference>>,
     procedure_publications: Option<OriginalSourceProcedurePublications>,
+    logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     class_publications: Option<OriginalSourceClassPublications>,
     scanned_procedure_declarations: BTreeSet<u32>,
     class_instance_calls: BTreeMap<u32, Option<OriginalSourceClassInstanceWords>>,
@@ -782,6 +785,9 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
+        for (offset, card) in other.logical_procedure_bodies {
+            source_class::merge_receipt(&mut self.logical_procedure_bodies, offset, card);
+        }
         for (offset, receipt) in other.body_catalogue {
             source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
         }
@@ -2097,6 +2103,25 @@ impl super::SourceCommandBindings {
 
     /// Independently interpreted authored root-script transitions. This owner
     /// never mutates, publishes or borrows the retained runtime command state.
+    pub(crate) fn original_logical_procedure_body_cards(
+        &self,
+    ) -> Option<Vec<Arc<OriginalLogicalProcedureBody>>> {
+        let seed = self.original_source_transition_seed()?;
+        if seed.baseline.native_entry.is_some() {
+            return None;
+        }
+        let input = seed.logical_input.as_ref()?;
+        input.has_logical_source_name_context().then_some(())?;
+        let context = seed.source_context(input.borrowed_context_registry().commands())?;
+        let tape = seed.prepare_for(&context, OriginalSourceCataloguePurpose::CompletePrefix)?;
+        Some(
+            tape.logical_procedure_bodies
+                .into_values()
+                .flatten()
+                .collect(),
+        )
+    }
+
     pub(crate) fn original_source_transition_advice_tape(
         &self,
         context: &ContextRegistry,

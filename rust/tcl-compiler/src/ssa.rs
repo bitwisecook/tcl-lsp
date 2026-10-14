@@ -2514,37 +2514,7 @@ fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>
         .is_some_and(|sub| sub.loop_list_header)
 }
 
-/// Whether an IR assignment target `name` (as written) is a *dynamic* write
-/// target — its variable name is computed at runtime from a substitution
-/// (`set $p …`, `set ${tok} …`, `set a$b(k) …`).  Such a target is opaque
-/// (no static def) and *reads* the substituted name-bearing variable(s).
-///
-/// A leading `$`
-/// marks a substituted write-target name, and a substitution in the array
-/// *base* (`a$b(k)`) is dynamic too.  A bare array element (`arr($i)`) keeps
-/// its static base `arr` (only the index is dynamic), so it is **not** a
-/// dynamic target here.
-///
-/// `braced_literal` is the statement's own `name_braced` flag: a brace-quoted
-/// word (`set {$n} 1`) substitutes nothing, so its `$` is part of a perfectly
-/// static name and the target is **not** dynamic.  Reading the name text
-/// alone calls it dynamic, withholds the def, and records a read of `n` — a
-/// `W210 Variable 'n' is read before it is set` on code that never mentions
-/// `n`.
-#[must_use]
-pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
-    if braced_literal {
-        return false;
-    }
-    if name.starts_with('$') {
-        return true;
-    }
-    let base = match name.find('(') {
-        Some(i) => &name[..i],
-        None => name,
-    };
-    base.is_empty() || base.contains('$') || base.contains('[')
-}
+pub use tcl_syntax::naming::unattributed_dynamic_written_variable_target as is_dynamic_write_target;
 
 /// Whether a loop-variable-list word is **static** — its source performs no
 /// substitution, so the word's text *is* the Tcl list of names the loop binds.
@@ -5154,14 +5124,7 @@ struct RenameOutputs {
     unseen_call_versions: Vec<(VariableCellKey, Version)>,
 }
 
-/// Add variable definitions introduced through a registry-typed instance's
-/// class option table (for example a widget's linked input variable).
-///
-/// The ordinary registry def scan sees direct command heads. Runtime object
-/// commands (`.entry configure …`, `$widget configure …`) need the same scan
-/// after resolving their receiver class. The method opt-in and the option's
-/// external-input bit are both registry data; this layer names neither a
-/// method nor an option.
+/// Retain linked-input definitions from a registry-selected instance class.
 fn enrich_instance_option_defs(
     func: &cfg::Function,
     registry: &CommandRegistry,
@@ -5175,25 +5138,61 @@ fn enrich_instance_option_defs(
     (!defs.is_empty()).then_some(enriched)
 }
 
-/// Mirror a registry-proven top-level global option definition under Tcl's
-/// equivalent bare spelling.
-///
-/// A widget's deferred `-textvariable` must name a global so it outlives the
-/// constructor frame.  The registry/lowerer therefore records its static
-/// `VarWrite` as `::name`. At module scope, however, Tcl resolves `$name` to
-/// that same global variable.  SSA otherwise interns those spellings as two
-/// unrelated variables and loses the input source at the overwhelmingly
-/// common top-level `$name` read.  Only the one-segment global spelling has
-/// this equivalence: `::ns::name` is not a bare `name` in `::top`.
-///
-/// This is a scope rule, not a Tk rule. Any registry option declaring a global
-/// `VarWrite` gets the same top-level alias, while an ordinary qualified write
-/// (`set ::x`, `unset ::x`) does not manufacture a second SSA definition.
-/// Procedure bodies retain Tcl's strict local/global distinction.
+fn linked_option_definition_name(
+    tokens: &CommandTokens,
+    index: usize,
+    global: bool,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    let binding = tokens.source_binding.as_ref()?;
+    let purpose = binding.original_source_advice_purpose(tokens, metadata, registry)?;
+    let input = binding.original_written_name_input(tokens, index.checked_add(1)?)?;
+    let key = input.original_word_key()?;
+    // Empty linked-input options disconnect; dollar signs in static values are data.
+    let value = key.bytes();
+    if value.is_empty() {
+        return None;
+    }
+    let variable = (purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical)
+        .then(|| key.policy().recipe().combined_variable_input(value));
+    // Logical words retain Unicode values; they are not a Native string pool.
+    let root = variable.as_ref().map_or_else(
+        || tcl_syntax::naming::split_element_ref_bytes(value).map_or(value, |(root, _)| root),
+        |variable| variable.root().selected(),
+    );
+    let name = std::str::from_utf8(root).ok()?;
+    Some(
+        if global && tcl_syntax::naming::unroot_rooted_key(name).is_none() {
+            tcl_syntax::naming::root_unrooted_key(name)
+        } else {
+            name.to_owned()
+        },
+    )
+}
+
+fn original_global_root_frame(
+    tokens: &CommandTokens,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &CommandRegistry,
+) -> Option<()> {
+    let binding = tokens.source_binding.as_ref()?;
+    binding.original_source_advice_purpose(tokens, metadata, registry)?;
+    if binding.variable_frame.layout() != &crate::var_resolve::VariableExecutionFrame::Global {
+        return None;
+    }
+    let namespace = binding.variable_context.namespace_identity.as_ref()?;
+    namespace.exact_native_path()?.is_root().then_some(())
+}
+
+// Bare aliases require the original global frame and root namespace, not a body label.
 fn mirror_top_level_global_option_defs(
     func: &mut cfg::Function,
     registry: &CommandRegistry,
 ) -> bool {
+    let Some(Some(metadata)) = func.metadata_context.metadata_context(registry) else {
+        return false;
+    };
     let mut changed = false;
     for block in func.blocks.values_mut() {
         for statement in &mut block.statements {
@@ -5208,6 +5207,17 @@ fn mirror_top_level_global_option_defs(
             else {
                 continue;
             };
+            let Some(tokens) = tokens.as_ref() else {
+                continue;
+            };
+            if tokens.argv_texts.first() != Some(command)
+                || tokens.argv_texts.get(1..) != Some(args.as_slice())
+            {
+                continue;
+            }
+            if original_global_root_frame(tokens, metadata, registry).is_none() {
+                continue;
+            }
             let name = canonical_command.as_deref().unwrap_or(command);
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
             let aliases: Vec<String> = registry
@@ -5222,18 +5232,10 @@ fn mirror_top_level_global_option_defs(
                     ) == Some(tcl_registry::VariableScope::Global)
                 })
                 .filter_map(|index| {
-                    let raw = args.get(index)?;
-                    let braced = tokens
-                        .as_ref()
-                        .is_some_and(|tokens| tokens.arg_is_braced_literal(index));
-                    let declared = crate::naming::element_var_name_braced(raw, braced);
-                    let global = if declared.starts_with("::") {
-                        declared.to_owned()
-                    } else {
-                        format!("::{declared}")
-                    };
-                    let bare = global.strip_prefix("::")?;
-                    (!bare.is_empty() && !bare.contains("::") && defs.contains(&global))
+                    let global =
+                        linked_option_definition_name(tokens, index, true, metadata, registry)?;
+                    let bare = tcl_syntax::naming::unroot_rooted_key(&global)?;
+                    (!tcl_syntax::naming::is_qualified(bare.as_bytes()) && defs.contains(&global))
                         .then_some(bare.to_owned())
                 })
                 .filter(|alias| !defs.contains(alias))
@@ -5245,14 +5247,15 @@ fn mirror_top_level_global_option_defs(
     changed
 }
 
-/// In-place form used by module CFG construction when a procedure begins with
-/// proven interpreter-global receiver facts.
+/// Use the retained receiver facts when constructing the module CFG.
 pub(crate) fn enrich_instance_option_defs_with_initial(
     func: &mut cfg::Function,
     registry: &CommandRegistry,
     initial: &crate::taint::InstanceClassState,
 ) -> HashSet<String> {
-    let is_top_level = func.name == "::top";
+    let Some(Some(metadata)) = func.metadata_context.metadata_context(registry) else {
+        return HashSet::new();
+    };
     let classes = crate::taint::local_instance_classes_with_initial(func, registry, initial);
     let mut instance_defs = HashSet::new();
     for block in func.blocks.values_mut() {
@@ -5262,11 +5265,20 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
                 command,
                 args,
                 defs,
+                tokens,
                 ..
             } = statement
             else {
                 continue;
             };
+            let Some(tokens) = tokens.as_ref() else {
+                continue;
+            };
+            if tokens.argv_texts.first() != Some(command)
+                || tokens.argv_texts.get(1..) != Some(args.as_slice())
+            {
+                continue;
+            }
             if args.is_empty() {
                 continue;
             }
@@ -5293,9 +5305,6 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
             }
             let option_args: Vec<&str> = args[1..].iter().map(String::as_str).collect();
             for (option_index, candidate) in args[1..].iter().enumerate() {
-                if candidate.is_empty() || candidate.contains(['$', '[']) {
-                    continue;
-                }
                 if tcl_registry::taint::taints_var_write(
                     registry,
                     class,
@@ -5303,33 +5312,33 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
                     registry.own_surface_query(),
                     candidate,
                 ) {
-                    let name = crate::naming::element_var_name(candidate);
-                    let name = if registry.option_variable_scope(
+                    let global = registry.option_variable_scope(
                         class,
                         &option_args,
                         option_index,
                         registry.own_surface_query(),
-                    ) == Some(tcl_registry::VariableScope::Global)
-                        && !name.starts_with("::")
-                    {
-                        format!("::{name}")
-                    } else {
-                        name.to_owned()
+                    ) == Some(tcl_registry::VariableScope::Global);
+                    let Some(name) = linked_option_definition_name(
+                        tokens,
+                        option_index + 1,
+                        global,
+                        metadata,
+                        registry,
+                    ) else {
+                        continue;
                     };
-                    if !name.is_empty() {
-                        instance_defs.insert(name.clone());
-                        if !defs.contains(&name) {
-                            defs.push(name.clone());
-                        }
-                        if is_top_level
-                            && let Some(bare) = name.strip_prefix("::")
-                            && !bare.is_empty()
-                            && !bare.contains("::")
-                        {
-                            instance_defs.insert(bare.to_owned());
-                            if !defs.iter().any(|defined| defined == bare) {
-                                defs.push(bare.to_owned());
-                            }
+                    instance_defs.insert(name.clone());
+                    if !defs.contains(&name) {
+                        defs.push(name.clone());
+                    }
+                    if global
+                        && original_global_root_frame(tokens, metadata, registry).is_some()
+                        && let Some(bare) = tcl_syntax::naming::unroot_rooted_key(&name)
+                        && !tcl_syntax::naming::is_qualified(bare.as_bytes())
+                    {
+                        instance_defs.insert(bare.to_owned());
+                        if !defs.iter().any(|defined| defined == bare) {
+                            defs.push(bare.to_owned());
                         }
                     }
                 }
@@ -6001,7 +6010,24 @@ impl<'a> RenameWalk<'a> {
             source_symbols.remove(name);
             self.unknown_source_names.insert(name.clone());
         }
-        if context.execution_name_policy.is_none() {
+        if let Some(store) = self
+            .points
+            .conditional_logical_scalar_store_at(point.0, point.1, registry)
+            && let Some(place) = store.definition_place(registry)
+            && let Some(bound) = crate::var_resolve::canonical_binding_value_key(&place)
+        {
+            let name = store.source_name().to_owned();
+            let symbol = self.interner.intern(&bound);
+            if source_symbols
+                .insert(name.clone(), symbol)
+                .is_some_and(|previous| previous != symbol)
+            {
+                source_symbols.remove(&name);
+                self.unknown_source_names.insert(name);
+            }
+        } else if context.execution_name_policy.is_none()
+            && SsaInvocationContext::supplied(registry, self.metadata).standalone
+        {
             for name in defs_of_in_context(
                 stmt,
                 Some(SsaInvocationContext::supplied(registry, self.metadata)),
@@ -6728,10 +6754,8 @@ fn build_ssa_inner(
     }
 
     let mut enriched = enrich_instance_option_defs(func, registry);
-    if func.name == "::top" {
-        let target = enriched.get_or_insert_with(|| func.clone());
-        let _ = mirror_top_level_global_option_defs(target, registry);
-    }
+    let target = enriched.get_or_insert_with(|| func.clone());
+    let _ = mirror_top_level_global_option_defs(target, registry);
     let func = enriched.as_ref().unwrap_or(func);
 
     // 1. Compute dominance information.  Use the Cooper-Harvey-
@@ -8652,6 +8676,175 @@ mod tests {
     }
 
     #[test]
+    fn quiet_logical_scalar_mutations_keep_original_names_without_numeric_or_normal_results() {
+        let (context, unit) =
+            logical_metadata_fixture("incr {}; incr {$counter}; info exists {$counter}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions::default(),
+            unit.top_level.source_lexer_config(),
+        );
+        for (statement, expected) in unit
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .zip(["", "$counter", "$counter"])
+        {
+            let tokens = statement.tokens().unwrap();
+            assert!(selection.logical_structure(tokens).is_some());
+            assert!(selection.normal(tokens).is_none());
+            let variables = &tokens.source_binding.as_ref().unwrap().variable_context;
+            assert!(variables.interpreter.is_none());
+            assert!(variables.execution.is_none());
+            assert!(variables.literal_value(expected, registry).is_none());
+            let reads = uses_of_classified_in_context(statement, &mut scanner, selection);
+            assert!(
+                reads.contains(&(expected.to_owned(), UseClass::Name)),
+                "{reads:?}"
+            );
+            assert!(
+                !reads.iter().any(|(name, _)| name == "counter"),
+                "{reads:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn dynamic_scalar_targets_keep_later_unknown_read_hazards() {
+        let (context, unit) = logical_metadata_fixture("incr {}; incr $name; incr {$counter}");
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        let selection = SsaInvocationContext::supplied(registry, Some(metadata));
+        let statement = unit.ir_module.top_level.statements.last().unwrap();
+        assert!(
+            selection
+                .logical_structure(statement.tokens().unwrap())
+                .is_none()
+        );
+        let mut scanner = VarReferenceScanner::with_config(
+            VarScanOptions::default(),
+            unit.top_level.source_lexer_config(),
+        );
+        assert!(
+            uses_of_classified_in_context(statement, &mut scanner, selection)
+                .iter()
+                .any(|(name, _)| name == "counter")
+        );
+    }
+
+    #[test]
+    fn quiet_logical_scalar_mutation_withdraws_prior_literal_contents() {
+        let (context, unit) =
+            logical_metadata_fixture("set counter 9; incr counter; info exists counter");
+        let registry = context.commands();
+        let statements = &unit.ir_module.top_level.statements;
+        let before_update = &statements[1]
+            .tokens()
+            .unwrap()
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .variable_context;
+        assert_eq!(before_update.literal_value("counter", registry), Some("9"));
+        let after_update = &statements[2]
+            .tokens()
+            .unwrap()
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .variable_context;
+        assert!(after_update.literal_value("counter", registry).is_none());
+        assert!(!after_update.dynamic_bindings);
+        assert!(!after_update.dynamic_traces);
+    }
+
+    #[test]
+    fn conditional_logical_store_symbols_keep_original_empty_and_dollar_names() {
+        let (context, unit) = logical_metadata_fixture("set {$literal} 9; set {} 8");
+        let registry = context.commands();
+        let function = &unit.top_level;
+        let points = function.ssa.point_contexts.as_ref().unwrap();
+        let mut found = HashSet::new();
+        for (&block, data) in &function.cfg.blocks {
+            for (index, _) in data.statements.iter().enumerate() {
+                let Some(store) =
+                    points.conditional_logical_scalar_store_at(block, index, registry)
+                else {
+                    continue;
+                };
+                let place = store.definition_place(registry).unwrap();
+                let key = crate::var_resolve::canonical_binding_value_key(&place).unwrap();
+                let source = function.ssa.source_symbols_at(block, index).unwrap();
+                let symbol = source
+                    .get(store.source_name())
+                    .expect("original conditional store name");
+                assert_eq!(function.ssa.cell_key(*symbol), &key);
+                assert!(place.cell.as_ref().unwrap().interpreter.is_none());
+                assert!(place.cell.as_ref().unwrap().execution.is_none());
+                assert!(!source.contains_key("literal"));
+                let tokens = points.source_tokens_at(block, index).unwrap();
+                let metadata = function
+                    .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                    .unwrap();
+                assert!(
+                    SsaInvocationContext::supplied(registry, Some(metadata))
+                        .normal(tokens)
+                        .is_none()
+                );
+                found.insert(store.source_name().to_owned());
+            }
+        }
+        assert_eq!(found, HashSet::from(["$literal".to_owned(), String::new()]));
+    }
+
+    #[test]
+    fn conditional_store_symbol_owner_refuses_after_dynamic_target_and_unknown_command() {
+        let (context, unit) = logical_metadata_fixture(
+            "set {$literal} 9; set $target 8; opaque_writer; set {$later} 7",
+        );
+        let registry = context.commands();
+        let function = &unit.top_level;
+        let points = function.ssa.point_contexts.as_ref().unwrap();
+        let mut checked = 0;
+        for (&block, data) in &function.cfg.blocks {
+            for (index, statement) in data.statements.iter().enumerate() {
+                let Some(tokens) = statement.tokens() else {
+                    continue;
+                };
+                if tokens
+                    .argv_texts
+                    .get(1)
+                    .is_some_and(|name| name == "$later")
+                {
+                    checked += 1;
+                    assert!(
+                        points
+                            .conditional_logical_scalar_store_at(block, index, registry)
+                            .is_none()
+                    );
+                    assert!(
+                        !function
+                            .ssa
+                            .source_symbols_at(block, index)
+                            .unwrap()
+                            .contains_key("$later")
+                    );
+                }
+            }
+        }
+        assert_eq!(checked, 1);
+    }
+
+    #[test]
     fn original_literal_empty_reads_and_mutations_keep_name_data() {
         // Native cases: experiments/name-handling/results/ssa-empty-read-write-names.
         let source = "info exists {}; info exists {$name}; incr {}; incr {$counter}; dict with {} {}; dict with {$dict} {}";
@@ -9161,6 +9354,102 @@ mod tests {
         // Second statement (set y $x): uses x=1, defs y=1
         assert_eq!(entry_blk.statements[1].uses.get(&sx), Some(&1));
         assert_eq!(entry_blk.statements[1].defs.get(&sy), Some(&1));
+    }
+
+    #[test]
+    fn linked_option_original_values_preserve_literal_dollars_and_element_roots() {
+        let (context, unit) = logical_metadata_fixture(
+            "info exists {$literal}; info exists {items(key)}; info exists {(key)}; info exists {}",
+        );
+        let registry = context.commands();
+        let metadata = unit
+            .top_level
+            .invocation_metadata_context_for_module(registry, &unit.ir_module)
+            .unwrap();
+        for (statement, expected) in unit.ir_module.top_level.statements.iter().zip([
+            Some("::$literal"),
+            Some("::items"),
+            None,
+        ]) {
+            let tokens = statement.tokens().unwrap();
+            assert_eq!(
+                linked_option_definition_name(tokens, 1, true, metadata, registry).as_deref(),
+                expected,
+            );
+            assert!(original_global_root_frame(tokens, metadata, registry).is_none());
+            let mut changed = tokens.clone();
+            changed.argv_texts[2] = "different_name".to_owned();
+            assert!(linked_option_definition_name(&changed, 1, true, metadata, registry).is_none());
+            let mut detached = tokens.clone();
+            detached.source_binding = None;
+            assert!(
+                linked_option_definition_name(&detached, 1, true, metadata, registry).is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_linked_option_unicode_nul_retains_complete_qualified_name_data() {
+        for (source, expected) in [
+            (
+                "info exists \"original_scope::literal\\u0000tail\"",
+                "::original_scope::literal\0tail",
+            ),
+            (
+                "info exists \"original_scope::items\\u0000tail(key)\"",
+                "::original_scope::items\0tail",
+            ),
+        ] {
+            let (context, unit) = logical_metadata_fixture(source);
+            let registry = context.commands();
+            let metadata = unit
+                .top_level
+                .invocation_metadata_context_for_module(registry, &unit.ir_module)
+                .unwrap();
+            let tokens = unit.ir_module.top_level.statements[0].tokens().unwrap();
+            assert_eq!(
+                linked_option_definition_name(tokens, 1, true, metadata, registry).as_deref(),
+                Some(expected)
+            );
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let input = binding.original_written_name_input(tokens, 2).unwrap();
+            let key = input.original_word_key().unwrap();
+            assert!(key.bytes().contains(&0));
+            assert_ne!(
+                key.policy()
+                    .recipe()
+                    .combined_variable_input(key.bytes())
+                    .root()
+                    .selected(),
+                key.bytes()
+            );
+            assert!(
+                SsaInvocationContext::supplied(registry, Some(metadata))
+                    .normal(tokens)
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn top_label_and_option_definition_cannot_supply_global_frame_ownership() {
+        let registry = tcl_registry::model::ingress::static_context_for("tk").commands();
+        let mut function = Function::new("::top", "entry");
+        let block = function.blocks.get_mut(&function.entry).unwrap();
+        block.statements.push(call(
+            Span::new(0, 34),
+            "entry",
+            &[".e", "-textvariable", "value"],
+            &["::value"],
+        ));
+        assert!(!mirror_top_level_global_option_defs(
+            &mut function,
+            registry
+        ));
+        let Statement::Call { defs, .. } = &function.blocks[&function.entry].statements[0] else {
+            panic!("original option statement");
+        };
+        assert_eq!(defs, &["::value".to_owned()]);
     }
 
     #[test]

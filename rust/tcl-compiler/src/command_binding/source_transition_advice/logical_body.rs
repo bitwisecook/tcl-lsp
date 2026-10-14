@@ -19,6 +19,94 @@ use std::sync::Arc;
 use tcl_lexer::{NativeScriptCommandWords, NativeWord, Span};
 use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition, Traits};
 
+/// Authentic readonly procedure header, formals and deferred body context.
+/// The source card supplies no command allocation, publication or body entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalLogicalProcedureBody {
+    scope: Arc<OriginalDeclaredLogicalBodyContext>,
+    site: crate::command_binding::CommandAllocationSite,
+    parameters: Vec<tcl_syntax::formal_params::FormalParameter>,
+    parameters_text: String,
+    module_entry: Option<crate::command_binding::SourceAnalysisEntry>,
+}
+impl OriginalLogicalProcedureBody {
+    pub(crate) fn retain_module_entry(
+        mut self,
+        entry: &crate::command_binding::SourceAnalysisEntry,
+    ) -> Self {
+        self.module_entry = Some(entry.clone());
+        self
+    }
+    pub(crate) fn scope(&self) -> &Arc<OriginalDeclaredLogicalBodyContext> {
+        &self.scope
+    }
+    pub(crate) fn site(&self) -> &crate::command_binding::CommandAllocationSite {
+        &self.site
+    }
+    pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
+        &self.parameters
+    }
+    pub(crate) fn parameters_text(&self) -> &str {
+        &self.parameters_text
+    }
+    pub(crate) fn name(&self) -> Option<&str> {
+        std::str::from_utf8(self.scope.scope_name_input().bytes()).ok()
+    }
+    pub(crate) fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> bool {
+        self.site.source.source_image() == image
+            && self.scope.matches_input(input)
+            && self
+                .scope
+                .scope_body()
+                .matches_source(image, input.lexer_config())
+            && self
+                .scope
+                .scope_body()
+                .matches_context(input.borrowed_context_registry())
+            && self.scope.frame_recipe() == OriginalDeclaredSourceBodyFrame::Procedure
+    }
+    pub(crate) fn matches_procedure(
+        &self,
+        module: &crate::ir::Module,
+        procedure: &crate::ir::Procedure,
+    ) -> bool {
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return false;
+        };
+        self.module_entry.as_ref() == Some(&module.source_entry)
+            && module.source_entry.native_entry.is_none()
+            && module.source_entry.hosted_execution_context.is_none()
+            && !module.source_entry.unknown_entry
+            && module.native_lexer_config() == input.lexer_config()
+            && self.matches_source(&module.source, input)
+            && procedure.declaration_site.as_ref() == Some(&self.site)
+            && procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
+            && self.name() == Some(procedure.name.as_str())
+            && procedure.params_raw == self.parameters_text
+            && procedure
+                .params
+                .iter()
+                .map(String::as_str)
+                .eq(self.parameters.iter().map(|p| p.name.as_str()))
+            && procedure.body.namespace_context.as_deref()
+                == tcl_syntax::naming::checked_namespace_path_key(self.scope.namespace_recipe())
+                    .map(crate::command_binding::SourceNamespaceKey::authored)
+                    .as_ref()
+            && procedure.body.executed_source.is_none()
+            && procedure.body_offset == self.scope.scope_body().content_span().start()
+            && procedure.body_source.as_deref()
+                == module
+                    .source
+                    .try_text()
+                    .ok()
+                    .and_then(|s| s.get(self.scope.scope_body().content_span().as_range()))
+    }
+}
+
 const MAX_DEPTH: usize = 64;
 const MAX_COMMANDS: usize = 2048;
 
@@ -204,6 +292,33 @@ impl LogicalBodyWalk<'_, '_> {
             input,
             parent.cloned(),
         )?);
+        let positions = schema.authored_source_procedure_arguments()?;
+        let formal = invocation.arguments.get(positions.parameters)?;
+        let parameters_text = std::str::from_utf8(formal.value.as_deref()?).ok()?;
+        if tcl_syntax::word_rules::original_static_word_unicode_value(&formal.original).as_deref()
+            != Some(parameters_text.as_bytes())
+        {
+            return None;
+        }
+        let parameters = crate::command_binding::logical_definition::static_formals(
+            parameters_text,
+            self.context.config.list_parse,
+        )?;
+        let card = Arc::new(OriginalLogicalProcedureBody {
+            scope: Arc::clone(&scope),
+            site: crate::command_binding::CommandAllocationSite {
+                source: Arc::clone(self.context.origin),
+                offset: invocation.native.first()?.span().start(),
+            },
+            parameters,
+            parameters_text: parameters_text.to_owned(),
+            module_entry: None,
+        });
+        super::source_class::merge_receipt(
+            &mut tape.logical_procedure_bodies,
+            card.site.offset,
+            Some(card),
+        );
         let mut branch = graph.clone();
         branch.apply(&receipt)?;
         branch.logical_namespace = Some(key.namespace);

@@ -61,8 +61,10 @@ mod executed_expression_source;
 mod executed_script_source;
 mod frozen_arguments;
 mod future_bodies;
+mod hosted_procedure_body;
 mod incomplete_body_metadata;
 mod logical_definition;
+pub use hosted_procedure_body::OriginalHostedProcedureBody;
 mod logical_operation;
 mod logical_prefix;
 mod logical_word_values;
@@ -141,12 +143,12 @@ pub use source_catalogue_advice::{
 pub(crate) use source_transition_advice::OriginalSourceCataloguePurpose;
 pub(crate) use source_transition_advice::original_single_command_substitution_words;
 pub use source_transition_advice::{
-    OriginalLogicalSourceNameInput, OriginalSourceAuthoredCommandPrefix,
-    OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
-    OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
-    OriginalSourceCallbackRegistration, OriginalSourceClassCandidate,
-    OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding, OriginalSourceClassInstance,
-    OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+    OriginalLogicalProcedureBody, OriginalLogicalSourceNameInput,
+    OriginalSourceAuthoredCommandPrefix, OriginalSourceCallbackProcedureLookup,
+    OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
+    OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+    OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
     OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
     OriginalSourceConstructorCall, OriginalSourceConstructorShape,

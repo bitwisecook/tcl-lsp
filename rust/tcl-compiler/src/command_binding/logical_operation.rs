@@ -56,28 +56,16 @@ pub(super) fn transfer(
     if facts.arity_accepts_frozen_arguments() != Some(true) || facts.frame_effect.is_some() {
         return None;
     }
+    let transitions = schema.state_transitions();
     if facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set) {
-        scalar_store(&original, &facts, state, offset, context)?;
+        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
     } else if matches!(
         facts.analyser_hook,
         Some(AnalyserHookId::Rename | AnalyserHookId::InterpAlias)
     ) {
-        command_transfer(
-            &original,
-            &facts,
-            &schema.state_transitions(),
-            state,
-            offset,
-            context,
-        )?;
-    } else if !readonly_continuation(
-        &original,
-        &facts,
-        &schema.state_transitions(),
-        state,
-        context,
-    ) {
-        return None;
+        command_transfer(&original, &facts, &transitions, state, offset, context)?;
+    } else {
+        variable_continuation(&original, &facts, &transitions, state, offset, context)?;
     }
     // A continuation of this authored model has no Native handler, command
     // publication, compiler, frame, argv or Normal completion certificate.
@@ -329,6 +317,114 @@ fn readonly_continuation(
         );
         !access.dynamic && !access.observed && logical_cell_is_local(&access, state, context)
     })
+}
+
+fn variable_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    if (facts.operation == SemanticOperationId::StructuredLowering(LoweringHookId::Set)
+        && scalar_store(original, facts, state, offset, context).is_some())
+        || readonly_continuation(original, facts, transitions, state, context)
+    {
+        return Some(());
+    }
+    scalar_write_continuation(original, facts, transitions, state, offset, context)
+}
+
+fn scalar_write_roles(facts: &InvocationFacts, transitions: &StateTransitions) -> bool {
+    transitions.facts().is_empty()
+        && facts.arg_roles_complete
+        && bounded_effects(
+            facts,
+            &[
+                WorldStateDomain::VariableStore,
+                WorldStateDomain::VariableTraces,
+            ],
+        )
+        && facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| *role == ArgRole::VarWrite)
+        && facts
+            .arg_roles
+            .iter()
+            .all(|(_, role)| matches!(role, ArgRole::VarRead | ArgRole::VarWrite))
+        && facts.effects.accesses().iter().all(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                || access.mode == EffectAccessMode::Read
+        })
+        && facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                && matches!(
+                    access.mode,
+                    EffectAccessMode::Write | EffectAccessMode::ReadWrite
+                )
+        })
+}
+
+fn scalar_write_continuation(
+    original: &LogicalOriginalInvocation,
+    facts: &InvocationFacts,
+    transitions: &StateTransitions,
+    state: &mut ModuleCommandBindings,
+    offset: u32,
+    context: SourceExecutionContext<'_>,
+) -> Option<()> {
+    if !original.is_current(state, context)
+        || !scalar_write_roles(facts, transitions)
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+    {
+        return None;
+    }
+    let mut writes = Vec::new();
+    for (ordinal, role) in &facts.arg_roles {
+        let name = original
+            .arguments
+            .get(facts.argument_offset + usize::from(*ordinal))?;
+        let read = crate::var_resolve::resolve_literal_access(
+            name,
+            &state.source_variables,
+            false,
+            context.registry,
+            tcl_registry::TraceOperation::Read,
+        );
+        if read.dynamic || read.observed || !logical_cell_is_local(&read, state, context) {
+            return None;
+        }
+        if *role == ArgRole::VarWrite {
+            let write = crate::var_resolve::resolve_literal_access(
+                name,
+                &state.source_variables,
+                false,
+                context.registry,
+                tcl_registry::TraceOperation::Write,
+            );
+            if write.dynamic
+                || write.observed
+                || write.kind != crate::place::PlaceKind::Scalar
+                || write.index.is_some()
+                || !logical_cell_is_local(&write, state, context)
+                || state.source_variables.root_contents_kind(&write)
+                    == Some(crate::var_resolve::RootContentsKind::Array)
+                || state.source_variables.store_would_error(&write)
+            {
+                return None;
+            }
+            writes.push(write);
+        }
+    }
+    // Conditional footprints withdraw values without publishing a successful store.
+    let variables = Arc::make_mut(&mut state.source_variables);
+    for write in writes {
+        variables.record_contents_write(&write, offset, true);
+    }
+    Some(())
 }
 
 fn scalar_store(

@@ -671,6 +671,8 @@ mod tests {
                 future_call_sites: Vec::new(),
                 installed_procedure_body_units: std::collections::BTreeMap::default(),
                 original_declaration_body_units: std::collections::BTreeMap::default(),
+                original_logical_declaration_body_units: std::collections::BTreeMap::default(),
+                original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
                 irules_event_bodies: HashMap::new(),
                 procedure_implementation_bodies: std::sync::Arc::from([]),
                 top_level_kind: crate::ir::TopLevelKind::Script,

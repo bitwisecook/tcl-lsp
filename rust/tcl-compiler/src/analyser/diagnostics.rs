@@ -665,6 +665,7 @@ impl Analyser {
 
         #[cfg(any(test, debug_assertions))]
         trace_phase("procedures");
+        self.emit_hosted_procedure_body_diagnostics(cu, registry);
         self.emit_fresh_frame_body_diagnostics(
             cu,
             registry,
@@ -773,6 +774,26 @@ impl Analyser {
                     registry,
                     &cu.ir_module,
                 );
+            }
+        }
+    }
+
+    /// Held hosted declarations retain source policy without event identity.
+    fn emit_hosted_procedure_body_diagnostics(
+        &mut self,
+        cu: &crate::compilation_unit::CompilationUnit,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        for (id, function) in &cu.body_units {
+            if crate::source_graph::hosted_procedure_body_for_function(
+                &cu.ir_module,
+                id,
+                function,
+                registry,
+            )
+            .is_some()
+            {
+                self.emit_irules_cell_diagnostics(function, None, registry);
             }
         }
     }

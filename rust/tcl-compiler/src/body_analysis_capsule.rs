@@ -91,12 +91,12 @@ impl BodyAnalysisCapsule {
         if !module.procedure_ids.owns(body) {
             return None;
         }
-        let procedure = module.procedures.get(&body)?;
-        let function = unit.procedures.get(&body)?;
+        let procedure = unit.original_procedure_for_body(body)?;
+        let function = unit.function_for_body(Some(body))?;
         let retained = module.retained_source_bindings.as_deref()?;
         retained.positioned_for_module(module, registry)?;
         if function.body_id != Some(body)
-            || unit.cfg_module.procedures.get(&body) != Some(&function.cfg)
+            || unit.original_procedure_cfg_for_body(body) != Some(&function.cfg)
             || module.source.try_text().ok()? != unit.source
             || procedure.declaration_site.is_none()
             || !retained.matches_original_procedure(procedure)
@@ -145,9 +145,7 @@ impl BodyAnalysisCapsule {
     #[must_use]
     pub fn procedure(&self) -> &Procedure {
         self.unit
-            .ir_module
-            .procedures
-            .get(&self.body)
+            .original_procedure_for_body(self.body)
             .expect("retained capsule declaration")
     }
 
@@ -155,8 +153,7 @@ impl BodyAnalysisCapsule {
     #[must_use]
     pub fn function(&self) -> &FunctionUnit {
         self.unit
-            .procedures
-            .get(&self.body)
+            .function_for_body(Some(self.body))
             .expect("retained capsule function")
     }
 
@@ -679,13 +676,11 @@ impl BodySummaryInputs {
     ) -> Option<Self> {
         if known
             .iter()
-            .any(|id| !capsule.unit().ir_module.procedures.contains_key(id))
+            .any(|id| capsule.unit().original_procedure_for_body(*id).is_none())
             || summaries.iter().any(|(id, summary)| {
                 capsule
                     .unit()
-                    .ir_module
-                    .procedures
-                    .get(id)
+                    .original_procedure_for_body(*id)
                     .is_none_or(|procedure| procedure.params != summary.params)
             })
         {

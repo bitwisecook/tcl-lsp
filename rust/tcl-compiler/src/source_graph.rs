@@ -350,6 +350,42 @@ pub fn event_body_for_function<'a>(
     event_body_for_procedure(module, id, procedure, registry)
 }
 
+/// Actual hosted declaration source body under this Module's issued ID.
+/// A reporting label cannot supply a procedure publication or entered frame.
+#[must_use]
+pub fn hosted_procedure_body_for_procedure<'a>(
+    module: &'a Module,
+    id: &ProcedureId,
+    procedure: &Procedure,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<&'a crate::command_binding::OriginalHostedProcedureBody> {
+    module.procedure_ids.owns(*id).then_some(())?;
+    let body = module.original_hosted_declaration_body_units.get(id)?;
+    let current = module.body_units.get(id)?;
+    body.matches_procedure(module, current, registry)
+        .then_some(())?;
+    body.matches_procedure(module, procedure, registry)
+        .then_some(body.as_ref())
+}
+
+/// The genuine hosted source declaration retained by its own current function.
+/// This source-only correspondence issues neither event nor Native authority.
+#[must_use]
+pub fn hosted_procedure_body_for_function<'a>(
+    module: &'a Module,
+    id: &ProcedureId,
+    function: &crate::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<&'a crate::command_binding::OriginalHostedProcedureBody> {
+    (function.body_id == Some(*id)).then_some(())?;
+    let procedure = module.body_units.get(id)?;
+    function.invocation_metadata_context_for_module(registry, module)?;
+    let original = module.original_hosted_declaration_body_units.get(id)?;
+    let retained = function.original_hosted_procedure_body.as_ref()?;
+    std::sync::Arc::ptr_eq(original, retained).then_some(())?;
+    hosted_procedure_body_for_procedure(module, id, procedure, registry)
+}
+
 #[cfg(test)]
 mod event_function_owner_tests {
     use super::*;
@@ -377,13 +413,41 @@ mod event_function_owner_tests {
         )
     }
 
+    fn ordinary_reporting_name_diagnostics(body: &str) -> Vec<crate::analyser::types::Diagnostic> {
+        let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
+            .default_context_registry();
+        let source = format!("proc ordinary {{}} {{{body}}}\nwhen HTTP_REQUEST {{puts request}}\n");
+        let mut unit = build_unit(&source, context.clone());
+        let id = *unit
+            .ir_module
+            .original_hosted_declaration_body_units
+            .keys()
+            .next()
+            .unwrap();
+        let original = unit.body_units.get(&id).unwrap();
+        assert!(
+            hosted_procedure_body_for_function(&unit.ir_module, &id, original, context.commands())
+                .is_some()
+        );
+        unit.body_units.get_mut(&id).unwrap().name = "::when::RULE_INIT".into();
+        unit.ir_module
+            .body_units
+            .get_mut(&id)
+            .unwrap()
+            .qualified_name = "::when::RULE_INIT".into();
+        let mut analyser = crate::analyser::Analyser::new()
+            .with_resolved_input(unit.ir_module.source_metadata_input.clone().unwrap());
+        analyser.analyse_and_retain_result_for_test(&source, "f5-irules");
+        analyser.result.diagnostics.clear();
+        analyser.emit_cfg_ssa_diagnostics_with_cu(&unit, context.commands());
+        analyser.result.diagnostics
+    }
+
     #[test]
     fn ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning() {
-        let source = "namespace eval ::when {}\nproc ::when::RULE_INIT {} {set ::static::counter 1}\nwhen HTTP_REQUEST {puts request}\n";
-        let result = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let diagnostics = ordinary_reporting_name_diagnostics("set ::static::counter 1");
         assert!(
-            result
-                .diagnostics
+            diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::Irule4001)
         );
@@ -391,10 +455,8 @@ mod event_function_owner_tests {
 
     #[test]
     fn ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix() {
-        let source = "namespace eval ::when {}\nproc ::when::RULE_INIT {} {global counter; set counter 1}\nwhen HTTP_REQUEST {puts request}\n";
-        let result = crate::analyser::Analyser::new().analyse(source, "f5-irules");
-        let diagnostics = result
-            .diagnostics
+        let all = ordinary_reporting_name_diagnostics("global counter; set counter 1");
+        let diagnostics = all
             .iter()
             .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::Irule6001)
             .collect::<Vec<_>>();
@@ -410,7 +472,8 @@ mod event_function_owner_tests {
     fn event_function_owner_uses_actual_body_identity_and_ignores_report_names() {
         let context = tcl_registry::model::ingress::resolve_environment("f5-irules")
             .default_context_registry();
-        let source = "proc ::when::RULE_INIT {} {set static::fake 1}\nwhen HTTP_REQUEST {set static::counter 1}\n";
+        let source =
+            "proc ordinary {} {set static::fake 1}\nwhen HTTP_REQUEST {set static::counter 1}\n";
         let unit = build_unit(source, std::sync::Arc::clone(&context));
         let (id, original) = unit
             .procedures
@@ -429,10 +492,23 @@ mod event_function_owner_tests {
             "HTTP_REQUEST"
         );
         let (ordinary_id, ordinary) = unit
-            .procedures
+            .body_units
             .iter()
-            .find(|(id, _)| !unit.ir_module.irules_event_bodies.contains_key(id))
+            .find(|(id, _)| {
+                unit.ir_module
+                    .original_hosted_declaration_body_units
+                    .contains_key(id)
+            })
             .unwrap();
+        assert!(
+            hosted_procedure_body_for_function(
+                &unit.ir_module,
+                ordinary_id,
+                ordinary,
+                context.commands()
+            )
+            .is_some()
+        );
         assert!(
             event_body_for_function(&unit.ir_module, ordinary_id, ordinary, context.commands())
                 .is_none()
@@ -440,6 +516,111 @@ mod event_function_owner_tests {
         assert!(
             event_body_for_function(&unit.ir_module, ordinary_id, original, context.commands())
                 .is_none()
+        );
+        let mut ordinary = ordinary.clone();
+        ordinary.name = "::when::RULE_INIT".into();
+        assert!(
+            hosted_procedure_body_for_function(
+                &unit.ir_module,
+                ordinary_id,
+                &ordinary,
+                context.commands()
+            )
+            .is_some()
+        );
+        assert!(
+            event_body_for_function(&unit.ir_module, ordinary_id, &ordinary, context.commands())
+                .is_none()
+        );
+        let mut wrong_entry = unit.ir_module.clone();
+        wrong_entry.source_entry.invocation_realm =
+            tcl_dialect::model::InvocationRealm::InterpreterRuntime;
+        assert!(
+            hosted_procedure_body_for_function(
+                &wrong_entry,
+                ordinary_id,
+                &ordinary,
+                context.commands()
+            )
+            .is_none()
+        );
+        let saved_procedure = unit.ir_module.body_units.get(ordinary_id).unwrap();
+        let mut removed_body = unit.ir_module.clone();
+        removed_body.body_units.remove(ordinary_id);
+        assert!(
+            hosted_procedure_body_for_procedure(
+                &removed_body,
+                ordinary_id,
+                saved_procedure,
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut wrong_body = unit.ir_module.clone();
+        wrong_body
+            .body_units
+            .get_mut(ordinary_id)
+            .unwrap()
+            .body
+            .statements
+            .clear();
+        assert!(
+            hosted_procedure_body_for_function(
+                &wrong_body,
+                ordinary_id,
+                &ordinary,
+                context.commands()
+            )
+            .is_none()
+        );
+        assert!(
+            hosted_procedure_body_for_procedure(
+                &wrong_body,
+                ordinary_id,
+                saved_procedure,
+                context.commands()
+            )
+            .is_none()
+        );
+        let mut wrong_kind = unit.ir_module.clone();
+        wrong_kind
+            .body_units
+            .get_mut(ordinary_id)
+            .unwrap()
+            .body_kind = crate::ir::ProcedureBodyKind::Named;
+        assert!(
+            hosted_procedure_body_for_function(
+                &wrong_kind,
+                ordinary_id,
+                &ordinary,
+                context.commands()
+            )
+            .is_none()
+        );
+        assert!(
+            hosted_procedure_body_for_function(&unit.ir_module, id, &ordinary, context.commands())
+                .is_none()
+        );
+        assert!(
+            hosted_procedure_body_for_function(
+                &unit.ir_module,
+                ordinary_id,
+                &ordinary,
+                tcl_registry::default_registry()
+            )
+            .is_none()
+        );
+        ordinary.original_hosted_procedure_body = ordinary
+            .original_hosted_procedure_body
+            .map(|card| std::sync::Arc::new(card.as_ref().clone()));
+        assert!(
+            hosted_procedure_body_for_function(
+                &unit.ir_module,
+                ordinary_id,
+                &ordinary,
+                context.commands()
+            )
+            .is_none()
         );
         forged.irules_event_body = forged
             .irules_event_body

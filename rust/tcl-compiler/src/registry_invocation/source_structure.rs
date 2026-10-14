@@ -2126,7 +2126,7 @@ pub(crate) fn original_registry_words_for_supplied_tokens(
     let registry = input.borrowed_context_registry().commands();
     let binding = tokens.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_input(tokens, input, registry)?;
-    let source_purpose = binding.original_invocation_source_purpose(tokens, metadata, registry)?;
+    let source_purpose = binding.original_source_advice_purpose(tokens, metadata, registry)?;
     let site = binding.invocation_site()?;
     let config = binding.original_lexer_config_for_tokens(tokens)?;
     let image = site.source.source_image();
@@ -2185,10 +2185,26 @@ pub(crate) fn original_immediate_body_commands_for_module(
     input.has_logical_source_name_context().then_some(())?;
     let binding = parent.source_binding.as_ref()?;
     let metadata = binding.original_invocation_metadata_for_module(parent, module, registry)?;
-    if binding.original_invocation_source_purpose(parent, metadata, registry)?
+    if binding.original_source_advice_purpose(parent, metadata, registry)?
         != crate::command_binding::OriginalInvocationSourcePurpose::Logical
     {
         return None;
+    }
+    let selected = super::original_logical_operation_invocation_with_metadata_context(
+        registry, metadata, parent,
+    )?;
+    let source_realm = binding.original_source_realm_for_input(parent, input, registry)?;
+    let no_script_body =
+        selected.with_metadata_schema(registry, metadata, source_realm, |schema| {
+            let (roles, complete) = schema.authored_logical_source_argument_roles();
+            complete
+                && !roles
+                    .iter()
+                    .any(|(_, role)| *role == tcl_registry::ArgRole::Body)
+                && schema.authored_source_case_invocation().is_none()
+        })?;
+    if no_script_body {
+        return Some(Vec::new());
     }
     let realm = crate::realm::document_realm_bindings_for_module(module, registry)?;
     let words = original_registry_words_for_supplied_tokens(&realm, input, parent)?;

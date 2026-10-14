@@ -501,8 +501,8 @@ pub fn infer_proc_summary(
     known: &HashSet<ProcedureId>,
     summaries: &HashMap<ProcedureId, ProcTaintSummary>,
 ) -> Option<ProcTaintSummary> {
-    let procedure = cu.ir_module.procedures.get(&body_id)?;
-    let fu = cu.procedures.get(&body_id)?;
+    let procedure = cu.original_procedure_for_body(body_id)?;
+    let fu = cu.function_for_body(Some(body_id))?;
     if fu.body_id != Some(body_id) {
         return None;
     }
@@ -804,10 +804,7 @@ pub fn resolved_callees(
     known: &HashSet<crate::ir::ProcedureId>,
     registry: &CommandRegistry,
 ) -> Vec<crate::ir::ProcedureId> {
-    let fu = match body_id {
-        Some(id) => cu.procedures.get(&id),
-        None => Some(&cu.top_level),
-    };
+    let fu = cu.function_for_body(body_id);
     let Some(fu) = fu else {
         return known.iter().copied().collect();
     };
@@ -882,7 +879,7 @@ pub fn command_subst_callees(
     let module = &cu.ir_module;
     let mut dependencies = std::collections::BTreeSet::new();
     let original = (|| {
-        let procedure = module.procedures.get(&body_id)?;
+        let procedure = cu.original_procedure_for_body(body_id)?;
         let retained = module.retained_source_bindings.as_deref()?;
         if !retained.matches_original_procedure(procedure)
             || module.source.try_text().ok()? != cu.source
@@ -966,8 +963,7 @@ impl InterprocTaintResult {
             return &fu.taints;
         };
         if cu
-            .procedures
-            .get(&id)
+            .function_for_body(Some(id))
             .is_none_or(|current| !std::ptr::eq(current, fu))
         {
             return &fu.taints;
@@ -1079,17 +1075,19 @@ pub fn converge_summaries_with(
     _dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> HashMap<crate::ir::ProcedureId, ProcTaintSummary> {
-    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu.ir_module.procedures.keys().collect();
+    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
+        .ir_module
+        .original_source_procedure_bodies()
+        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
+        .collect();
     proc_names.sort();
 
     // Seed summaries (all scenarios untainted).
     let mut summaries: HashMap<crate::ir::ProcedureId, ProcTaintSummary> = HashMap::new();
     for qname in &proc_names {
-        let proc = &*cu
-            .ir_module
-            .procedures
-            .get(qname)
-            .expect("unambiguous summary label");
+        let proc = cu
+            .original_procedure_for_body(**qname)
+            .expect("current original procedure body");
         summaries.insert(
             (*qname).clone(),
             ProcTaintSummary::untainted(&proc.qualified_name, &proc.params),
@@ -1149,14 +1147,12 @@ pub fn converge_summaries_with(
                 if !dirty.contains(*qname) {
                     continue;
                 }
-                let Some(fu) = cu.procedures.get(qname) else {
+                let Some(fu) = cu.function_for_body(Some(**qname)) else {
                     continue;
                 };
-                let proc = &*cu
-                    .ir_module
-                    .procedures
-                    .get(qname)
-                    .expect("unambiguous summary label");
+                let proc = cu
+                    .original_procedure_for_body(**qname)
+                    .expect("current original procedure body");
                 let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
                 let inferred = if source.metadata_context().is_some() {
                     infer_fn(cu, **qname, interproc, &known, &summaries)
@@ -1189,14 +1185,12 @@ pub fn converge_summaries_with(
         // fixpoint because the worklist's `callers` map missed an inbound edge.
         let mut moved: HashSet<crate::ir::ProcedureId> = HashSet::new();
         for qname in &proc_names {
-            let Some(fu) = cu.procedures.get(qname) else {
+            let Some(fu) = cu.function_for_body(Some(**qname)) else {
                 continue;
             };
-            let proc = &*cu
-                .ir_module
-                .procedures
-                .get(qname)
-                .expect("unambiguous summary label");
+            let proc = cu
+                .original_procedure_for_body(**qname)
+                .expect("current original procedure body");
             let source = TaintSourceContext::for_module_function(registry, &cu.ir_module, fu);
             let inferred = if source.metadata_context().is_some() {
                 infer_fn(cu, **qname, interproc, &known, &summaries)
@@ -1229,12 +1223,10 @@ pub fn converge_summaries_with(
     // false-negative risk). Zero cost in release; proven clean over the tcllib corpus.
     #[cfg(debug_assertions)]
     for qname in &proc_names {
-        if let Some(fu) = cu.procedures.get(qname) {
-            let proc = &*cu
-                .ir_module
-                .procedures
-                .get(qname)
-                .expect("unambiguous summary label");
+        if let Some(fu) = cu.function_for_body(Some(**qname)) {
+            let proc = cu
+                .original_procedure_for_body(**qname)
+                .expect("current original procedure body");
             let reinferred = infer_proc_summary_with_source(ProcSummaryInputs {
                 qname: &proc.qualified_name,
                 params: &proc.params,
@@ -1373,7 +1365,11 @@ fn solve_interprocedural_taints_with_context(
 
     // Procedures in deterministic (sorted) order, and the name set — both consumed
     // by the entry-taint worklist below.
-    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu.ir_module.procedures.keys().collect();
+    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
+        .ir_module
+        .original_source_procedure_bodies()
+        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
+        .collect();
     proc_names.sort();
     let known: HashSet<crate::ir::ProcedureId> = summaries.keys().cloned().collect();
 
@@ -1441,7 +1437,7 @@ fn solve_interprocedural_taints_with_context(
 
     while let Some(qname) = queue.pop_front() {
         queued.remove(&qname);
-        let Some(fu) = cu.procedures.get(&qname) else {
+        let Some(fu) = cu.function_for_body(Some(qname)) else {
             continue;
         };
         let mut entry = entry_taints.get(&qname).cloned().unwrap_or_default();

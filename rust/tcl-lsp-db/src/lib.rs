@@ -2696,6 +2696,8 @@ pub struct CompilerMemoSnapshot {
 /// The descriptor is sealed by actual lowering; dispatch mode grants no event.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnLatticeEntry {
+    /// Actual original declaration-body role, independently of a callable entry.
+    pub original_declaration_body: Option<tcl_compiler::ir::ProcedureId>,
     /// Trace-visible mode preserves ordinary dynamically replaceable dispatch.
     pub plain_command_dispatch: bool,
     /// Exact supplied source availability and command generation. Missing input
@@ -2876,37 +2878,41 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         has_dynamic_variable_trace: key.module_facts(db).has_dynamic_variable_trace,
         deferred_writes: &key.analysis_context(db).key(db).deferred_writes,
     };
-    Arc::new(
-        FunctionUnit::build_for_lattice(
+    let inputs = tcl_compiler::compilation_unit::FunctionLatticeInputs {
+        dialect: tcl_compiler::compilation_unit::UnitDialect {
+            registry,
+            config,
+            source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
+        },
+        param_constants: param_constants.as_ref(),
+        known_classes: &known_classes,
+        trace_facts,
+        analysis_context: key.analysis_context(db).key(db),
+        command_trust: &command_trust,
+        event_body: key
+            .entry(db)
+            .irules_event_body
+            .as_ref()
+            .map(|event| (event, key.body(db).body())),
+    };
+    let unit = if let Some(body_id) = key.entry(db).original_declaration_body {
+        FunctionUnit::build_for_original_declaration_lattice(
+            body_id,
             key.qname(db),
             cfg,
             key.params(db),
-            tcl_compiler::compilation_unit::FunctionLatticeInputs {
-                dialect: tcl_compiler::compilation_unit::UnitDialect {
-                    registry,
-                    config,
-                    source_metadata_input: key.entry(db).source_metadata_input.as_ref(),
-                },
-                param_constants: param_constants.as_ref(),
-                known_classes: &known_classes,
-                trace_facts,
-                analysis_context: key.analysis_context(db).key(db),
-                command_trust: &command_trust,
-                event_body: key
-                    .entry(db)
-                    .irules_event_body
-                    .as_ref()
-                    .map(|event| (event, key.body(db).body())),
-            },
+            inputs,
         )
-        .with_retained_semantic_analysis(
-            registry,
-            Some(key.body(db).body()),
-            // A procedure body runs only after arbitrary interposed history,
-            // so its dispatch proofs start from an unknown world.
-            tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
-        ),
-    )
+    } else {
+        FunctionUnit::build_for_lattice(key.qname(db), cfg, key.params(db), inputs)
+    };
+    Arc::new(unit.with_retained_semantic_analysis(
+        registry,
+        Some(key.body(db).body()),
+        // A procedure body runs only after arbitrary interposed history,
+        // so its dispatch proofs start from an unknown world.
+        tcl_compiler::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+    ))
 }
 
 /// Interned identity of one top-level `proc`'s **offset-0** static body source
@@ -3233,6 +3239,9 @@ fn build_unit_with_keys_and_input<'db>(
             ),
         }
     };
+    lattice_keys.retain(|id, key| {
+        cu.accepts_original_procedure_lattice(*id, &function_lattice(db, *key), registry)
+    });
     // Memoise the per-procedure interprocedural taint re-run via `taint_cascade`.
     // The whole-module summary is still rebuilt here (it is the memo's input);
     // only unchanged procedures' `propagate_taints` is skipped.
@@ -3293,6 +3302,12 @@ fn lattice_request_key<'db>(
             has_dynamic_variable_trace: req.has_dynamic_variable_trace,
         },
         FnLatticeEntry {
+            original_declaration_body: req
+                .original_source_procedure()
+                .filter(|procedure| {
+                    procedure.body_kind == tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+                })
+                .map(|_| req.body_id),
             plain_command_dispatch: req.plain_command_dispatch,
             source_metadata_input: req.source_metadata_input.cloned(),
             irules_event_body: req.irules_event_body.cloned(),
@@ -3549,17 +3564,17 @@ fn solve_checks_for_unit<'db>(
     // to the direct per-function computation on the *already-rebased* built unit
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
-    for fu in cu.analysable_functions() {
+    for fu in cu.analysable_body_function_units() {
         match memo_key(db, lattice_keys, fu.body_id) {
             Some(key) => {
                 let body_offset = cu
-                    .ir_module
-                    .procedures
-                    .get(
-                        &fu.body_id
+                    .original_procedure_for_body(
+                        fu.body_id
                             .expect("memo selection retained the exact body ID"),
                     )
-                    .map_or(0, |p| p.span.start());
+                    .expect("memo selection retained the original declaration")
+                    .span
+                    .start();
                 fn_checks.extend(
                     function_checks(db, key)
                         .iter()
@@ -3575,45 +3590,11 @@ fn solve_checks_for_unit<'db>(
                     fu,
                     registry,
                     dialect_opt,
-                    None::<&std::collections::HashSet<String>>,
+                    cu.method_instance_vars(fu.body_id),
                 ) {
                     fn_checks.push(d);
                 }
             }
-        }
-    }
-
-    // The per-function non-taint checks over `TclOO` method bodies and
-    // synthetic body units (`apply` lambdas, `namespace eval` bodies). The
-    // main per-function loop above iterates the proc-only
-    // `analysable_functions`, unlike `compiler_checks::run_all_checks_with_solved_and_patterns`'s
-    // direct path (which iterates the wider `analysable_body_function_units`
-    // and so needs no separate top-up — see `analysable_methods_and_body_units`'s
-    // own doc comment for why adding it there too would double-count), so
-    // this memoised path needs its own top-up loop to reach the same
-    // methods/body units.
-    //
-    // This must run the **whole** `function_nontaint_checks` family, not just
-    // its `shimmer_family_checks` half: the direct path folds the SCCP
-    // constant-branch (O100) and GVN full / partial / loop-invariant
-    // (O105/O106) halves in here too, and running only the shimmer half would
-    // make the memoised path silently drop every O1xx finding inside a method
-    // or a `namespace eval` body — 20 of them on one large TclOO corpus file
-    // — a diff users on the LSP (memoised) path would see as missing hints
-    // the CLI reported.
-    //
-    // These units never get an offset-0 `FnLatticeKey`, so they carry absolute
-    // spans already and need no rebase, same as the `None` arm above (the
-    // direct path's `shift` is likewise the identity here — a whole-module
-    // build leaves every `FunctionUnit::base_offset` at 0).
-    for fu in cu.analysable_methods_and_body_units() {
-        for d in tcl_compiler::compiler_checks::function_nontaint_checks(
-            fu,
-            registry,
-            dialect_opt,
-            cu.method_instance_vars(fu.body_id),
-        ) {
-            fn_checks.push(d);
         }
     }
 
@@ -3799,10 +3780,20 @@ fn solve_optimisations<'db>(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mutations = cu.command_mutations.clone();
-    let every_proc_keyed = cu
-        .procedures
-        .keys()
-        .all(|qname| lattice_keys.contains_key(qname));
+    let source_bodies: Vec<_> = cu
+        .all_body_function_units()
+        .filter_map(|function| {
+            let id = function.body_id?;
+            let current = cu.function_for_body(Some(id))?;
+            (std::ptr::eq(current, function) && cu.original_procedure_for_body(id).is_some())
+                .then_some(id)
+        })
+        .collect();
+    let every_proc_keyed = source_bodies.iter().all(|id| lattice_keys.contains_key(id))
+        && cu.procedures.keys().chain(cu.body_units.keys()).all(|id| {
+            cu.original_procedure_for_body(*id).is_some()
+                && cu.function_for_body(Some(*id)).is_some()
+        });
     let is_irules = dialect.is_some_and(tcl_dialect::DialectProfile::is_irules);
     let dialect_opt = dialect;
     // The **argument-sensitive** O103 fold re-runs a *pure* callee's body with the
@@ -3834,9 +3825,8 @@ fn solve_optimisations<'db>(
     }
 
     let retained = Arc::new(cu.clone());
-    let capsules: Option<HashMap<_, _>> = cu
-        .procedures
-        .keys()
+    let capsules: Option<HashMap<_, _>> = source_bodies
+        .iter()
         .map(|id| {
             tcl_compiler::body_analysis_capsule::BodyAnalysisCapsule::retain(
                 Arc::clone(&retained),
@@ -3860,11 +3850,11 @@ fn solve_optimisations<'db>(
     let mut group_base: u32 = 0;
 
     // Per-procedure memoised raw optimisations, rebased to absolute spans.
-    for qname in cu.procedures.keys() {
+    for qname in &source_bodies {
         let Some(&key) = lattice_keys.get(qname) else {
             continue;
         };
-        let Some(proc) = cu.ir_module.procedures.get(qname) else {
+        let Some(proc) = cu.original_procedure_for_body(*qname) else {
             continue;
         };
         let body_offset = proc.span.start();
@@ -4879,12 +4869,18 @@ mod tests {
         offset: usize,
     ) -> tcl_compiler::ir::ProcedureId {
         let offset = u32::try_from(offset).expect("finite original fixture offset");
-        let mut bodies = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
-            procedure.declaration_site.as_ref().is_some_and(|site| {
-                site.offset == offset
-                    && site.source.source_image().bytes() == unit.source.as_bytes()
-            })
-        });
+        let mut bodies = unit
+            .ir_module
+            .procedures
+            .iter()
+            .chain(unit.ir_module.body_units.iter())
+            .filter(|(id, _)| unit.original_procedure_for_body(**id).is_some())
+            .filter(|(_, procedure)| {
+                procedure.declaration_site.as_ref().is_some_and(|site| {
+                    site.offset == offset
+                        && site.source.source_image().bytes() == unit.source.as_bytes()
+                })
+            });
         let (&id, _) = bodies.next().expect("actual original fixture declaration");
         assert!(
             bodies.next().is_none(),
@@ -4897,12 +4893,18 @@ mod tests {
         unit: &CompilationUnit,
         display: &str,
     ) -> tcl_compiler::ir::ProcedureId {
-        let mut declarations = unit.ir_module.procedures.iter().filter(|(_, procedure)| {
-            procedure.qualified_name == display
-                && procedure.declaration_site.as_ref().is_some_and(|site| {
-                    site.source.source_image().bytes() == unit.source.as_bytes()
-                })
-        });
+        let mut declarations = unit
+            .ir_module
+            .procedures
+            .iter()
+            .chain(unit.ir_module.body_units.iter())
+            .filter(|(id, _)| unit.original_procedure_for_body(**id).is_some())
+            .filter(|(_, procedure)| {
+                procedure.qualified_name == display
+                    && procedure.declaration_site.as_ref().is_some_and(|site| {
+                        site.source.source_image().bytes() == unit.source.as_bytes()
+                    })
+            });
         let (&id, _) = declarations
             .next()
             .expect("original authored fixture declaration");
@@ -5830,6 +5832,7 @@ p\uD801 ordinary";
                     has_dynamic_variable_trace: false,
                 },
                 FnLatticeEntry {
+                    original_declaration_body: None,
                     plain_command_dispatch: false,
                     source_metadata_input: unit.ir_module.source_metadata_input.clone(),
                     irules_event_body: event,
@@ -5871,6 +5874,7 @@ p\uD801 ordinary";
             selected.param_constants(&db).clone(),
             selected.module_facts(&db).clone(),
             FnLatticeEntry {
+                original_declaration_body: None,
                 plain_command_dispatch: selected.entry(&db).plain_command_dispatch,
                 source_metadata_input: selected.entry(&db).source_metadata_input.clone(),
                 irules_event_body: selected.entry(&db).irules_event_body.clone(),
@@ -5977,6 +5981,7 @@ p\uD801 ordinary";
                 has_dynamic_variable_trace: false,
             },
             FnLatticeEntry {
+                original_declaration_body: None,
                 plain_command_dispatch: module.plain_command_dispatch,
                 source_metadata_input: input,
                 irules_event_body: None,
@@ -6006,8 +6011,12 @@ p\uD801 ordinary";
         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
         let mut lowerer =
             tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
-                .with_dialect(generation.commands().profile())
-                .with_context_registry(Arc::clone(&generation));
+                .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                    Arc::clone(&generation),
+                    config,
+                ));
         let module = lowerer.lower("throw ERROR payload; set reached 1").clone();
         let input = module.source_metadata_input.as_ref().unwrap();
         assert!(Arc::ptr_eq(&input.context_registry(), &generation));
@@ -6092,8 +6101,12 @@ p\uD801 ordinary";
         let current = Arc::new(baseline.with_command_store(Arc::new(registry)));
         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
         let mut lowerer = tcl_compiler::lowering::Lowerer::with_config(current.commands(), config)
-            .with_dialect(current.commands().profile())
-            .with_context_registry(Arc::clone(&current));
+            .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                Arc::clone(&current),
+                config,
+            ));
         let module = lowerer.lower("puts VALUE").clone();
         let input = module.source_metadata_input.as_ref().unwrap();
         let selected = supplied_cfg_lattice_key(&db, &module, Some(input.clone()));
@@ -6171,6 +6184,7 @@ p\uD801 ordinary";
                     has_dynamic_variable_trace: false,
                 },
                 FnLatticeEntry {
+                    original_declaration_body: None,
                     plain_command_dispatch: false,
                     source_metadata_input: None,
                     irules_event_body: None,
@@ -8171,11 +8185,16 @@ p\uD801 ordinary";
             file.text(db),
             unit_build_options(db, file, cfg, registry, None, &declared),
         );
-        let known: HashSet<_> = cu.ir_module.procedures.keys().copied().collect();
-        let mut summaries: HashMap<_, _> = cu
+        let source_bodies: Vec<_> = cu
             .ir_module
             .procedures
             .iter()
+            .chain(cu.ir_module.body_units.iter())
+            .filter(|(id, _)| cu.original_procedure_for_body(**id).is_some())
+            .collect();
+        let known: HashSet<_> = source_bodies.iter().map(|(id, _)| **id).collect();
+        let mut summaries: HashMap<_, _> = source_bodies
+            .into_iter()
             .map(|(id, procedure)| {
                 (
                     *id,
@@ -8197,9 +8216,7 @@ p\uD801 ordinary";
         .expect("actual provider source unit");
         summaries.insert(provider_id, provider.clone());
         let body = cu
-            .ir_module
-            .procedures
-            .get(&caller_id)
+            .original_procedure_for_body(caller_id)
             .unwrap()
             .body_source
             .clone()

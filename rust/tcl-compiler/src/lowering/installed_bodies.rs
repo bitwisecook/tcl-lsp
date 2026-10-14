@@ -18,7 +18,13 @@ impl Lowerer<'_> {
                     )
                 },
             );
-        if installed_bodies.is_empty() && declaration_bodies.is_empty() {
+        let logical_cards = self
+            .module_source_bindings
+            .as_ref()
+            .and_then(|bindings| bindings.original_logical_procedure_body_cards())
+            .unwrap_or_default();
+        if installed_bodies.is_empty() && declaration_bodies.is_empty() && logical_cards.is_empty()
+        {
             return;
         }
         let named: Vec<_> = self
@@ -78,8 +84,87 @@ impl Lowerer<'_> {
             declared.insert(context);
             self.retain_installed_body(installed, original_declaration);
         }
+        for card in logical_cards {
+            let already_retained = self
+                .module
+                .procedures
+                .values()
+                .chain(self.module.body_units.values())
+                .any(|procedure| {
+                    procedure.declaration_site.as_ref() == Some(card.site())
+                        && procedure.body_offset == card.scope().scope_body().content_span().start()
+                        && procedure.params_raw == card.parameters_text()
+                });
+            if !already_retained {
+                self.retain_original_logical_body(card);
+            }
+        }
         self.suppress_proc_register = previous;
         self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
+    }
+
+    fn retain_original_logical_body(
+        &mut self,
+        card: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+    ) {
+        let Some(input) = self.module.source_metadata_input.as_ref() else {
+            return;
+        };
+        let image = card.site().source.source_image();
+        if !card.matches_source(image, input) || image.bytes() != self.source.as_bytes() {
+            return;
+        }
+        let Some(namespace) =
+            tcl_syntax::naming::checked_namespace_path_key(card.scope().namespace_recipe())
+        else {
+            return;
+        };
+        let Some(name) = card.name().map(str::to_owned) else {
+            return;
+        };
+        let span = card.scope().scope_body().content_span();
+        let Some(text) = image
+            .try_text()
+            .ok()
+            .and_then(|s| s.get(span.as_range()))
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        let previous = std::mem::replace(&mut self.readonly_logical_body, true);
+        let mut body = self
+            .in_procedure_frame(Some(IrulesExecutionContext::ProcedureBody), |lowerer| {
+                lowerer.lower_body(&text, span.start(), &namespace)
+            });
+        self.readonly_logical_body = previous;
+        body.namespace_context = Some(Box::new(
+            crate::command_binding::SourceNamespaceKey::authored(namespace),
+        ));
+        let card = std::sync::Arc::new(
+            card.as_ref()
+                .clone()
+                .retain_module_entry(&self.module.source_entry),
+        );
+        let label = format!("::original-logical-body#{}", self.body_unit_count);
+        self.body_unit_count += 1;
+        let id = self.module.retain_body_unit(Procedure {
+            name,
+            qualified_name: label,
+            publication: None,
+            declaration_site: Some(card.site().clone()),
+            body_kind: crate::ir::ProcedureBodyKind::OriginalDeclaration,
+            params: card.parameters().iter().map(|p| p.name.clone()).collect(),
+            span,
+            body,
+            params_raw: card.parameters_text().to_owned(),
+            body_source: Some(text),
+            body_offset: span.start(),
+            namespace_scoped: false,
+            base_priority: 500,
+        });
+        self.module
+            .original_logical_declaration_body_units
+            .insert(id, card);
     }
 
     fn retain_installed_body(

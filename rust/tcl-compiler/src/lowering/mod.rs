@@ -51,6 +51,7 @@ use tcl_syntax::word_rules::WordValueRules;
 
 mod execution_regions;
 pub(crate) mod hooks;
+mod hosted_source_bodies;
 mod installed_bodies;
 #[cfg(test)]
 mod native_body_context_tests;
@@ -1114,6 +1115,10 @@ pub struct Lowerer<'r> {
     /// lowered for analysis; only the premature static registration is
     /// suppressed.
     suppress_proc_register: bool,
+    /// Genuine readonly Logical body preparation cannot issue executed-source metadata.
+    readonly_logical_body: bool,
+    /// Hosted source cards keep their independent declaration owner.
+    readonly_hosted_body: bool,
     /// Lexer config for the document's dialect, threaded into every
     /// body re-segmentation so `{*}` expansion (off for Tcl 8.4 /
     /// iRules) and the iRules `}{` ghost SEP are honoured rather than
@@ -1326,6 +1331,8 @@ impl<'r> Lowerer<'r> {
             namespace_directive_sites: HashSet::new(),
             dead_code_depth: 0,
             suppress_proc_register: false,
+            readonly_logical_body: false,
+            readonly_hosted_body: false,
             config,
             dialect: None,
             dialect_context: None,
@@ -1936,6 +1943,7 @@ impl<'r> Lowerer<'r> {
         lowerer.source_bindings = Some(positioned.clone().into());
         lowerer.structured_source_parent = Some(Box::new(parent.clone()));
         lowerer.suppress_proc_register = true;
+        lowerer.readonly_logical_body = true;
         let mut script = lowerer.lower_body(
             text,
             body.content_span().start(),
@@ -2007,6 +2015,9 @@ impl<'r> Lowerer<'r> {
 
     /// Retain an unchanged body slice independently of compiler admission.
     fn retain_script_source(&self, mut script: Script, text: &str, base: u32) -> Script {
+        if self.readonly_logical_body || self.readonly_hosted_body {
+            return script;
+        }
         script.executed_source = self
             .source_bindings
             .as_ref()
@@ -2489,6 +2500,9 @@ impl<'r> Lowerer<'r> {
 
     /// Retain only a failure agreed by every reached compilation entry.
     fn attach_native_compilation_failure(&self, mut script: Script, chunk: u32) -> Script {
+        if self.readonly_logical_body || self.readonly_hosted_body {
+            return script;
+        }
         script.native_compilation_failure = self
             .source_bindings
             .as_ref()
@@ -7020,6 +7034,7 @@ impl Lowerer<'_> {
         // (cache-independent — see `extract_oo_methods_pass`).
         if self.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
             self.retain_installed_procedure_body_units();
+            self.retain_hosted_procedure_body_units();
             self.extract_oo_methods_pass();
         }
         let registry = self.registry;

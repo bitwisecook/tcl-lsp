@@ -906,14 +906,16 @@ fn hover_impl(
         return Some(hover);
     }
 
+    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+    if let Some(text) = original_linked_member_hover_text(source, analysis, &word, cursor_offset) {
+        return Some(Hover::markdown(text));
+    }
     if !analysis.allows_lexical_declaration_advice() {
         return original_registry::hover(source, analysis, cursor_offset).or_else(|| {
             let (word, _, _) = find_word_span_at_position(source, line, character)?;
             ip_address_hover_text(&word).map(Hover::markdown)
         });
     }
-
-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
     // `$obj m` / `my m` method-dispatch hover, including the per-object
     // visibility mask — `Break(None)` is a definitive
@@ -3317,9 +3319,8 @@ fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
     None
 }
 
-/// Original linked heads hover as their retained target member; declaration
-/// names and constructor/destructor keywords keep their own source paths.
-fn class_member_hover_text(
+/// Original linked command heads retain their conditional member owner.
+fn original_linked_member_hover_text(
     source: &str,
     analysis: &AnalysisResult,
     word: &str,
@@ -3350,6 +3351,20 @@ fn class_member_hover_text(
             name = method.name,
             nparam = method.params.len()
         ));
+    }
+    None
+}
+
+/// Original linked heads hover as their retained target member; declaration
+/// names and constructor/destructor keywords keep their own source paths.
+fn class_member_hover_text(
+    source: &str,
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<String> {
+    if let Some(text) = original_linked_member_hover_text(source, analysis, word, cursor_offset) {
+        return Some(text);
     }
     let class_def = analysis
         .all_classes

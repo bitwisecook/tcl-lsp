@@ -1232,13 +1232,30 @@ pub fn method_target_with_access_in_workspace(
     analysis: &AnalysisResult,
     index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
 ) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
-    if !analysis.allows_lexical_declaration_advice() {
-        return None;
-    }
     use crate::workspace_index::MethodAccess;
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    // Only the retained single-field link form couples command and member edits.
+    if let Some(linked) =
+        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
+    {
+        if linked.has_coupled_name()
+            && linked.editable_target_span(source).is_some()
+            && linked.alias_input().bytes() == word.as_bytes()
+            && linked.target_input().bytes() == word.as_bytes()
+        {
+            return Some((
+                linked.class_declaration().metadata().qualified_name.clone(),
+                linked.target().metadata().name.clone(),
+                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
+                MethodAccess::Internal,
+            ));
+        }
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
     if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
     {
         let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
@@ -1287,23 +1304,6 @@ pub fn method_target_with_access_in_workspace(
             ));
         }
         return None;
-    }
-    // Only the retained single-field link form couples command and member edits.
-    if let Some(linked) =
-        tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
-    {
-        if linked.has_coupled_name()
-            && linked.editable_target_span(source).is_some()
-            && linked.alias_input().bytes() == word.as_bytes()
-            && linked.target_input().bytes() == word.as_bytes()
-        {
-            return Some((
-                linked.class_declaration().metadata().qualified_name.clone(),
-                linked.target().metadata().name.clone(),
-                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
-                MethodAccess::Internal,
-            ));
-        }
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.

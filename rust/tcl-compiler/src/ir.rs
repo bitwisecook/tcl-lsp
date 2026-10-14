@@ -2776,6 +2776,18 @@ pub struct Module {
     /// and namespace context retain their identity independently of the ID.
     pub original_declaration_body_units:
         std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
+    /// Original Logical source cards retain analysis-only bodies without a
+    /// successful command allocation, namespace publication or entered frame.
+    pub original_logical_declaration_body_units: std::collections::BTreeMap<
+        ProcedureId,
+        std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+    >,
+    /// Hosted source declarations retain their actual rule-loader owner,
+    /// independently of Native callable publication or Logical source scopes.
+    pub original_hosted_declaration_body_units: std::collections::BTreeMap<
+        ProcedureId,
+        std::sync::Arc<crate::command_binding::OriginalHostedProcedureBody>,
+    >,
     /// Original body metadata for exact procedure implementations, including
     /// retired incarnations. This does not select a callable or grant entry,
     /// completion, compilation or an executable replacement.
@@ -2996,6 +3008,25 @@ impl Module {
                                 &self.source,
                                 allocation.site.offset,
                             ))
+                        .then_some((id, procedure))
+                    }),
+            )
+            .chain(
+                self.original_logical_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id) && card.matches_procedure(self, procedure))
+                            .then_some((id, procedure))
+                    }),
+            )
+            .chain(
+                self.original_hosted_declaration_body_units
+                    .iter()
+                    .filter_map(|(id, card)| {
+                        let procedure = self.body_units.get(id)?;
+                        (self.procedure_ids.owns(*id)
+                            && card.matches_procedure(self, procedure, self.resolved_registry()))
                         .then_some((id, procedure))
                     }),
             )
@@ -3294,6 +3325,12 @@ impl Module {
                 .filter(|(qname, _)| {
                     !self.installed_procedure_body_units.contains_key(*qname)
                         && !self.original_declaration_body_units.contains_key(*qname)
+                        && !self
+                            .original_logical_declaration_body_units
+                            .contains_key(*qname)
+                        && !self
+                            .original_hosted_declaration_body_units
+                            .contains_key(*qname)
                 })
                 .map(|(_, unit)| {
                     (
@@ -3351,6 +3388,77 @@ pub(crate) fn native_call_for_test(bytes: &[u8]) -> Statement {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn original_logical_declaration_cards_cover_missing_namespace_without_publication() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let source = "proc ::missing::p {argument} {set ::written VALUE}";
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::with_config(context.commands(), config)
+                .with_resolved_analysis_input(input),
+            source,
+        );
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(module.procedures.is_empty());
+        let (id, card) = module
+            .original_logical_declaration_body_units
+            .iter()
+            .next()
+            .expect("actual readonly source card");
+        let procedure = module.body_units.get(id).unwrap();
+        assert_eq!(procedure.name, "::missing::p");
+        assert_eq!(procedure.params, vec!["argument"]);
+        assert!(procedure.publication.is_none());
+        assert!(procedure.body.executed_source.is_none());
+        assert!(procedure.body.native_compilation_failure.is_none());
+        assert!(
+            procedure
+                .body
+                .namespace_context
+                .as_deref()
+                .unwrap()
+                .native_context()
+                .is_none()
+        );
+        assert!(card.matches_procedure(&module, procedure));
+        assert!(
+            module
+                .original_source_procedure_bodies()
+                .any(|(body, _)| body == id)
+        );
+        let retained = module.retained_source_bindings.as_ref().unwrap();
+        let bindings = retained
+            .positioned_for_module(&module, context.commands())
+            .unwrap();
+        assert!(bindings.installed_procedure_body_units().is_empty());
+        let mut stale = module.clone();
+        stale
+            .body_units
+            .get_mut(id)
+            .unwrap()
+            .params
+            .push("changed".to_owned());
+        assert!(
+            !stale
+                .original_source_procedure_bodies()
+                .any(|(body, _)| body == id)
+        );
+        let mut missing = module.clone();
+        missing.source_metadata_input = None;
+        assert!(
+            !missing
+                .original_source_procedure_bodies()
+                .any(|(body, _)| body == id)
+        );
+    }
 
     #[test]
     fn statement_carriers_require_unanimous_ownership_and_keep_synthetic_phases_distinct() {

@@ -195,6 +195,24 @@ pub fn jim_global_variable_key(rooted_namespace: &str, name: &str) -> String {
     .expect("joining Unicode namespace and name bytes preserves Unicode")
 }
 
+/// Conservative dynamic-target hazard over an unattributed name presentation.
+/// The caller supplies the brace marker. This does not establish a decoded
+/// value, original word, static definition, variable lookup or cell identity.
+#[must_use]
+pub fn unattributed_dynamic_written_variable_target(name: &str, braced_literal: bool) -> bool {
+    if braced_literal {
+        return false;
+    }
+    if name.starts_with('$') {
+        return true;
+    }
+    let base = match name.find('(') {
+        Some(index) => &name[..index],
+        None => name,
+    };
+    base.is_empty() || base.contains('$') || base.contains('[')
+}
+
 /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
 #[must_use]
 pub fn is_qualified(name: &[u8]) -> bool {

@@ -213,6 +213,12 @@ impl ConditionalLogicalScalarStore {
         &self.value
     }
 
+    /// Original variable input retained by this conditional source store.
+    /// This is readonly name advice, without an editable word or Native grant.
+    pub(crate) fn source_name(&self) -> &str {
+        &self.name
+    }
+
     pub(crate) fn definition_place(&self, registry: &CommandRegistry) -> Option<Place> {
         let after = &self.after;
         if self.before.namespace_identity != after.namespace_identity

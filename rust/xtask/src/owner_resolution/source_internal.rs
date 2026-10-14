@@ -240,16 +240,9 @@ impl CrateModules {
             let [path] = available.as_slice() else {
                 return Err(format!("module `{child_name}` has no unique file"));
             };
-            let scope = match &child.vis {
-                syn::Visibility::Public(_) => "crate",
-                syn::Visibility::Restricted(scope) if scope.path.is_ident("crate") => "crate",
-                syn::Visibility::Restricted(scope) if scope.path.is_ident("super") => module
-                    .rsplit_once("::")
-                    .map_or("crate", |(parent, _)| parent),
-                syn::Visibility::Inherited => module,
-                _ => return Err("unsupported file-module visibility".into()),
-            };
-            Self::load_module(root, path.clone(), &child_name, required, scope, modules)?;
+            let scope =
+                visibility_scope(&child.vis, module).ok_or("unsupported file-module visibility")?;
+            Self::load_module(root, path.clone(), &child_name, required, &scope, modules)?;
         }
         if modules
             .insert(
@@ -668,7 +661,8 @@ fn visibility_name(visibility: &syn::Visibility) -> String {
         syn::Visibility::Public(_) => "pub".into(),
         syn::Visibility::Inherited => "private".into(),
         syn::Visibility::Restricted(scope) => format!(
-            "pub({})",
+            "pub({}{})",
+            if scope.in_token.is_some() { "in " } else { "" },
             scope
                 .path
                 .segments
@@ -680,18 +674,68 @@ fn visibility_name(visibility: &syn::Visibility) -> String {
     }
 }
 
-fn accessible(visibility: &syn::Visibility, owner: &str, consumer: &str) -> bool {
-    let scope = match visibility {
-        syn::Visibility::Public(_) => return true,
-        syn::Visibility::Inherited => owner,
-        syn::Visibility::Restricted(scope) if scope.path.is_ident("crate") => return true,
-        syn::Visibility::Restricted(scope) if scope.path.is_ident("super") => owner
-            .rsplit_once("::")
-            .map_or("crate", |(parent, _)| parent),
-        syn::Visibility::Restricted(scope) if scope.path.is_ident("self") => owner,
-        _ => return false,
+fn visibility_scope(visibility: &syn::Visibility, owner: &str) -> Option<String> {
+    let restriction = match visibility {
+        syn::Visibility::Public(_) => return Some("crate".into()),
+        syn::Visibility::Inherited => return Some(owner.into()),
+        syn::Visibility::Restricted(restriction) => restriction,
     };
-    consumer == scope || consumer.starts_with(&format!("{scope}::"))
+    if restriction.path.leading_colon.is_some()
+        || restriction
+            .path
+            .segments
+            .iter()
+            .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+    {
+        return None;
+    }
+    let parts = restriction
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+    if restriction.in_token.is_none() && parts.len() != 1 {
+        return None;
+    }
+    let mut base = owner.split("::").map(str::to_owned).collect::<Vec<_>>();
+    if base.first().is_none_or(|part| part != "crate") {
+        return None;
+    }
+    let mut rest = parts.as_slice();
+    match rest.first()?.as_str() {
+        "crate" => {
+            base.truncate(1);
+            rest = &rest[1..];
+        }
+        "self" => {
+            rest = &rest[1..];
+        }
+        "super" => {
+            while rest.first().is_some_and(|part| part == "super") {
+                if base.len() == 1 {
+                    return None;
+                }
+                base.pop();
+                rest = &rest[1..];
+            }
+        }
+        _ => return None,
+    }
+    if rest
+        .iter()
+        .any(|part| matches!(part.as_str(), "crate" | "self" | "super"))
+    {
+        return None;
+    }
+    base.extend(rest.iter().cloned());
+    let scope = base.join("::");
+    (owner == scope || owner.starts_with(&format!("{scope}::"))).then_some(scope)
+}
+
+fn accessible(visibility: &syn::Visibility, owner: &str, consumer: &str) -> bool {
+    visibility_scope(visibility, owner)
+        .is_some_and(|scope| consumer == scope || consumer.starts_with(&format!("{scope}::")))
 }
 
 fn pattern_bindings(pattern: &syn::Pat) -> Option<BTreeSet<String>> {
@@ -1322,6 +1366,9 @@ mod tests {
             "items.map(|ledger| ledger.revision());",
             "for ledger in items { ledger.revision(); }",
             "match fake { Some(ledger) => ledger.revision(), _ => () }",
+            "match fake { Some(ledger) if { ledger.revision(); true } => (), _ => () }",
+            "match fake { (Some(ledger), _) if { ledger.revision(); true } => (), _ => () }",
+            "match fake { Some(other) if { bind!(ledger); ledger.revision(); true } => (), _ => () }",
             "if let Some(ledger) = fake { ledger.revision(); }",
             "while let Some(ledger) = fake { ledger.revision(); }",
             "let (ledger, other) = fake; ledger.revision();",
@@ -1380,6 +1427,111 @@ mod tests {
         modules.modules.get_mut("crate::outside").unwrap().file =
             syn::parse_file("fn consume() { crate::shared::Ledger::capture(); }").unwrap();
         assert!(modules.check_row(&row));
+    }
+
+    #[test]
+    fn source_visibility_requires_a_real_ancestor_scope() {
+        for (written, expected) in [
+            ("pub(in crate::shared)", "crate::shared"),
+            ("pub(in super)", "crate::shared"),
+            ("pub(in super::super)", "crate"),
+            ("pub(in self)", "crate::shared::owner"),
+            ("pub(crate)", "crate"),
+        ] {
+            let visibility = syn::parse_str::<syn::Visibility>(written).unwrap();
+            assert_eq!(
+                visibility_scope(&visibility, "crate::shared::owner"),
+                Some(expected.into())
+            );
+            assert_eq!(visibility_name(&visibility), written);
+        }
+        for written in [
+            "pub(in crate::outside)",
+            "pub(in self::child)",
+            "pub(in super::super::super)",
+            "pub(in alias)",
+        ] {
+            let visibility = syn::parse_str::<syn::Visibility>(written).unwrap();
+            assert!(
+                visibility_scope(&visibility, "crate::shared::owner").is_none(),
+                "{written}"
+            );
+        }
+        let visibility = syn::parse_str::<syn::Visibility>("pub(in crate::shared)").unwrap();
+        assert!(accessible(
+            &visibility,
+            "crate::shared::owner",
+            "crate::shared::caller"
+        ));
+        assert!(!accessible(
+            &visibility,
+            "crate::shared::owner",
+            "crate::shared_extra::caller"
+        ));
+        assert!(!accessible(
+            &visibility,
+            "crate::shared::owner",
+            "crate::outside"
+        ));
+        let mut generic = visibility.clone();
+        let syn::Visibility::Restricted(scope) = &mut generic else {
+            panic!();
+        };
+        scope.path = syn::parse_str::<syn::Path>("crate::shared::<Other>").unwrap();
+        assert!(visibility_scope(&generic, "crate::shared::owner").is_none());
+    }
+
+    #[test]
+    fn source_file_module_loader_keeps_ancestor_and_parent_visibility() {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "tcl-owner-ancestor-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let crate_root = PathBuf::from("rust/fixture");
+        std::fs::create_dir_all(root.join(&crate_root).join("src/shared")).unwrap();
+        for (file, contents) in [
+            ("Cargo.toml", "[package]\nname = \"fixture\"\n"),
+            ("src/lib.rs", "pub(crate) mod shared; mod outside;"),
+            (
+                "src/shared/mod.rs",
+                "pub(in crate::shared) mod owner; pub(crate) mod caller;",
+            ),
+            (
+                "src/shared/owner.rs",
+                "pub(crate) struct Ledger; impl Ledger { pub(crate) fn capture() {} }",
+            ),
+            (
+                "src/shared/caller.rs",
+                "fn consume() { super::owner::Ledger::capture(); }",
+            ),
+            (
+                "src/outside.rs",
+                "fn consume() { crate::shared::owner::Ledger::capture(); }",
+            ),
+        ] {
+            std::fs::write(root.join(&crate_root).join(file), contents).unwrap();
+        }
+        let (_, mut row) = fixture("", "", "Ledger::capture", "static");
+        row.visibility = "pub(crate)".into();
+        let modules =
+            CrateModules::load(&root, &crate_root, [&row.module, &row.consumer_module]).unwrap();
+        assert!(modules.check_row(&row));
+        row.consumer_module = "crate::outside".into();
+        row.consumer_source = "rust/fixture/src/outside.rs".into();
+        assert!(!modules.check_row(&row));
+        assert!(!modules.module_accessible("crate::shared::owner", "crate::outside"));
+        std::fs::write(
+            root.join(&crate_root).join("src/shared/mod.rs"),
+            "pub(in crate::outside) mod owner; mod caller;",
+        )
+        .unwrap();
+        assert!(
+            CrateModules::load(&root, &crate_root, [&row.module, &row.consumer_module]).is_err()
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

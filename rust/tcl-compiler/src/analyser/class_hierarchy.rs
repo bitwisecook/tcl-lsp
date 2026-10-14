@@ -79,6 +79,10 @@ pub struct ClassHierarchy {
     pub classes: HashMap<String, ClassDef>,
     /// Class → linearised MRO (including self).
     pub mro_map: HashMap<String, Vec<String>>,
+    /// Original relation lookups behind unresolved hierarchy rows.
+    /// Conflicting rows retain no lookup; report text never restores one.
+    original_unresolved_relations:
+        HashMap<String, Option<crate::signature_scan::scope::SignatureSourceLookup>>,
     /// Class → its owner-resolved **direct** `mixin` edges, in declaration
     /// order — the same resolution [`Self::mro_map`] linearises through, kept
     /// so a consumer can tell which *branch* of the call chain a provider was
@@ -127,6 +131,13 @@ pub struct ClassHierarchy {
 }
 
 impl ClassHierarchy {
+    pub(super) fn original_unresolved_relation(
+        &self,
+        row: &str,
+    ) -> Option<&crate::signature_scan::scope::SignatureSourceLookup> {
+        self.original_unresolved_relations.get(row)?.as_ref()
+    }
+
     /// Return `true` when `child` is a subtype of `parent`
     /// (transitively, via the linearised MRO).
     #[must_use]
@@ -739,6 +750,10 @@ pub fn build_tail_index<'a>(
     tail_index
 }
 
+fn unresolved_class_relation_row(class: &str, written: &str) -> String {
+    format!("@unresolvedclass@{class} {written}")
+}
+
 /// Build the supers/mixins maps used by the MRO algorithm.
 fn build_supers_mixins_maps(
     classes: &HashMap<String, ClassDef>,
@@ -751,11 +766,11 @@ fn build_supers_mixins_maps(
                 .iter()
                 .map(|written| match class.relation_lookups.get(written) {
                     Some(Some(lookup)) => resolve_class_lookup(lookup, classes)
-                        .unwrap_or_else(|| format!("@unresolvedclass@{qname} {written}")),
+                        .unwrap_or_else(|| unresolved_class_relation_row(qname, written)),
                     None if class.source_name.is_none() => {
                         resolve_super_name(written, qname, classes, &HashMap::new())
                     }
-                    Some(None) | None => format!("@unresolvedclass@{qname} {written}"),
+                    Some(None) | None => unresolved_class_relation_row(qname, written),
                 })
                 .collect()
         };
@@ -871,6 +886,24 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     // so the rest of the routine (and the public field) stay hasher-agnostic.
     let classes: HashMap<String, ClassDef> = classes.into_iter().collect();
     let (supers_map, mixins_map) = build_supers_mixins_maps(&classes);
+    let mut original_unresolved_relations = HashMap::new();
+    for (qname, class) in &classes {
+        for written in class.superclasses.iter().chain(&class.mixins) {
+            let Some(Some(lookup)) = class.relation_lookups.get(written) else {
+                continue;
+            };
+            if resolve_class_lookup(lookup, &classes).is_some() {
+                continue;
+            }
+            let row = unresolved_class_relation_row(qname, written);
+            let captured = original_unresolved_relations
+                .entry(row)
+                .or_insert_with(|| Some(lookup.clone()));
+            if captured.as_ref().is_some_and(|previous| previous != lookup) {
+                *captured = None;
+            }
+        }
+    }
 
     // Compute MRO for every class.  ``build_mro_map`` walks
     // ``supers_map.keys()`` only; classes that appear as parents
@@ -991,6 +1024,7 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     ClassHierarchy {
         classes,
         mro_map,
+        original_unresolved_relations,
         mixin_map: mixins_map,
         spine_map,
         subclasses: direct_subs,
