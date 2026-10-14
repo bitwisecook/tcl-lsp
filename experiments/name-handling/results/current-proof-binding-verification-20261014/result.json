@@ -1,0 +1,54 @@
+{
+  "status": "PASS",
+  "scope": "Actual strict-checker test_body/rust_code helpers, all17 documented current comments and all replacement-record owner declarations only; not full gate or semantic execution.",
+  "comments_checked": 17,
+  "owners_checked": [
+    {
+      "question": "naming.database.original-callback-future-lookup",
+      "symbol": "SignatureCommandInvocation::logical_callback_candidate_keys",
+      "path": "rust/tcl-compiler/src/signature_scan/types.rs"
+    },
+    {
+      "question": "naming.database.original-callback-future-lookup",
+      "symbol": "apply_original_callback_arity",
+      "path": "rust/tcl-lsp-db/src/lib.rs"
+    },
+    {
+      "question": "naming.database.original-callback-future-lookup",
+      "symbol": "callback_arity_diagnostic",
+      "path": "rust/tcl-lsp-db/src/lib.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::eval_native_jim_source_unpublished",
+      "path": "runtime/rust/src/interp/native_script.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::enter_original_jim_evaluation",
+      "path": "runtime/rust/src/interp.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::materialized_jim_error_frames",
+      "path": "runtime/rust/src/interp.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::eval_control_body",
+      "path": "runtime/rust/src/interp.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::eval_native_jim_script",
+      "path": "runtime/rust/src/interp/native_script.rs"
+    },
+    {
+      "question": "naming.source.jim-original-source-entry",
+      "symbol": "Interp::capture_original_jim_parse_failure",
+      "path": "runtime/rust/src/interp/native_script.rs"
+    }
+  ],
+  "all_manifest_non_owner_fields_exact": true,
+  "evidence_provider_tests_conclusions_digests_unchanged": true
+}
