@@ -1,0 +1,4 @@
+{
+  "scope": "Stopped before semantic controls to correct remaining new test-only imports of the nonexistent ref_count helper; production native count correction already applied.",
+  "semantic_tests": 0
+}

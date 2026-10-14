@@ -237,7 +237,7 @@ impl JimCommandNameObservation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::obj::{NativeObjectLifetime, Owned, new_string_bytes, ref_count};
+    use crate::obj::{NativeObjectLifetime, Owned, new_string_bytes};
 
     fn interpreter() -> crate::Interp {
         crate::Interp::with_native_core(
@@ -258,7 +258,7 @@ mod tests {
         let pointer = original.as_ptr();
         let exact = NativeObjectLifetime::retain(pointer);
         let neutral = JimCommandNameObservation::capture(pointer).unwrap();
-        assert_eq!(ref_count(pointer), 1);
+        assert_eq!(unsafe { (*pointer).ref_count }, 1);
         drop(original);
         assert!(exact.checked_ptr().is_err());
         assert!(neutral.current_ptr().is_err());
@@ -270,7 +270,7 @@ mod tests {
         let stale_clone = exact.clone();
         drop(exact);
         drop(stale_clone);
-        assert_eq!(ref_count(pointer), 1);
+        assert_eq!(unsafe { (*pointer).ref_count }, 1);
         drop(resident);
         assert!(neutral.current_ptr().is_err());
     }
